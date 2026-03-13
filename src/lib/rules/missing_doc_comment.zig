@@ -2,6 +2,7 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../Diagnostic.zig");
 const Severity = @import("../Severity.zig");
+const utils = @import("utils.zig");
 
 const rule_name = "missing_doc_comment";
 
@@ -46,6 +47,8 @@ fn checkNode(
                             .file = file,
                             .line = loc.line + 1,
                             .column = loc.column + 1,
+                            .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+                            .symbol_len = name.len,
                         });
                     }
                 }
@@ -69,6 +72,8 @@ fn checkNode(
                         .file = file,
                         .line = loc.line + 1,
                         .column = loc.column + 1,
+                        .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+                        .symbol_len = name.len,
                     });
                 }
             }
@@ -89,8 +94,9 @@ fn checkNode(
 
     if (tree.fullContainerField(node)) |field| {
         if (!hasDocComment(tree, field.firstToken())) {
-            const name = tree.tokenSlice(field.ast.main_token);
-            const loc = tree.tokenLocation(0, field.ast.main_token);
+            const name_tok = field.ast.main_token;
+            const name = tree.tokenSlice(name_tok);
+            const loc = tree.tokenLocation(0, name_tok);
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
@@ -98,6 +104,8 @@ fn checkNode(
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
+                .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+                .symbol_len = name.len,
             });
         }
         return;
@@ -179,6 +187,7 @@ test "detects missing doc comment on pub fn, names the symbol" {
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'foo'") != null);
+    try std.testing.expectEqual(3, r.items.items[0].symbol_len); // "foo"
 }
 
 test "no diagnostic for documented pub fn" {
@@ -221,6 +230,12 @@ test "location points to name token, not keyword" {
     var r = try runCheck("pub fn myFunc() void {}");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
-    // 'pub' is col 1, 'fn' is col 5, 'myFunc' is col 8
     try std.testing.expectEqual(@as(usize, 8), r.items.items[0].column);
+}
+
+test "source_line is populated" {
+    var r = try runCheck("pub fn foo() void {}");
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqualStrings("pub fn foo() void {}", r.items.items[0].source_line);
 }

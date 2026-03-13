@@ -2,6 +2,7 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../Diagnostic.zig");
 const Severity = @import("../Severity.zig");
+const utils = @import("utils.zig");
 
 const rule_name = "empty_doc_comment";
 
@@ -13,14 +14,14 @@ pub fn check(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
-    _ = msg_allocator;
     if (!severity.isActive()) return;
     const tags = tree.tokens.items(.tag);
     for (tags, 0..) |tag, i| {
         if (tag == .doc_comment or tag == .container_doc_comment) {
-            const slice = tree.tokenSlice(@intCast(i));
+            const tok: Ast.TokenIndex = @intCast(i);
+            const slice = tree.tokenSlice(tok);
             if (isEmptyDocComment(slice)) {
-                const loc = tree.tokenLocation(0, @intCast(i));
+                const loc = tree.tokenLocation(0, tok);
                 try diagnostics.append(allocator, .{
                     .rule = rule_name,
                     .severity = severity,
@@ -28,6 +29,8 @@ pub fn check(
                     .file = file,
                     .line = loc.line + 1,
                     .column = loc.column + 1,
+                    .source_line = try utils.dupSourceLine(tree, tok, msg_allocator),
+                    .symbol_len = slice.len,
                 });
             }
         }
@@ -72,13 +75,11 @@ fn runCheck(source: [:0]const u8) !TestResult {
 }
 
 test "detects empty /// comment" {
-    var r = try runCheck(
-        \\///
-        \\pub fn foo() void {}
-    );
+    var r = try runCheck("///\npub fn foo() void {}");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
+    try std.testing.expectEqual(@as(usize, 3), r.items.items[0].symbol_len);
 }
 
 test "detects empty /// with spaces" {
@@ -88,10 +89,7 @@ test "detects empty /// with spaces" {
 }
 
 test "no diagnostic for non-empty doc comment" {
-    var r = try runCheck(
-        \\/// Does something.
-        \\pub fn foo() void {}
-    );
+    var r = try runCheck("/// Does something.\npub fn foo() void {}");
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }

@@ -1,5 +1,6 @@
 const Severity = @This();
 
+/// The severity level of a lint rule.
 pub const Level = enum {
     allow,
     warn,

@@ -2,6 +2,7 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../Diagnostic.zig");
 const Severity = @import("../Severity.zig");
+const utils = @import("utils.zig");
 
 const rule_name = "missing_doctest";
 
@@ -28,8 +29,9 @@ pub fn check(
     var iter = pub_fns.iterator();
     while (iter.next()) |entry| {
         if (!tested_names.contains(entry.key_ptr.*)) {
+            const name_tok = entry.value_ptr.*;
             const name = entry.key_ptr.*;
-            const loc = tree.tokenLocation(0, entry.value_ptr.*);
+            const loc = tree.tokenLocation(0, name_tok);
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
@@ -37,6 +39,8 @@ pub fn check(
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
+                .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+                .symbol_len = name.len,
             });
         }
     }
@@ -101,10 +105,7 @@ fn runCheck(source: [:0]const u8) !TestResult {
 }
 
 test "detects missing doctest for pub fn, names the function" {
-    var r = try runCheck(
-        \\/// Does something.
-        \\pub fn foo() void {}
-    );
+    var r = try runCheck("/// Does something.\npub fn foo() void {}");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
@@ -112,11 +113,7 @@ test "detects missing doctest for pub fn, names the function" {
 }
 
 test "no diagnostic when doctest exists" {
-    var r = try runCheck(
-        \\/// Does something.
-        \\pub fn foo() void {}
-        \\test foo {}
-    );
+    var r = try runCheck("/// Does something.\npub fn foo() void {}\ntest foo {}");
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }

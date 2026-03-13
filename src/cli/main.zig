@@ -71,27 +71,80 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     const format = ctx.stringFlag("format") orelse "text";
     const is_json = std.mem.eql(u8, format, "json");
 
+    const style = detectStyle();
+
     var total_errors: usize = 0;
     var total_warnings: usize = 0;
     var all_diagnostics: std.ArrayList(doclint.Diagnostic) = .empty;
     defer all_diagnostics.deinit(allocator);
 
     for (ctx.positionals.items) |path| {
-        try lintPath(allocator, path, rule_set, &all_diagnostics, &total_errors, &total_warnings, is_json);
+        try lintPath(allocator, path, rule_set, &all_diagnostics, &total_errors, &total_warnings, is_json, style);
     }
 
     if (is_json) {
         try printJson(allocator, all_diagnostics.items);
     }
 
-    if (!is_json and (total_errors > 0 or total_warnings > 0)) {
-        try printStderr("\n{} error(s), {} warning(s)\n", .{ total_errors, total_warnings });
+    if (!is_json) {
+        if (total_errors > 0) {
+            try printStderr("{s}error{s}: aborting due to {} error(s)", .{ style.bold_red, style.reset, total_errors });
+            if (total_warnings > 0)
+                try printStderr(", {} warning(s)\n", .{total_warnings})
+            else
+                try printStderr("\n", .{});
+        } else if (total_warnings > 0) {
+            try printStderr("{s}doclint{s} generated {} warning(s)\n", .{ style.bold, style.reset, total_warnings });
+        }
     }
 
     if (total_errors > 0) {
         std.process.exit(1);
     }
 }
+
+// ── Style ──────────────────────────────────────────────────────────────────
+
+const Style = struct {
+    bold: []const u8,
+    bold_yellow: []const u8,
+    bold_red: []const u8,
+    dim: []const u8,
+    yellow: []const u8,
+    red: []const u8,
+    reset: []const u8,
+};
+
+fn detectStyle() Style {
+    const no_color_set = blk: {
+        const val = std.process.getEnvVarOwned(std.heap.page_allocator, "NO_COLOR") catch break :blk false;
+        std.heap.page_allocator.free(val);
+        break :blk true;
+    };
+    const use_color = !no_color_set and std.io.tty.detectConfig(std.fs.File.stderr()) != .no_color;
+
+    if (!use_color) return .{
+        .bold = "",
+        .bold_yellow = "",
+        .bold_red = "",
+        .dim = "",
+        .yellow = "",
+        .red = "",
+        .reset = "",
+    };
+
+    return .{
+        .bold = "\x1b[1m",
+        .bold_yellow = "\x1b[1;33m",
+        .bold_red = "\x1b[1;31m",
+        .dim = "\x1b[2m",
+        .yellow = "\x1b[33m",
+        .red = "\x1b[31m",
+        .reset = "\x1b[0m",
+    };
+}
+
+// ── Lint orchestration ─────────────────────────────────────────────────────
 
 fn lintPath(
     allocator: std.mem.Allocator,
@@ -101,16 +154,24 @@ fn lintPath(
     total_errors: *usize,
     total_warnings: *usize,
     is_json: bool,
+    style: Style,
 ) !void {
-    const stat = std.fs.cwd().statFile(path) catch |err| {
-        try printStderr("error: cannot access '{s}': {}\n", .{ path, err });
-        return;
+    const stat = std.fs.cwd().statFile(path) catch |err| switch (err) {
+        // On some platforms statFile returns IsDir for directory paths
+        error.IsDir => {
+            try lintDirectory(allocator, path, rule_set, all_diagnostics, total_errors, total_warnings, is_json, style);
+            return;
+        },
+        else => {
+            try printStderr("error: cannot access '{s}': {}\n", .{ path, err });
+            return;
+        },
     };
 
     if (stat.kind == .directory) {
-        try lintDirectory(allocator, path, rule_set, all_diagnostics, total_errors, total_warnings, is_json);
+        try lintDirectory(allocator, path, rule_set, all_diagnostics, total_errors, total_warnings, is_json, style);
     } else {
-        try lintSingleFile(allocator, path, rule_set, all_diagnostics, total_errors, total_warnings, is_json);
+        try lintSingleFile(allocator, path, rule_set, all_diagnostics, total_errors, total_warnings, is_json, style);
     }
 }
 
@@ -122,6 +183,7 @@ fn lintDirectory(
     total_errors: *usize,
     total_warnings: *usize,
     is_json: bool,
+    style: Style,
 ) !void {
     var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch |err| {
         try printStderr("error: cannot open directory '{s}': {}\n", .{ dir_path, err });
@@ -139,7 +201,7 @@ fn lintDirectory(
         const full_path = try std.fs.path.join(allocator, &.{ dir_path, entry.path });
         defer allocator.free(full_path);
 
-        try lintSingleFile(allocator, full_path, rule_set, all_diagnostics, total_errors, total_warnings, is_json);
+        try lintSingleFile(allocator, full_path, rule_set, all_diagnostics, total_errors, total_warnings, is_json, style);
     }
 }
 
@@ -151,6 +213,7 @@ fn lintSingleFile(
     total_errors: *usize,
     total_warnings: *usize,
     is_json: bool,
+    style: Style,
 ) !void {
     var result = doclint.lintFile(allocator, path, rule_set) catch |err| {
         try printStderr("error: failed to lint '{s}': {}\n", .{ path, err });
@@ -168,26 +231,70 @@ fn lintSingleFile(
         if (is_json) {
             try all_diagnostics.append(allocator, d);
         } else {
-            try printTextDiagnostic(d);
+            try printTextDiagnostic(d, style);
         }
     }
 }
 
-fn printTextDiagnostic(d: doclint.Diagnostic) !void {
-    const severity_str: []const u8 = switch (d.severity) {
+// ── Text formatter ─────────────────────────────────────────────────────────
+//
+// Output matches the style of `zig build` error/warning output:
+//
+//   path/to/file.zig:12:5: warning[rule_name]: some descriptive message
+//       const myDecl = ...;
+//       ^~~~~~
+//
+
+fn printTextDiagnostic(d: doclint.Diagnostic, style: Style) !void {
+    const is_error = d.severity.isError();
+    const sev_color = if (is_error) style.bold_red else style.bold_yellow;
+    const caret_color = if (is_error) style.red else style.yellow;
+    const sev_label: []const u8 = switch (d.severity) {
         .warn => "warning",
         .deny, .forbid => "error",
         .allow => return,
     };
-    try printStderr("{s}:{d}:{d}: {s}: [{s}] {s}\n", .{
-        d.file,
-        d.line,
-        d.column,
-        severity_str,
-        d.rule,
-        d.message,
+
+    // file:line:col: SEVERITY[rule]: message
+    try printStderr("{s}:{d}:{d}: {s}{s}{s}[{s}{s}{s}]: {s}{s}{s}\n", .{
+        d.file,        d.line,     d.column,
+        sev_color,     sev_label,  style.reset,
+        style.dim,     d.rule,     style.reset,
+        style.bold,    d.message,  style.reset,
     });
+
+    if (d.source_line.len == 0) return;
+
+    // Source line with a 4-space indent
+    try printStderr("    {s}\n", .{d.source_line});
+
+    // Caret: 4 spaces + (col-1) spaces + ^ + ~~~~
+    const col0 = if (d.column > 0) d.column - 1 else 0;
+    const span = if (d.symbol_len > 0) d.symbol_len else 1;
+
+    // Build into a fixed-size stack buffer (capped at 512 chars)
+    var caret_buf: [512]u8 = undefined;
+    var pos: usize = 0;
+    {
+        var i: usize = 0;
+        while (i < col0 and pos < caret_buf.len) : ({ i += 1; pos += 1; })
+            caret_buf[pos] = ' ';
+    }
+    if (pos < caret_buf.len) {
+        caret_buf[pos] = '^';
+        pos += 1;
+    }
+    {
+        var i: usize = 1;
+        while (i < span and pos < caret_buf.len) : ({ i += 1; pos += 1; })
+            caret_buf[pos] = '~';
+    }
+
+    // Blank line after each diagnostic for visual separation
+    try printStderr("    {s}{s}{s}\n\n", .{ caret_color, caret_buf[0..pos], style.reset });
 }
+
+// ── JSON output ────────────────────────────────────────────────────────────
 
 fn printJson(allocator: std.mem.Allocator, diagnostics: []const doclint.Diagnostic) !void {
     var buf: [8192]u8 = undefined;
@@ -240,6 +347,8 @@ fn jsonEscape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     return try result.toOwnedSlice(allocator);
 }
 
+// ── Rule overrides ─────────────────────────────────────────────────────────
+
 fn applyRuleOverride(rule_set: *doclint.RuleSet, spec: []const u8) !void {
     const eq_idx = std.mem.indexOfScalar(u8, spec, '=') orelse return error.InvalidFormat;
     const name = spec[0..eq_idx];
@@ -272,6 +381,8 @@ fn applyRuleOverride(rule_set: *doclint.RuleSet, spec: []const u8) !void {
         return error.UnknownRule;
     }
 }
+
+// ── I/O helpers ────────────────────────────────────────────────────────────
 
 fn printStderr(comptime fmt: []const u8, args: anytype) !void {
     var buf: [4096]u8 = undefined;

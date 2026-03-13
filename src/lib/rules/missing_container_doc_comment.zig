@@ -4,6 +4,7 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../Diagnostic.zig");
 const Severity = @import("../Severity.zig");
+const utils = @import("utils.zig");
 
 const rule_name = "missing_container_doc_comment";
 
@@ -19,6 +20,11 @@ pub fn check(
 
     if (!hasContainerDocComment(tree, 0)) {
         const basename = std.fs.path.basename(file);
+        // Use the first token (index 0) so we get a properly owned copy of the source line.
+        const first_src = if (tree.tokens.len > 0)
+            try utils.dupSourceLine(tree, 0, msg_allocator)
+        else
+            "";
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity = severity,
@@ -26,6 +32,8 @@ pub fn check(
             .file = file,
             .line = 1,
             .column = 1,
+            .source_line = first_src,
+            .symbol_len = 1,
         });
     }
 
@@ -76,7 +84,9 @@ fn checkContainerNode(
 
     if (!hasContainerDocComment(tree, after_lbrace)) {
         const kind = containerKind(tree.tokenTag(container.ast.main_token));
-        const loc = tree.tokenLocation(0, container.ast.main_token + 1);
+        // Point at the lbrace so the source line shows the opening of the container body
+        const loc_tok = lbrace;
+        const loc = tree.tokenLocation(0, loc_tok);
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity = severity,
@@ -84,6 +94,8 @@ fn checkContainerNode(
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
+            .source_line = try utils.dupSourceLine(tree, loc_tok, msg_allocator),
+            .symbol_len = 1,
         });
     }
 
@@ -161,21 +173,13 @@ test "detects missing //! at file level, names the file" {
 }
 
 test "no diagnostic when //! present" {
-    var r = try runCheck(
-        \\//! Module documentation.
-        \\pub fn foo() void {}
-    );
+    var r = try runCheck("//! Module documentation.\npub fn foo() void {}");
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "detects missing //! on named container, names the container" {
-    var r = try runCheck(
-        \\//! Module doc.
-        \\pub const MyStruct = struct {
-        \\    x: u32,
-        \\};
-    );
+    var r = try runCheck("//! Module doc.\npub const MyStruct = struct {\n    x: u32,\n};");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'MyStruct'") != null);

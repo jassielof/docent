@@ -2,6 +2,7 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../Diagnostic.zig");
 const Severity = @import("../Severity.zig");
+const utils = @import("utils.zig");
 
 const rule_name = "private_doctest";
 
@@ -35,6 +36,8 @@ pub fn check(
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
+                .source_line = try utils.dupSourceLine(tree, entry.token, msg_allocator),
+                .symbol_len = entry.name.len,
             });
         }
     }
@@ -112,10 +115,7 @@ fn runCheck(source: [:0]const u8) !TestResult {
 }
 
 test "detects doctest referencing private fn, names the symbol" {
-    var r = try runCheck(
-        \\fn foo() void {}
-        \\test foo {}
-    );
+    var r = try runCheck("fn foo() void {}\ntest foo {}");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
@@ -123,19 +123,13 @@ test "detects doctest referencing private fn, names the symbol" {
 }
 
 test "no diagnostic when doctest references pub fn" {
-    var r = try runCheck(
-        \\/// Does something.
-        \\pub fn foo() void {}
-        \\test foo {}
-    );
+    var r = try runCheck("/// Does something.\npub fn foo() void {}\ntest foo {}");
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "no diagnostic for string-literal test names" {
-    var r = try runCheck(
-        \\test "some behavior" {}
-    );
+    var r = try runCheck("test \"some behavior\" {}");
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
