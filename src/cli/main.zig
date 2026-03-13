@@ -1,5 +1,5 @@
 const std = @import("std");
-const doc_lint = @import("doclint");
+const doclint = @import("doclint");
 const fangz = @import("fangz");
 
 pub fn main() !void {
@@ -8,7 +8,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     var app = try fangz.App.init(allocator, .{
-        .name = "doc_lint",
+        .name = "doclint",
         .description = "Documentation linter for Zig projects",
         .version = "0.1.0",
     });
@@ -37,7 +37,7 @@ pub fn main() !void {
 fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     const allocator = ctx.allocator;
 
-    var rule_set: doc_lint.RuleSet = .{};
+    var rule_set: doclint.RuleSet = .{};
 
     if (ctx.boolFlag("all-deny") orelse false) {
         rule_set = .{
@@ -73,7 +73,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     var total_errors: usize = 0;
     var total_warnings: usize = 0;
-    var all_diagnostics: std.ArrayList(doc_lint.Diagnostic) = .empty;
+    var all_diagnostics: std.ArrayList(doclint.Diagnostic) = .empty;
     defer all_diagnostics.deinit(allocator);
 
     for (ctx.positionals.items) |path| {
@@ -96,8 +96,8 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 fn lintPath(
     allocator: std.mem.Allocator,
     path: []const u8,
-    rule_set: doc_lint.RuleSet,
-    all_diagnostics: *std.ArrayList(doc_lint.Diagnostic),
+    rule_set: doclint.RuleSet,
+    all_diagnostics: *std.ArrayList(doclint.Diagnostic),
     total_errors: *usize,
     total_warnings: *usize,
     is_json: bool,
@@ -117,8 +117,8 @@ fn lintPath(
 fn lintDirectory(
     allocator: std.mem.Allocator,
     dir_path: []const u8,
-    rule_set: doc_lint.RuleSet,
-    all_diagnostics: *std.ArrayList(doc_lint.Diagnostic),
+    rule_set: doclint.RuleSet,
+    all_diagnostics: *std.ArrayList(doclint.Diagnostic),
     total_errors: *usize,
     total_warnings: *usize,
     is_json: bool,
@@ -146,13 +146,13 @@ fn lintDirectory(
 fn lintSingleFile(
     allocator: std.mem.Allocator,
     path: []const u8,
-    rule_set: doc_lint.RuleSet,
-    all_diagnostics: *std.ArrayList(doc_lint.Diagnostic),
+    rule_set: doclint.RuleSet,
+    all_diagnostics: *std.ArrayList(doclint.Diagnostic),
     total_errors: *usize,
     total_warnings: *usize,
     is_json: bool,
 ) !void {
-    var result = doc_lint.lintFile(allocator, path, rule_set) catch |err| {
+    var result = doclint.lintFile(allocator, path, rule_set) catch |err| {
         try printStderr("error: failed to lint '{s}': {}\n", .{ path, err });
         return;
     };
@@ -173,7 +173,7 @@ fn lintSingleFile(
     }
 }
 
-fn printTextDiagnostic(d: doc_lint.Diagnostic) !void {
+fn printTextDiagnostic(d: doclint.Diagnostic) !void {
     const severity_str: []const u8 = switch (d.severity) {
         .warn => "warning",
         .deny, .forbid => "error",
@@ -189,7 +189,7 @@ fn printTextDiagnostic(d: doc_lint.Diagnostic) !void {
     });
 }
 
-fn printJson(allocator: std.mem.Allocator, diagnostics: []const doc_lint.Diagnostic) !void {
+fn printJson(allocator: std.mem.Allocator, diagnostics: []const doclint.Diagnostic) !void {
     var buf: [8192]u8 = undefined;
     var stdout = std.fs.File.stdout().writer(&buf);
 
@@ -240,12 +240,12 @@ fn jsonEscape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     return try result.toOwnedSlice(allocator);
 }
 
-fn applyRuleOverride(rule_set: *doc_lint.RuleSet, spec: []const u8) !void {
+fn applyRuleOverride(rule_set: *doclint.RuleSet, spec: []const u8) !void {
     const eq_idx = std.mem.indexOfScalar(u8, spec, '=') orelse return error.InvalidFormat;
     const name = spec[0..eq_idx];
     const sev_str = spec[eq_idx + 1 ..];
 
-    const severity: doc_lint.Severity = if (std.mem.eql(u8, sev_str, "allow"))
+    const severity: doclint.Severity = if (std.mem.eql(u8, sev_str, "allow"))
         .allow
     else if (std.mem.eql(u8, sev_str, "warn"))
         .warn

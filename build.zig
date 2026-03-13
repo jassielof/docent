@@ -7,6 +7,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const fangz = b.dependency("fangz", .{}).module("fangz");
+    const vereda = b.dependency("vereda", .{}).module("vereda");
 
     const lib_mod = b.addModule(mod_name, .{
         .root_source_file = b.path("src/lib/root.zig"),
@@ -25,16 +26,16 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/cli/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{
-                    .name = mod_name,
-                    .module = lib_mod,
-                },
-                .{
-                    .name = "fangz",
-                    .module = fangz,
-                },
-            },
+            .imports = &.{ .{
+                .name = mod_name,
+                .module = lib_mod,
+            }, .{
+                .name = "fangz",
+                .module = fangz,
+            }, .{
+                .name = "vereda",
+                .module = vereda,
+            } },
         }),
     });
 

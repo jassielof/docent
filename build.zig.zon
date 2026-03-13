@@ -6,6 +6,9 @@
         .fangz = .{
             .path = "modules/fangz",
         },
+        .vereda = .{
+            .path = "modules/vereda",
+        },
     },
     .paths = .{
         "build.zig",

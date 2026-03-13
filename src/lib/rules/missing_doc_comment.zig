@@ -1,6 +1,5 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
-const Token = std.zig.Token;
 const Diagnostic = @import("../Diagnostic.zig");
 const Severity = @import("../Severity.zig");
 
@@ -11,11 +10,12 @@ pub fn check(
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
-) !void {
+) std.mem.Allocator.Error!void {
     if (!severity.isActive()) return;
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity, file, allocator, diagnostics);
+        try checkNode(tree, decl, severity, file, allocator, msg_allocator, diagnostics);
     }
 }
 
@@ -25,6 +25,7 @@ fn checkNode(
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     const tag = tree.nodeTag(node);
@@ -34,12 +35,14 @@ fn checkNode(
         if (tree.fullFnProto(&buf, node)) |proto| {
             if (proto.visib_token) |vt| {
                 if (tree.tokenTag(vt) == .keyword_pub) {
-                    if (!hasDocComment(tree, tree.firstToken(node))) {
-                        const loc = tree.tokenLocation(0, tree.firstToken(node));
+                    if (!hasDocComment(tree, proto.firstToken())) {
+                        const name_tok = proto.name_token orelse proto.ast.fn_token;
+                        const name = tree.tokenSlice(name_tok);
+                        const loc = tree.tokenLocation(0, name_tok);
                         try diagnostics.append(allocator, .{
                             .rule = rule_name,
                             .severity = severity,
-                            .message = "public function is missing a doc comment",
+                            .message = try std.fmt.allocPrint(msg_allocator, "missing doc comment for function '{s}'", .{name}),
                             .file = file,
                             .line = loc.line + 1,
                             .column = loc.column + 1,
@@ -54,12 +57,15 @@ fn checkNode(
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.visib_token) |vt| {
             if (tree.tokenTag(vt) == .keyword_pub) {
-                if (!hasDocComment(tree, tree.firstToken(node))) {
-                    const loc = tree.tokenLocation(0, tree.firstToken(node));
+                if (!hasDocComment(tree, var_decl.firstToken())) {
+                    const name_tok = var_decl.ast.mut_token + 1;
+                    const name = tree.tokenSlice(name_tok);
+                    const kind = if (tree.tokenTag(var_decl.ast.mut_token) == .keyword_const) "constant" else "variable";
+                    const loc = tree.tokenLocation(0, name_tok);
                     try diagnostics.append(allocator, .{
                         .rule = rule_name,
                         .severity = severity,
-                        .message = "public declaration is missing a doc comment",
+                        .message = try std.fmt.allocPrint(msg_allocator, "missing doc comment for {s} '{s}'", .{ kind, name }),
                         .file = file,
                         .line = loc.line + 1,
                         .column = loc.column + 1,
@@ -67,7 +73,7 @@ fn checkNode(
                 }
             }
         }
-        try checkVarDeclInit(tree, var_decl, severity, file, allocator, diagnostics);
+        try checkVarDeclInit(tree, var_decl, severity, file, allocator, msg_allocator, diagnostics);
         return;
     }
 
@@ -75,19 +81,20 @@ fn checkNode(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, allocator, diagnostics);
+                try checkNode(tree, member, severity, file, allocator, msg_allocator, diagnostics);
             }
         }
         return;
     }
 
-    if (tree.fullContainerField(node) != null) {
-        if (!hasDocComment(tree, tree.firstToken(node))) {
-            const loc = tree.tokenLocation(0, tree.firstToken(node));
+    if (tree.fullContainerField(node)) |field| {
+        if (!hasDocComment(tree, field.firstToken())) {
+            const name = tree.tokenSlice(field.ast.main_token);
+            const loc = tree.tokenLocation(0, field.ast.main_token);
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
-                .message = "container field is missing a doc comment",
+                .message = try std.fmt.allocPrint(msg_allocator, "missing doc comment for field '{s}'", .{name}),
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
@@ -103,6 +110,7 @@ fn checkVarDeclInit(
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     const init_node = var_decl.ast.init_node.unwrap() orelse return;
@@ -110,7 +118,7 @@ fn checkVarDeclInit(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, init_node)) |container| {
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, allocator, diagnostics);
+                try checkNode(tree, member, severity, file, allocator, msg_allocator, diagnostics);
             }
         }
     }
@@ -140,65 +148,79 @@ fn isContainerDecl(tag: Ast.Node.Tag) bool {
     };
 }
 
-test "detects missing doc comment on pub fn" {
-    const source =
-        \\pub fn foo() void {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(1, result.items.len);
-    try std.testing.expectEqualStrings(rule_name, result.items[0].rule);
+const TestResult = struct {
+    msg_arena: std.heap.ArenaAllocator,
+    items: std.ArrayList(Diagnostic),
+
+    fn deinit(self: *TestResult) void {
+        self.msg_arena.deinit();
+        self.items.deinit(std.testing.allocator);
+    }
+};
+
+fn runCheck(source: [:0]const u8) !TestResult {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    errdefer msg_arena.deinit();
+
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    errdefer diagnostics.deinit(base);
+
+    try check(&tree, .warn, "<test>", base, msg_arena.allocator(), &diagnostics);
+    return .{ .msg_arena = msg_arena, .items = diagnostics };
+}
+
+test "detects missing doc comment on pub fn, names the symbol" {
+    var r = try runCheck("pub fn foo() void {}");
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'foo'") != null);
 }
 
 test "no diagnostic for documented pub fn" {
-    const source =
+    var r = try runCheck(
         \\/// Does something.
         \\pub fn foo() void {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(0, result.items.len);
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "no diagnostic for private fn" {
-    const source =
-        \\fn foo() void {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(0, result.items.len);
+    var r = try runCheck("fn foo() void {}");
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
 }
 
-test "detects missing doc comment on pub const" {
-    const source =
-        \\pub const x = 42;
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(1, result.items.len);
+test "detects missing doc comment on pub const, names the symbol" {
+    var r = try runCheck("pub const answer = 42;");
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'answer'") != null);
 }
 
-test "detects missing doc comment on container fields" {
-    const source =
+test "detects missing doc comment on container fields, names the field" {
+    var r = try runCheck(
         \\/// A struct.
         \\pub const S = struct {
         \\    x: u32,
         \\    y: u32,
         \\};
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(2, result.items.len);
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(2, r.items.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'x'") != null);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[1].message, "'y'") != null);
 }
 
-fn runCheck(source: [:0]const u8) !std.ArrayList(Diagnostic) {
-    const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(allocator, source, .zig);
-    defer tree.deinit(allocator);
-
-    var diagnostics: std.ArrayList(Diagnostic) = .empty;
-    errdefer diagnostics.deinit(allocator);
-
-    try check(&tree, .warn, "<test>", allocator, &diagnostics);
-    return diagnostics;
+test "location points to name token, not keyword" {
+    var r = try runCheck("pub fn myFunc() void {}");
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    // 'pub' is col 1, 'fn' is col 5, 'myFunc' is col 8
+    try std.testing.expectEqual(@as(usize, 8), r.items.items[0].column);
 }

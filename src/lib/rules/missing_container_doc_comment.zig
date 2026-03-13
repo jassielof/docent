@@ -2,7 +2,6 @@
 
 const std = @import("std");
 const Ast = std.zig.Ast;
-const Token = std.zig.Token;
 const Diagnostic = @import("../Diagnostic.zig");
 const Severity = @import("../Severity.zig");
 
@@ -13,15 +12,17 @@ pub fn check(
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
-) !void {
+) std.mem.Allocator.Error!void {
     if (!severity.isActive()) return;
 
     if (!hasContainerDocComment(tree, 0)) {
+        const basename = std.fs.path.basename(file);
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity = severity,
-            .message = "file is missing a top-level container doc comment (//!)",
+            .message = try std.fmt.allocPrint(msg_allocator, "missing //! module doc comment for '{s}'", .{basename}),
             .file = file,
             .line = 1,
             .column = 1,
@@ -29,7 +30,7 @@ pub fn check(
     }
 
     for (tree.rootDecls()) |decl| {
-        try checkContainerDecl(tree, decl, severity, file, allocator, diagnostics);
+        try checkContainerDecl(tree, decl, severity, file, allocator, msg_allocator, diagnostics);
     }
 }
 
@@ -39,13 +40,16 @@ fn checkContainerDecl(
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.visib_token) |vt| {
             if (tree.tokenTag(vt) == .keyword_pub) {
                 const init_node = var_decl.ast.init_node.unwrap() orelse return;
-                try checkContainerNode(tree, init_node, severity, file, allocator, diagnostics);
+                const name_tok = var_decl.ast.mut_token + 1;
+                const name = tree.tokenSlice(name_tok);
+                try checkContainerNode(tree, init_node, name, severity, file, allocator, msg_allocator, diagnostics);
             }
         }
         return;
@@ -55,9 +59,11 @@ fn checkContainerDecl(
 fn checkContainerNode(
     tree: *const Ast,
     node: Ast.Node.Index,
+    name: []const u8,
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     if (!isContainerDecl(tree.nodeTag(node))) return;
@@ -69,11 +75,12 @@ fn checkContainerNode(
     const after_lbrace = if (tree.tokenTag(lbrace) == .l_brace) lbrace + 1 else lbrace;
 
     if (!hasContainerDocComment(tree, after_lbrace)) {
-        const loc = tree.tokenLocation(0, container.ast.main_token);
+        const kind = containerKind(tree.tokenTag(container.ast.main_token));
+        const loc = tree.tokenLocation(0, container.ast.main_token + 1);
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity = severity,
-            .message = "container is missing a doc comment (//!)",
+            .message = try std.fmt.allocPrint(msg_allocator, "missing //! doc comment for {s} '{s}'", .{ kind, name }),
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
@@ -81,8 +88,18 @@ fn checkContainerNode(
     }
 
     for (container.ast.members) |member| {
-        try checkContainerDecl(tree, member, severity, file, allocator, diagnostics);
+        try checkContainerDecl(tree, member, severity, file, allocator, msg_allocator, diagnostics);
     }
+}
+
+fn containerKind(token_tag: std.zig.Token.Tag) []const u8 {
+    return switch (token_tag) {
+        .keyword_struct => "struct",
+        .keyword_enum => "enum",
+        .keyword_union => "union",
+        .keyword_opaque => "opaque",
+        else => "container",
+    };
 }
 
 fn hasContainerDocComment(tree: *const Ast, start_token: Ast.TokenIndex) bool {
@@ -110,34 +127,57 @@ fn isContainerDecl(tag: Ast.Node.Tag) bool {
     };
 }
 
-test "detects missing //! at file level" {
-    const source =
-        \\pub fn foo() void {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(1, result.items.len);
-    try std.testing.expectEqualStrings(rule_name, result.items[0].rule);
+const TestResult = struct {
+    msg_arena: std.heap.ArenaAllocator,
+    items: std.ArrayList(Diagnostic),
+
+    fn deinit(self: *TestResult) void {
+        self.msg_arena.deinit();
+        self.items.deinit(std.testing.allocator);
+    }
+};
+
+fn runCheck(source: [:0]const u8) !TestResult {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    errdefer msg_arena.deinit();
+
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    errdefer diagnostics.deinit(base);
+
+    try check(&tree, .warn, "<test>", base, msg_arena.allocator(), &diagnostics);
+    return .{ .msg_arena = msg_arena, .items = diagnostics };
+}
+
+test "detects missing //! at file level, names the file" {
+    var r = try runCheck("pub fn foo() void {}");
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "<test>") != null);
 }
 
 test "no diagnostic when //! present" {
-    const source =
+    var r = try runCheck(
         \\//! Module documentation.
         \\pub fn foo() void {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(0, result.items.len);
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
 }
 
-fn runCheck(source: [:0]const u8) !std.ArrayList(Diagnostic) {
-    const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(allocator, source, .zig);
-    defer tree.deinit(allocator);
-
-    var diagnostics: std.ArrayList(Diagnostic) = .empty;
-    errdefer diagnostics.deinit(allocator);
-
-    try check(&tree, .warn, "<test>", allocator, &diagnostics);
-    return diagnostics;
+test "detects missing //! on named container, names the container" {
+    var r = try runCheck(
+        \\//! Module doc.
+        \\pub const MyStruct = struct {
+        \\    x: u32,
+        \\};
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'MyStruct'") != null);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "struct") != null);
 }

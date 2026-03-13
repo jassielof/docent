@@ -1,6 +1,5 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
-const Token = std.zig.Token;
 const Diagnostic = @import("../Diagnostic.zig");
 const Severity = @import("../Severity.zig");
 
@@ -11,6 +10,7 @@ pub fn check(
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
     if (!severity.isActive()) return;
@@ -45,7 +45,11 @@ pub fn check(
                         try diagnostics.append(allocator, .{
                             .rule = rule_name,
                             .severity = severity,
-                            .message = "use `test identifier` instead of `test \"string\"` for doctests",
+                            .message = try std.fmt.allocPrint(
+                                msg_allocator,
+                                "use `test {s}` instead of `test \"{s}\"` for the doctest",
+                                .{ unquoted, unquoted },
+                            ),
                             .file = file,
                             .line = loc.line + 1,
                             .column = loc.column + 1,
@@ -64,48 +68,59 @@ fn stripQuotes(s: []const u8) []const u8 {
     return s;
 }
 
-test "detects string test name matching pub fn" {
-    const source =
+const TestResult = struct {
+    msg_arena: std.heap.ArenaAllocator,
+    items: std.ArrayList(Diagnostic),
+
+    fn deinit(self: *TestResult) void {
+        self.msg_arena.deinit();
+        self.items.deinit(std.testing.allocator);
+    }
+};
+
+fn runCheck(source: [:0]const u8) !TestResult {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    errdefer msg_arena.deinit();
+
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    errdefer diagnostics.deinit(base);
+
+    try check(&tree, .warn, "<test>", base, msg_arena.allocator(), &diagnostics);
+    return .{ .msg_arena = msg_arena, .items = diagnostics };
+}
+
+test "detects string test name matching pub fn, shows correction" {
+    var r = try runCheck(
         \\/// Does something.
         \\pub fn foo() void {}
         \\test "foo" {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(1, result.items.len);
-    try std.testing.expectEqualStrings(rule_name, result.items[0].rule);
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "test foo") != null);
 }
 
 test "no diagnostic for identifier test name" {
-    const source =
+    var r = try runCheck(
         \\/// Does something.
         \\pub fn foo() void {}
         \\test foo {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(0, result.items.len);
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "no diagnostic for string test not matching any pub fn" {
-    const source =
+    var r = try runCheck(
         \\/// Does something.
         \\pub fn foo() void {}
         \\test "bar" {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(0, result.items.len);
-}
-
-fn runCheck(source: [:0]const u8) !std.ArrayList(Diagnostic) {
-    const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(allocator, source, .zig);
-    defer tree.deinit(allocator);
-
-    var diagnostics: std.ArrayList(Diagnostic) = .empty;
-    errdefer diagnostics.deinit(allocator);
-
-    try check(&tree, .warn, "<test>", allocator, &diagnostics);
-    return diagnostics;
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
 }

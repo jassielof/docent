@@ -1,6 +1,5 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
-const Token = std.zig.Token;
 const Diagnostic = @import("../Diagnostic.zig");
 const Severity = @import("../Severity.zig");
 
@@ -11,6 +10,7 @@ pub fn check(
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
     if (!severity.isActive()) return;
@@ -28,11 +28,12 @@ pub fn check(
     var iter = pub_fns.iterator();
     while (iter.next()) |entry| {
         if (!tested_names.contains(entry.key_ptr.*)) {
+            const name = entry.key_ptr.*;
             const loc = tree.tokenLocation(0, entry.value_ptr.*);
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
-                .message = "public function is missing a doctest",
+                .message = try std.fmt.allocPrint(msg_allocator, "missing doctest for function '{s}'", .{name}),
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
@@ -74,45 +75,54 @@ fn collectDecl(
     }
 }
 
-test "detects missing doctest for pub fn" {
-    const source =
+const TestResult = struct {
+    msg_arena: std.heap.ArenaAllocator,
+    items: std.ArrayList(Diagnostic),
+
+    fn deinit(self: *TestResult) void {
+        self.msg_arena.deinit();
+        self.items.deinit(std.testing.allocator);
+    }
+};
+
+fn runCheck(source: [:0]const u8) !TestResult {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    errdefer msg_arena.deinit();
+
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    errdefer diagnostics.deinit(base);
+
+    try check(&tree, .warn, "<test>", base, msg_arena.allocator(), &diagnostics);
+    return .{ .msg_arena = msg_arena, .items = diagnostics };
+}
+
+test "detects missing doctest for pub fn, names the function" {
+    var r = try runCheck(
         \\/// Does something.
         \\pub fn foo() void {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(1, result.items.len);
-    try std.testing.expectEqualStrings(rule_name, result.items[0].rule);
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'foo'") != null);
 }
 
 test "no diagnostic when doctest exists" {
-    const source =
+    var r = try runCheck(
         \\/// Does something.
         \\pub fn foo() void {}
         \\test foo {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(0, result.items.len);
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "no diagnostic for private fn" {
-    const source =
-        \\fn foo() void {}
-    ;
-    var result = try runCheck(source);
-    defer result.deinit(std.testing.allocator);
-    try std.testing.expectEqual(0, result.items.len);
-}
-
-fn runCheck(source: [:0]const u8) !std.ArrayList(Diagnostic) {
-    const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(allocator, source, .zig);
-    defer tree.deinit(allocator);
-
-    var diagnostics: std.ArrayList(Diagnostic) = .empty;
-    errdefer diagnostics.deinit(allocator);
-
-    try check(&tree, .warn, "<test>", allocator, &diagnostics);
-    return diagnostics;
+    var r = try runCheck("fn foo() void {}");
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
 }
