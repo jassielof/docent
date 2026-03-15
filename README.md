@@ -4,6 +4,10 @@ A documentation linter for Zig. Enforces doc comments, doctests, and container d
 
 ## Behavior
 
+## Granularity
+
+Rust's missing docs is
+
 ### Re-export resolution
 
 When a public declaration re-exports a symbol from another file using the
@@ -17,3 +21,7 @@ on the re-export line:
 - If the import path cannot be resolved (package imports such as `"std"`,
   missing files, parse errors) → the re-export is silently skipped; no false
   positive is emitted.
+
+## Credits
+
+Mainly Rust/Cargo's documentation (and probably Clippy too) linter checks, while also taking inspiration from Go's linting.

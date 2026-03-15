@@ -1,5 +1,2 @@
 .zig-cache
 zig-out
-
-# Ignore references, as they can be anything, and I only use it to compare the linter against Rust's implmentation as a good baseline for what to do.
-references/
