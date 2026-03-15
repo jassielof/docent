@@ -1,4 +1,5 @@
 const std = @import("std");
+const doc_lint_build = @import("src/lib/build_integration.zig");
 
 pub fn build(b: *std.Build) void {
     const mod_name = "doclint";
@@ -56,6 +57,25 @@ pub fn build(b: *std.Build) void {
         .install_dir = .prefix,
         .install_subdir = "docs",
     });
+
+    const docs_lint = doc_lint_build.addLintStep(b, .{
+        .sources = &.{
+            "src",
+            "build.zig",
+        },
+        .rules = .{
+            // Keep docs generation non-blocking on style gaps, like cargo doc.
+            .missing_doc_comment = .warn,
+            .empty_doc_comment = .warn,
+            .missing_doctest = .warn,
+            .private_doctest = .warn,
+            .doctest_naming_mismatch = .warn,
+            .missing_container_doc_comment = .warn,
+        },
+    });
+
+    // Lint must run before docs are generated/installed.
+    docs.step.dependOn(&docs_lint.step);
 
     const docs_step = b.step("docs", "Generate the documentation");
     docs_step.dependOn(&docs.step);
