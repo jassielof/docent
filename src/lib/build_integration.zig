@@ -36,7 +36,8 @@ pub const LintStep = struct {
                     try self.lintDirectory(allocator, source_path, step, &total_errors, &total_files);
                     continue;
                 }
-                step.result_error_msgs.append(allocator,
+                step.result_error_msgs.append(
+                    allocator,
                     std.fmt.allocPrint(allocator, "cannot access '{s}': {}", .{ source_path, err }) catch @panic("OOM"),
                 ) catch @panic("OOM");
                 return error.MakeFailed;
@@ -50,7 +51,8 @@ pub const LintStep = struct {
         }
 
         if (total_errors > 0) {
-            step.result_error_msgs.append(allocator,
+            step.result_error_msgs.append(
+                allocator,
                 std.fmt.allocPrint(allocator, "doc_lint: {d} error(s) in {d} file(s)", .{ total_errors, total_files }) catch @panic("OOM"),
             ) catch @panic("OOM");
             return error.MakeFailed;
@@ -59,7 +61,8 @@ pub const LintStep = struct {
 
     fn lintDirectory(self: *LintStep, allocator: std.mem.Allocator, dir_path: []const u8, step: *std.Build.Step, total_errors: *usize, total_files: *usize) !void {
         var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch |err| {
-            step.result_error_msgs.append(allocator,
+            step.result_error_msgs.append(
+                allocator,
                 std.fmt.allocPrint(allocator, "cannot open directory '{s}': {}", .{ dir_path, err }) catch @panic("OOM"),
             ) catch @panic("OOM");
             return error.MakeFailed;
@@ -84,7 +87,8 @@ pub const LintStep = struct {
 
     fn lintSingleFile(self: *LintStep, allocator: std.mem.Allocator, path: []const u8, step: *std.Build.Step, total_errors: *usize, total_files: *usize) !void {
         var result = doc_lint.lintFile(allocator, path, self.rule_set) catch |err| {
-            step.result_error_msgs.append(allocator,
+            step.result_error_msgs.append(
+                allocator,
                 std.fmt.allocPrint(allocator, "failed to lint '{s}': {}", .{ path, err }) catch @panic("OOM"),
             ) catch @panic("OOM");
             return error.MakeFailed;
@@ -108,7 +112,8 @@ pub const LintStep = struct {
                 .deny, .forbid => {
                     file_has_errors = true;
                     total_errors.* += 1;
-                    step.result_error_msgs.append(allocator,
+                    step.result_error_msgs.append(
+                        allocator,
                         std.fmt.allocPrint(allocator, "{s}:{d}:{d}: error: [{s}] {s}", .{
                             d.file,
                             d.line,
