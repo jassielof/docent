@@ -15,6 +15,9 @@ pub const rules = struct {
     pub const private_doctest = @import("rules/private_doctest.zig");
     pub const doctest_naming_mismatch = @import("rules/doctest_naming_mismatch.zig");
     // COMPAT: //! top-level doc comments — remove if deprecated in 0.16
+    // Top level comments might be moved to simply:
+    // /// <Doc comment content>
+    // const Self = @This()
     pub const missing_container_doc_comment = @import("rules/missing_container_doc_comment.zig");
 };
 
