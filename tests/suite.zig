@@ -2,7 +2,7 @@ const std = @import("std");
 const doc_lint = @import("doclint");
 
 fn readFixture(allocator: std.mem.Allocator, rel_path: []const u8) ![:0]const u8 {
-    const path = try std.fs.path.join(allocator, &.{ "examples", rel_path });
+    const path = try std.fs.path.join(allocator, &.{ "tests", "fixtures", rel_path });
     defer allocator.free(path);
 
     const file = try std.fs.cwd().openFile(path, .{});
@@ -19,7 +19,7 @@ fn lintFixture(allocator: std.mem.Allocator, rel_path: []const u8, rule_set: doc
 
 test "compliant: no missing_doc_comment violations" {
     const allocator = std.testing.allocator;
-    var result = try lintFixture(allocator, "compliant/main.zig", .{
+    var result = try lintFixture(allocator, "valid/compliant/main.zig", .{
         .missing_doc_comment = .deny,
     });
     defer result.deinit();
@@ -33,7 +33,7 @@ test "compliant: no missing_doc_comment violations" {
 
 test "missing_comments: detects undocumented pub fn and const" {
     const allocator = std.testing.allocator;
-    var result = try lintFixture(allocator, "missing_comments/main.zig", .{
+    var result = try lintFixture(allocator, "invalid/missing_comments/main.zig", .{
         .missing_doc_comment = .deny,
     });
     defer result.deinit();
@@ -47,7 +47,7 @@ test "missing_comments: detects undocumented pub fn and const" {
 
 test "missing_doctests: detects pub fn without test" {
     const allocator = std.testing.allocator;
-    var result = try lintFixture(allocator, "missing_doctests/main.zig", .{
+    var result = try lintFixture(allocator, "invalid/missing_doctests/main.zig", .{
         .missing_doc_comment = .allow,
         .missing_doctest = .warn,
     });
@@ -62,7 +62,7 @@ test "missing_doctests: detects pub fn without test" {
 
 test "mixed: detects multiple rule violations" {
     const allocator = std.testing.allocator;
-    var result = try lintFixture(allocator, "mixed/main.zig", .{
+    var result = try lintFixture(allocator, "invalid/mixed/main.zig", .{
         .missing_doc_comment = .warn,
         .empty_doc_comment = .warn,
         .private_doctest = .warn,
@@ -94,7 +94,7 @@ test "mixed: detects multiple rule violations" {
 
 test "compliant: no violations with all rules enabled" {
     const allocator = std.testing.allocator;
-    var result = try lintFixture(allocator, "compliant/main.zig", .{
+    var result = try lintFixture(allocator, "valid/compliant/main.zig", .{
         .missing_doc_comment = .deny,
         .empty_doc_comment = .deny,
         .missing_doctest = .warn,
@@ -107,7 +107,7 @@ test "compliant: no violations with all rules enabled" {
 
 test "severity levels: allow suppresses diagnostics" {
     const allocator = std.testing.allocator;
-    var result = try lintFixture(allocator, "mixed/main.zig", .{
+    var result = try lintFixture(allocator, "invalid/mixed/main.zig", .{
         .missing_doc_comment = .allow,
         .empty_doc_comment = .allow,
         .private_doctest = .allow,
@@ -121,7 +121,7 @@ test "severity levels: allow suppresses diagnostics" {
 
 test "severity levels: deny causes hasErrors" {
     const allocator = std.testing.allocator;
-    var result = try lintFixture(allocator, "missing_comments/main.zig", .{
+    var result = try lintFixture(allocator, "invalid/missing_comments/main.zig", .{
         .missing_doc_comment = .deny,
     });
     defer result.deinit();
@@ -140,7 +140,7 @@ test "reexport_documented: no diagnostic when original declaration is documented
     // Use lintFile with the full path so dirname() resolves correctly from CWD.
     var result = try doc_lint.lintFile(
         std.testing.allocator,
-        "examples/reexport_documented/root.zig",
+        "tests/fixtures/valid/reexport_documented/root.zig",
         .{ .missing_doc_comment = .deny },
     );
     defer result.deinit();
@@ -159,7 +159,7 @@ test "reexport_undocumented: diagnostic points to definition site, not re-export
     // it must point into `severity.zig`, NOT into `root.zig`.
     var result = try doc_lint.lintFile(
         std.testing.allocator,
-        "examples/reexport_undocumented/root.zig",
+        "tests/fixtures/invalid/reexport_undocumented/root.zig",
         .{ .missing_doc_comment = .deny },
     );
     defer result.deinit();
