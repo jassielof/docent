@@ -13,7 +13,7 @@ pub const LintStep = struct {
         self.* = .{
             .step = std.Build.Step.init(.{
                 .id = .custom,
-                .name = "doc_lint",
+                .name = "docent",
                 .owner = b,
                 .makeFn = make,
             }),
