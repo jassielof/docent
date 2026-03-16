@@ -4,3 +4,6 @@
 [submodule "modules/vereda"]
 	path = modules/vereda
 	url = https://github.com/jassielof/vereda
+[submodule "modules/tarea"]
+	path = modules/tarea
+	url = https://github.com/jassielof/tarea
