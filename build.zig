@@ -1,8 +1,8 @@
 const std = @import("std");
-const doc_lint_build = @import("src/lib/build_integration.zig");
+const doc_lint = @import("src/lib/build_integration.zig");
 
 pub fn build(b: *std.Build) void {
-    const mod_name = "doclint";
+    const mod_name = "docent";
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -27,16 +27,20 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/cli/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{ .{
-                .name = mod_name,
-                .module = lib_mod,
-            }, .{
-                .name = "fangz",
-                .module = fangz,
-            }, .{
-                .name = "vereda",
-                .module = vereda,
-            } },
+            .imports = &.{
+                .{
+                    .name = mod_name,
+                    .module = lib_mod,
+                },
+                .{
+                    .name = "fangz",
+                    .module = fangz,
+                },
+                .{
+                    .name = "vereda",
+                    .module = vereda,
+                },
+            },
         }),
     });
 
@@ -58,7 +62,7 @@ pub fn build(b: *std.Build) void {
         .install_subdir = "docs",
     });
 
-    const docs_lint = doc_lint_build.addLintStep(b, .{
+    const docs_lint = doc_lint.addLintStep(b, .{
         .sources = &.{
             "src",
             "build.zig",
