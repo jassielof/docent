@@ -5,8 +5,8 @@ pub const Diagnostic = @import("Diagnostic.zig");
 pub const RuleSet = @import("RuleSet.zig");
 pub const LintResult = @import("LintResult.zig");
 
-pub const build_integration = @import("build_integration.zig");
-pub const addLintStep = build_integration.addLintStep;
+pub const scaffold = @import("scaffold.zig");
+pub const addLintStep = scaffold.addLintStep;
 
 pub const rules = struct {
     pub const missing_doc_comment = @import("rules/missing_doc_comment.zig");

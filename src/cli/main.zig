@@ -1,5 +1,5 @@
 const std = @import("std");
-const doclint = @import("doclint");
+const docent = @import("docent");
 const fangz = @import("fangz");
 
 pub fn main() !void {
@@ -37,7 +37,7 @@ pub fn main() !void {
 fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     const allocator = ctx.allocator;
 
-    var rule_set: doclint.RuleSet = .{};
+    var rule_set: docent.RuleSet = .{};
 
     if (ctx.boolFlag("all-deny") orelse false) {
         rule_set = .{
@@ -75,7 +75,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     var total_errors: usize = 0;
     var total_warnings: usize = 0;
-    var all_diagnostics: std.ArrayList(doclint.Diagnostic) = .empty;
+    var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;
     defer all_diagnostics.deinit(allocator);
 
     for (ctx.positionals.items) |path| {
@@ -149,8 +149,8 @@ fn detectStyle() Style {
 fn lintPath(
     allocator: std.mem.Allocator,
     path: []const u8,
-    rule_set: doclint.RuleSet,
-    all_diagnostics: *std.ArrayList(doclint.Diagnostic),
+    rule_set: docent.RuleSet,
+    all_diagnostics: *std.ArrayList(docent.Diagnostic),
     total_errors: *usize,
     total_warnings: *usize,
     is_json: bool,
@@ -178,8 +178,8 @@ fn lintPath(
 fn lintDirectory(
     allocator: std.mem.Allocator,
     dir_path: []const u8,
-    rule_set: doclint.RuleSet,
-    all_diagnostics: *std.ArrayList(doclint.Diagnostic),
+    rule_set: docent.RuleSet,
+    all_diagnostics: *std.ArrayList(docent.Diagnostic),
     total_errors: *usize,
     total_warnings: *usize,
     is_json: bool,
@@ -208,14 +208,14 @@ fn lintDirectory(
 fn lintSingleFile(
     allocator: std.mem.Allocator,
     path: []const u8,
-    rule_set: doclint.RuleSet,
-    all_diagnostics: *std.ArrayList(doclint.Diagnostic),
+    rule_set: docent.RuleSet,
+    all_diagnostics: *std.ArrayList(docent.Diagnostic),
     total_errors: *usize,
     total_warnings: *usize,
     is_json: bool,
     style: Style,
 ) !void {
-    var result = doclint.lintFile(allocator, path, rule_set) catch |err| {
+    var result = docent.lintFile(allocator, path, rule_set) catch |err| {
         try printStderr("error: failed to lint '{s}': {}\n", .{ path, err });
         return;
     };
@@ -245,7 +245,7 @@ fn lintSingleFile(
 //       ^~~~~~
 //
 
-fn printTextDiagnostic(d: doclint.Diagnostic, style: Style) !void {
+fn printTextDiagnostic(d: docent.Diagnostic, style: Style) !void {
     const is_error = d.severity.isError();
     const sev_color = if (is_error) style.bold_red else style.bold_yellow;
     const caret_color = if (is_error) style.red else style.yellow;
@@ -296,7 +296,7 @@ fn printTextDiagnostic(d: doclint.Diagnostic, style: Style) !void {
 
 // ── JSON output ────────────────────────────────────────────────────────────
 
-fn printJson(allocator: std.mem.Allocator, diagnostics: []const doclint.Diagnostic) !void {
+fn printJson(allocator: std.mem.Allocator, diagnostics: []const docent.Diagnostic) !void {
     var buf: [8192]u8 = undefined;
     var stdout = std.fs.File.stdout().writer(&buf);
 
@@ -349,12 +349,12 @@ fn jsonEscape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
 
 // ── Rule overrides ─────────────────────────────────────────────────────────
 
-fn applyRuleOverride(rule_set: *doclint.RuleSet, spec: []const u8) !void {
+fn applyRuleOverride(rule_set: *docent.RuleSet, spec: []const u8) !void {
     const eq_idx = std.mem.indexOfScalar(u8, spec, '=') orelse return error.InvalidFormat;
     const name = spec[0..eq_idx];
     const sev_str = spec[eq_idx + 1 ..];
 
-    const severity: doclint.Severity = if (std.mem.eql(u8, sev_str, "allow"))
+    const severity: docent.Severity = if (std.mem.eql(u8, sev_str, "allow"))
         .allow
     else if (std.mem.eql(u8, sev_str, "warn"))
         .warn

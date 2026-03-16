@@ -1,5 +1,5 @@
 const std = @import("std");
-const doc_lint = @import("src/lib/build_integration.zig");
+const scaffold = @import("src/lib/scaffold.zig");
 
 pub fn build(b: *std.Build) void {
     const mod_name = "docent";
@@ -62,7 +62,7 @@ pub fn build(b: *std.Build) void {
         .install_subdir = "docs",
     });
 
-    const docs_lint = doc_lint.addLintStep(b, .{
+    const docs_lint = scaffold.addLintStep(b, .{
         .sources = &.{
             "src",
             "build.zig",
