@@ -1,10 +1,13 @@
 .{
-    .name = .doc_lint,
+    .name = .docent,
     .version = "0.1.0",
-    .fingerprint = 0xe2be23d22eb6c39b,
+    .fingerprint = 0xf25cae59b814c9e6,
     .dependencies = .{
         .fangz = .{
             .path = "modules/fangz",
+        },
+        .carnaval = .{
+            .path = "modules/carnaval",
         },
         .vereda = .{
             .path = "modules/vereda",
