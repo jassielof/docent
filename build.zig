@@ -9,11 +9,16 @@ pub fn build(b: *std.Build) void {
 
     const fangz = b.dependency("fangz", .{}).module("fangz");
     const vereda = b.dependency("vereda", .{}).module("vereda");
+    const carnaval = b.dependency("carnaval", .{}).module("carnaval");
 
     const lib_mod = b.addModule(mod_name, .{
         .root_source_file = b.path("src/lib/root.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{.{
+            .name = "carnaval",
+            .module = carnaval,
+        }},
     });
 
     const lib = b.addLibrary(.{
@@ -39,6 +44,10 @@ pub fn build(b: *std.Build) void {
                 .{
                     .name = "vereda",
                     .module = vereda,
+                },
+                .{
+                    .name = "carnaval",
+                    .module = carnaval,
                 },
             },
         }),
@@ -85,11 +94,7 @@ pub fn build(b: *std.Build) void {
     docs_step.dependOn(&docs.step);
 
     const lib_tests = b.addTest(.{
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/lib/root.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
+        .root_module = lib_mod,
     });
 
     const suite_tests = b.addTest(.{
@@ -104,7 +109,18 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const tests_lint = b.addRunArtifact(cli);
+    tests_lint.addArgs(&.{
+        "src",
+        "tests",
+        "build.zig",
+        "--all-warn",
+        "--format",
+        "pretty",
+    });
+
     const test_step = b.step("tests", "Run the test suite");
+    test_step.dependOn(&tests_lint.step);
     test_step.dependOn(&b.addRunArtifact(lib_tests).step);
     test_step.dependOn(&b.addRunArtifact(suite_tests).step);
 }

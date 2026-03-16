@@ -1,5 +1,5 @@
 const std = @import("std");
-const doc_lint = @import("doclint");
+const docent = @import("docent");
 
 fn readFixture(allocator: std.mem.Allocator, rel_path: []const u8) ![:0]const u8 {
     const path = try std.fs.path.join(allocator, &.{ "tests", "fixtures", rel_path });
@@ -11,10 +11,10 @@ fn readFixture(allocator: std.mem.Allocator, rel_path: []const u8) ![:0]const u8
     return try file.readToEndAllocOptions(allocator, std.math.maxInt(u32), null, .of(u8), 0);
 }
 
-fn lintFixture(allocator: std.mem.Allocator, rel_path: []const u8, rule_set: doc_lint.RuleSet) !doc_lint.LintResult {
+fn lintFixture(allocator: std.mem.Allocator, rel_path: []const u8, rule_set: docent.RuleSet) !docent.LintResult {
     const source = try readFixture(allocator, rel_path);
     defer allocator.free(source);
-    return doc_lint.lintSource(allocator, source, rule_set, rel_path);
+    return docent.lintSource(allocator, source, rule_set, rel_path);
 }
 
 test "compliant: no missing_doc_comment violations" {
@@ -138,7 +138,7 @@ test "reexport_documented: no diagnostic when original declaration is documented
     // The linter must follow the import and suppress the diagnostic.
     //
     // Use lintFile with the full path so dirname() resolves correctly from CWD.
-    var result = try doc_lint.lintFile(
+    var result = try docent.lintFile(
         std.testing.allocator,
         "tests/fixtures/valid/reexport_documented/root.zig",
         .{ .missing_doc_comment = .deny },
@@ -157,7 +157,7 @@ test "reexport_undocumented: diagnostic points to definition site, not re-export
     // `root.zig` re-exports `Level` from `severity.zig`, but `Level` has no doc
     // comment.  Exactly one `missing_doc_comment` diagnostic must be emitted and
     // it must point into `severity.zig`, NOT into `root.zig`.
-    var result = try doc_lint.lintFile(
+    var result = try docent.lintFile(
         std.testing.allocator,
         "tests/fixtures/invalid/reexport_undocumented/root.zig",
         .{ .missing_doc_comment = .deny },
@@ -183,7 +183,7 @@ test "reexport: unresolvable import produces no false positive (single-file mode
     // String literals in Zig are null-terminated, so they coerce to [:0]const u8.
     const source: [:0]const u8 =
         "//! Module.\npub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;";
-    var result = try doc_lint.lintSource(
+    var result = try docent.lintSource(
         std.testing.allocator,
         source,
         .{ .missing_doc_comment = .deny },
