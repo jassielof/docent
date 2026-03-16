@@ -1,6 +1,6 @@
-# Zig Documentation Linter
+# Docent: Zig Documentation Linter
 
-A documentation linter for Zig.
+Docent is a documentation linter for Zig.
 
 Available as a CLI, library, and build integration.
 
