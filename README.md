@@ -2,11 +2,13 @@
 
 Docent is a documentation linter for Zig.
 
-Available as a CLI, library, and build integration.
+Available as a CLI, library, and build integration step.
 
-## Behavior
+## Behavior & Rules
 
-## Granularity
+### Missing docs
+
+### Granularity
 
 Rust's missing docs is
 

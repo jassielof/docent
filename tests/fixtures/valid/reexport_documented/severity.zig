@@ -1,8 +1,12 @@
 /// The severity level of a lint rule.
 pub const Level = enum {
+    /// doc
     allow,
-    warn,
+    /// doc
     deny,
+    /// doc
+    warn,
+    /// doc
     forbid,
 
     /// Returns true when the severity is not `.allow`.
