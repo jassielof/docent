@@ -32,13 +32,13 @@ pub fn main() !void {
 
     try root.addEnumFlag(AllPreset, .{
         .name = "all",
-        .description = "Set all rules to one level: warn or deny",
+        .description = "The level to apply to all rules.",
     });
 
     try root.addEnumFlag(OutputMode, .{
         .name = "format",
         .short = 'f',
-        .description = "Output format: pretty, text, minimal, or json",
+        .description = "The output format of the lints.",
         .default_value = .pretty,
     });
 
