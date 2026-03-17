@@ -1,5 +1,10 @@
 const std = @import("std");
 
+/// Collects local Zig files that are publicly reachable from a root entry file.
+///
+/// Reachability is resolved by recursively following declarations that match
+/// `pub const X = @import("...")` and `pub const X = @import("...").Y`
+/// patterns, including nested public container members.
 pub fn collectReachablePublicFiles(allocator: std.mem.Allocator, root_path: []const u8) !std.ArrayList([]const u8) {
     var files: std.ArrayList([]const u8) = .empty;
     errdefer deinitOwnedPaths(allocator, &files);
@@ -48,11 +53,13 @@ pub fn collectReachablePublicFiles(allocator: std.mem.Allocator, root_path: []co
     return files;
 }
 
+/// Frees every owned path in `paths` and then deinits the list.
 pub fn deinitOwnedPaths(allocator: std.mem.Allocator, paths: *std.ArrayList([]const u8)) void {
     for (paths.items) |path| allocator.free(path);
     paths.deinit(allocator);
 }
 
+/// Returns whether an AST node tag is any container declaration form.
 pub fn isContainerDecl(tag: std.zig.Ast.Node.Tag) bool {
     return switch (tag) {
         .container_decl,
@@ -101,26 +108,24 @@ fn collectPublicImportsFromNode(
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.visib_token) |vt| {
             if (tree.tokenTag(vt) == .keyword_pub) {
-                const init_node = var_decl.ast.init_node.unwrap() orelse return;
-                if (getImportPathFromExpr(tree, init_node)) |import_path| {
-                    if (!std.mem.endsWith(u8, import_path, ".zig")) return;
-
-                    const base_dir = std.fs.path.dirname(current_file) orelse ".";
-                    const joined = try std.fs.path.join(allocator, &.{ base_dir, import_path });
-                    defer allocator.free(joined);
-
-                    const abs = std.fs.cwd().realpathAlloc(allocator, joined) catch return;
-                    try out.append(allocator, abs);
+                const init_node_opt = var_decl.ast.init_node.unwrap();
+                if (init_node_opt) |init_node| {
+                    if (getImportPathFromExpr(tree, init_node)) |import_path| {
+                        if (try resolveLocalZigImport(allocator, current_file, import_path)) |abs| {
+                            try out.append(allocator, abs);
+                        }
+                    }
                 }
             }
         }
 
-        const init_node = var_decl.ast.init_node.unwrap() orelse return;
-        if (isContainerDecl(tree.nodeTag(init_node))) {
-            var buf: [2]std.zig.Ast.Node.Index = undefined;
-            if (tree.fullContainerDecl(&buf, init_node)) |container| {
-                for (container.ast.members) |member| {
-                    try collectPublicImportsFromNode(allocator, tree, member, current_file, out);
+        if (var_decl.ast.init_node.unwrap()) |init_node| {
+            if (isContainerDecl(tree.nodeTag(init_node))) {
+                var buf: [2]std.zig.Ast.Node.Index = undefined;
+                if (tree.fullContainerDecl(&buf, init_node)) |container| {
+                    for (container.ast.members) |member| {
+                        try collectPublicImportsFromNode(allocator, tree, member, current_file, out);
+                    }
                 }
             }
         }
@@ -159,4 +164,28 @@ fn getImportPathFromExpr(tree: *const std.zig.Ast, node: std.zig.Ast.Node.Index)
     const raw = tree.tokenSlice(str_tok);
     if (raw.len < 2 or raw[0] != '"' or raw[raw.len - 1] != '"') return null;
     return raw[1 .. raw.len - 1];
+}
+
+fn resolveLocalZigImport(
+    allocator: std.mem.Allocator,
+    current_file: []const u8,
+    import_path: []const u8,
+) !?[]const u8 {
+    // Package imports like "std" are intentionally excluded from local reachability.
+    if (!std.mem.endsWith(u8, import_path, ".zig")) return null;
+    if (std.fs.path.isAbsolute(import_path)) return null;
+
+    const base_dir = std.fs.path.dirname(current_file) orelse ".";
+    const joined = try std.fs.path.join(allocator, &.{ base_dir, import_path });
+    defer allocator.free(joined);
+
+    const abs = std.fs.cwd().realpathAlloc(allocator, joined) catch return null;
+
+    const stat = std.fs.openFileAbsolute(abs, .{}) catch {
+        allocator.free(abs);
+        return null;
+    };
+    stat.close();
+
+    return abs;
 }
