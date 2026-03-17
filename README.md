@@ -6,6 +6,10 @@ Available as a CLI, library, and build integration step.
 
 ## Behavior & Rules
 
+### Scanning
+
+It expects a manifest file to be present in your current working directory, then it'll automatically scan all the source files in the paths property that are or have valid Zig source files.
+
 ### Missing docs
 
 ### Granularity

@@ -21,10 +21,12 @@ pub fn build(b: *std.Build) void {
         }},
     });
 
-    const lib = b.addLibrary(.{
+    const docs_lib = b.addLibrary(.{
         .name = mod_name,
         .root_module = lib_mod,
     });
+
+    const cli_step = b.step("cli", "Run the CLI");
 
     const cli = b.addExecutable(.{
         .name = mod_name,
@@ -32,72 +34,70 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/cli/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{
-                    .name = mod_name,
-                    .module = lib_mod,
-                },
-                .{
-                    .name = "fangz",
-                    .module = fangz,
-                },
-                .{
-                    .name = "vereda",
-                    .module = vereda,
-                },
-                .{
-                    .name = "carnaval",
-                    .module = carnaval,
-                },
-            },
+            .imports = &.{ .{
+                .name = mod_name,
+                .module = lib_mod,
+            }, .{
+                .name = "fangz",
+                .module = fangz,
+            }, .{
+                .name = "vereda",
+                .module = vereda,
+            } },
         }),
     });
 
     b.installArtifact(cli);
-    const cli_step = b.step("cli", "Run the CLI");
 
     const run_cli = b.addRunArtifact(cli);
     cli_step.dependOn(&run_cli.step);
-
     run_cli.step.dependOn(b.getInstallStep());
 
     if (b.args) |args| {
         run_cli.addArgs(args);
     }
 
+    const docs_step = b.step("docs", "Generate the documentation");
+
     const docs = b.addInstallDirectory(.{
-        .source_dir = lib.getEmittedDocs(),
+        .source_dir = docs_lib.getEmittedDocs(),
         .install_dir = .prefix,
         .install_subdir = "docs",
     });
 
-    const docs_lint = scaffold.addLintStep(b, .{
-        .sources = &.{
-            "src",
-            "build.zig",
-        },
-        .rules = .{
-            // Keep docs generation non-blocking on style gaps, like cargo doc.
-            .missing_doc_comment = .warn,
-            .empty_doc_comment = .warn,
-            .missing_doctest = .warn,
-            .private_doctest = .warn,
-            .doctest_naming_mismatch = .warn,
-            .missing_container_doc_comment = .warn,
-        },
-    });
+    const docs_lint = b.addRunArtifact(cli);
+    docs_lint.addArgs(&.{});
+
+    // const docs_lint = scaffold.addLintStep(b, .{
+    //     .sources = &.{
+    //         "src",
+    //         "build.zig",
+    //     },
+    //     .rules = .{
+    //         // Keep docs generation non-blocking on style gaps, like cargo doc.
+    //         .missing_doc_comment = .warn,
+    //         .empty_doc_comment = .warn,
+    //         .missing_doctest = .warn,
+    //         .private_doctest = .warn,
+    //         .doctest_naming_mismatch = .warn,
+    //         .missing_container_doc_comment = .warn,
+    //     },
+    // });
 
     // Lint must run before docs are generated/installed.
     docs.step.dependOn(&docs_lint.step);
-
-    const docs_step = b.step("docs", "Generate the documentation");
     docs_step.dependOn(&docs.step);
 
-    const lib_tests = b.addTest(.{
+    const test_step = b.step("tests", "Run the test suite");
+
+    const unit_tests = b.addTest(.{
         .root_module = lib_mod,
     });
 
-    const suite_tests = b.addTest(.{
+    const run_unit_tests = b.addRunArtifact(unit_tests);
+    test_step.dependOn(&run_unit_tests.step);
+
+    const integration_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("tests/suite.zig"),
             .target = target,
@@ -109,6 +109,9 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const run_integration_tests = b.addRunArtifact(integration_tests);
+    test_step.dependOn(&run_integration_tests.step);
+
     const tests_lint = b.addRunArtifact(cli);
     tests_lint.addArgs(&.{
         "src",
@@ -119,8 +122,5 @@ pub fn build(b: *std.Build) void {
         "pretty",
     });
 
-    const test_step = b.step("tests", "Run the test suite");
     test_step.dependOn(&tests_lint.step);
-    test_step.dependOn(&b.addRunArtifact(lib_tests).step);
-    test_step.dependOn(&b.addRunArtifact(suite_tests).step);
 }

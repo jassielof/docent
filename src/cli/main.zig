@@ -8,25 +8,32 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     var app = try fangz.App.init(allocator, .{
-        .name = "doclint",
+        .name = "docent",
         .description = "Documentation linter for Zig projects",
         .version = "0.1.0",
     });
+
     defer app.deinit();
 
     const root = app.root();
-    root.help_on_empty_args = true;
 
     try root.addPositional(.{
         .name = "paths",
         .description = "Files or directories to lint",
-        .required = true,
         .variadic = true,
     });
 
-    try root.addFlag(.{ .name = "rule", .short = 'r', .description = "Override severity: <name>=<allow|warn|deny|forbid>", .value_type = .string_list });
+    try root.addFlag(.{
+        .name = "rule",
+        .short = 'r',
+        .description = "Override severity: <name>=<allow|warn|deny|forbid>",
+        .value_type = .string_list,
+    });
+
     try root.addFlag(.{ .name = "all-deny", .description = "Set all rules to deny" });
+
     try root.addFlag(.{ .name = "all-warn", .description = "Set all rules to warn" });
+
     try root.addFlag(.{ .name = "format", .short = 'f', .description = "Output format: pretty, minimal, or json", .value_type = .string, .default_value = .{ .string = "pretty" } });
 
     root.hooks.run = &runLint;
