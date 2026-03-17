@@ -15,6 +15,12 @@ Directory behavior:
 - If a directory contains `root.zig`, Docent treats it as an entrypoint and lints files that are publicly reachable from that root via `pub const ... = @import("...")` chains.
 - If a directory has no `root.zig`, Docent falls back to linting all `.zig` files in that directory tree.
 
+Reachability notes:
+
+- Traversal is recursive across imported files, so multi-hop public chains are included.
+- Imports reachable only through non-public declarations are excluded.
+- Package imports (for example `@import("std")`) are not treated as local lint targets.
+
 ### Severities
 
 All rules accept one of these levels:
