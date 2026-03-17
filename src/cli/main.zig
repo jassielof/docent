@@ -85,7 +85,24 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;
     defer all_diagnostics.deinit(allocator);
 
-    for (ctx.positionals.items) |path| {
+    var manifest_paths: std.ArrayList([]const u8) = .empty;
+    defer deinitOwnedPaths(allocator, &manifest_paths);
+
+    const target_paths = if (ctx.positionals.items.len > 0)
+        ctx.positionals.items
+    else blk: {
+        manifest_paths = loadManifestPaths(allocator) catch |err| {
+            try printStderr("error: failed to read manifest 'build.zig.zon': {}\n", .{err});
+            std.process.exit(1);
+        };
+        if (manifest_paths.items.len == 0) {
+            try printStderr("error: manifest 'build.zig.zon' has an empty .paths field\n", .{});
+            std.process.exit(1);
+        }
+        break :blk manifest_paths.items;
+    };
+
+    for (target_paths) |path| {
         try lintPath(allocator, path, rule_set, &all_diagnostics, &summary, output_mode);
     }
 
@@ -133,8 +150,125 @@ fn lintPath(
     if (stat.kind == .directory) {
         try lintDirectory(allocator, path, rule_set, all_diagnostics, summary, output_mode);
     } else {
+        if (!std.mem.endsWith(u8, path, ".zig")) return;
         try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode);
     }
+}
+
+fn loadManifestPaths(allocator: std.mem.Allocator) !std.ArrayList([]const u8) {
+    const manifest_path = try findNearestManifestPath(allocator);
+    defer allocator.free(manifest_path);
+
+    const manifest_dir = std.fs.path.dirname(manifest_path) orelse return error.InvalidManifestPath;
+
+    const manifest_text = blk: {
+        const file = try std.fs.openFileAbsolute(manifest_path, .{});
+        defer file.close();
+        break :blk try file.readToEndAlloc(allocator, 1 * 1024 * 1024);
+    };
+    defer allocator.free(manifest_text);
+
+    var paths: std.ArrayList([]const u8) = .empty;
+    errdefer deinitOwnedPaths(allocator, &paths);
+
+    const field_idx = std.mem.indexOf(u8, manifest_text, ".paths") orelse return error.ManifestPathsNotFound;
+    var i = field_idx + ".paths".len;
+
+    while (i < manifest_text.len and manifest_text[i] != '{') : (i += 1) {}
+    if (i == manifest_text.len) return error.InvalidManifestPaths;
+
+    i += 1;
+    var depth: usize = 1;
+    while (i < manifest_text.len and depth > 0) {
+        if (manifest_text[i] == '/' and i + 1 < manifest_text.len and manifest_text[i + 1] == '/') {
+            i += 2;
+            while (i < manifest_text.len and manifest_text[i] != '\n') : (i += 1) {}
+            continue;
+        }
+
+        if (manifest_text[i] == '"') {
+            const start = i + 1;
+            i += 1;
+            var escaped = false;
+            while (i < manifest_text.len) : (i += 1) {
+                if (escaped) {
+                    escaped = false;
+                    continue;
+                }
+                if (manifest_text[i] == '\\') {
+                    escaped = true;
+                    continue;
+                }
+                if (manifest_text[i] == '"') break;
+            }
+            if (i >= manifest_text.len) return error.InvalidManifestPaths;
+
+            if (depth == 1) {
+                const raw = manifest_text[start..i];
+                if (raw.len > 0) {
+                    const resolved = if (std.fs.path.isAbsolute(raw))
+                        try allocator.dupe(u8, raw)
+                    else
+                        try std.fs.path.join(allocator, &.{ manifest_dir, raw });
+                    try paths.append(allocator, resolved);
+                }
+            }
+
+            i += 1;
+            continue;
+        }
+
+        if (manifest_text[i] == '{') {
+            depth += 1;
+        } else if (manifest_text[i] == '}') {
+            depth -= 1;
+        }
+
+        i += 1;
+    }
+
+    if (depth != 0) return error.InvalidManifestPaths;
+    return paths;
+}
+
+fn findNearestManifestPath(allocator: std.mem.Allocator) ![]u8 {
+    var current = try std.process.getCwdAlloc(allocator);
+
+    while (true) {
+        const candidate = try std.fs.path.join(allocator, &.{ current, "build.zig.zon" });
+        if (isReadableFile(candidate)) {
+            allocator.free(current);
+            return candidate;
+        }
+        allocator.free(candidate);
+
+        const parent_opt = std.fs.path.dirname(current);
+        if (parent_opt == null) {
+            allocator.free(current);
+            return error.ManifestNotFound;
+        }
+
+        const parent = parent_opt.?;
+        if (parent.len == current.len) {
+            allocator.free(current);
+            return error.ManifestNotFound;
+        }
+
+        const next = try allocator.dupe(u8, parent);
+        allocator.free(current);
+        current = next;
+    }
+}
+
+fn isReadableFile(path: []const u8) bool {
+    const file = std.fs.openFileAbsolute(path, .{}) catch return false;
+    file.close();
+    return true;
+}
+
+fn deinitOwnedPaths(allocator: std.mem.Allocator, paths: *std.ArrayList([]const u8)) void {
+    for (paths.items) |path| allocator.free(path);
+    paths.deinit(allocator);
 }
 
 fn lintDirectory(
