@@ -117,7 +117,8 @@ pub fn build(b: *std.Build) void {
         "src",
         "tests",
         "build.zig",
-        "--all-warn",
+        "--all",
+        "warn",
         "--format",
         "pretty",
     });

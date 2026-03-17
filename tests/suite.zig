@@ -197,3 +197,54 @@ test "reexport: unresolvable import produces no false positive (single-file mode
         }
     }
 }
+
+// ── Reachability tests ────────────────────────────────────────────────────
+
+test "reachability: collects only public reachable files from root.zig" {
+    var files = try docent.reachability.collectReachablePublicFiles(
+        std.testing.allocator,
+        "tests/fixtures/valid/public_api/root.zig",
+    );
+    defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
+
+    var has_root = false;
+    var has_vision = false;
+    var has_utils = false;
+
+    for (files.items) |path| {
+        if (std.mem.indexOf(u8, path, "public_api") == null) continue;
+
+        const base = std.fs.path.basename(path);
+        if (std.mem.eql(u8, base, "root.zig")) has_root = true;
+        if (std.mem.eql(u8, base, "vision.zig")) has_vision = true;
+        if (std.mem.eql(u8, base, "utils.zig")) has_utils = true;
+    }
+
+    try std.testing.expect(has_root);
+    try std.testing.expect(has_vision);
+    try std.testing.expect(!has_utils);
+}
+
+test "reachability: linting reachable public_api emits no missing_doc_comment" {
+    var files = try docent.reachability.collectReachablePublicFiles(
+        std.testing.allocator,
+        "tests/fixtures/valid/public_api/root.zig",
+    );
+    defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
+
+    for (files.items) |path| {
+        var result = try docent.lintFile(
+            std.testing.allocator,
+            path,
+            .{ .missing_doc_comment = .warn },
+        );
+        defer result.deinit();
+
+        for (result.diagnostics.items) |d| {
+            if (std.mem.eql(u8, d.rule, "missing_doc_comment")) {
+                std.debug.print("Unexpected diagnostic in reachable file: {s}:{d}:{d}: {s}\n", .{ d.file, d.line, d.column, d.message });
+                return error.UnexpectedDiagnostic;
+            }
+        }
+    }
+}

@@ -294,6 +294,21 @@ fn lintDirectory(
     };
     defer dir.close();
 
+    // If this looks like a library package (has root.zig), lint only files
+    // that are publicly reachable from that entrypoint.
+    const root_candidate = try std.fs.path.join(allocator, &.{ dir_path, "root.zig" });
+    defer allocator.free(root_candidate);
+
+    if (isReadableLocalFile(root_candidate)) {
+        var reachable = try docent.reachability.collectReachablePublicFiles(allocator, root_candidate);
+        defer docent.reachability.deinitOwnedPaths(allocator, &reachable);
+
+        for (reachable.items) |path| {
+            try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode);
+        }
+        return;
+    }
+
     var walker = try dir.walk(allocator);
     defer walker.deinit();
 
@@ -306,6 +321,12 @@ fn lintDirectory(
 
         try lintSingleFile(allocator, full_path, rule_set, all_diagnostics, summary, output_mode);
     }
+}
+
+fn isReadableLocalFile(path: []const u8) bool {
+    const file = std.fs.cwd().openFile(path, .{}) catch return false;
+    file.close();
+    return true;
 }
 
 fn lintSingleFile(
