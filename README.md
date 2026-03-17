@@ -8,7 +8,12 @@ Available as a CLI, library, and build integration step.
 
 ### Scanning
 
-It expects a manifest file to be present in your current working directory, then it'll automatically scan all the source files in the paths property that are or have valid Zig source files.
+It expects a manifest file to be present in your current working directory, then scans the configured `.paths` entries.
+
+Directory behavior:
+
+- If a directory contains `root.zig`, Docent treats it as an entrypoint and lints files that are publicly reachable from that root via `pub const ... = @import("...")` chains.
+- If a directory has no `root.zig`, Docent falls back to linting all `.zig` files in that directory tree.
 
 ### Severities
 

@@ -5,6 +5,7 @@ pub const Diagnostic = @import("Diagnostic.zig");
 pub const RuleSet = @import("RuleSet.zig");
 pub const LintResult = @import("LintResult.zig");
 pub const output = @import("Output.zig");
+pub const reachability = @import("Reachability.zig");
 
 pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
