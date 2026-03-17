@@ -303,3 +303,66 @@ test "reachability: private-only file is excluded from linted deep set" {
         }
     }
 }
+
+test "targeting: build scripts are skipped by default" {
+    try std.testing.expect(docent.targeting.shouldSkipLintFile("build.zig", .{}));
+    try std.testing.expect(docent.targeting.shouldSkipLintFile("build/helpers/steps.zig", .{}));
+    try std.testing.expect(!docent.targeting.shouldSkipLintFile("src/lib/root.zig", .{}));
+}
+
+test "targeting: include_build_scripts overrides default skip" {
+    const opts: docent.targeting.Options = .{ .include_build_scripts = true };
+    try std.testing.expect(!docent.targeting.shouldSkipLintFile("build.zig", opts));
+    try std.testing.expect(!docent.targeting.shouldSkipLintFile("build/helpers/steps.zig", opts));
+}
+
+test "targeting: no-root directories use top-level modules as entrypoints" {
+    var files = try docent.targeting.collectDirectoryLintTargets(
+        std.testing.allocator,
+        "tests/fixtures/valid/multi_module_no_root",
+        .{},
+    );
+    defer docent.targeting.deinitOwnedPaths(std.testing.allocator, &files);
+
+    var has_re2 = false;
+    var has_pcre2 = false;
+    var has_re2_api = false;
+    var has_pcre2_api = false;
+    var has_private_only = false;
+    var has_build = false;
+
+    for (files.items) |path| {
+        if (std.mem.indexOf(u8, path, "multi_module_no_root") == null) continue;
+        const base = std.fs.path.basename(path);
+        if (std.mem.eql(u8, base, "re2.zig")) has_re2 = true;
+        if (std.mem.eql(u8, base, "pcre2.zig")) has_pcre2 = true;
+        if (std.mem.eql(u8, base, "re2_api.zig")) has_re2_api = true;
+        if (std.mem.eql(u8, base, "pcre2_api.zig")) has_pcre2_api = true;
+        if (std.mem.eql(u8, base, "private_only.zig")) has_private_only = true;
+        if (std.mem.eql(u8, base, "build.zig")) has_build = true;
+    }
+
+    try std.testing.expect(has_re2);
+    try std.testing.expect(has_pcre2);
+    try std.testing.expect(has_re2_api);
+    try std.testing.expect(has_pcre2_api);
+    try std.testing.expect(!has_private_only);
+    try std.testing.expect(!has_build);
+}
+
+test "targeting: no-root directories include build scripts when enabled" {
+    var files = try docent.targeting.collectDirectoryLintTargets(
+        std.testing.allocator,
+        "tests/fixtures/valid/multi_module_no_root",
+        .{ .include_build_scripts = true },
+    );
+    defer docent.targeting.deinitOwnedPaths(std.testing.allocator, &files);
+
+    var has_build = false;
+    for (files.items) |path| {
+        if (std.mem.indexOf(u8, path, "multi_module_no_root") == null) continue;
+        const base = std.fs.path.basename(path);
+        if (std.mem.eql(u8, base, "build.zig")) has_build = true;
+    }
+    try std.testing.expect(has_build);
+}

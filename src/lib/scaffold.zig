@@ -6,6 +6,7 @@ pub const LintStep = struct {
     sources: []const []const u8,
     rule_set: docent.RuleSet,
     exclude: []const []const u8,
+    include_build_scripts: bool,
     output: OutputOptions,
 
     pub fn create(b: *std.Build, options: Options) *LintStep {
@@ -20,6 +21,7 @@ pub const LintStep = struct {
             .sources = b.allocator.dupe([]const u8, options.sources) catch @panic("OOM"),
             .rule_set = options.rules,
             .exclude = if (options.exclude) |ex| b.allocator.dupe([]const u8, ex) catch @panic("OOM") else &.{},
+            .include_build_scripts = options.include_build_scripts,
             .output = options.output,
         };
         return self;
@@ -48,6 +50,7 @@ pub const LintStep = struct {
             if (stat.kind == .directory) {
                 try self.lintDirectory(allocator, source_path, step, &summary, &total_files);
             } else {
+                if (docent.targeting.shouldSkipLintFile(source_path, .{ .include_build_scripts = self.include_build_scripts })) continue;
                 try self.lintSingleFile(allocator, source_path, step, &summary, &total_files);
             }
         }
@@ -62,27 +65,21 @@ pub const LintStep = struct {
     }
 
     fn lintDirectory(self: *LintStep, allocator: std.mem.Allocator, dir_path: []const u8, step: *std.Build.Step, summary: *docent.output.Summary, total_files: *usize) !void {
-        var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch |err| {
+        var targets = docent.targeting.collectDirectoryLintTargets(
+            allocator,
+            dir_path,
+            .{ .include_build_scripts = self.include_build_scripts },
+        ) catch |err| {
             step.result_error_msgs.append(
                 allocator,
-                std.fmt.allocPrint(allocator, "cannot open directory '{s}': {}", .{ dir_path, err }) catch @panic("OOM"),
+                std.fmt.allocPrint(allocator, "cannot collect lint targets in '{s}': {}", .{ dir_path, err }) catch @panic("OOM"),
             ) catch @panic("OOM");
             return error.MakeFailed;
         };
-        defer dir.close();
+        defer docent.targeting.deinitOwnedPaths(allocator, &targets);
 
-        var walker = try dir.walk(allocator);
-        defer walker.deinit();
-
-        while (try walker.next()) |entry| {
-            if (entry.kind != .file) continue;
-            if (!std.mem.endsWith(u8, entry.basename, ".zig")) continue;
-
-            const full_path = std.fs.path.join(allocator, &.{ dir_path, entry.path }) catch @panic("OOM");
-            defer allocator.free(full_path);
-
+        for (targets.items) |full_path| {
             if (self.isExcluded(full_path)) continue;
-
             try self.lintSingleFile(allocator, full_path, step, summary, total_files);
         }
     }
@@ -126,6 +123,7 @@ pub const Options = struct {
     sources: []const []const u8,
     rules: docent.RuleSet = .{},
     exclude: ?[]const []const u8 = null,
+    include_build_scripts: bool = false,
     output: OutputOptions = .{},
 };
 

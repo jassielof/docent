@@ -13,13 +13,22 @@ It expects a manifest file to be present in your current working directory, then
 Directory behavior:
 
 - If a directory contains `root.zig`, Docent treats it as an entrypoint and lints files that are publicly reachable from that root via `pub const ... = @import("...")` chains.
-- If a directory has no `root.zig`, Docent falls back to linting all `.zig` files in that directory tree.
+- If a directory has no `root.zig`, Docent treats each top-level `.zig` file as a module entrypoint and lints the union of their publicly reachable files.
+- If no top-level `.zig` files exist, Docent falls back to linting all `.zig` files in that directory tree.
 
 Reachability notes:
 
 - Traversal is recursive across imported files, so multi-hop public chains are included.
 - Imports reachable only through non-public declarations are excluded.
 - Package imports (for example `@import("std")`) are not treated as local lint targets.
+
+Build script defaults:
+
+- `build.zig` and files under `build/` are ignored by default.
+- This avoids false-positive API checks from build tooling paths that are commonly present in `build.zig.zon` `.paths`.
+- CLI users can opt in with `--include-build-scripts`.
+- Library users can opt in via `docent.targeting.Options{ .include_build_scripts = true }`.
+- Build integration users can opt in via `docent.addLintStep(..., .{ .include_build_scripts = true, ... })`.
 
 ### Severities
 

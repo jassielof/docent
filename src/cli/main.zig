@@ -42,6 +42,12 @@ pub fn main() !void {
         .default_value = .pretty,
     });
 
+    try root.addFlag(.{
+        .name = "include-build-scripts",
+        .description = "Include build.zig and build/*.zig files in lint targets.",
+        .value_type = .bool,
+    });
+
     root.hooks.run = &runLint;
 
     try app.executeProcess();
@@ -83,6 +89,9 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     }
 
     const output_mode = ctx.enumFlag(OutputMode, "format") orelse .pretty;
+    const targeting_options: docent.targeting.Options = .{
+        .include_build_scripts = ctx.boolFlag("include-build-scripts") orelse false,
+    };
 
     var summary: docent.output.Summary = .{};
     var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;
@@ -106,7 +115,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     };
 
     for (target_paths) |path| {
-        try lintPath(allocator, path, rule_set, &all_diagnostics, &summary, output_mode);
+        try lintPath(allocator, path, rule_set, targeting_options, &all_diagnostics, &summary, output_mode);
     }
 
     if (output_mode == .json) {
@@ -140,6 +149,7 @@ fn lintPath(
     allocator: std.mem.Allocator,
     path: []const u8,
     rule_set: docent.RuleSet,
+    targeting_options: docent.targeting.Options,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     output_mode: OutputMode,
@@ -147,7 +157,7 @@ fn lintPath(
     const stat = std.fs.cwd().statFile(path) catch |err| switch (err) {
         // On some platforms statFile returns IsDir for directory paths
         error.IsDir => {
-            try lintDirectory(allocator, path, rule_set, all_diagnostics, summary, output_mode);
+            try lintDirectory(allocator, path, rule_set, targeting_options, all_diagnostics, summary, output_mode);
             return;
         },
         else => {
@@ -157,9 +167,10 @@ fn lintPath(
     };
 
     if (stat.kind == .directory) {
-        try lintDirectory(allocator, path, rule_set, all_diagnostics, summary, output_mode);
+        try lintDirectory(allocator, path, rule_set, targeting_options, all_diagnostics, summary, output_mode);
     } else {
         if (!std.mem.endsWith(u8, path, ".zig")) return;
+        if (docent.targeting.shouldSkipLintFile(path, targeting_options)) return;
         try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode);
     }
 }
@@ -284,49 +295,17 @@ fn lintDirectory(
     allocator: std.mem.Allocator,
     dir_path: []const u8,
     rule_set: docent.RuleSet,
+    targeting_options: docent.targeting.Options,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     output_mode: OutputMode,
 ) !void {
-    var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch |err| {
-        try printStderr("error: cannot open directory '{s}': {}\n", .{ dir_path, err });
-        return;
-    };
-    defer dir.close();
+    var targets = try docent.targeting.collectDirectoryLintTargets(allocator, dir_path, targeting_options);
+    defer docent.targeting.deinitOwnedPaths(allocator, &targets);
 
-    // If this looks like a library package (has root.zig), lint only files
-    // that are publicly reachable from that entrypoint.
-    const root_candidate = try std.fs.path.join(allocator, &.{ dir_path, "root.zig" });
-    defer allocator.free(root_candidate);
-
-    if (isReadableLocalFile(root_candidate)) {
-        var reachable = try docent.reachability.collectReachablePublicFiles(allocator, root_candidate);
-        defer docent.reachability.deinitOwnedPaths(allocator, &reachable);
-
-        for (reachable.items) |path| {
-            try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode);
-        }
-        return;
+    for (targets.items) |path| {
+        try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode);
     }
-
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
-
-    while (try walker.next()) |entry| {
-        if (entry.kind != .file) continue;
-        if (!std.mem.endsWith(u8, entry.basename, ".zig")) continue;
-
-        const full_path = try std.fs.path.join(allocator, &.{ dir_path, entry.path });
-        defer allocator.free(full_path);
-
-        try lintSingleFile(allocator, full_path, rule_set, all_diagnostics, summary, output_mode);
-    }
-}
-
-fn isReadableLocalFile(path: []const u8) bool {
-    const file = std.fs.cwd().openFile(path, .{}) catch return false;
-    file.close();
-    return true;
 }
 
 fn lintSingleFile(
