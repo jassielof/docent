@@ -248,3 +248,58 @@ test "reachability: linting reachable public_api emits no missing_doc_comment" {
         }
     }
 }
+
+test "reachability: recursively follows multi-hop public imports" {
+    var files = try docent.reachability.collectReachablePublicFiles(
+        std.testing.allocator,
+        "tests/fixtures/valid/public_api_deep/root.zig",
+    );
+    defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
+
+    var has_root = false;
+    var has_api = false;
+    var has_model = false;
+    var has_extra = false;
+    var has_private_only = false;
+
+    for (files.items) |path| {
+        if (std.mem.indexOf(u8, path, "public_api_deep") == null) continue;
+
+        const base = std.fs.path.basename(path);
+        if (std.mem.eql(u8, base, "root.zig")) has_root = true;
+        if (std.mem.eql(u8, base, "api.zig")) has_api = true;
+        if (std.mem.eql(u8, base, "model.zig")) has_model = true;
+        if (std.mem.eql(u8, base, "extra.zig")) has_extra = true;
+        if (std.mem.eql(u8, base, "private_only.zig")) has_private_only = true;
+    }
+
+    try std.testing.expect(has_root);
+    try std.testing.expect(has_api);
+    try std.testing.expect(has_model);
+    try std.testing.expect(has_extra);
+    try std.testing.expect(!has_private_only);
+}
+
+test "reachability: private-only file is excluded from linted deep set" {
+    var files = try docent.reachability.collectReachablePublicFiles(
+        std.testing.allocator,
+        "tests/fixtures/valid/public_api_deep/root.zig",
+    );
+    defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
+
+    for (files.items) |path| {
+        var result = try docent.lintFile(
+            std.testing.allocator,
+            path,
+            .{ .missing_doc_comment = .warn },
+        );
+        defer result.deinit();
+
+        for (result.diagnostics.items) |d| {
+            if (std.mem.eql(u8, d.rule, "missing_doc_comment")) {
+                std.debug.print("Unexpected diagnostic in reachable deep file: {s}:{d}:{d}: {s}\n", .{ d.file, d.line, d.column, d.message });
+                return error.UnexpectedDiagnostic;
+            }
+        }
+    }
+}
