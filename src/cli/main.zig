@@ -30,11 +30,17 @@ pub fn main() !void {
         .value_type = .string_list,
     });
 
-    try root.addFlag(.{ .name = "all-deny", .description = "Set all rules to deny" });
+    try root.addEnumFlag(AllPreset, .{
+        .name = "all",
+        .description = "Set all rules to one level: warn or deny",
+    });
 
-    try root.addFlag(.{ .name = "all-warn", .description = "Set all rules to warn" });
-
-    try root.addFlag(.{ .name = "format", .short = 'f', .description = "Output format: pretty, minimal, or json", .value_type = .string, .default_value = .{ .string = "pretty" } });
+    try root.addEnumFlag(OutputMode, .{
+        .name = "format",
+        .short = 'f',
+        .description = "Output format: pretty, text, minimal, or json",
+        .default_value = .pretty,
+    });
 
     root.hooks.run = &runLint;
 
@@ -46,23 +52,24 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     var rule_set: docent.RuleSet = .{};
 
-    if (ctx.boolFlag("all-deny") orelse false) {
-        rule_set = .{
-            .missing_doc_comment = .deny,
-            .missing_doctest = .deny,
-            .private_doctest = .deny,
-            .missing_container_doc_comment = .deny,
-            .empty_doc_comment = .deny,
-            .doctest_naming_mismatch = .deny,
-        };
-    } else if (ctx.boolFlag("all-warn") orelse false) {
-        rule_set = .{
-            .missing_doc_comment = .warn,
-            .missing_doctest = .warn,
-            .private_doctest = .warn,
-            .missing_container_doc_comment = .warn,
-            .empty_doc_comment = .warn,
-            .doctest_naming_mismatch = .warn,
+    if (ctx.enumFlag(AllPreset, "all")) |preset| {
+        rule_set = switch (preset) {
+            .deny => .{
+                .missing_doc_comment = .deny,
+                .missing_doctest = .deny,
+                .private_doctest = .deny,
+                .missing_container_doc_comment = .deny,
+                .empty_doc_comment = .deny,
+                .doctest_naming_mismatch = .deny,
+            },
+            .warn => .{
+                .missing_doc_comment = .warn,
+                .missing_doctest = .warn,
+                .private_doctest = .warn,
+                .missing_container_doc_comment = .warn,
+                .empty_doc_comment = .warn,
+                .doctest_naming_mismatch = .warn,
+            },
         };
     }
 
@@ -75,11 +82,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         }
     }
 
-    const format = ctx.stringFlag("format") orelse "pretty";
-    const output_mode = parseOutputMode(format) catch |err| {
-        try printStderr("error: invalid --format value '{s}': {}\n", .{ format, err });
-        std.process.exit(1);
-    };
+    const output_mode = ctx.enumFlag(OutputMode, "format") orelse .pretty;
 
     var summary: docent.output.Summary = .{};
     var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;
@@ -123,8 +126,14 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
 const OutputMode = enum {
     pretty,
+    text,
     minimal,
     json,
+};
+
+const AllPreset = enum {
+    warn,
+    deny,
 };
 
 fn lintPath(
@@ -324,16 +333,9 @@ fn lintSingleFile(
     }
 }
 
-fn parseOutputMode(value: []const u8) !OutputMode {
-    if (std.mem.eql(u8, value, "pretty") or std.mem.eql(u8, value, "text")) return .pretty;
-    if (std.mem.eql(u8, value, "minimal")) return .minimal;
-    if (std.mem.eql(u8, value, "json")) return .json;
-    return error.InvalidFormat;
-}
-
 fn textFormat(mode: OutputMode) docent.output.TextFormat {
     return switch (mode) {
-        .pretty => .pretty,
+        .pretty, .text => .pretty,
         .minimal => .minimal,
         .json => unreachable,
     };
