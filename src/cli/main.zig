@@ -114,7 +114,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     }
 
     if (output_mode != .json) {
-        try docent.output.printSummaryStderr(summary, docent.output.stderrSummaryOptions("doclint", .auto));
+        try docent.output.printSummaryStderr(summary, docent.output.stderrSummaryOptions("docent", .auto));
     }
 
     if (summary.errors > 0) {
