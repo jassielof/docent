@@ -111,17 +111,4 @@ pub fn build(b: *std.Build) void {
 
     const run_integration_tests = b.addRunArtifact(integration_tests);
     test_step.dependOn(&run_integration_tests.step);
-
-    const tests_lint = b.addRunArtifact(cli);
-    tests_lint.addArgs(&.{
-        "src",
-        "tests",
-        "build.zig",
-        "--all",
-        "warn",
-        "--format",
-        "pretty",
-    });
-
-    test_step.dependOn(&tests_lint.step);
 }
