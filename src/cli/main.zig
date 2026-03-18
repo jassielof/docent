@@ -8,9 +8,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     var app = try fangz.App.init(allocator, .{
-        .name = "docent",
         .description = "Documentation linter for Zig projects",
-        .version = "0.1.0",
     });
 
     defer app.deinit();

@@ -1,5 +1,5 @@
 const std = @import("std");
-const scaffold = @import("src/lib/scaffold.zig");
+const fangz_build = @import("fangz");
 
 pub fn build(b: *std.Build) void {
     const mod_name = "docent";
@@ -7,7 +7,8 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const fangz = b.dependency("fangz", .{}).module("fangz");
+    const fangz_dep = b.dependency("fangz", .{});
+    const fangz = fangz_dep.module("fangz");
     const vereda = b.dependency("vereda", .{}).module("vereda");
     const carnaval = b.dependency("carnaval", .{}).module("carnaval");
 
@@ -46,6 +47,10 @@ pub fn build(b: *std.Build) void {
             } },
         }),
     });
+
+    // Inject the executable name and manifest version into the fangz module
+    // so App.init can infer them without the user having to specify them.
+    fangz_build.injectMeta(b, cli, fangz);
 
     b.installArtifact(cli);
 
