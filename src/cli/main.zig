@@ -23,29 +23,31 @@ pub fn main() !void {
         .variadic = true,
     });
 
-    try root.addFlag(.{
+    try root.addFlag(fangz.KeyValueList, .{
         .name = "rule",
         .short = 'r',
         .description = "Override severity: <name>=<allow|warn|deny|forbid>",
-        .value_type = .string_list,
+        .value_hint = "<rule>=<severity>",
+        .allowed_keys = docent.RuleSet.fieldNames(),
+        .allowed_values = &.{ "allow", "warn", "deny", "forbid" },
     });
 
-    try root.addEnumFlag(AllPreset, .{
+    try root.addFlag(?AllPreset, .{
         .name = "all",
         .description = "The level to apply to all rules.",
     });
 
-    try root.addEnumFlag(OutputMode, .{
+    try root.addFlag(OutputMode, .{
         .name = "format",
         .short = 'f',
         .description = "The output format of the lints.",
-        .default_value = .pretty,
+        .default = .pretty,
     });
 
-    try root.addFlag(.{
+    try root.addFlag(bool, .{
         .name = "include-build-scripts",
         .description = "Include build.zig and build/*.zig files in lint targets.",
-        .value_type = .bool,
+        .default = false,
     });
 
     root.hooks.run = &runLint;
@@ -56,41 +58,29 @@ pub fn main() !void {
 fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     const allocator = ctx.allocator;
 
+    const Args = struct {
+        positionals: []const []const u8 = &.{},
+        rule: fangz.KeyValueList = &.{},
+        all: ?AllPreset = null,
+        format: OutputMode = .pretty,
+        include_build_scripts: bool = false,
+    };
+
+    const args = try ctx.extract(Args);
+
     var rule_set: docent.RuleSet = .{};
 
-    if (ctx.enumFlag(AllPreset, "all")) |preset| {
-        rule_set = switch (preset) {
-            .deny => .{
-                .missing_doc_comment = .deny,
-                .missing_doctest = .deny,
-                .private_doctest = .deny,
-                .missing_container_doc_comment = .deny,
-                .empty_doc_comment = .deny,
-                .doctest_naming_mismatch = .deny,
-            },
-            .warn => .{
-                .missing_doc_comment = .warn,
-                .missing_doctest = .warn,
-                .private_doctest = .warn,
-                .missing_container_doc_comment = .warn,
-                .empty_doc_comment = .warn,
-                .doctest_naming_mismatch = .warn,
-            },
+    if (args.all) |preset| rule_set = allPresetToRuleSet(preset);
+
+    for (args.rule) |override| {
+        applyRuleOverride(&rule_set, override) catch |err| {
+            try printStderr("error: invalid --rule value '{s}={s}': {}\n", .{ override.key, override.value, err });
+            std.process.exit(1);
         };
     }
 
-    if (ctx.stringListFlag("rule")) |overrides| {
-        for (overrides) |override| {
-            applyRuleOverride(&rule_set, override) catch |err| {
-                try printStderr("error: invalid --rule value '{s}': {}\n", .{ override, err });
-                std.process.exit(1);
-            };
-        }
-    }
-
-    const output_mode = ctx.enumFlag(OutputMode, "format") orelse .pretty;
     const targeting_options: docent.targeting.Options = .{
-        .include_build_scripts = ctx.boolFlag("include-build-scripts") orelse false,
+        .include_build_scripts = args.include_build_scripts,
     };
 
     var summary: docent.output.Summary = .{};
@@ -100,8 +90,8 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     var manifest_paths: std.ArrayList([]const u8) = .empty;
     defer deinitOwnedPaths(allocator, &manifest_paths);
 
-    const target_paths = if (ctx.positionals.items.len > 0)
-        ctx.positionals.items
+    const target_paths = if (args.positionals.len > 0)
+        args.positionals
     else blk: {
         manifest_paths = loadManifestPaths(allocator) catch |err| {
             try printStderr("error: failed to read manifest 'build.zig.zon': {}\n", .{err});
@@ -115,14 +105,12 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     };
 
     for (target_paths) |path| {
-        try lintPath(allocator, path, rule_set, targeting_options, &all_diagnostics, &summary, output_mode);
+        try lintPath(allocator, path, rule_set, targeting_options, &all_diagnostics, &summary, args.format);
     }
 
-    if (output_mode == .json) {
+    if (args.format == .json) {
         try docent.output.printJsonStdout(allocator, all_diagnostics.items);
-    }
-
-    if (output_mode != .json) {
+    } else {
         try docent.output.printSummaryStderr(summary, docent.output.stderrSummaryOptions("docent", .auto));
     }
 
@@ -343,37 +331,35 @@ fn textFormat(mode: OutputMode) docent.output.TextFormat {
 
 // ── Rule overrides ─────────────────────────────────────────────────────────
 
-fn applyRuleOverride(rule_set: *docent.RuleSet, spec: []const u8) !void {
-    const eq_idx = std.mem.indexOfScalar(u8, spec, '=') orelse return error.InvalidFormat;
-    const name = spec[0..eq_idx];
-    const sev_str = spec[eq_idx + 1 ..];
-
-    const severity: docent.Severity = if (std.mem.eql(u8, sev_str, "allow"))
-        .allow
-    else if (std.mem.eql(u8, sev_str, "warn"))
-        .warn
-    else if (std.mem.eql(u8, sev_str, "deny"))
-        .deny
-    else if (std.mem.eql(u8, sev_str, "forbid"))
-        .forbid
-    else
-        return error.InvalidSeverity;
-
-    if (std.mem.eql(u8, name, "missing_doc_comment")) {
-        rule_set.missing_doc_comment = severity;
-    } else if (std.mem.eql(u8, name, "missing_doctest")) {
-        rule_set.missing_doctest = severity;
-    } else if (std.mem.eql(u8, name, "private_doctest")) {
-        rule_set.private_doctest = severity;
-    } else if (std.mem.eql(u8, name, "missing_container_doc_comment")) {
-        rule_set.missing_container_doc_comment = severity;
-    } else if (std.mem.eql(u8, name, "empty_doc_comment")) {
-        rule_set.empty_doc_comment = severity;
-    } else if (std.mem.eql(u8, name, "doctest_naming_mismatch")) {
-        rule_set.doctest_naming_mismatch = severity;
-    } else {
-        return error.UnknownRule;
+/// Builds a `RuleSet` with every field set to the preset severity.
+/// The `inline for` unrolls at comptime — adding a field to `RuleSet` is
+/// automatically picked up here with no manual update needed.
+fn allPresetToRuleSet(preset: AllPreset) docent.RuleSet {
+    var rs: docent.RuleSet = .{};
+    const sev: docent.Severity = switch (preset) {
+        .warn => .warn,
+        .deny => .deny,
+    };
+    inline for (@typeInfo(docent.RuleSet).@"struct".fields) |f| {
+        @field(rs, f.name) = sev;
     }
+    return rs;
+}
+
+/// Applies a single `key=severity` override to the rule set.
+/// Uses `std.meta.stringToEnum` for severity parsing and `inline for` for
+/// field dispatch — both auto-sync with any future changes to `RuleSet`.
+/// Because fangz validates `allowed_keys` at parse time, `error.UnknownRule`
+/// here is effectively dead code for values arriving through the CLI.
+fn applyRuleOverride(rs: *docent.RuleSet, kv: fangz.KeyValuePair) !void {
+    const sev = std.meta.stringToEnum(docent.Severity, kv.value) orelse return error.InvalidSeverity;
+    inline for (@typeInfo(docent.RuleSet).@"struct".fields) |f| {
+        if (std.mem.eql(u8, f.name, kv.key)) {
+            @field(rs, f.name) = sev;
+            return;
+        }
+    }
+    return error.UnknownRule;
 }
 
 // ── I/O helpers ────────────────────────────────────────────────────────────
