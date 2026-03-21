@@ -16,28 +16,42 @@ pub fn check(
 ) !void {
     if (!severity.isActive()) return;
     const tags = tree.tokens.items(.tag);
-    for (tags, 0..) |tag, i| {
-        if (tag == .doc_comment or tag == .container_doc_comment) {
+    var i: usize = 0;
+    while (i < tags.len) {
+        const tag = tags[i];
+        if (tag != .doc_comment and tag != .container_doc_comment) {
+            i += 1;
+            continue;
+        }
+
+        const block_start = i;
+        var all_empty = true;
+
+        while (i < tags.len and tags[i] == tag) : (i += 1) {
             const tok: Ast.TokenIndex = @intCast(i);
             const slice = tree.tokenSlice(tok);
-            if (isEmptyDocComment(slice)) {
-                const loc = tree.tokenLocation(0, tok);
-                try diagnostics.append(allocator, .{
-                    .rule = rule_name,
-                    .severity = severity,
-                    .message = "doc comment is empty",
-                    .file = file,
-                    .line = loc.line + 1,
-                    .column = loc.column + 1,
-                    .source_line = try utils.dupSourceLine(tree, tok, msg_allocator),
-                    .symbol_len = slice.len,
-                });
-            }
+            if (!isEmptyDocCommentLine(slice)) all_empty = false;
+        }
+
+        if (all_empty) {
+            const tok: Ast.TokenIndex = @intCast(block_start);
+            const slice = tree.tokenSlice(tok);
+            const loc = tree.tokenLocation(0, tok);
+            try diagnostics.append(allocator, .{
+                .rule = rule_name,
+                .severity = severity,
+                .message = "doc comment is empty",
+                .file = file,
+                .line = loc.line + 1,
+                .column = loc.column + 1,
+                .source_line = try utils.dupSourceLine(tree, tok, msg_allocator),
+                .symbol_len = slice.len,
+            });
         }
     }
 }
 
-fn isEmptyDocComment(slice: []const u8) bool {
+fn isEmptyDocCommentLine(slice: []const u8) bool {
     const prefix: []const u8 = if (std.mem.startsWith(u8, slice, "//!"))
         "//!"
     else if (std.mem.startsWith(u8, slice, "///"))
@@ -98,4 +112,16 @@ test "detects empty //! comment" {
     var r = try runCheck("//!");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
+}
+
+test "detects fully empty multiline /// comment block once" {
+    var r = try runCheck("///\n///   \npub fn foo() void {}");
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+}
+
+test "no diagnostic for multiline block with at least one non-empty line" {
+    var r = try runCheck("/// This should\n///\n/// be valid\npub fn foo() void {}");
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
 }

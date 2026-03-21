@@ -105,6 +105,34 @@ test "compliant: no violations with all rules enabled" {
     try std.testing.expect(!result.hasErrors());
 }
 
+test "non_empty fixture: empty_doc_comment ignores partially empty multiline docs" {
+    const allocator = std.testing.allocator;
+    var result = try lintFixture(allocator, "valid/non_empty/root.zig", .{
+        .empty_doc_comment = .warn,
+    });
+    defer result.deinit();
+
+    for (result.diagnostics.items) |d| {
+        if (std.mem.eql(u8, d.rule, "empty_doc_comment")) {
+            return error.UnexpectedDiagnostic;
+        }
+    }
+}
+
+test "empty_doc_comment_multiline fixture: reports fully empty multiline docs" {
+    const allocator = std.testing.allocator;
+    var result = try lintFixture(allocator, "invalid/empty_doc_comment_multiline/root.zig", .{
+        .empty_doc_comment = .warn,
+    });
+    defer result.deinit();
+
+    var count: usize = 0;
+    for (result.diagnostics.items) |d| {
+        if (std.mem.eql(u8, d.rule, "empty_doc_comment")) count += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 1), count);
+}
+
 test "severity levels: allow suppresses diagnostics" {
     const allocator = std.testing.allocator;
     var result = try lintFixture(allocator, "invalid/mixed/main.zig", .{
