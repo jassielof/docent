@@ -31,13 +31,16 @@ pub const LintStep = struct {
         const self: *LintStep = @fieldParentPtr("step", step);
         const allocator = step.owner.allocator;
 
+        const path_display_root: ?[]const u8 = std.fs.cwd().realpathAlloc(allocator, ".") catch null;
+        defer if (path_display_root) |p| allocator.free(p);
+
         var summary: docent.output.Summary = .{};
         var total_files: usize = 0;
 
         for (self.sources) |source_path| {
             const stat = std.fs.cwd().statFile(source_path) catch |err| {
                 if (err == error.IsDir) {
-                    try self.lintDirectory(allocator, source_path, step, &summary, &total_files);
+                    try self.lintDirectory(allocator, source_path, step, &summary, &total_files, path_display_root);
                     continue;
                 }
                 step.result_error_msgs.append(
@@ -48,10 +51,10 @@ pub const LintStep = struct {
             };
 
             if (stat.kind == .directory) {
-                try self.lintDirectory(allocator, source_path, step, &summary, &total_files);
+                try self.lintDirectory(allocator, source_path, step, &summary, &total_files, path_display_root);
             } else {
                 if (docent.targeting.shouldSkipLintFile(source_path, .{ .include_build_scripts = self.include_build_scripts })) continue;
-                try self.lintSingleFile(allocator, source_path, step, &summary, &total_files);
+                try self.lintSingleFile(allocator, source_path, step, &summary, &total_files, path_display_root);
             }
         }
 
@@ -64,7 +67,7 @@ pub const LintStep = struct {
         }
     }
 
-    fn lintDirectory(self: *LintStep, allocator: std.mem.Allocator, dir_path: []const u8, step: *std.Build.Step, summary: *docent.output.Summary, total_files: *usize) !void {
+    fn lintDirectory(self: *LintStep, allocator: std.mem.Allocator, dir_path: []const u8, step: *std.Build.Step, summary: *docent.output.Summary, total_files: *usize, path_display_root: ?[]const u8) !void {
         var targets = docent.targeting.collectDirectoryLintTargets(
             allocator,
             dir_path,
@@ -80,11 +83,11 @@ pub const LintStep = struct {
 
         for (targets.items) |full_path| {
             if (self.isExcluded(full_path)) continue;
-            try self.lintSingleFile(allocator, full_path, step, summary, total_files);
+            try self.lintSingleFile(allocator, full_path, step, summary, total_files, path_display_root);
         }
     }
 
-    fn lintSingleFile(self: *LintStep, allocator: std.mem.Allocator, path: []const u8, step: *std.Build.Step, summary: *docent.output.Summary, total_files: *usize) !void {
+    fn lintSingleFile(self: *LintStep, allocator: std.mem.Allocator, path: []const u8, step: *std.Build.Step, summary: *docent.output.Summary, total_files: *usize, path_display_root: ?[]const u8) !void {
         var result = docent.lintFile(allocator, path, self.rule_set) catch |err| {
             step.result_error_msgs.append(
                 allocator,
@@ -100,11 +103,11 @@ pub const LintStep = struct {
             switch (d.severity) {
                 .allow => continue,
                 .warn => {
-                    try docent.output.printDiagnosticStderr(d, docent.output.stderrTextOptions(self.output.format, self.output.color));
+                    try docent.output.printDiagnosticStderr(d, docent.output.stderrTextOptions(self.output.format, self.output.color, path_display_root));
                 },
                 .deny, .forbid => {
                     file_has_errors = true;
-                    try docent.output.printDiagnosticStderr(d, docent.output.stderrTextOptions(self.output.format, self.output.color));
+                    try docent.output.printDiagnosticStderr(d, docent.output.stderrTextOptions(self.output.format, self.output.color, path_display_root));
                 },
             }
         }
