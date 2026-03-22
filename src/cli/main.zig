@@ -81,6 +81,9 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         .include_build_scripts = args.include_build_scripts,
     };
 
+    const path_display_root = try allocPathDisplayRoot(allocator);
+    defer allocator.free(path_display_root);
+
     var summary: docent.output.Summary = .{};
     var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;
     defer all_diagnostics.deinit(allocator);
@@ -103,7 +106,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     };
 
     for (target_paths) |path| {
-        try lintPath(allocator, path, rule_set, targeting_options, &all_diagnostics, &summary, args.format);
+        try lintPath(allocator, path, rule_set, targeting_options, &all_diagnostics, &summary, args.format, path_display_root);
     }
 
     if (args.format == .json) {
@@ -139,11 +142,12 @@ fn lintPath(
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     output_mode: OutputMode,
+    path_display_root: []const u8,
 ) !void {
     const stat = std.fs.cwd().statFile(path) catch |err| switch (err) {
         // On some platforms statFile returns IsDir for directory paths
         error.IsDir => {
-            try lintDirectory(allocator, path, rule_set, targeting_options, all_diagnostics, summary, output_mode);
+            try lintDirectory(allocator, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root);
             return;
         },
         else => {
@@ -153,11 +157,11 @@ fn lintPath(
     };
 
     if (stat.kind == .directory) {
-        try lintDirectory(allocator, path, rule_set, targeting_options, all_diagnostics, summary, output_mode);
+        try lintDirectory(allocator, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root);
     } else {
         if (!std.mem.endsWith(u8, path, ".zig")) return;
         if (docent.targeting.shouldSkipLintFile(path, targeting_options)) return;
-        try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode);
+        try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode, path_display_root);
     }
 }
 
@@ -237,6 +241,17 @@ fn loadManifestPaths(allocator: std.mem.Allocator) !std.ArrayList([]const u8) {
     return paths;
 }
 
+/// Absolute path of the nearest `build.zig.zon` directory, or canonical cwd if none.
+fn allocPathDisplayRoot(allocator: std.mem.Allocator) ![]u8 {
+    const manifest = findNearestManifestPath(allocator) catch |err| switch (err) {
+        error.OutOfMemory => return err,
+        else => return std.fs.cwd().realpathAlloc(allocator, "."),
+    };
+    defer allocator.free(manifest);
+    const dir = std.fs.path.dirname(manifest) orelse return std.fs.cwd().realpathAlloc(allocator, ".");
+    return std.fs.cwd().realpathAlloc(allocator, dir);
+}
+
 fn findNearestManifestPath(allocator: std.mem.Allocator) ![]u8 {
     var current = try std.process.getCwdAlloc(allocator);
 
@@ -285,12 +300,13 @@ fn lintDirectory(
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     output_mode: OutputMode,
+    path_display_root: []const u8,
 ) !void {
     var targets = try docent.targeting.collectDirectoryLintTargets(allocator, dir_path, targeting_options);
     defer docent.targeting.deinitOwnedPaths(allocator, &targets);
 
     for (targets.items) |path| {
-        try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode);
+        try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode, path_display_root);
     }
 }
 
@@ -301,6 +317,7 @@ fn lintSingleFile(
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     output_mode: OutputMode,
+    path_display_root: []const u8,
 ) !void {
     var result = docent.lintFile(allocator, path, rule_set) catch |err| {
         try printStderr("error: failed to lint '{s}': {}\n", .{ path, err });
@@ -314,7 +331,7 @@ fn lintSingleFile(
         if (output_mode == .json) {
             try all_diagnostics.append(allocator, d);
         } else {
-            try docent.output.printDiagnosticStderr(d, docent.output.stderrTextOptions(textFormat(output_mode), .auto));
+            try docent.output.printDiagnosticStderr(d, docent.output.stderrTextOptions(textFormat(output_mode), .auto, path_display_root));
         }
     }
 }

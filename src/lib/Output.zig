@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const Diagnostic = @import("Diagnostic.zig");
 const carnaval = @import("carnaval");
 
@@ -18,6 +19,8 @@ pub const TextOptions = struct {
     color: ColorMode = .auto,
     tty_config: std.io.tty.Config = .no_color,
     color_profile: ?carnaval.ColorProfile = null,
+    /// When set, absolute paths under this directory are printed relative to it (Cargo-style).
+    path_display_root: ?[]const u8 = null,
 };
 
 pub const SummaryOptions = struct {
@@ -53,12 +56,13 @@ const Style = struct {
     caret_error: carnaval.Style,
 };
 
-pub fn stderrTextOptions(format: TextFormat, color: ColorMode) TextOptions {
+pub fn stderrTextOptions(format: TextFormat, color: ColorMode, path_display_root: ?[]const u8) TextOptions {
     return .{
         .format = format,
         .color = color,
         .tty_config = std.io.tty.detectConfig(std.fs.File.stderr()),
         .color_profile = carnaval.colorProfileForHandle(std.fs.File.stderr().handle),
+        .path_display_root = path_display_root,
     };
 }
 
@@ -80,8 +84,8 @@ pub fn writeDiagnostic(writer: anytype, diagnostic: Diagnostic, options: TextOpt
     const style = resolveStyle();
     const color_profile = resolveProfile(options.color, options.tty_config, options.color_profile);
     switch (options.format) {
-        .pretty => try writePrettyDiagnostic(writer, diagnostic, style, color_profile),
-        .minimal => try writeMinimalDiagnostic(writer, diagnostic, style, color_profile),
+        .pretty => try writePrettyDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root),
+        .minimal => try writeMinimalDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root),
     }
 }
 
@@ -183,8 +187,14 @@ fn resolveProfile(color_mode: ColorMode, tty_config: std.io.tty.Config, detected
     };
 }
 
-fn writePrettyDiagnostic(writer: anytype, diagnostic: Diagnostic, style: Style, color_profile: carnaval.ColorProfile) !void {
-    try writeHeader(writer, diagnostic, style, color_profile);
+fn writePrettyDiagnostic(
+    writer: anytype,
+    diagnostic: Diagnostic,
+    style: Style,
+    color_profile: carnaval.ColorProfile,
+    path_display_root: ?[]const u8,
+) !void {
+    try writeHeader(writer, diagnostic, style, color_profile, path_display_root);
 
     if (diagnostic.source_line.len == 0) return;
 
@@ -218,18 +228,69 @@ fn writePrettyDiagnostic(writer: anytype, diagnostic: Diagnostic, style: Style, 
     try writer.writeAll("\n\n");
 }
 
-fn writeMinimalDiagnostic(writer: anytype, diagnostic: Diagnostic, style: Style, color_profile: carnaval.ColorProfile) !void {
-    try writeHeader(writer, diagnostic, style, color_profile);
+fn writeMinimalDiagnostic(
+    writer: anytype,
+    diagnostic: Diagnostic,
+    style: Style,
+    color_profile: carnaval.ColorProfile,
+    path_display_root: ?[]const u8,
+) !void {
+    try writeHeader(writer, diagnostic, style, color_profile, path_display_root);
 }
 
-fn writeHeader(writer: anytype, diagnostic: Diagnostic, style: Style, color_profile: carnaval.ColorProfile) !void {
+/// Shortens `file_path` when it is an absolute path under `path_display_root` (e.g. package root).
+pub fn pathForDisplay(path_display_root: ?[]const u8, file_path: []const u8) []const u8 {
+    const root = path_display_root orelse return file_path;
+    if (root.len == 0) return file_path;
+    if (!std.fs.path.isAbsolute(file_path)) return file_path;
+    return stripAbsolutePrefix(root, file_path) orelse file_path;
+}
+
+fn stripAbsolutePrefix(root: []const u8, path: []const u8) ?[]const u8 {
+    if (path.len < root.len) return null;
+
+    if (path.len == root.len) {
+        if (pathsEqualAbsoluteRoot(root, path)) return ".";
+        return null;
+    }
+
+    if (!pathsEqualAbsoluteRoot(root, path[0..root.len])) return null;
+
+    const sep_after = path[root.len];
+    if (!isPathSeparatorAfterRoot(sep_after)) return null;
+
+    return path[root.len + 1 ..];
+}
+
+fn isPathSeparatorAfterRoot(c: u8) bool {
+    if (c == std.fs.path.sep) return true;
+    if (builtin.os.tag == .windows and c == '/') return true;
+    return false;
+}
+
+fn pathsEqualAbsoluteRoot(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    if (builtin.os.tag == .windows) {
+        return std.ascii.eqlIgnoreCase(a, b);
+    }
+    return std.mem.eql(u8, a, b);
+}
+
+fn writeHeader(
+    writer: anytype,
+    diagnostic: Diagnostic,
+    style: Style,
+    color_profile: carnaval.ColorProfile,
+    path_display_root: ?[]const u8,
+) !void {
     const severity_label: []const u8 = switch (diagnostic.severity) {
         .warn => "warning",
         .deny, .forbid => "error",
         .allow => return,
     };
 
-    try writer.print("{s}:{d}:{d}: ", .{ diagnostic.file, diagnostic.line, diagnostic.column });
+    const file_shown = pathForDisplay(path_display_root, diagnostic.file);
+    try writer.print("{s}:{d}:{d}: ", .{ file_shown, diagnostic.line, diagnostic.column });
     try severityStyle(style, diagnostic).renderWithProfile(severity_label, writer, color_profile);
     try writer.writeAll("[");
     try style.dim.renderWithProfile(diagnostic.rule, writer, color_profile);
@@ -312,6 +373,27 @@ test "pretty formatter renders source snippet" {
             "           ^~~~\n\n",
         out.items,
     );
+}
+
+test "pathForDisplay shortens absolute path under root" {
+    if (builtin.os.tag == .windows) {
+        try std.testing.expectEqualStrings("src\\main.zig", pathForDisplay("C:\\proj", "C:\\proj\\src\\main.zig"));
+        try std.testing.expectEqualStrings(".", pathForDisplay("D:\\repo", "D:\\repo"));
+        try std.testing.expectEqualStrings("src\\main.zig", pathForDisplay("c:\\proj", "C:\\proj\\src\\main.zig"));
+    } else {
+        try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("/proj", "/proj/src/main.zig"));
+        try std.testing.expectEqualStrings(".", pathForDisplay("/repo", "/repo"));
+    }
+}
+
+test "pathForDisplay leaves non-absolute and out-of-root paths unchanged" {
+    try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("/proj", "src/main.zig"));
+    if (builtin.os.tag == .windows) {
+        const p = "D:\\other\\main.zig";
+        try std.testing.expectEqualStrings(p, pathForDisplay("C:\\proj", p));
+    } else {
+        try std.testing.expectEqualStrings("/other/main.zig", pathForDisplay("/proj", "/other/main.zig"));
+    }
 }
 
 test "json formatter escapes message fields" {
