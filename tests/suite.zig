@@ -205,6 +205,34 @@ test "reexport_undocumented: diagnostic points to definition site, not re-export
     try std.testing.expectEqual(@as(usize, 1), count);
 }
 
+test "private_struct_private_members: no missing_doc_comment inside private struct" {
+    const allocator = std.testing.allocator;
+    var result = try lintFixture(allocator, "valid/private_struct_private_members/root.zig", .{
+        .missing_doc_comment = .deny,
+    });
+    defer result.deinit();
+
+    for (result.diagnostics.items) |d| {
+        if (std.mem.eql(u8, d.rule, "missing_doc_comment")) {
+            return error.UnexpectedDiagnostic;
+        }
+    }
+}
+
+test "public_struct_undocumented_members: reports undocumented pub struct API" {
+    const allocator = std.testing.allocator;
+    var result = try lintFixture(allocator, "invalid/public_struct_undocumented_members/root.zig", .{
+        .missing_doc_comment = .deny,
+    });
+    defer result.deinit();
+
+    var count: usize = 0;
+    for (result.diagnostics.items) |d| {
+        if (std.mem.eql(u8, d.rule, "missing_doc_comment")) count += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 3), count);
+}
+
 test "reexport: unresolvable import produces no false positive (single-file mode)" {
     // When lintSource is given a fake file path and the imported file does not
     // exist on disk, the re-export must be silently skipped — no false positive.

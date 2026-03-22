@@ -131,6 +131,14 @@ fn checkVarDeclInit(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
+    // Fields and `pub fn` inside `const S = struct { ... }` are not public API;
+    // only walk container members when the declaration itself is `pub`.
+    const decl_is_pub: bool = blk: {
+        const vt = var_decl.visib_token orelse break :blk false;
+        break :blk tree.tokenTag(vt) == .keyword_pub;
+    };
+    if (!decl_is_pub) return;
+
     const init_node = var_decl.ast.init_node.unwrap() orelse return;
     if (isContainerDecl(tree.nodeTag(init_node))) {
         var buf: [2]Ast.Node.Index = undefined;
@@ -388,6 +396,18 @@ test "detects missing doc comment on container fields, names the field" {
     try std.testing.expectEqual(2, r.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'x'") != null);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[1].message, "'y'") != null);
+}
+
+test "no diagnostic for private const struct members and pub fn inside" {
+    var r = try runCheck(
+        \\const PrivateStruct = struct {
+        \\    step: i32,
+        \\    color: []const u8,
+        \\    pub fn world() void {}
+        \\};
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "location points to name token, not keyword" {
