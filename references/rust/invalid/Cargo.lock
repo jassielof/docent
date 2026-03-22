@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "doc-lint"
+name = "invalid"
 version = "0.1.0"
