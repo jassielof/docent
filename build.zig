@@ -35,21 +35,24 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/cli/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{ .{
-                .name = mod_name,
-                .module = lib_mod,
-            }, .{
-                .name = "fangz",
-                .module = fangz,
-            }, .{
-                .name = "vereda",
-                .module = vereda,
-            } },
+            .imports = &.{
+                .{
+                    .name = mod_name,
+                    .module = lib_mod,
+                },
+                .{
+                    .name = "fangz",
+                    .module = fangz,
+                },
+                .{
+                    .name = "vereda",
+                    .module = vereda,
+                },
+            },
         }),
     });
 
-    // Inject the executable name and manifest version into the fangz module
-    // so App.init can infer them without the user having to specify them.
+    // Inject the executable name and manifest version into the fangz module so App.init can infer them without the user having to specify them.
     fangz_build.injectMeta(b, cli, fangz);
 
     b.installArtifact(cli);
