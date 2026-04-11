@@ -14,3 +14,5 @@ pub const Level = enum {
         return self != .allow;
     }
 };
+
+pub const EvenDeeper = @import("deeper.zig").Deepest;
