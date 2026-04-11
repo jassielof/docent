@@ -2,7 +2,7 @@
 
 Docent is a documentation linter for Zig.
 
-Available as a CLI, library, and build integration step.
+Available as a CLI, library, and build integration step (#1).
 
 ## Behavior & Rules
 
@@ -25,6 +25,7 @@ Reachability notes:
 Build script defaults:
 
 - `build.zig` and files under `build/` are ignored by default.
+  - Instead of files within the build directory, it's mostly all of those files that are used/imported by the main build script (`build.zig`).
 - This avoids false-positive API checks from build tooling paths that are commonly present in `build.zig.zon` `.paths`.
 - CLI users can opt in with `--include-build-scripts`.
 - Library users can opt in via `docent.targeting.Options{ .include_build_scripts = true }`.
@@ -37,7 +38,7 @@ All rules accept one of these levels:
 - `allow`: disable the rule.
 - `warn`: emit a diagnostic but do not fail the run.
 - `deny`: emit a diagnostic and count it as an error.
-- `forbid`: same behavior as `deny` for now.
+- `forbid`: same behavior as `deny` for now. Either deny or forbid will have to be gone, I fell forbid is better to stay.
 
 ### Rule: missing_doc_comment
 
@@ -133,6 +134,25 @@ Current implementation detail:
 - Re-export checks are performed while linting the current file and resolving
   directly imported files. The linter does not currently compute full
   transitive API reachability for the entire package graph.
+
+## References
+
+### Rust
+
+The user already has the two core Rust links. A third Clippy-specific lint is worth adding for private item coverage, since `rustc`'s `missing_docs` only covers public items: [github](https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs)
+
+- <https://doc.rust-lang.org/rustdoc/lints.html> — full list of `rustdoc` lints (`missing_docs`, `missing_doc_code_examples`, `broken_intra_doc_links`, etc.) [doc.rust-lang](https://doc.rust-lang.org/rustdoc/lints.html)
+- <https://doc.rust-lang.org/beta/rustc/lints/listing/allowed-by-default.html#missing-docs> — `rustc`-level `missing_docs` lint details (allowed by default, enable with `#![warn/deny(missing_docs)]`) [bsdwatch](https://bsdwatch.net/docs/sharedocs/rust/html/rustdoc/lints.html)
+- <https://rust-lang.github.io/rust-clippy/master/index.html#missing_docs_in_private_items> — Clippy's `MISSING_DOCS_IN_PRIVATE_ITEMS` (restriction lint), which extends coverage to private items that `rustc` ignores [github](https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs)
+
+### Go
+
+Go has no compiler-level equivalent to `#![deny(missing_docs)]`. The canonical approach is through external linters, backed by the official doc comment spec: [go](https://go.dev/doc/comment)
+
+- <https://go.dev/doc/comment> — official Go doc comment syntax specification (paragraphs, headings, links, lists, code blocks, and formatting rules enforced by `gofmt`) [go](https://go.dev/doc/comment)
+- <https://pkg.go.dev/go/doc/comment> — `go/doc/comment` standard library package for parsing and reformatting doc comments programmatically [pkg.go](https://pkg.go.dev/go/doc/comment)
+- <https://github.com/godoc-lint/godoc-lint> — dedicated godoc lint checker with rules like `require-doc`, `start-with-name`, `deprecated`, `max-len`, `no-unused-link`, and `require-stdlib-doclink` [github](https://github.com/godoc-lint/godoc-lint)
+- <https://golangci-lint.run/docs/linters/> — `golangci-lint` integrates `godoclint` as a configurable linter runner with YAML-based rule configuration [golangci-lint](https://golangci-lint.run/docs/linters/)
 
 ## Credits
 

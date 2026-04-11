@@ -68,6 +68,7 @@ fn stripQuotes(s: []const u8) []const u8 {
     if (s.len >= 2 and s[0] == '"' and s[s.len - 1] == '"') {
         return s[1 .. s.len - 1];
     }
+
     return s;
 }
 
@@ -97,7 +98,11 @@ fn runCheck(source: [:0]const u8) !TestResult {
 }
 
 test "detects string test name matching pub fn, shows correction" {
-    var r = try runCheck("/// Does something.\npub fn foo() void {}\ntest \"foo\" {}");
+    var r = try runCheck(
+        \\/// Does something.
+        \\pub fn foo() void {}
+        \\test "foo" {}
+    );
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
@@ -105,13 +110,21 @@ test "detects string test name matching pub fn, shows correction" {
 }
 
 test "no diagnostic for identifier test name" {
-    var r = try runCheck("/// Does something.\npub fn foo() void {}\ntest foo {}");
+    var r = try runCheck(
+        \\/// Does something.
+        \\pub fn foo() void {}
+        \\test foo {}
+    );
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "no diagnostic for string test not matching any pub fn" {
-    var r = try runCheck("/// Does something.\npub fn foo() void {}\ntest \"bar\" {}");
+    var r = try runCheck(
+        \\/// Does something.
+        \\pub fn foo() void {}
+        \\test "bar" {}
+    );
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }

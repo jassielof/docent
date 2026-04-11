@@ -1,5 +1,4 @@
 name: CI
-
 on:
   push:
     branches: [main]
@@ -14,8 +13,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     name: Build, test and generate docs
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -34,7 +33,7 @@ jobs:
       - name: Tests
         run: zig build tests --summary all
 
-      - name: Build docs
+      - name: Generate documentation # I should be using Fangz documentation generator too aside the library one.
         run: zig build docs --summary all
 
       - name: Upload page artifact
