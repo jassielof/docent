@@ -5,3 +5,4 @@
 pub const Severity = @import("severity.zig").Level;
 // TODO: This is to test if it can resolve multiple levels of re-exports.
 pub const Deeper = @import("severity.zig").EvenDeeper;
+pub const EvenDeeper = @import("severity.zig").MuchMoreDeeper;

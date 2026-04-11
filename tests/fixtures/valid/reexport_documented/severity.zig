@@ -16,3 +16,4 @@ pub const Level = enum {
 };
 
 pub const EvenDeeper = @import("deeper.zig").Deepest;
+pub const MuchMoreDeeper = @import("deeper.zig").SuperDeep;

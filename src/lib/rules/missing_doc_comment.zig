@@ -241,7 +241,38 @@ fn tryResolveReexportImpl(
     const imported_path = try std.fs.path.join(allocator, &.{ base_dir, info.import_path });
     defer allocator.free(imported_path);
 
-    const f = try std.fs.cwd().openFile(imported_path, .{});
+    _ = try resolveDocForSymbolInFile(
+        imported_path,
+        info.field_name,
+        info.field_name,
+        severity,
+        allocator,
+        msg_allocator,
+        diagnostics,
+        0,
+    );
+}
+
+const ResolveOutcome = enum {
+    documented,
+    undocumented,
+    unresolved,
+};
+
+fn resolveDocForSymbolInFile(
+    file_path: []const u8,
+    symbol_name: []const u8,
+    display_symbol: []const u8,
+    severity: Severity.Level,
+    allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
+    diagnostics: *std.ArrayList(Diagnostic),
+    depth: usize,
+) !ResolveOutcome {
+    // Guard against pathological import cycles.
+    if (depth > 32) return .unresolved;
+
+    const f = try std.fs.cwd().openFile(file_path, .{});
     defer f.close();
 
     const source = try f.readToEndAllocOptions(allocator, std.math.maxInt(u32), null, .of(u8), 0);
@@ -252,33 +283,97 @@ fn tryResolveReexportImpl(
 
     // Search the top-level declarations of the imported file.
     for (imported_tree.rootDecls()) |decl| {
-        const found = findNamedDecl(&imported_tree, decl, info.field_name) orelse continue;
-        if (!hasDocComment(&imported_tree, found.first_tok)) {
-            // The original declaration exists but lacks documentation.
-            const loc = imported_tree.tokenLocation(0, found.name_tok);
-            try diagnostics.append(allocator, .{
-                .rule = rule_name,
-                .severity = severity,
-                .message = try std.fmt.allocPrint(
-                    msg_allocator,
-                    "missing doc comment for '{s}' (re-exported without documentation)",
-                    .{info.field_name},
-                ),
-                // Store an owned copy of the path so it outlives the allocator.
-                .file = try msg_allocator.dupe(u8, imported_path),
-                .line = loc.line + 1,
-                .column = loc.column + 1,
-                .source_line = try utils.dupSourceLine(&imported_tree, found.name_tok, msg_allocator),
-                .symbol_len = info.field_name.len,
-            });
+        const found = findNamedDecl(&imported_tree, decl, symbol_name) orelse continue;
+        if (hasDocComment(&imported_tree, found.first_tok)) {
+            return .documented;
         }
-        // Declaration found — whether documented or not, we're done.
-        return;
+
+        // Undocumented declaration found: recurse if it's itself a re-export.
+        if (imported_tree.fullVarDecl(found.node)) |vd| {
+            const init_node = vd.ast.init_node.unwrap() orelse {
+                try emitUndocumentedReexportDiagnostic(
+                    &imported_tree,
+                    found.name_tok,
+                    display_symbol,
+                    file_path,
+                    severity,
+                    allocator,
+                    msg_allocator,
+                    diagnostics,
+                );
+                return .undocumented;
+            };
+
+            if (getReexportInfo(&imported_tree, init_node)) |nested| {
+                const nested_base_dir = std.fs.path.dirname(file_path) orelse ".";
+                const nested_imported_path = try std.fs.path.join(allocator, &.{ nested_base_dir, nested.import_path });
+                defer allocator.free(nested_imported_path);
+
+                const nested_outcome = try resolveDocForSymbolInFile(
+                    nested_imported_path,
+                    nested.field_name,
+                    display_symbol,
+                    severity,
+                    allocator,
+                    msg_allocator,
+                    diagnostics,
+                    depth + 1,
+                );
+
+                return nested_outcome;
+            }
+        }
+
+        try emitUndocumentedReexportDiagnostic(
+            &imported_tree,
+            found.name_tok,
+            display_symbol,
+            file_path,
+            severity,
+            allocator,
+            msg_allocator,
+            diagnostics,
+        );
+        return .undocumented;
     }
+
     // Symbol not found in the imported file — silently skip.
+    return .unresolved;
 }
 
-const FoundDecl = struct { first_tok: Ast.TokenIndex, name_tok: Ast.TokenIndex };
+fn emitUndocumentedReexportDiagnostic(
+    tree: *const Ast,
+    name_tok: Ast.TokenIndex,
+    display_symbol: []const u8,
+    file_path: []const u8,
+    severity: Severity.Level,
+    allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
+    diagnostics: *std.ArrayList(Diagnostic),
+) std.mem.Allocator.Error!void {
+    const loc = tree.tokenLocation(0, name_tok);
+    try diagnostics.append(allocator, .{
+        .rule = rule_name,
+        .severity = severity,
+        .message = try std.fmt.allocPrint(
+            msg_allocator,
+            "missing doc comment for '{s}' (re-exported without documentation)",
+            .{display_symbol},
+        ),
+        // Store an owned copy of the path so it outlives the allocator.
+        .file = try msg_allocator.dupe(u8, file_path),
+        .line = loc.line + 1,
+        .column = loc.column + 1,
+        .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+        .symbol_len = display_symbol.len,
+    });
+}
+
+const FoundDecl = struct {
+    node: Ast.Node.Index,
+    first_tok: Ast.TokenIndex,
+    name_tok: Ast.TokenIndex,
+};
 
 /// Searches `decl` (a root-level node) for a declaration named `name` and
 /// returns the first/name tokens needed for doc-comment checking.
@@ -286,14 +381,14 @@ fn findNamedDecl(tree: *const Ast, decl: Ast.Node.Index, name: []const u8) ?Foun
     if (tree.fullVarDecl(decl)) |vd| {
         const nt = vd.ast.mut_token + 1;
         if (std.mem.eql(u8, tree.tokenSlice(nt), name))
-            return .{ .first_tok = vd.firstToken(), .name_tok = nt };
+            return .{ .node = decl, .first_tok = vd.firstToken(), .name_tok = nt };
     }
     if (tree.nodeTag(decl) == .fn_decl) {
         var buf: [1]Ast.Node.Index = undefined;
         if (tree.fullFnProto(&buf, decl)) |proto| {
             if (proto.name_token) |nt| {
                 if (std.mem.eql(u8, tree.tokenSlice(nt), name))
-                    return .{ .first_tok = proto.firstToken(), .name_tok = nt };
+                    return .{ .node = decl, .first_tok = proto.firstToken(), .name_tok = nt };
             }
         }
     }
