@@ -1,9 +1,9 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -43,6 +43,8 @@ jobs:
 
   pages:
     name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

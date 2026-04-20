@@ -126,14 +126,11 @@ on the re-export line:
 - If `Bar` has no doc comment → one diagnostic pointing to `other.zig`, not to
   the re-export site.
 - If the import path cannot be resolved (package imports such as `"std"`,
-  missing files, parse errors) → the re-export is silently skipped; no false
-  positive is emitted.
+  missing files, parse errors) → the re-export is silently skipped; no false positive is emitted.
 
 Current implementation detail:
 
-- Re-export checks are performed while linting the current file and resolving
-  directly imported files. The linter does not currently compute full
-  transitive API reachability for the entire package graph.
+- Re-export checks are performed while linting the current file and resolving directly imported files. The linter does not currently compute full transitive API reachability for the entire package graph.
 
 ## References
 
@@ -142,6 +139,7 @@ Current implementation detail:
 The user already has the two core Rust links. A third Clippy-specific lint is worth adding for private item coverage, since `rustc`'s `missing_docs` only covers public items: [github](https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs)
 
 - <https://doc.rust-lang.org/rustdoc/lints.html> — full list of `rustdoc` lints (`missing_docs`, `missing_doc_code_examples`, `broken_intra_doc_links`, etc.) [doc.rust-lang](https://doc.rust-lang.org/rustdoc/lints.html)
+  - Zig docs seem to support intra links
 - <https://doc.rust-lang.org/beta/rustc/lints/listing/allowed-by-default.html#missing-docs> — `rustc`-level `missing_docs` lint details (allowed by default, enable with `#![warn/deny(missing_docs)]`) [bsdwatch](https://bsdwatch.net/docs/sharedocs/rust/html/rustdoc/lints.html)
 - <https://rust-lang.github.io/rust-clippy/master/index.html#missing_docs_in_private_items> — Clippy's `MISSING_DOCS_IN_PRIVATE_ITEMS` (restriction lint), which extends coverage to private items that `rustc` ignores [github](https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs)
 
