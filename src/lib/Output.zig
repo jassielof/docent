@@ -17,7 +17,7 @@ pub const ColorMode = enum {
 pub const TextOptions = struct {
     format: TextFormat = .pretty,
     color: ColorMode = .auto,
-    tty_config: std.io.tty.Config = .no_color,
+    tty_config: std.Io.Terminal.Mode = .no_color,
     color_profile: ?carnaval.ColorProfile = null,
     /// When set, absolute paths under this directory are printed relative to it (Cargo-style).
     path_display_root: ?[]const u8 = null,
@@ -25,7 +25,7 @@ pub const TextOptions = struct {
 
 pub const SummaryOptions = struct {
     color: ColorMode = .auto,
-    tty_config: std.io.tty.Config = .no_color,
+    tty_config: std.Io.Terminal.Mode = .no_color,
     color_profile: ?carnaval.ColorProfile = null,
     tool_name: []const u8 = "docent",
 };
@@ -56,21 +56,21 @@ const Style = struct {
     caret_error: carnaval.Style,
 };
 
-pub fn stderrTextOptions(format: TextFormat, color: ColorMode, path_display_root: ?[]const u8) TextOptions {
+pub fn stderrTextOptions(io: std.Io, format: TextFormat, color: ColorMode, path_display_root: ?[]const u8) TextOptions {
     return .{
         .format = format,
         .color = color,
-        .tty_config = std.io.tty.detectConfig(std.fs.File.stderr()),
-        .color_profile = carnaval.colorProfileForHandle(std.fs.File.stderr().handle),
+        .tty_config = detectTerminalMode(io, std.Io.File.stderr()),
+        .color_profile = carnaval.colorProfileForHandle(std.Io.File.stderr().handle),
         .path_display_root = path_display_root,
     };
 }
 
-pub fn stderrSummaryOptions(tool_name: []const u8, color: ColorMode) SummaryOptions {
+pub fn stderrSummaryOptions(io: std.Io, tool_name: []const u8, color: ColorMode) SummaryOptions {
     return .{
         .color = color,
-        .tty_config = std.io.tty.detectConfig(std.fs.File.stderr()),
-        .color_profile = carnaval.colorProfileForHandle(std.fs.File.stderr().handle),
+        .tty_config = detectTerminalMode(io, std.Io.File.stderr()),
+        .color_profile = carnaval.colorProfileForHandle(std.Io.File.stderr().handle),
         .tool_name = tool_name,
     };
 }
@@ -144,23 +144,23 @@ pub fn writeJson(writer: anytype, allocator: std.mem.Allocator, diagnostics: []c
     try writer.writeAll("]\n");
 }
 
-pub fn printDiagnosticStderr(diagnostic: Diagnostic, options: TextOptions) !void {
+pub fn printDiagnosticStderr(io: std.Io, diagnostic: Diagnostic, options: TextOptions) !void {
     var buffer: [4096]u8 = undefined;
-    var stderr = std.fs.File.stderr().writer(&buffer);
+    var stderr = std.Io.File.stderr().writer(io, &buffer);
     try writeDiagnostic(&stderr.interface, diagnostic, options);
     try stderr.interface.flush();
 }
 
-pub fn printSummaryStderr(summary: Summary, options: SummaryOptions) !void {
+pub fn printSummaryStderr(io: std.Io, summary: Summary, options: SummaryOptions) !void {
     var buffer: [512]u8 = undefined;
-    var stderr = std.fs.File.stderr().writer(&buffer);
+    var stderr = std.Io.File.stderr().writer(io, &buffer);
     try writeSummary(&stderr.interface, summary, options);
     try stderr.interface.flush();
 }
 
-pub fn printJsonStdout(allocator: std.mem.Allocator, diagnostics: []const Diagnostic) !void {
+pub fn printJsonStdout(io: std.Io, allocator: std.mem.Allocator, diagnostics: []const Diagnostic) !void {
     var buffer: [8192]u8 = undefined;
-    var stdout = std.fs.File.stdout().writer(&buffer);
+    var stdout = std.Io.File.stdout().writer(io, &buffer);
     try writeJson(&stdout.interface, allocator, diagnostics);
     try stdout.interface.flush();
 }
@@ -176,7 +176,7 @@ fn resolveStyle() Style {
     };
 }
 
-fn resolveProfile(color_mode: ColorMode, tty_config: std.io.tty.Config, detected: ?carnaval.ColorProfile) carnaval.ColorProfile {
+fn resolveProfile(color_mode: ColorMode, tty_config: std.Io.Terminal.Mode, detected: ?carnaval.ColorProfile) carnaval.ColorProfile {
     return switch (color_mode) {
         .never => .none,
         .always => if (detected) |profile| switch (profile) {
@@ -185,6 +185,10 @@ fn resolveProfile(color_mode: ColorMode, tty_config: std.io.tty.Config, detected
         } else .ansi16,
         .auto => if (tty_config == .no_color) .none else (detected orelse .ansi16),
     };
+}
+
+fn detectTerminalMode(io: std.Io, file: std.Io.File) std.Io.Terminal.Mode {
+    return std.Io.Terminal.Mode.detect(io, file, false, false) catch .no_color;
 }
 
 fn writePrettyDiagnostic(

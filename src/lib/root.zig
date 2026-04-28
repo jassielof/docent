@@ -26,6 +26,7 @@ pub const rules = struct {
 
 pub fn lintSource(
     allocator: std.mem.Allocator,
+    io: std.Io,
     source: [:0]const u8,
     rule_set: RuleSet,
     file: []const u8,
@@ -38,7 +39,7 @@ pub fn lintSource(
 
     const msg = result.messageAllocator();
 
-    try rules.missing_doc_comment.check(&tree, rule_set.missing_doc_comment, file, allocator, msg, &result.diagnostics);
+    try rules.missing_doc_comment.check(&tree, rule_set.missing_doc_comment, file, allocator, io, msg, &result.diagnostics);
     try rules.empty_doc_comment.check(&tree, rule_set.empty_doc_comment, file, allocator, msg, &result.diagnostics);
     try rules.missing_doctest.check(&tree, rule_set.missing_doctest, file, allocator, msg, &result.diagnostics);
     try rules.private_doctest.check(&tree, rule_set.private_doctest, file, allocator, msg, &result.diagnostics);
@@ -51,16 +52,21 @@ pub fn lintSource(
 
 pub fn lintFile(
     allocator: std.mem.Allocator,
+    io: std.Io,
     path: []const u8,
     rule_set: RuleSet,
 ) !LintResult {
-    const file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
-
-    const source = try file.readToEndAllocOptions(allocator, std.math.maxInt(u32), null, .of(u8), 0);
+    const source = try std.Io.Dir.cwd().readFileAllocOptions(
+        io,
+        path,
+        allocator,
+        .limited(std.math.maxInt(u32)),
+        .of(u8),
+        0,
+    );
     defer allocator.free(source);
 
-    return lintSource(allocator, source, rule_set, path);
+    return lintSource(allocator, io, source, rule_set, path);
 }
 
 test {

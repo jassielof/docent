@@ -1,6 +1,12 @@
 const std = @import("std");
 const reachability = @import("Reachability.zig");
 
+fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
+    var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+    return allocator.dupe(u8, buffer[0..len]);
+}
+
 pub const Options = struct {
     include_build_scripts: bool = false,
 };
@@ -21,6 +27,7 @@ pub fn shouldSkipLintFile(path: []const u8, options: Options) bool {
 /// collecting every `.zig` file under the directory.
 pub fn collectDirectoryLintTargets(
     allocator: std.mem.Allocator,
+    io: std.Io,
     dir_path: []const u8,
     options: Options,
 ) !std.ArrayList([]const u8) {
@@ -30,11 +37,11 @@ pub fn collectDirectoryLintTargets(
     var entrypoints: std.ArrayList([]const u8) = .empty;
     defer deinitOwnedPaths(allocator, &entrypoints);
 
-    try collectDirectoryEntrypoints(allocator, dir_path, options, &entrypoints);
+    try collectDirectoryEntrypoints(allocator, io, dir_path, options, &entrypoints);
 
     if (entrypoints.items.len > 0) {
         for (entrypoints.items) |entrypoint| {
-            var reachable = try reachability.collectReachablePublicFiles(allocator, entrypoint);
+            var reachable = try reachability.collectReachablePublicFiles(allocator, io, entrypoint);
             defer reachability.deinitOwnedPaths(allocator, &reachable);
 
             for (reachable.items) |path| {
@@ -47,7 +54,7 @@ pub fn collectDirectoryLintTargets(
         return targets;
     }
 
-    try collectRecursiveZigFiles(allocator, dir_path, options, &targets);
+    try collectRecursiveZigFiles(allocator, io, dir_path, options, &targets);
     return targets;
 }
 
@@ -58,6 +65,7 @@ pub fn deinitOwnedPaths(allocator: std.mem.Allocator, paths: *std.ArrayList([]co
 
 fn collectDirectoryEntrypoints(
     allocator: std.mem.Allocator,
+    io: std.Io,
     dir_path: []const u8,
     options: Options,
     out: *std.ArrayList([]const u8),
@@ -65,17 +73,17 @@ fn collectDirectoryEntrypoints(
     const root_candidate = try std.fs.path.join(allocator, &.{ dir_path, "root.zig" });
     defer allocator.free(root_candidate);
 
-    if (!shouldSkipLintFile(root_candidate, options) and isReadableLocalFile(root_candidate)) {
-        const root_abs = std.fs.cwd().realpathAlloc(allocator, root_candidate) catch return;
+    if (!shouldSkipLintFile(root_candidate, options) and isReadableLocalFile(io, root_candidate)) {
+        const root_abs = realPathFileAlloc(allocator, io, root_candidate) catch return;
         try out.append(allocator, root_abs);
         return;
     }
 
-    var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch return;
-    defer dir.close();
+    var dir = std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return;
+    defer dir.close(io);
 
     var it = dir.iterate();
-    while (try it.next()) |entry| {
+    while (try it.next(io)) |entry| {
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.name, ".zig")) continue;
 
@@ -84,24 +92,25 @@ fn collectDirectoryEntrypoints(
 
         if (shouldSkipLintFile(full, options)) continue;
 
-        const abs = std.fs.cwd().realpathAlloc(allocator, full) catch continue;
+        const abs = realPathFileAlloc(allocator, io, full) catch continue;
         try out.append(allocator, abs);
     }
 }
 
 fn collectRecursiveZigFiles(
     allocator: std.mem.Allocator,
+    io: std.Io,
     dir_path: []const u8,
     options: Options,
     out: *std.ArrayList([]const u8),
 ) !void {
-    var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch return;
-    defer dir.close();
+    var dir = std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return;
+    defer dir.close(io);
 
     var walker = try dir.walk(allocator);
     defer walker.deinit();
 
-    while (try walker.next()) |entry| {
+    while (try walker.next(io)) |entry| {
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.basename, ".zig")) continue;
 
@@ -110,14 +119,14 @@ fn collectRecursiveZigFiles(
 
         if (shouldSkipLintFile(full, options)) continue;
 
-        const abs = std.fs.cwd().realpathAlloc(allocator, full) catch continue;
+        const abs = realPathFileAlloc(allocator, io, full) catch continue;
         try out.append(allocator, abs);
     }
 }
 
-fn isReadableLocalFile(path: []const u8) bool {
-    const file = std.fs.cwd().openFile(path, .{}) catch return false;
-    file.close();
+fn isReadableLocalFile(io: std.Io, path: []const u8) bool {
+    const file = std.Io.Dir.cwd().openFile(io, path, .{}) catch return false;
+    file.close(io);
     return true;
 }
 
