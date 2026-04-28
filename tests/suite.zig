@@ -1,20 +1,25 @@
 const std = @import("std");
+
 const docent = @import("docent");
 
 fn readFixture(allocator: std.mem.Allocator, rel_path: []const u8) ![:0]const u8 {
     const path = try std.fs.path.join(allocator, &.{ "tests", "fixtures", rel_path });
     defer allocator.free(path);
 
-    const file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
-
-    return try file.readToEndAllocOptions(allocator, std.math.maxInt(u32), null, .of(u8), 0);
+    return try std.Io.Dir.cwd().readFileAllocOptions(
+        std.testing.io,
+        path,
+        allocator,
+        .limited(std.math.maxInt(u32)),
+        .of(u8),
+        0,
+    );
 }
 
 fn lintFixture(allocator: std.mem.Allocator, rel_path: []const u8, rule_set: docent.RuleSet) !docent.LintResult {
     const source = try readFixture(allocator, rel_path);
     defer allocator.free(source);
-    return docent.lintSource(allocator, source, rule_set, rel_path);
+    return docent.lintSource(allocator, std.testing.io, source, rule_set, rel_path);
 }
 
 test "compliant: no missing_doc_comment violations" {
@@ -168,6 +173,7 @@ test "reexport_documented: no diagnostic when original declaration is documented
     // Use lintFile with the full path so dirname() resolves correctly from CWD.
     var result = try docent.lintFile(
         std.testing.allocator,
+        std.testing.io,
         "tests/fixtures/valid/reexport_documented/root.zig",
         .{ .missing_doc_comment = .deny },
     );
@@ -187,6 +193,7 @@ test "reexport_undocumented: diagnostic points to definition site, not re-export
     // it must point into `severity.zig`, NOT into `root.zig`.
     var result = try docent.lintFile(
         std.testing.allocator,
+        std.testing.io,
         "tests/fixtures/invalid/reexport_undocumented/root.zig",
         .{ .missing_doc_comment = .deny },
     );
@@ -241,6 +248,7 @@ test "reexport: unresolvable import produces no false positive (single-file mode
         "//! Module.\npub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;";
     var result = try docent.lintSource(
         std.testing.allocator,
+        std.testing.io,
         source,
         .{ .missing_doc_comment = .deny },
         "<fake-file.zig>",
@@ -259,6 +267,7 @@ test "reexport: unresolvable import produces no false positive (single-file mode
 test "reachability: collects only public reachable files from root.zig" {
     var files = try docent.reachability.collectReachablePublicFiles(
         std.testing.allocator,
+        std.testing.io,
         "tests/fixtures/valid/public_api/root.zig",
     );
     defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
@@ -284,6 +293,7 @@ test "reachability: collects only public reachable files from root.zig" {
 test "reachability: linting reachable public_api emits no missing_doc_comment" {
     var files = try docent.reachability.collectReachablePublicFiles(
         std.testing.allocator,
+        std.testing.io,
         "tests/fixtures/valid/public_api/root.zig",
     );
     defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
@@ -291,6 +301,7 @@ test "reachability: linting reachable public_api emits no missing_doc_comment" {
     for (files.items) |path| {
         var result = try docent.lintFile(
             std.testing.allocator,
+            std.testing.io,
             path,
             .{ .missing_doc_comment = .warn },
         );
@@ -308,6 +319,7 @@ test "reachability: linting reachable public_api emits no missing_doc_comment" {
 test "reachability: recursively follows multi-hop public imports" {
     var files = try docent.reachability.collectReachablePublicFiles(
         std.testing.allocator,
+        std.testing.io,
         "tests/fixtures/valid/public_api_deep/root.zig",
     );
     defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
@@ -339,6 +351,7 @@ test "reachability: recursively follows multi-hop public imports" {
 test "reachability: private-only file is excluded from linted deep set" {
     var files = try docent.reachability.collectReachablePublicFiles(
         std.testing.allocator,
+        std.testing.io,
         "tests/fixtures/valid/public_api_deep/root.zig",
     );
     defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
@@ -346,6 +359,7 @@ test "reachability: private-only file is excluded from linted deep set" {
     for (files.items) |path| {
         var result = try docent.lintFile(
             std.testing.allocator,
+            std.testing.io,
             path,
             .{ .missing_doc_comment = .warn },
         );
@@ -375,6 +389,7 @@ test "targeting: include_build_scripts overrides default skip" {
 test "targeting: no-root directories use top-level modules as entrypoints" {
     var files = try docent.targeting.collectDirectoryLintTargets(
         std.testing.allocator,
+        std.testing.io,
         "tests/fixtures/valid/multi_module_no_root",
         .{},
     );
@@ -409,6 +424,7 @@ test "targeting: no-root directories use top-level modules as entrypoints" {
 test "targeting: no-root directories include build scripts when enabled" {
     var files = try docent.targeting.collectDirectoryLintTargets(
         std.testing.allocator,
+        std.testing.io,
         "tests/fixtures/valid/multi_module_no_root",
         .{ .include_build_scripts = true },
     );

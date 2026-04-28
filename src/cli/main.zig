@@ -3,12 +3,18 @@ const std = @import("std");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
+fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
+    var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+    return allocator.dupe(u8, buffer[0..len]);
+}
+
 pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;
-    // const io = init.io;
+    const io = init.io;
 
 
-    var app = try fangz.App.init(gpa, .{
+    var app = try fangz.App.init(gpa, io, .{
         .description = "Documentation linter for Zig projects",
     });
 
@@ -51,11 +57,12 @@ pub fn main(init: std.process.Init) !void {
 
     root.hooks.run = &runLint;
 
-    try app.executeProcess();
+    try app.executeProcess(init.minimal.args);
 }
 
 fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     const allocator = ctx.allocator;
+    const io = ctx.io;
 
     const Args = struct {
         positionals: []const []const u8 = &.{},
@@ -73,7 +80,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     for (args.rule) |override| {
         applyRuleOverride(&rule_set, override) catch |err| {
-            try printStderr("error: invalid --rule value '{s}={s}': {}\n", .{ override.key, override.value, err });
+            try printStderr(io, "error: invalid --rule value '{s}={s}': {}\n", .{ override.key, override.value, err });
             std.process.exit(1);
         };
     }
@@ -82,7 +89,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         .include_build_scripts = args.include_build_scripts,
     };
 
-    const path_display_root = try allocPathDisplayRoot(allocator);
+    const path_display_root = try allocPathDisplayRoot(allocator, io);
     defer allocator.free(path_display_root);
 
     var summary: docent.output.Summary = .{};
@@ -95,25 +102,25 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     const target_paths = if (args.positionals.len > 0)
         args.positionals
     else blk: {
-        manifest_paths = loadManifestPaths(allocator) catch |err| {
-            try printStderr("error: failed to read manifest 'build.zig.zon': {}\n", .{err});
+        manifest_paths = loadManifestPaths(allocator, io) catch |err| {
+            try printStderr(io, "error: failed to read manifest 'build.zig.zon': {}\n", .{err});
             std.process.exit(1);
         };
         if (manifest_paths.items.len == 0) {
-            try printStderr("error: manifest 'build.zig.zon' has an empty .paths field\n", .{});
+            try printStderr(io, "error: manifest 'build.zig.zon' has an empty .paths field\n", .{});
             std.process.exit(1);
         }
         break :blk manifest_paths.items;
     };
 
     for (target_paths) |path| {
-        try lintPath(allocator, path, rule_set, targeting_options, &all_diagnostics, &summary, args.format, path_display_root);
+        try lintPath(allocator, io, path, rule_set, targeting_options, &all_diagnostics, &summary, args.format, path_display_root);
     }
 
     if (args.format == .json) {
-        try docent.output.printJsonStdout(allocator, all_diagnostics.items);
+        try docent.output.printJsonStdout(io, allocator, all_diagnostics.items);
     } else {
-        try docent.output.printSummaryStderr(summary, docent.output.stderrSummaryOptions("docent", .auto));
+        try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, "docent", .auto));
     }
 
     if (summary.errors > 0) {
@@ -137,6 +144,7 @@ const AllPreset = enum {
 
 fn lintPath(
     allocator: std.mem.Allocator,
+    io: std.Io,
     path: []const u8,
     rule_set: docent.RuleSet,
     targeting_options: docent.targeting.Options,
@@ -145,37 +153,38 @@ fn lintPath(
     output_mode: OutputMode,
     path_display_root: []const u8,
 ) !void {
-    const stat = std.fs.cwd().statFile(path) catch |err| switch (err) {
+    const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch |err| switch (err) {
         // On some platforms statFile returns IsDir for directory paths
         error.IsDir => {
-            try lintDirectory(allocator, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root);
+            try lintDirectory(allocator, io, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root);
             return;
         },
         else => {
-            try printStderr("error: cannot access '{s}': {}\n", .{ path, err });
+            try printStderr(io, "error: cannot access '{s}': {}\n", .{ path, err });
             return;
         },
     };
 
     if (stat.kind == .directory) {
-        try lintDirectory(allocator, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root);
+        try lintDirectory(allocator, io, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root);
     } else {
         if (!std.mem.endsWith(u8, path, ".zig")) return;
         if (docent.targeting.shouldSkipLintFile(path, targeting_options)) return;
-        try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode, path_display_root);
+        try lintSingleFile(allocator, io, path, rule_set, all_diagnostics, summary, output_mode, path_display_root);
     }
 }
 
-fn loadManifestPaths(allocator: std.mem.Allocator) !std.ArrayList([]const u8) {
-    const manifest_path = try findNearestManifestPath(allocator);
+fn loadManifestPaths(allocator: std.mem.Allocator, io: std.Io) !std.ArrayList([]const u8) {
+    const manifest_path = try findNearestManifestPath(allocator, io);
     defer allocator.free(manifest_path);
 
     const manifest_dir = std.fs.path.dirname(manifest_path) orelse return error.InvalidManifestPath;
 
     const manifest_text = blk: {
-        const file = try std.fs.openFileAbsolute(manifest_path, .{});
-        defer file.close();
-        break :blk try file.readToEndAlloc(allocator, 1 * 1024 * 1024);
+        const file = try std.Io.Dir.openFileAbsolute(io, manifest_path, .{});
+        defer file.close(io);
+        var reader = file.reader(io, &.{});
+        break :blk try reader.interface.allocRemaining(allocator, .limited(1 * 1024 * 1024));
     };
     defer allocator.free(manifest_text);
 
@@ -243,22 +252,22 @@ fn loadManifestPaths(allocator: std.mem.Allocator) !std.ArrayList([]const u8) {
 }
 
 /// Absolute path of the nearest `build.zig.zon` directory, or canonical cwd if none.
-fn allocPathDisplayRoot(allocator: std.mem.Allocator) ![]u8 {
-    const manifest = findNearestManifestPath(allocator) catch |err| switch (err) {
+fn allocPathDisplayRoot(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
+    const manifest = findNearestManifestPath(allocator, io) catch |err| switch (err) {
         error.OutOfMemory => return err,
-        else => return std.fs.cwd().realpathAlloc(allocator, "."),
+        else => return realPathFileAlloc(allocator, io, "."),
     };
     defer allocator.free(manifest);
-    const dir = std.fs.path.dirname(manifest) orelse return std.fs.cwd().realpathAlloc(allocator, ".");
-    return std.fs.cwd().realpathAlloc(allocator, dir);
+    const dir = std.fs.path.dirname(manifest) orelse return realPathFileAlloc(allocator, io, ".");
+    return realPathFileAlloc(allocator, io, dir);
 }
 
-fn findNearestManifestPath(allocator: std.mem.Allocator) ![]u8 {
-    var current = try std.process.getCwdAlloc(allocator);
+fn findNearestManifestPath(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
+    var current = try realPathFileAlloc(allocator, io, ".");
 
     while (true) {
         const candidate = try std.fs.path.join(allocator, &.{ current, "build.zig.zon" });
-        if (isReadableFile(candidate)) {
+        if (isReadableFile(io, candidate)) {
             allocator.free(current);
             return candidate;
         }
@@ -282,9 +291,9 @@ fn findNearestManifestPath(allocator: std.mem.Allocator) ![]u8 {
     }
 }
 
-fn isReadableFile(path: []const u8) bool {
-    const file = std.fs.openFileAbsolute(path, .{}) catch return false;
-    file.close();
+fn isReadableFile(io: std.Io, path: []const u8) bool {
+    const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return false;
+    file.close(io);
     return true;
 }
 
@@ -295,6 +304,7 @@ fn deinitOwnedPaths(allocator: std.mem.Allocator, paths: *std.ArrayList([]const 
 
 fn lintDirectory(
     allocator: std.mem.Allocator,
+    io: std.Io,
     dir_path: []const u8,
     rule_set: docent.RuleSet,
     targeting_options: docent.targeting.Options,
@@ -303,16 +313,17 @@ fn lintDirectory(
     output_mode: OutputMode,
     path_display_root: []const u8,
 ) !void {
-    var targets = try docent.targeting.collectDirectoryLintTargets(allocator, dir_path, targeting_options);
+    var targets = try docent.targeting.collectDirectoryLintTargets(allocator, io, dir_path, targeting_options);
     defer docent.targeting.deinitOwnedPaths(allocator, &targets);
 
     for (targets.items) |path| {
-        try lintSingleFile(allocator, path, rule_set, all_diagnostics, summary, output_mode, path_display_root);
+        try lintSingleFile(allocator, io, path, rule_set, all_diagnostics, summary, output_mode, path_display_root);
     }
 }
 
 fn lintSingleFile(
     allocator: std.mem.Allocator,
+    io: std.Io,
     path: []const u8,
     rule_set: docent.RuleSet,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
@@ -320,8 +331,8 @@ fn lintSingleFile(
     output_mode: OutputMode,
     path_display_root: []const u8,
 ) !void {
-    var result = docent.lintFile(allocator, path, rule_set) catch |err| {
-        try printStderr("error: failed to lint '{s}': {}\n", .{ path, err });
+    var result = docent.lintFile(allocator, io, path, rule_set) catch |err| {
+        try printStderr(io, "error: failed to lint '{s}': {}\n", .{ path, err });
         return;
     };
     defer result.deinit();
@@ -332,7 +343,7 @@ fn lintSingleFile(
         if (output_mode == .json) {
             try all_diagnostics.append(allocator, d);
         } else {
-            try docent.output.printDiagnosticStderr(d, docent.output.stderrTextOptions(textFormat(output_mode), .auto, path_display_root));
+            try docent.output.printDiagnosticStderr(io, d, docent.output.stderrTextOptions(io, textFormat(output_mode), .auto, path_display_root));
         }
     }
 }
@@ -376,9 +387,9 @@ fn applyRuleOverride(rs: *docent.RuleSet, kv: fangz.KeyValuePair) !void {
     return error.UnknownRule;
 }
 
-fn printStderr(comptime fmt: []const u8, args: anytype) !void {
+fn printStderr(io: std.Io, comptime fmt: []const u8, args: anytype) !void {
     var buf: [4096]u8 = undefined;
-    var stderr = std.fs.File.stderr().writer(&buf);
+    var stderr = std.Io.File.stderr().writer(io, &buf);
     try stderr.interface.print(fmt, args);
     try stderr.interface.flush();
 }

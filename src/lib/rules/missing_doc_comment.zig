@@ -11,12 +11,13 @@ pub fn check(
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     if (!severity.isActive()) return;
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity, file, allocator, msg_allocator, diagnostics);
+        try checkNode(tree, decl, severity, file, allocator, io, msg_allocator, diagnostics);
     }
 }
 
@@ -26,6 +27,7 @@ fn checkNode(
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
@@ -66,7 +68,7 @@ fn checkNode(
                 const is_reexport: bool = blk: {
                     const init_node = var_decl.ast.init_node.unwrap() orelse break :blk false;
                     const info = getReexportInfo(tree, init_node) orelse break :blk false;
-                    try tryResolveReexport(info, file, severity, allocator, msg_allocator, diagnostics);
+                    try tryResolveReexport(info, file, severity, allocator, io, msg_allocator, diagnostics);
                     break :blk true;
                 };
 
@@ -88,7 +90,7 @@ fn checkNode(
                 }
             }
         }
-        try checkVarDeclInit(tree, var_decl, severity, file, allocator, msg_allocator, diagnostics);
+        try checkVarDeclInit(tree, var_decl, severity, file, allocator, io, msg_allocator, diagnostics);
         return;
     }
 
@@ -96,7 +98,7 @@ fn checkNode(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, allocator, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity, file, allocator, io, msg_allocator, diagnostics);
             }
         }
         return;
@@ -128,6 +130,7 @@ fn checkVarDeclInit(
     severity: Severity.Level,
     file: []const u8,
     allocator: std.mem.Allocator,
+    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
@@ -144,7 +147,7 @@ fn checkVarDeclInit(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, init_node)) |container| {
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, allocator, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity, file, allocator, io, msg_allocator, diagnostics);
             }
         }
     }
@@ -219,10 +222,11 @@ fn tryResolveReexport(
     current_file: []const u8,
     severity: Severity.Level,
     allocator: std.mem.Allocator,
+    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    tryResolveReexportImpl(info, current_file, severity, allocator, msg_allocator, diagnostics) catch |e| switch (e) {
+    tryResolveReexportImpl(info, current_file, severity, allocator, io, msg_allocator, diagnostics) catch |e| switch (e) {
         error.OutOfMemory => return error.OutOfMemory,
         else => {}, // silently skip: file not found, parse error, symbol not found, etc.
     };
@@ -233,6 +237,7 @@ fn tryResolveReexportImpl(
     current_file: []const u8,
     severity: Severity.Level,
     allocator: std.mem.Allocator,
+    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
@@ -247,6 +252,7 @@ fn tryResolveReexportImpl(
         info.field_name,
         severity,
         allocator,
+        io,
         msg_allocator,
         diagnostics,
         0,
@@ -265,6 +271,7 @@ fn resolveDocForSymbolInFile(
     display_symbol: []const u8,
     severity: Severity.Level,
     allocator: std.mem.Allocator,
+    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
     depth: usize,
@@ -272,10 +279,14 @@ fn resolveDocForSymbolInFile(
     // Guard against pathological import cycles.
     if (depth > 32) return .unresolved;
 
-    const f = try std.fs.cwd().openFile(file_path, .{});
-    defer f.close();
-
-    const source = try f.readToEndAllocOptions(allocator, std.math.maxInt(u32), null, .of(u8), 0);
+    const source = try std.Io.Dir.cwd().readFileAllocOptions(
+        io,
+        file_path,
+        allocator,
+        .limited(std.math.maxInt(u32)),
+        .of(u8),
+        0,
+    );
     defer allocator.free(source);
 
     var imported_tree = try std.zig.Ast.parse(allocator, source, .zig);
@@ -315,6 +326,7 @@ fn resolveDocForSymbolInFile(
                     display_symbol,
                     severity,
                     allocator,
+                    io,
                     msg_allocator,
                     diagnostics,
                     depth + 1,
@@ -444,7 +456,7 @@ fn runCheck(source: [:0]const u8) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", base, std.testing.io, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
