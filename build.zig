@@ -1,4 +1,5 @@
 const std = @import("std");
+
 const fangz_build = @import("fangz");
 
 pub fn build(b: *std.Build) void {
@@ -7,20 +8,28 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const fangz_dep = b.dependency("fangz", .{});
-    const fangz = fangz_dep.module("fangz");
-    const vereda = b.dependency("vereda", .{}).module("vereda");
-    const carnaval = b.dependency("carnaval", .{}).module("carnaval");
+    const fangz = b.dependency("fangz", .{});
+    const vereda = b.dependency("vereda", .{});
+    const carnaval = b.dependency("carnaval", .{});
 
-    const lib_mod = b.addModule(mod_name, .{
-        .root_source_file = b.path("src/lib/root.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{.{
-            .name = "carnaval",
-            .module = carnaval,
-        }},
-    });
+    const lib_mod = b.addModule(
+        mod_name,
+        .{
+            .root_source_file = b.path("src/lib/root.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{
+                    .name = "carnaval",
+                    .module = carnaval.module("carnaval"),
+                },
+                .{
+                    .name = "vereda",
+                    .module = vereda.module("vereda"),
+                },
+            },
+        },
+    );
 
     const docs_lib = b.addLibrary(.{
         .name = mod_name,
@@ -42,18 +51,14 @@ pub fn build(b: *std.Build) void {
                 },
                 .{
                     .name = "fangz",
-                    .module = fangz,
-                },
-                .{
-                    .name = "vereda",
-                    .module = vereda,
+                    .module = fangz.module("fangz"),
                 },
             },
         }),
     });
 
     // Inject the executable name and manifest version into the fangz module so App.init can infer them without the user having to specify them.
-    fangz_build.injectMeta(b, cli, fangz);
+    fangz_build.injectMeta(b, cli, fangz.module("fangz"));
 
     b.installArtifact(cli);
 
@@ -75,6 +80,8 @@ pub fn build(b: *std.Build) void {
 
     const docs_lint = b.addRunArtifact(cli);
     docs_lint.addArgs(&.{});
+
+    // TODO: Remove this, the rules, should be natively read from the build manifest (build.zig.zon) globally as one manifest represents the whole package/project.
 
     // const docs_lint = scaffold.addLintStep(b, .{
     //     .sources = &.{
@@ -99,6 +106,7 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("tests", "Run the test suite");
 
     const unit_tests = b.addTest(.{
+        .name = "Unit Tests",
         .root_module = lib_mod,
     });
 
@@ -106,6 +114,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_unit_tests.step);
 
     const integration_tests = b.addTest(.{
+        .name = "Integration Tests",
         .root_module = b.createModule(.{
             .root_source_file = b.path("tests/suite.zig"),
             .target = target,

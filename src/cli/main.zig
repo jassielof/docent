@@ -1,13 +1,14 @@
 const std = @import("std");
+
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-pub fn main() !void {
-    var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const gpa = init.gpa;
+    // const io = init.io;
 
-    var app = try fangz.App.init(allocator, .{
+
+    var app = try fangz.App.init(gpa, .{
         .description = "Documentation linter for Zig projects",
     });
 
@@ -344,8 +345,6 @@ fn textFormat(mode: OutputMode) docent.output.TextFormat {
     };
 }
 
-// ── Rule overrides ─────────────────────────────────────────────────────────
-
 /// Builds a `RuleSet` with every field set to the preset severity.
 /// The `inline for` unrolls at comptime — adding a field to `RuleSet` is
 /// automatically picked up here with no manual update needed.
@@ -376,8 +375,6 @@ fn applyRuleOverride(rs: *docent.RuleSet, kv: fangz.KeyValuePair) !void {
     }
     return error.UnknownRule;
 }
-
-// ── I/O helpers ────────────────────────────────────────────────────────────
 
 fn printStderr(comptime fmt: []const u8, args: anytype) !void {
     var buf: [4096]u8 = undefined;
