@@ -25,6 +25,10 @@ pub fn main(init: std.process.Init) !void {
         .name = "paths",
         .description = "Files or directories to lint",
         .variadic = true,
+        .nu_completer = .{
+            .name = "complete-zig-paths",
+            .body = "ls | where {|it| $it.type == \"dir\" or ($it.name | str ends-with \".zig\") or ($it.name | str ends-with \".zon\")} | get name",
+        },
     });
 
     try root.addFlag(fangz.KeyValueList, .{

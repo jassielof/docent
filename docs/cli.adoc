@@ -1,6 +1,24 @@
+////
+This file should be somewhat used as a template of how Fangz should generate the documentation for a CLI.
+The title should be the name of the CLI, also have a subtitle, <name>: <subtitle>
+Then the attributes, the first one isi the author information, could be extracted from either the manifest build.zig.zon if the user uses one, but since it's not standard and it's most likely that the user uses Git, we can extract it from the Git configuration as: <first> <middle> <last> <email, enclosed in angle brackets>.
+The version is prefixed with "v" and it's the version from the manifest, plus the git hash, as shown.
+Then comes the app-name attribute, which can be a pretty form or the binary form of the name, for example, if the binary is "my_cli", the app-name can be "My CLI", this is used for display purposes in the documentation.
+////
 = Docent: A Documentation Linter for Zig
 Jassiel Ovando <jassielovando@protonmail.com>
 v0.1.0: main@c324a8
 :app-name: docent
+:toc: auto
+:doctype: book
+
+= Arguments
+
+== Help
+
+include::cmd/docs.adoc[]
+
+= Completions
 
 == Usage
+
