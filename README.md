@@ -38,7 +38,7 @@ All rules accept one of these levels:
 - `allow`: disable the rule.
 - `warn`: emit a diagnostic but do not fail the run.
 - `deny`: emit a diagnostic and count it as an error.
-- `forbid`: same behavior as `deny` for now. Either deny or forbid will have to be gone, I fell forbid is better to stay.
+- `forbid`: same behavior as `deny` for now. Either deny or forbid will have to be gone, I fell forbid is better to stay. Yeah forbid.
 
 ### Rule: missing_doc_comment
 

@@ -54,48 +54,9 @@ pub fn main(init: std.process.Init) !void {
         .default = false,
     });
 
-    const docs = try root.addSubcommand(.{
-        .name = "docs",
-        .description = "Generate markdown documentation for the CLI",
-    });
-    try docs.addFlag([]const u8, .{
-        .name = "output-dir",
-        .description = "Directory where markdown documentation is written.",
-        .default = "docs",
-    });
-    try docs.addFlag(DocsMode, .{
-        .name = "mode",
-        .description = "Markdown layout to generate.",
-        .default = .single_file,
-    });
-    try docs.addFlag([]const u8, .{
-        .name = "file",
-        .description = "File name to use with --mode single_file.",
-        .default = "cli.md",
-    });
-    docs.hooks.run = &runDocs;
-
     root.hooks.run = &runLint;
 
     try app.executeProcess(init.minimal.args);
-}
-
-fn runDocs(ctx: *fangz.ParseContext) anyerror!void {
-    const Args = struct {
-        output_dir: []const u8 = "docs",
-        mode: DocsMode = .single_file,
-        file: []const u8 = "cli.md",
-    };
-
-    const args = try ctx.extract(Args);
-    try fangz.DocGenerator.generateMarkdownDocs(ctx.allocator, ctx.io, ctx.command.root(), .{
-        .mode = switch (args.mode) {
-            .single_file => .single_file,
-            .per_command => .per_command,
-        },
-        .output_dir = args.output_dir,
-        .single_file_name = args.file,
-    });
 }
 
 fn runLint(ctx: *fangz.ParseContext) anyerror!void {
@@ -173,11 +134,6 @@ const OutputMode = enum {
     text,
     minimal,
     json,
-};
-
-const DocsMode = enum {
-    single_file,
-    per_command,
 };
 
 const AllPreset = enum {
