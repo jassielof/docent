@@ -1,0 +1,6 @@
+= Docent: A Documentation Linter for Zig
+Jassiel Ovando <jassielovando@protonmail.com>
+v0.1.0: main@c324a8
+:app-name: docent
+
+== Usage

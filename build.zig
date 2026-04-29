@@ -81,6 +81,9 @@ pub fn build(b: *std.Build) void {
     const docs_lint = b.addRunArtifact(cli);
     docs_lint.addArgs(&.{});
 
+    const docs_cli = b.addRunArtifact(cli);
+    docs_cli.addArgs(&.{ "docs", "--output-dir", "zig-out/docs" });
+
     // TODO: Remove this, the rules, should be natively read from the build manifest (build.zig.zon) globally as one manifest represents the whole package/project.
 
     // const docs_lint = scaffold.addLintStep(b, .{
@@ -101,7 +104,9 @@ pub fn build(b: *std.Build) void {
 
     // Lint must run before docs are generated/installed.
     docs.step.dependOn(&docs_lint.step);
+    docs_cli.step.dependOn(&docs.step);
     docs_step.dependOn(&docs.step);
+    docs_step.dependOn(&docs_cli.step);
 
     const test_step = b.step("tests", "Run the test suite");
 

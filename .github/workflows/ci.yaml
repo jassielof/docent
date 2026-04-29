@@ -33,7 +33,7 @@ jobs:
       - name: Tests
         run: zig build tests --summary all
 
-      - name: Generate documentation # I should be using Fangz documentation generator too aside the library one.
+      - name: Generate documentation
         run: zig build docs --summary all
 
       - name: Upload page artifact
