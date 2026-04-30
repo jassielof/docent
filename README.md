@@ -8,6 +8,8 @@ Available as a CLI, library, and build integration step (#1).
 
 ### Scanning
 
+<!-- TODO: I need a way to add ignored paths, for example, dependencies, I usually put them under modules/ and they end up being scanned too. -->
+
 It expects a manifest file to be present in your current working directory, then scans the configured `.paths` entries.
 
 Directory behavior:
