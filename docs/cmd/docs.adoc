@@ -1,8 +1,0 @@
-= Docs
-Jasssielof <jof@github.com>
-:doctype: book
-
-
-HMMMMMMM
-
-== Usage
