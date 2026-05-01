@@ -59,7 +59,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    // Inject the executable name and manifest version into the fangz module so App.init can infer them without the user having to specify them.
+    // Inject the executable name from addExecutable(), the executable/manifest version, and git metadata so App.init can infer runtime and docs metadata.
     fangz_build.injectMetadata(b, cli, fangz_mod);
 
     b.installArtifact(cli);
