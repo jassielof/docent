@@ -335,8 +335,10 @@ test "minimal formatter renders one line" {
     var out: std.ArrayList(u8) = .empty;
     defer out.deinit(std.testing.allocator);
 
-    var writer = out.writer(std.testing.allocator);
-    try writeDiagnostic(&writer, .{
+    var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
+    defer writer.deinit();
+
+    try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
         .severity = .warn,
         .message = "missing doc comment for function 'main'",
@@ -347,6 +349,7 @@ test "minimal formatter renders one line" {
         .format = .minimal,
         .color = .never,
     });
+    out = writer.toArrayList();
 
     try std.testing.expectEqualStrings(
         "src/main.zig:5:8: warning[missing_doc_comment]: missing doc comment for function 'main'\n",
@@ -358,8 +361,10 @@ test "pretty formatter renders source snippet" {
     var out: std.ArrayList(u8) = .empty;
     defer out.deinit(std.testing.allocator);
 
-    var writer = out.writer(std.testing.allocator);
-    try writeDiagnostic(&writer, .{
+    var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
+    defer writer.deinit();
+
+    try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
         .severity = .warn,
         .message = "missing doc comment for function 'main'",
@@ -372,6 +377,7 @@ test "pretty formatter renders source snippet" {
         .format = .pretty,
         .color = .never,
     });
+    out = writer.toArrayList();
 
     try std.testing.expectEqualStrings(
         "src/main.zig:5:8: warning[missing_doc_comment]: missing doc comment for function 'main'\n" ++
@@ -415,8 +421,11 @@ test "json formatter escapes message fields" {
         .column = 1,
     }};
 
-    var writer = out.writer(std.testing.allocator);
-    try writeJson(&writer, std.testing.allocator, &diagnostics);
+    var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
+    defer writer.deinit();
+
+    try writeJson(&writer.writer, std.testing.allocator, &diagnostics);
+    out = writer.toArrayList();
 
     try std.testing.expectEqualStrings(
         "[{\"rule\":\"missing_doc_comment\",\"severity\":\"warn\",\"message\":\"missing \\\"doc\\\" comment\",\"file\":\"src\\\\main.zig\",\"line\":1,\"column\":1}]\n",
