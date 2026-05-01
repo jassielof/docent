@@ -26,6 +26,8 @@ module completions {
 
   export extern "docent completion" [
     --help(-h)              # Print help
+    # FIXME: Here should throw an enum with available shells
+    # FIXME: Should also add the help inforomation for it
     shell: string
   ]
 

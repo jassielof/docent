@@ -70,14 +70,14 @@ pub fn lintFile(
 }
 
 // TODO: Use the following comptime block instead of the test block
-// comptime {
-//     refAllDecls(@This());
-// }
-test {
-    _ = rules.missing_doc_comment;
-    _ = rules.empty_doc_comment;
-    _ = rules.missing_doctest;
-    _ = rules.private_doctest;
-    _ = rules.doctest_naming_mismatch;
-    _ = rules.missing_container_doc_comment;
+comptime {
+    refAllDecls(@This());
 }
+// test {
+//     _ = rules.missing_doc_comment;
+//     _ = rules.empty_doc_comment;
+//     _ = rules.missing_doctest;
+//     _ = rules.private_doctest;
+//     _ = rules.doctest_naming_mismatch;
+//     _ = rules.missing_container_doc_comment;
+// }

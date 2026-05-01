@@ -40,6 +40,8 @@ pub fn build(b: *std.Build) void {
 
     const cli = b.addExecutable(.{
         .name = mod_name,
+        // Add exectuable can take a version field, so that should be used for the metadata injection, IF IT'S AVAILABLE, in my case I simply won't use it, so it should fallback to the build.zig.zon version field instead. In the case where the user uses the version here from addExecutable, it's a SemanticVersion type.
+        // .version =
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/cli/main.zig"),
             .target = target,
