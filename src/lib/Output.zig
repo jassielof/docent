@@ -1,7 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const Diagnostic = @import("Diagnostic.zig");
+
 const carnaval = @import("carnaval");
+
+const Diagnostic = @import("Diagnostic.zig");
 
 pub const TextFormat = enum {
     pretty,

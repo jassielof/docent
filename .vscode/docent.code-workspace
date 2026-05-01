@@ -1,0 +1,12 @@
+{
+  "folders": [
+    {
+      "name": "Docent",
+      "path": "../",
+    },
+    {
+      "name": "Fangz",
+      "path": "../modules/fangz",
+    },
+  ],
+}

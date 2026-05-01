@@ -1,6 +1,7 @@
 .{
     .name = .docent,
-    .version = "0.1.0",
+    .description = "Documentation linter for Zig projects",
+    .version = "0.0.0",
     .fingerprint = 0xf25cae59b814c9e6,
     .dependencies = .{
         .fangz = .{

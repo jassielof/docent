@@ -14,6 +14,7 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
 
     var app = try fangz.App.init(gpa, io, .{
+        // TODO: This should be inferred from the manifest.
         .description = "Documentation linter for Zig projects",
     });
 
@@ -25,6 +26,7 @@ pub fn main(init: std.process.Init) !void {
         .name = "paths",
         .description = "Files or directories to lint",
         .variadic = true,
+        // TODO: There coulbe a better design, such as .completions = { .SHELL = { .name = "...", .body = "..." } } to avoid hardcoding the shell name.
         .nu_completer = .{
             .name = "complete-zig-paths",
             .body = "ls | where {|it| $it.type == \"dir\" or ($it.name | str ends-with \".zig\") or ($it.name | str ends-with \".zon\")} | get name",
@@ -131,8 +133,6 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     }
 }
 
-// ── Lint orchestration ─────────────────────────────────────────────────────
-
 const OutputMode = enum {
     pretty,
     text,
@@ -163,7 +163,15 @@ fn lintPath(
             return;
         },
         else => {
-            try printStderr(io, "error: cannot access '{s}': {}\n", .{ path, err });
+            try printStderr(
+                io,
+                // TODO: Style with carnaval, Error as bold, the path underlined, adn the error message in red.
+                "Error ({s}): Docent cannot access '{s}'.",
+                .{
+                    formatError(err),
+                    path,
+                },
+            );
             return;
         },
     };
@@ -175,6 +183,20 @@ fn lintPath(
         if (docent.targeting.shouldSkipLintFile(path, targeting_options)) return;
         try lintSingleFile(allocator, io, path, rule_set, all_diagnostics, summary, output_mode, path_display_root);
     }
+}
+
+// Format the error type to a prettier message
+fn formatError(err: anyerror) []const u8 {
+    return switch (err) {
+        error.FileNotFound => "file not found",
+        error.ManifestNotFound => "manifest 'build.zig.zon' not found in current or parent directories",
+        error.InvalidManifestPath => "invalid manifest path",
+        error.ManifestPathsNotFound => "'.paths' field not found in manifest",
+        error.InvalidManifestPaths => "invalid '.paths' field in manifest",
+        error.InvalidSeverity => "invalid severity (must be one of allow, warn, deny, forbid)",
+        error.UnknownRule => "unknown rule name",
+        else => "unknown error",
+    };
 }
 
 fn loadManifestPaths(allocator: std.mem.Allocator, io: std.Io) !std.ArrayList([]const u8) {
