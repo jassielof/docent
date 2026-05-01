@@ -29,6 +29,7 @@ pub fn main(init: std.process.Init) !void {
         // TODO: There coulbe a better design, such as .completions = { .SHELL = { .name = "...", .body = "..." } } to avoid hardcoding the shell name.
         .nu_completer = .{
             .name = "complete-zig-paths",
+            // TODO: Remove this, it's nice for testing, but it's really not working as expected.
             .body = "ls | where {|it| $it.type == \"dir\" or ($it.name | str ends-with \".zig\") or ($it.name | str ends-with \".zon\")} | get name",
         },
     });
