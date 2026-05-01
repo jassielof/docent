@@ -1,12 +1,9 @@
 // The pretty name, and the tagline/subtitle
+// Sect anchors and links aren't needed.
 = Docent: A Documentation Linter for Zig Projects
 Jassiel Ovando <jassielovando@protonmail.com>
-:revnumber: 0.1.0
-:revdate: today
-:revremark: main (abc1234)
+v0.1.0, date: main (abc1234)
 :toc: auto
-:sectanchors:
-:sectlinks:
 :doctype: book
 
 

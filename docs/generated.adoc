@@ -1,5 +1,5 @@
 = docent CLI Reference
-v0.1.0
+:revdate: 2026-05-01
 :app-name: docent
 :toc: auto
 :sectanchors:
@@ -54,11 +54,6 @@ Scope: local
 
 `-h, --help`::
 Print help. +
-Required: no +
-Scope: built-in
-
-`-V, --version`::
-Print version. +
 Required: no +
 Scope: built-in
 
@@ -121,11 +116,6 @@ Scope: local
 
 `-h, --help`::
 Print help. +
-Required: no +
-Scope: built-in
-
-`-V, --version`::
-Print version. +
 Required: no +
 Scope: built-in
 
