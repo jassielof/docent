@@ -44,6 +44,7 @@ All rules accept one of these levels:
 
 The distinction between "Deny" and "Forbid" matter for locking a rule in CI regardless of any local flag overrides. For example, setting "Forbid" in the manifest cannot be weakened to any other level in the command line.
 
+<!-- TODO: Document the default rules and their severities. -->
 ### Rule: missing_doc_comment
 
 Checks public declarations for missing `///` documentation comments.
@@ -63,7 +64,7 @@ Re-export behavior:
 - If resolution fails (missing file, package import, parse failure), the re-export is skipped to avoid false positives.
 
 Current limit:
-<!-- TODO: Check this and document in the src/lib/RuleSet.zig and add tests cases -->
+<!-- TODO: Check this and document in the src/lib/RuleSet.zig and add tests cases, there's already a reexport_un/documented and I think it might be fixed already, double check and confirm.-->
 
 - Re-export resolution is currently one-hop and root-declaration based. It does not perform full project/API reachability traversal.
 

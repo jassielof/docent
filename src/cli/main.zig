@@ -27,10 +27,10 @@ pub fn main(init: std.process.Init) !void {
         .name = "paths",
         .description = "Files or directories to lint",
         .variadic = true,
-        // TODO: There coulbe a better design, such as .completions = { .SHELL = { .name = "...", .body = "..." } } to avoid hardcoding the shell name.
+        // TODO: There could be a better design, such as .completions = { .SHELL = { .name = "...", .body = "..." } } to avoid hardcoding the shell name.
         .nu_completer = .{
             .name = "complete-zig-paths",
-            // TODO: Remove this, it's nice for testing, but it's really not working as expected.
+            // TODO: Remove this, it's nice for testing, but it's really not working as expected. It doesn't work well, either remove or fix it. It only works on current directory.
             .body = "ls | where {|it| $it.type == \"dir\" or ($it.name | str ends-with \".zig\") or ($it.name | str ends-with \".zon\")} | get name",
         },
     });
