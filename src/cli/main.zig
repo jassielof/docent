@@ -14,8 +14,9 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
 
     var app = try fangz.App.init(gpa, io, .{
-        // TODO: This should be inferred from the manifest.
-        .description = "Documentation linter for Zig projects",
+        .display_name = "Docent",
+        .tagline = "A Documentation Linter for Zig Projects",
+        .description = "Docent is a documentation linter for Zig projects.",
     });
 
     defer app.deinit();
