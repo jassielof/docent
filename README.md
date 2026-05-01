@@ -27,7 +27,7 @@ Reachability notes:
 Build script defaults:
 
 - `build.zig` and files under `build/` are ignored by default.
-    - Instead of files within the build directory, it's mostly all of those files that are used/imported by the main build script (`build.zig`).
+  - Instead of files within the build directory, it's mostly all of those files that are used/imported by the main build script (`build.zig`).
 - This avoids false-positive API checks from build tooling paths that are commonly present in `build.zig.zon` `.paths`.
 - CLI users can opt in with `--include-build-scripts`.
 - Library users can opt in via `docent.targeting.Options{ .include_build_scripts = true }`.
@@ -37,10 +37,12 @@ Build script defaults:
 
 All rules accept one of these levels:
 
-- `allow`: disable the rule.
-- `warn`: emit a diagnostic but do not fail the run.
-- `deny`: emit a diagnostic and count it as an error.
-- `forbid`: same behavior as `deny` for now. Either deny or forbid will have to be gone, I fell forbid is better to stay. Yeah forbid.
+- **Allow:** Rule is disabled. No diagnostics are emitted.
+- **Warn:** Diagnostics are emitted, but they do not cause the process to exit with an error code.
+- **Deny:** Diagnostics are emitted, and the process exits with an error code.
+- **Forbid:** Similar to "Deny", but the rule cannot be overriden by a subsequent configuration.
+
+The distinction between "Deny" and "Forbid" matter for locking a rule in CI regardless of any local flag overrides. For example, setting "Forbid" in the manifest cannot be weakened to any other level in the command line.
 
 ### Rule: missing_doc_comment
 
@@ -61,6 +63,7 @@ Re-export behavior:
 - If resolution fails (missing file, package import, parse failure), the re-export is skipped to avoid false positives.
 
 Current limit:
+<!-- TODO: Check this and document in the src/lib/RuleSet.zig and add tests cases -->
 
 - Re-export resolution is currently one-hop and root-declaration based. It does not perform full project/API reachability traversal.
 
@@ -141,7 +144,7 @@ Current implementation detail:
 The user already has the two core Rust links. A third Clippy-specific lint is worth adding for private item coverage, since `rustc`'s `missing_docs` only covers public items: [github](https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs)
 
 - <https://doc.rust-lang.org/rustdoc/lints.html> — full list of `rustdoc` lints (`missing_docs`, `missing_doc_code_examples`, `broken_intra_doc_links`, etc.) [doc.rust-lang](https://doc.rust-lang.org/rustdoc/lints.html)
-    - Zig docs seem to support intra links
+  - Zig docs seem to support intra links
 - <https://doc.rust-lang.org/beta/rustc/lints/listing/allowed-by-default.html#missing-docs> — `rustc`-level `missing_docs` lint details (allowed by default, enable with `#![warn/deny(missing_docs)]`) [bsdwatch](https://bsdwatch.net/docs/sharedocs/rust/html/rustdoc/lints.html)
 - <https://rust-lang.github.io/rust-clippy/master/index.html#missing_docs_in_private_items> — Clippy's `MISSING_DOCS_IN_PRIVATE_ITEMS` (restriction lint), which extends coverage to private items that `rustc` ignores [github](https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs)
 
