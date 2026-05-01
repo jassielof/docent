@@ -10,6 +10,7 @@ pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
 pub const Severity = @import("Severity.zig").Level;
 pub const targeting = @import("Targeting.zig");
+
 // FIXME: Structs are PascalCase, not camelCase.
 pub const rules = struct {
     pub const missing_doc_comment = @import("rules/missing_doc_comment.zig");
@@ -69,15 +70,6 @@ pub fn lintFile(
     return lintSource(allocator, io, source, rule_set, path);
 }
 
-// TODO: Use the following comptime block instead of the test block
 comptime {
     refAllDecls(@This());
 }
-// test {
-//     _ = rules.missing_doc_comment;
-//     _ = rules.empty_doc_comment;
-//     _ = rules.missing_doctest;
-//     _ = rules.private_doctest;
-//     _ = rules.doctest_naming_mismatch;
-//     _ = rules.missing_container_doc_comment;
-// }
