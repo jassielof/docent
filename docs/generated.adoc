@@ -1,14 +1,13 @@
-= docent CLI Reference
-:revdate: 2026-05-01
-:app-name: docent
+= Docent: A Documentation Linter for Zig Projects
+Jassiel Ovando <jassielovando@protonmail.com>
+v0.0.0, 2026-05-01: main (cd96195)
 :toc: auto
-:sectanchors:
-:sectlinks:
 :doctype: book
 
-== Overview
-
-Documentation linter for Zig projects
+[abstract]
+--
+Docent is a documentation linter for Zig projects.
+--
 
 == Usage
 
@@ -23,7 +22,6 @@ docent [OPTIONS] <COMMAND> <paths>...
 Files or directories to lint +
 Required: no +
 Variadic: yes
-
 
 == Options
 
@@ -57,20 +55,17 @@ Print help. +
 Required: no +
 Scope: built-in
 
-== Command Index
-
-* xref:cmd-docent[`docent`] - Documentation linter for Zig projects
-  ** xref:cmd-docent-docs[`docent docs`] - Generate AsciiDoc documentation for this CLI
-  ** xref:cmd-docent-completion[`docent completion`] - Generate shell completion scripts
-  ** xref:cmd-docent-help[`docent help`] - Print this message or the help of the given subcommand(s)
-
+`-V, --version`::
+Print version. +
+Required: no +
+Scope: built-in
 
 == Command Reference
 
 [#cmd-docent]
 === `docent`
 
-Documentation linter for Zig projects
+Docent is a documentation linter for Zig projects.
 
 ==== Usage
 
@@ -85,7 +80,6 @@ docent [OPTIONS] <COMMAND> <paths>...
 Files or directories to lint +
 Required: no +
 Variadic: yes
-
 
 ==== Options
 
@@ -116,6 +110,11 @@ Scope: local
 
 `-h, --help`::
 Print help. +
+Required: no +
+Scope: built-in
+
+`-V, --version`::
+Print version. +
 Required: no +
 Scope: built-in
 
@@ -184,8 +183,7 @@ docent completion [OPTIONS] <shell>
 `<shell>`::
 Target shell. +
 Required: yes +
-Variadic: no
- +
+Variadic: no +
 Possible values: bash, zsh, fish, pwsh, nu
 
 ==== Options
@@ -209,5 +207,6 @@ Parent: xref:cmd-docent[`docent`]
 ----
 docent help [COMMAND]...
 ----
+
 
 

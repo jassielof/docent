@@ -1,5 +1,3 @@
-// The pretty name, and the tagline/subtitle
-// Sect anchors and links aren't needed.
 = Docent: A Documentation Linter for Zig Projects
 Jassiel Ovando <jassielovando@protonmail.com>
 v0.1.0, date: main (abc1234)
@@ -7,7 +5,6 @@ v0.1.0, date: main (abc1234)
 :doctype: book
 
 
-// The abstract could also be the tagline, but it should honor what it is, so it should be a summary of the project or the summary/description of the CLI itself.
 [abstract]
 --
 Docent is a documentation linter for Zig projects.
@@ -27,15 +24,13 @@ docent [OPTIONS] <COMMAND> <paths>...
 Its description or summary, considering that there might be a short or long one. The summar
 
 ==== Examples if there are
-
-
 ////
 
 `<paths>...`::
 * Files or directories to lint
 * Required: no
 * Variadic: yes
-
+// TODO: Review the required in paths of docent, as I don't think it's quite required, it's required as it needs paths to work, but if paths aren't provided, it attempts to scan the current directory or upwards until finds a build manifest (build.zig.zon) or script (build.zig) and uses it as the project root, and also uses the manifest paths fields to consider what files to lint. And as an extra TODO, review that analysis and algorithm for what to be lint, and it has to be documented.
 
 == Options
 // Same case for global options, not just "Options", as these apply to all commands. Each option should have a better way to indicate if it's required, its help information, etc.
