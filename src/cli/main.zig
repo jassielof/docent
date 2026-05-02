@@ -1,7 +1,99 @@
 const std = @import("std");
 
+const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
+
+const zig_paths_completer =
+    \\let current = ($context | split words | last | default "")
+    \\
+    \\let ends_with_separator = (
+    \\  ($current | str ends-with "/") or
+    \\  ($current | str ends-with "\\")
+    \\)
+    \\
+    \\let search_dir = if $ends_with_separator {
+    \\  if ($current | is-empty) { "." } else { $current }
+    \\} else {
+    \\  let parent = ($current | path dirname)
+    \\
+    \\  if ($parent | is-empty) or $parent == "." {
+    \\    "."
+    \\  } else {
+    \\    $parent
+    \\  }
+    \\}
+    \\
+    \\let prefix = if $ends_with_separator {
+    \\  ""
+    \\} else {
+    \\  $current | path basename
+    \\}
+    \\
+    \\let completions = (
+    \\  try {
+    \\    ls $search_dir
+    \\  } catch {
+    \\    []
+    \\  }
+    \\  | where {|entry|
+    \\      $entry.type == "dir"
+    \\      or ($entry.name | str ends-with ".zig")
+    \\      or ($entry.name | str ends-with ".zon")
+    \\    }
+    \\  | where {|entry|
+    \\      ($entry.name | path basename) | str starts-with $prefix
+    \\    }
+    \\  | sort-by type name
+    \\  | each {|entry|
+    \\      if $entry.type == "dir" {
+    \\        {
+    \\          value: $"($entry.name)/",
+    \\          description: "directory"
+    \\        }
+    \\      } else if ($entry.name | str ends-with ".zig") {
+    \\        {
+    \\          value: $entry.name,
+    \\          description: "Zig source file"
+    \\        }
+    \\      } else {
+    \\        {
+    \\          value: $entry.name,
+    \\          description: "Zig package/manifest file"
+    \\        }
+    \\      }
+    \\    }
+    \\)
+    \\
+    \\{
+    \\  options: {
+    \\    case_sensitive: false
+    \\    completion_algorithm: prefix
+    \\    sort: false
+    \\  }
+    \\  completions: $completions
+    \\}
+;
+
+const rule_long_description =
+    \\Override one rule's severity. Repeat the flag to override multiple rules:
+    \\
+    \\  docent --rule missing_doc_comment=deny --rule private_doctest=allow src
+    \\
+    \\Severity levels:
+    \\  allow   Disable the rule.
+    \\  warn    Report the rule as a warning.
+    \\  deny    Report the rule as an error.
+    \\  forbid  Report the rule as an error that should not be relaxed by later overrides.
+    \\
+    \\Rules and defaults:
+    \\  missing_doc_comment             warn   Public declarations should have doc comments.
+    \\  missing_doctest                 allow  Public APIs may include runnable examples.
+    \\  private_doctest                 warn   Private declarations should not carry doctests.
+    \\  missing_container_doc_comment   allow  Modules may include top-level //! documentation.
+    \\  empty_doc_comment               warn   Doc comments should contain useful text.
+    \\  doctest_naming_mismatch         warn   Doctest names should match the declaration they document.
+;
 
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
@@ -15,9 +107,8 @@ pub fn main(init: std.process.Init) !void {
 
     var app = try fangz.App.init(gpa, io, .{
         .display_name = "Docent",
-        // TODO: Add a way to avoid adding the name/email, by default they are added regardless, but if the user doesn't want to add their name/email, using null or undefined doesn't work.
         .author_name = "",
-        // .author_email = undefined,
+        .author_email = "",
         .tagline = "A Documentation Linter for Zig Projects",
         .description = "Docent is a documentation linter for Zig projects.",
     });
@@ -30,11 +121,12 @@ pub fn main(init: std.process.Init) !void {
         .name = "paths",
         .description = "Files or directories to lint",
         .variadic = true,
-        // TODO: There could be a better design, such as .completions = { .SHELL = { .name = "...", .body = "..." } } to avoid hardcoding the shell name.
-        .nu_completer = .{
-            .name = "complete-zig-paths",
-            // TODO: Remove this, it's nice for testing, but it's really not working as expected. It doesn't work well, either remove or fix it. It only works on current directory.
-            .body = "ls | where {|it| $it.type == \"dir\" or ($it.name | str ends-with \".zig\") or ($it.name | str ends-with \".zon\")} | get name",
+        .completion = .{
+            .nu = .{
+                .name = "complete-zig-paths",
+                .params = "context: string",
+                .body = zig_paths_completer,
+            },
         },
     });
 
@@ -43,7 +135,8 @@ pub fn main(init: std.process.Init) !void {
         .name = "rule",
         .short = 'r',
         .description = "Override severity: <name>=<allow|warn|deny|forbid>",
-        .value_hint = "<rule>=<severity>",
+        .long_description = rule_long_description,
+        .value_hint = "RULE=SEVERITY",
         .allowed_keys = docent.RuleSet.fieldNames(),
         .allowed_values = &.{ "allow", "warn", "deny", "forbid" },
     });
@@ -66,7 +159,11 @@ pub fn main(init: std.process.Init) !void {
         .default = false,
     });
 
-    // TODO: Add fail fast mode that exits after the first error or warning, since there can be a lot of lints, and different severities, let it be an enum for fail fast on error, or warn, or both, and both would be the default.
+    try root.addFlag(FailFast, .{
+        .name = "fail-fast",
+        .description = "Stop linting after the first matching diagnostic severity.",
+        .default = .any,
+    });
 
     root.hooks.run = &runLint;
 
@@ -83,6 +180,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         all: ?AllPreset = null,
         format: OutputMode = .pretty,
         include_build_scripts: bool = false,
+        fail_fast: FailFast = .any,
     };
 
     const args = try ctx.extract(Args);
@@ -127,7 +225,9 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     };
 
     for (target_paths) |path| {
-        try lintPath(allocator, io, path, rule_set, targeting_options, &all_diagnostics, &summary, args.format, path_display_root);
+        if (try lintPath(allocator, io, path, rule_set, targeting_options, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
+            break;
+        }
     }
 
     if (args.format == .json) {
@@ -153,6 +253,22 @@ const AllPreset = enum {
     deny,
 };
 
+const FailFast = enum {
+    none,
+    @"error",
+    warn,
+    any,
+
+    fn matches(self: FailFast, severity: docent.Severity) bool {
+        return switch (self) {
+            .none => false,
+            .@"error" => severity.isError(),
+            .warn => severity == .warn,
+            .any => severity == .warn or severity.isError(),
+        };
+    }
+};
+
 fn lintPath(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -163,33 +279,25 @@ fn lintPath(
     summary: *docent.output.Summary,
     output_mode: OutputMode,
     path_display_root: []const u8,
-) !void {
+    fail_fast: FailFast,
+) !bool {
     const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch |err| switch (err) {
         // On some platforms statFile returns IsDir for directory paths
         error.IsDir => {
-            try lintDirectory(allocator, io, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root);
-            return;
+            return try lintDirectory(allocator, io, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root, fail_fast);
         },
         else => {
-            try printStderr(
-                io,
-                // TODO: Style with carnaval, Error as bold, the path underlined, adn the error message in red.
-                "Error ({s}): Docent cannot access '{s}'.",
-                .{
-                    formatError(err),
-                    path,
-                },
-            );
-            return;
+            try printAccessError(io, path, err);
+            return false;
         },
     };
 
     if (stat.kind == .directory) {
-        try lintDirectory(allocator, io, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root);
+        return try lintDirectory(allocator, io, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root, fail_fast);
     } else {
-        if (!std.mem.endsWith(u8, path, ".zig")) return;
-        if (docent.targeting.shouldSkipLintFile(path, targeting_options)) return;
-        try lintSingleFile(allocator, io, path, rule_set, all_diagnostics, summary, output_mode, path_display_root);
+        if (!std.mem.endsWith(u8, path, ".zig")) return false;
+        if (docent.targeting.shouldSkipLintFile(path, targeting_options)) return false;
+        return try lintSingleFile(allocator, io, path, rule_set, all_diagnostics, summary, output_mode, path_display_root, fail_fast);
     }
 }
 
@@ -330,6 +438,19 @@ fn isReadableFile(io: std.Io, path: []const u8) bool {
     return true;
 }
 
+fn printAccessError(io: std.Io, path: []const u8, err: anyerror) !void {
+    const profile = carnaval.colorProfileForHandle(std.Io.File.stderr().handle);
+    var buf: [4096]u8 = undefined;
+    var stderr = std.Io.File.stderr().writer(io, &buf);
+    const writer = &stderr.interface;
+
+    try carnaval.Style.init().fg(.{ .ansi16 = .red }).bolded().renderWithProfile("error", writer, profile);
+    try writer.print(" ({s}): Docent cannot access ", .{formatError(err)});
+    try carnaval.Style.init().underlined().renderWithProfile(path, writer, profile);
+    try writer.print(".\n", .{});
+    try writer.flush();
+}
+
 fn deinitOwnedPaths(allocator: std.mem.Allocator, paths: *std.ArrayList([]const u8)) void {
     for (paths.items) |path| allocator.free(path);
     paths.deinit(allocator);
@@ -345,13 +466,18 @@ fn lintDirectory(
     summary: *docent.output.Summary,
     output_mode: OutputMode,
     path_display_root: []const u8,
-) !void {
+    fail_fast: FailFast,
+) !bool {
     var targets = try docent.targeting.collectDirectoryLintTargets(allocator, io, dir_path, targeting_options);
     defer docent.targeting.deinitOwnedPaths(allocator, &targets);
 
     for (targets.items) |path| {
-        try lintSingleFile(allocator, io, path, rule_set, all_diagnostics, summary, output_mode, path_display_root);
+        if (try lintSingleFile(allocator, io, path, rule_set, all_diagnostics, summary, output_mode, path_display_root, fail_fast)) {
+            return true;
+        }
     }
+
+    return false;
 }
 
 fn lintSingleFile(
@@ -363,10 +489,11 @@ fn lintSingleFile(
     summary: *docent.output.Summary,
     output_mode: OutputMode,
     path_display_root: []const u8,
-) !void {
+    fail_fast: FailFast,
+) !bool {
     var result = docent.lintFile(allocator, io, path, rule_set) catch |err| {
         try printStderr(io, "error: failed to lint '{s}': {}\n", .{ path, err });
-        return;
+        return false;
     };
     defer result.deinit();
 
@@ -378,7 +505,11 @@ fn lintSingleFile(
         } else {
             try docent.output.printDiagnosticStderr(io, d, docent.output.stderrTextOptions(io, textFormat(output_mode), .auto, path_display_root));
         }
+
+        if (fail_fast.matches(d.severity)) return true;
     }
+
+    return false;
 }
 
 fn textFormat(mode: OutputMode) docent.output.TextFormat {
