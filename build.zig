@@ -77,14 +77,16 @@ pub fn build(b: *std.Build) void {
     const docs = b.addInstallDirectory(.{
         .source_dir = docs_lib.getEmittedDocs(),
         .install_dir = .prefix,
-        .install_subdir = "docs",
+        .install_subdir = "docs/lib",
     });
 
-    const docs_lint = b.addRunArtifact(cli);
-    docs_lint.addArgs(&.{});
+    // const docs_lint = b.addRunArtifact(cli);
+    // docs_lint.addArgs(&.{});
+    // docs.step.dependOn(&docs_lint.step);
 
     const docs_cli = b.addRunArtifact(cli);
-    // docs_cli.addArgs(&.{ "docs", "--output-dir", "zig-out/docs" });
+    docs_cli.addArgs(&.{ "docs", "--output-dir", "zig-out/docs/" });
+    docs_step.dependOn(&docs_cli.step);
 
     // TODO: Remove this, the rules, should be natively read from the build manifest (build.zig.zon) globally as one manifest represents the whole package/project.
 
@@ -105,10 +107,8 @@ pub fn build(b: *std.Build) void {
     // });
 
     // Lint must run before docs are generated/installed.
-    docs.step.dependOn(&docs_lint.step);
     docs_cli.step.dependOn(&docs.step);
     docs_step.dependOn(&docs.step);
-    docs_step.dependOn(&docs_cli.step);
 
     const tests_step = b.step("tests", "Run the test suite");
 

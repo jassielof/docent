@@ -36,6 +36,15 @@ jobs:
       - name: Generate documentation
         run: zig build docs --summary all
 
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Instll AsciiDoctor
+        run: brew install asciidoctor
+
+      - name: Compile AsciiDoc documentation
+        run: asciidoctor zig-out/docs/cli.adoc --out-file zig-out/docs/index.html
+
       - name: Upload page artifact
         uses: actions/upload-pages-artifact@v5
         with:
