@@ -37,7 +37,7 @@ jobs:
         run: zig build docs --summary all
 
       - name: Install AsciiDoctor
-        run: apt install asciidoctor
+        run: sudo gem install asciidoctor
 
       - name: Compile AsciiDoc documentation
         run:  asciidoctor zig-out/docs/cli.adoc --out-file
