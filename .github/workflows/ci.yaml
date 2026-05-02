@@ -40,8 +40,10 @@ jobs:
         run: sudo gem install asciidoctor
 
       - name: Compile AsciiDoc documentation
-        run:  asciidoctor zig-out/docs/cli.adoc --out-file
-          zig-out/docs/index.html
+        working-directory: zig-out/docs
+        run: |
+          asciidoctor cli.adoc --out-file index.html
+          asciidoctor cli.adoc --backend pdf
 
       - name: Upload page artifact
         uses: actions/upload-pages-artifact@v5

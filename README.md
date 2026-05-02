@@ -4,6 +4,14 @@ Docent is a documentation linter for Zig.
 
 Available as a CLI, library, and build integration step (#1).
 
+## Documentation
+
+Check the CLI documentation on the website attached in the repository description.
+
+To download a PDF version of the documentation for offline reading, go to `.../cli.pdf` in the repository documentation.
+
+For the library documentation, just add `.../lib/` to the URL of the repository documentation.
+
 ## Behavior & Rules
 
 ### Scanning
