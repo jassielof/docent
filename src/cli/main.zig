@@ -15,6 +15,9 @@ pub fn main(init: std.process.Init) !void {
 
     var app = try fangz.App.init(gpa, io, .{
         .display_name = "Docent",
+        // TODO: Add a way to avoid adding the name/email, by default they are added regardless, but if the user doesn't want to add their name/email, using null or undefined doesn't work.
+        .author_name = "",
+        // .author_email = undefined,
         .tagline = "A Documentation Linter for Zig Projects",
         .description = "Docent is a documentation linter for Zig projects.",
     });
