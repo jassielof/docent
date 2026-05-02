@@ -33,20 +33,14 @@ jobs:
       - name: Tests
         run: zig build tests --summary all
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ruby
-          bundler-cache: true
-
       - name: Generate documentation
         run: zig build docs --summary all
 
       - name: Install AsciiDoctor
-        run: gem install asciidoctor
+        run: apt install asciidoctor
 
       - name: Compile AsciiDoc documentation
-        run: bundle exec asciidoctor zig-out/docs/cli.adoc --out-file
+        run:  asciidoctor zig-out/docs/cli.adoc --out-file
           zig-out/docs/index.html
 
       - name: Upload page artifact
