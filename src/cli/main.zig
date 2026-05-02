@@ -35,6 +35,7 @@ pub fn main(init: std.process.Init) !void {
         },
     });
 
+    // TODO: The help rendering of this, specially for long help, should be more informational, currently it's completely lacking, it should be as useful and informative as the README, describing properly every single rule, as well as what every severity helps, and all the defaults. As well the value hint is really ugly. There should also be examples added to this. I'm aware that that the best way to use this should be for example: `docent --rule RULE=SEVERITY --rule ANOTHER_RULE=ANOTHER_SEVERITY` instead of comma-separated. The help should also be reflected in the generated docs AND the completions script. The short help is the only one where currently makes sense to leave it as is, currently it only looks vaguely as short help.
     try root.addFlag(fangz.KeyValueList, .{
         .name = "rule",
         .short = 'r',
@@ -61,6 +62,8 @@ pub fn main(init: std.process.Init) !void {
         .description = "Include build.zig and build/*.zig files in lint targets.",
         .default = false,
     });
+
+    // TODO: Add fail fast mode that exits after the first error or warning, since there can be a lot of lints, and different severities, let it be an enum for fail fast on error, or warn, or both, and both would be the default.
 
     root.hooks.run = &runLint;
 
