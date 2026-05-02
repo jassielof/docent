@@ -55,6 +55,10 @@ pub fn build(b: *std.Build) void {
                     .name = "fangz",
                     .module = fangz_mod,
                 },
+                .{
+                    .name = "carnaval",
+                    .module = carnaval_mod,
+                },
             },
         }),
     });
