@@ -84,8 +84,7 @@ pub const key_value_level_count = docent_kv_help.values.len;
 
 /// Wires flags, positional paths, `rules`, and examples. Caller must set `root.hooks.run` (e.g. lint entrypoint).
 pub fn registerDocentRoot(root: *fangz.Command) !void {
-    var usage_buf: [192]u8 = undefined;
-    root.usage_override = try std.fmt.bufPrint(&usage_buf, "{s} [OPTIONS] [PATHS]...\n{s} <COMMAND>", .{ root.name, root.name });
+    try root.setUsageOverrideFormat("{s} [OPTIONS] [PATHS]...\n{s} <COMMAND>", .{ root.name, root.name });
     root.examples = docent_kv_help.app_examples;
 
     try root.addPositional(.{
