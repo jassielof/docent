@@ -139,4 +139,31 @@ pub fn build(b: *std.Build) void {
 
     const run_integration_tests = b.addRunArtifact(integration_tests);
     tests_step.dependOn(&run_integration_tests.step);
+
+    const docent_cli_mod = b.createModule(.{
+        .root_source_file = b.path("src/cli/root_commands.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "docent", .module = mod },
+            .{ .name = "fangz", .module = fangz_mod },
+            .{ .name = "carnaval", .module = carnaval_mod },
+        },
+    });
+
+    const cli_ux_tests = b.addTest(.{
+        .name = "CLI UX Tests",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/cli_ux.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "docent", .module = mod },
+                .{ .name = "fangz", .module = fangz_mod },
+                .{ .name = "docent_cli", .module = docent_cli_mod },
+            },
+        }),
+    });
+
+    tests_step.dependOn(&b.addRunArtifact(cli_ux_tests).step);
 }

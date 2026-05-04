@@ -4,96 +4,7 @@ const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-const zig_paths_completer =
-    \\let current = ($context | split words | last | default "")
-    \\
-    \\let ends_with_separator = (
-    \\  ($current | str ends-with "/") or
-    \\  ($current | str ends-with "\\")
-    \\)
-    \\
-    \\let search_dir = if $ends_with_separator {
-    \\  if ($current | is-empty) { "." } else { $current }
-    \\} else {
-    \\  let parent = ($current | path dirname)
-    \\
-    \\  if ($parent | is-empty) or $parent == "." {
-    \\    "."
-    \\  } else {
-    \\    $parent
-    \\  }
-    \\}
-    \\
-    \\let prefix = if $ends_with_separator {
-    \\  ""
-    \\} else {
-    \\  $current | path basename
-    \\}
-    \\
-    \\let completions = (
-    \\  try {
-    \\    ls $search_dir
-    \\  } catch {
-    \\    []
-    \\  }
-    \\  | where {|entry|
-    \\      $entry.type == "dir"
-    \\      or ($entry.name | str ends-with ".zig")
-    \\      or ($entry.name | str ends-with ".zon")
-    \\    }
-    \\  | where {|entry|
-    \\      ($entry.name | path basename) | str starts-with $prefix
-    \\    }
-    \\  | sort-by type name
-    \\  | each {|entry|
-    \\      if $entry.type == "dir" {
-    \\        {
-    \\          value: $"($entry.name)/",
-    \\          description: "directory"
-    \\        }
-    \\      } else if ($entry.name | str ends-with ".zig") {
-    \\        {
-    \\          value: $entry.name,
-    \\          description: "Zig source file"
-    \\        }
-    \\      } else {
-    \\        {
-    \\          value: $entry.name,
-    \\          description: "Zig package/manifest file"
-    \\        }
-    \\      }
-    \\    }
-    \\)
-    \\
-    \\{
-    \\  options: {
-    \\    case_sensitive: false
-    \\    completion_algorithm: prefix
-    \\    sort: false
-    \\  }
-    \\  completions: $completions
-    \\}
-;
-
-const rule_long_description =
-    \\Override one rule's severity. Repeat the flag to override multiple rules:
-    \\
-    \\  docent --rule missing_doc_comment=deny --rule private_doctest=allow src
-    \\
-    \\Severity levels:
-    \\  allow   Disable the rule.
-    \\  warn    Report the rule as a warning.
-    \\  deny    Report the rule as an error.
-    \\  forbid  Report the rule as an error that should not be relaxed by later overrides.
-    \\
-    \\Rules and defaults:
-    \\  missing_doc_comment             warn   Public declarations should have doc comments.
-    \\  missing_doctest                 allow  Public APIs may include runnable examples.
-    \\  private_doctest                 warn   Private declarations should not carry doctests.
-    \\  missing_container_doc_comment   allow  Modules may include top-level //! documentation.
-    \\  empty_doc_comment               warn   Doc comments should contain useful text.
-    \\  doctest_naming_mismatch         warn   Doctest names should match the declaration they document.
-;
+const cli = @import("root_commands.zig");
 
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
@@ -117,54 +28,7 @@ pub fn main(init: std.process.Init) !void {
 
     const root = app.root();
 
-    try root.addPositional(.{
-        .name = "paths",
-        .description = "Files or directories to lint",
-        .variadic = true,
-        .completion = .{
-            .nu = .{
-                .name = "complete-zig-paths",
-                .params = "context: string",
-                .body = zig_paths_completer,
-            },
-        },
-    });
-
-    // TODO: The help rendering of this, specially for long help, should be more informational, currently it's completely lacking, it should be as useful and informative as the README, describing properly every single rule, as well as what every severity helps, and all the defaults. As well the value hint is really ugly. There should also be examples added to this. I'm aware that that the best way to use this should be for example: `docent --rule RULE=SEVERITY --rule ANOTHER_RULE=ANOTHER_SEVERITY` instead of comma-separated. The help should also be reflected in the generated docs AND the completions script. The short help is the only one where currently makes sense to leave it as is, currently it only looks vaguely as short help.
-    try root.addFlag(fangz.KeyValueList, .{
-        .name = "rule",
-        .short = 'r',
-        .description = "Override severity: <name>=<allow|warn|deny|forbid>",
-        .long_description = rule_long_description,
-        .value_hint = "RULE=SEVERITY",
-        .allowed_keys = docent.RuleSet.fieldNames(),
-        .allowed_values = &.{ "allow", "warn", "deny", "forbid" },
-    });
-
-    try root.addFlag(?AllPreset, .{
-        .name = "all",
-        .description = "The level to apply to all rules.",
-    });
-
-    try root.addFlag(OutputMode, .{
-        .name = "format",
-        .short = 'f',
-        .description = "The output format of the lints.",
-        .default = .pretty,
-    });
-
-    try root.addFlag(bool, .{
-        .name = "include-build-scripts",
-        .description = "Include build.zig and build/*.zig files in lint targets.",
-        .default = false,
-    });
-
-    try root.addFlag(FailFast, .{
-        .name = "fail-fast",
-        .description = "Stop linting after the first matching diagnostic severity.",
-        .default = .any,
-    });
-
+    try cli.registerDocentRoot(root);
     root.hooks.run = &runLint;
 
     try app.executeProcess(init.minimal.args);
@@ -177,10 +41,10 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     const Args = struct {
         positionals: []const []const u8 = &.{},
         rule: fangz.KeyValueList = &.{},
-        all: ?AllPreset = null,
-        format: OutputMode = .pretty,
+        all: ?cli.AllPreset = null,
+        format: cli.OutputMode = .pretty,
         include_build_scripts: bool = false,
-        fail_fast: FailFast = .any,
+        fail_fast: cli.FailFast = .any,
     };
 
     const args = try ctx.extract(Args);
@@ -241,33 +105,14 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     }
 }
 
-const OutputMode = enum {
-    pretty,
-    text,
-    minimal,
-    json,
-};
-
-const AllPreset = enum {
-    warn,
-    deny,
-};
-
-const FailFast = enum {
-    none,
-    @"error",
-    warn,
-    any,
-
-    fn matches(self: FailFast, severity: docent.Severity) bool {
-        return switch (self) {
-            .none => false,
-            .@"error" => severity.isError(),
-            .warn => severity == .warn,
-            .any => severity == .warn or severity.isError(),
-        };
-    }
-};
+fn failFastMatches(ff: cli.FailFast, severity: docent.Severity) bool {
+    return switch (ff) {
+        .none => false,
+        .@"error" => severity.isError(),
+        .warn => severity == .warn,
+        .any => severity == .warn or severity.isError(),
+    };
+}
 
 fn lintPath(
     allocator: std.mem.Allocator,
@@ -277,9 +122,9 @@ fn lintPath(
     targeting_options: docent.targeting.Options,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
-    output_mode: OutputMode,
+    output_mode: cli.OutputMode,
     path_display_root: []const u8,
-    fail_fast: FailFast,
+    fail_fast: cli.FailFast,
 ) !bool {
     const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch |err| switch (err) {
         // On some platforms statFile returns IsDir for directory paths
@@ -464,9 +309,9 @@ fn lintDirectory(
     targeting_options: docent.targeting.Options,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
-    output_mode: OutputMode,
+    output_mode: cli.OutputMode,
     path_display_root: []const u8,
-    fail_fast: FailFast,
+    fail_fast: cli.FailFast,
 ) !bool {
     var targets = try docent.targeting.collectDirectoryLintTargets(allocator, io, dir_path, targeting_options);
     defer docent.targeting.deinitOwnedPaths(allocator, &targets);
@@ -487,9 +332,9 @@ fn lintSingleFile(
     rule_set: docent.RuleSet,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
-    output_mode: OutputMode,
+    output_mode: cli.OutputMode,
     path_display_root: []const u8,
-    fail_fast: FailFast,
+    fail_fast: cli.FailFast,
 ) !bool {
     var result = docent.lintFile(allocator, io, path, rule_set) catch |err| {
         try printStderr(io, "error: failed to lint '{s}': {}\n", .{ path, err });
@@ -506,13 +351,13 @@ fn lintSingleFile(
             try docent.output.printDiagnosticStderr(io, d, docent.output.stderrTextOptions(io, textFormat(output_mode), .auto, path_display_root));
         }
 
-        if (fail_fast.matches(d.severity)) return true;
+        if (failFastMatches(fail_fast, d.severity)) return true;
     }
 
     return false;
 }
 
-fn textFormat(mode: OutputMode) docent.output.TextFormat {
+fn textFormat(mode: cli.OutputMode) docent.output.TextFormat {
     return switch (mode) {
         .pretty, .text => .pretty,
         .minimal => .minimal,
@@ -523,7 +368,7 @@ fn textFormat(mode: OutputMode) docent.output.TextFormat {
 /// Builds a `RuleSet` with every field set to the preset severity.
 /// The `inline for` unrolls at comptime — adding a field to `RuleSet` is
 /// automatically picked up here with no manual update needed.
-fn allPresetToRuleSet(preset: AllPreset) docent.RuleSet {
+fn allPresetToRuleSet(preset: cli.AllPreset) docent.RuleSet {
     var rs: docent.RuleSet = .{};
     const sev: docent.Severity = switch (preset) {
         .warn => .warn,
@@ -544,6 +389,8 @@ fn applyRuleOverride(rs: *docent.RuleSet, kv: fangz.KeyValuePair) !void {
     const sev = std.meta.stringToEnum(docent.Severity, kv.value) orelse return error.InvalidSeverity;
     inline for (@typeInfo(docent.RuleSet).@"struct".fields) |f| {
         if (std.mem.eql(u8, f.name, kv.key)) {
+            const current = @field(rs, f.name);
+            if (current == .forbid and sev != .forbid) return;
             @field(rs, f.name) = sev;
             return;
         }
