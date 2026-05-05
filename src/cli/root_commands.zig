@@ -84,6 +84,7 @@ pub const key_value_level_count = docent_kv_help.values.len;
 
 /// Wires flags, positional paths, `rules`, and examples. Caller must set `root.hooks.run` (e.g. lint entrypoint).
 pub fn registerDocentRoot(root: *fangz.Command) !void {
+    // TODO: Usage override shouldn't happen, the CLI library should properly format usage automatically with the given configuration, otherwise it's manual and that's ugly, and only useful if the user really wants to customize usage text, here it's not needed, and should be automatically formatted wtihout overriding.
     try root.setUsageOverrideFormat("{s} [OPTIONS] [PATHS]...\n{s} <COMMAND>", .{ root.name, root.name });
     root.examples = docent_kv_help.app_examples;
 
