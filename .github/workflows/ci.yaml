@@ -31,7 +31,7 @@ jobs:
         run: zig build --summary all
 
       - name: Tests
-        run: zig build tests --summary all
+        run: zig build test --summary all
 
       - name: Generate documentation
         run: zig build docs --summary all
@@ -53,7 +53,6 @@ jobs:
   pages:
     name: Deploy to GitHub Pages
     if: github.event_name != 'pull_request'
-
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
