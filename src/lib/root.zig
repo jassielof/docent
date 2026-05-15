@@ -13,7 +13,7 @@ pub const Severity = @import("Severity.zig").Level;
 pub const targeting = @import("Targeting.zig");
 
 // FIXME: Structs are PascalCase, not camelCase.
-pub const rules = struct {
+pub const Rules = struct {
     pub const missing_doc_comment = @import("rules/missing_doc_comment.zig");
     pub const empty_doc_comment = @import("rules/empty_doc_comment.zig");
     pub const missing_doctest = @import("rules/missing_doctest.zig");
@@ -41,13 +41,13 @@ pub fn lintSource(
 
     const msg = result.messageAllocator();
 
-    try rules.missing_doc_comment.check(&tree, rule_set.missing_doc_comment, file, allocator, io, msg, &result.diagnostics);
-    try rules.empty_doc_comment.check(&tree, rule_set.empty_doc_comment, file, allocator, msg, &result.diagnostics);
-    try rules.missing_doctest.check(&tree, rule_set.missing_doctest, file, allocator, msg, &result.diagnostics);
-    try rules.private_doctest.check(&tree, rule_set.private_doctest, file, allocator, msg, &result.diagnostics);
-    try rules.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file, allocator, msg, &result.diagnostics);
+    try Rules.missing_doc_comment.check(&tree, rule_set.missing_doc_comment, file, allocator, io, msg, &result.diagnostics);
+    try Rules.empty_doc_comment.check(&tree, rule_set.empty_doc_comment, file, allocator, msg, &result.diagnostics);
+    try Rules.missing_doctest.check(&tree, rule_set.missing_doctest, file, allocator, msg, &result.diagnostics);
+    try Rules.private_doctest.check(&tree, rule_set.private_doctest, file, allocator, msg, &result.diagnostics);
+    try Rules.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file, allocator, msg, &result.diagnostics);
     // COMPAT: //! top-level doc comments — remove if deprecated in 0.16
-    try rules.missing_container_doc_comment.check(&tree, rule_set.missing_container_doc_comment, file, allocator, msg, &result.diagnostics);
+    try Rules.missing_container_doc_comment.check(&tree, rule_set.missing_container_doc_comment, file, allocator, msg, &result.diagnostics);
 
     return result;
 }

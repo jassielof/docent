@@ -21,14 +21,14 @@ pub fn main(init: std.process.Init) !void {
         .author_name = "",
         .author_email = "",
         .tagline = "A Documentation Linter for Zig Projects",
-        // TODO: Description should be inferred from the manifest (build.zig.zon)
+        // TODO: Description should be inferred from the manifest (build.zig.zon), this should moved to the manifest, and inferred from there.
         .description = "Docent is a documentation linter for Zig projects.",
     });
 
     defer app.deinit();
 
     const root = app.root();
-    // TODO: There's no need to move all of this out of the main file if it'll be only used here
+    // TODO: There's no need to move all of this out of the main file if it'll be only used here, all should be moved back here to the main file.
     try cli.registerDocentRoot(root);
     root.hooks.run = &runLint;
 
