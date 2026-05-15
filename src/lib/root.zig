@@ -12,7 +12,6 @@ pub const addLintStep = scaffold.addLintStep;
 pub const Severity = @import("Severity.zig").Level;
 pub const targeting = @import("Targeting.zig");
 
-// FIXME: Structs are PascalCase, not camelCase.
 pub const Rules = struct {
     pub const missing_doc_comment = @import("rules/missing_doc_comment.zig");
     pub const empty_doc_comment = @import("rules/empty_doc_comment.zig");
