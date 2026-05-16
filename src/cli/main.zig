@@ -4,10 +4,60 @@ const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-const docent_kv_help = @import("docent_kv_help.zig");
+const rules_command = @import("commands/rules.zig");
 
-pub const key_value_rule_count = docent_kv_help.keys.len;
-pub const key_value_level_count = docent_kv_help.values.len;
+fn keyMeta(comptime i: usize) fangz.Command.KeyValueKeyMeta {
+    const row = docent.rule_metadata.rules[i];
+    return .{
+        .name = row.name,
+        .default_value = row.default_level,
+        .summary = row.summary,
+        .long_description = row.long,
+    };
+}
+
+fn valueMeta(comptime i: usize) fangz.Command.KeyValueValueMeta {
+    const row = docent.rule_metadata.levels[i];
+    return .{ .name = row.name, .summary = row.summary };
+}
+
+const key_value_keys_storage: [docent.rule_metadata.rules.len]fangz.Command.KeyValueKeyMeta = blk: {
+    var a: [docent.rule_metadata.rules.len]fangz.Command.KeyValueKeyMeta = undefined;
+    for (0..docent.rule_metadata.rules.len) |i| {
+        a[i] = keyMeta(i);
+    }
+    break :blk a;
+};
+
+const key_value_values_storage: [docent.rule_metadata.levels.len]fangz.Command.KeyValueValueMeta = blk: {
+    var a: [docent.rule_metadata.levels.len]fangz.Command.KeyValueValueMeta = undefined;
+    for (0..docent.rule_metadata.levels.len) |i| {
+        a[i] = valueMeta(i);
+    }
+    break :blk a;
+};
+
+const key_value_keys: []const fangz.Command.KeyValueKeyMeta = &key_value_keys_storage;
+
+const key_value_values: []const fangz.Command.KeyValueValueMeta = &key_value_values_storage;
+
+const app_examples: []const fangz.Command.CliExample = &.{
+    .{ .description = "", .command = "docent src" },
+    .{ .description = "", .command = "docent --rule missing_doc_comment=deny src" },
+    .{ .description = "", .command = "docent --all deny --rule missing_doctest=allow src" },
+    .{ .description = "", .command = "docent docs --output-dir docs" },
+    .{ .description = "", .command = "docent completion nu" },
+};
+
+const key_value_help: fangz.Command.KeyValueHelp = .{
+    .keys = key_value_keys,
+    .values = key_value_values,
+    .override_behavior_note = docent.rule_metadata.override_behavior_note,
+    .examples = rules_command.flag_examples,
+};
+
+pub const key_value_rule_count = key_value_keys.len;
+pub const key_value_level_count = key_value_values.len;
 
 pub const OutputMode = enum {
     pretty,
@@ -34,8 +84,20 @@ fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8)
     return allocator.dupe(u8, buffer[0..len]);
 }
 
-pub fn registerDocentRoot(root: *fangz.Command) !void {
-    root.examples = docent_kv_help.app_examples;
+pub fn main(init: std.process.Init) !void {
+    const gpa = init.gpa;
+    const io = init.io;
+
+    var app = try fangz.App.init(gpa, io, .{
+        .display_name = "Docent",
+        .author_name = "",
+        .author_email = "",
+        .tagline = "A Documentation Linter for Zig Projects",
+    });
+
+    defer app.deinit();
+
+    const root = app.root();
 
     try root.addPositional(.{
         .name = "paths",
@@ -55,8 +117,8 @@ pub fn registerDocentRoot(root: *fangz.Command) !void {
         .value_metavar = "LEVEL",
         .allowed_keys = docent.RuleSet.fieldNames(),
         .allowed_values = &.{ "allow", "warn", "deny", "forbid" },
-        .key_value_help = &docent_kv_help.key_value_help,
-        .examples = docent_kv_help.flag_examples,
+        .key_value_help = &key_value_help,
+        .examples = rules_command.flag_examples,
         .allowed_values_style = .bullet_list,
     });
 
@@ -83,80 +145,16 @@ pub fn registerDocentRoot(root: *fangz.Command) !void {
 
     try root.addFlag(FailFast, .{
         .name = "fail-fast",
+        .short = 'F',
         .description = "Stop after the first matching severity",
         .value_hint = "WHEN",
         .default = .any,
     });
 
-    const rules_cmd = try root.addSubcommand(.{
-        .name = "rules",
-        .description = "List lint rules, defaults, and severity levels",
-    });
-    rules_cmd.setHooks(.{ .run = &runRulesCommand });
-}
+    root.examples = app_examples;
 
-pub fn runRulesCommand(ctx: *fangz.ParseContext) !void {
-    try printRulesReference(ctx.io);
-}
+    try rules_command.register(root);
 
-pub fn printRulesReference(io: std.Io) !void {
-    const profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle);
-    var buf: [16384]u8 = undefined;
-    var out = std.Io.File.stdout().writer(io, &buf);
-    const w = &out.interface;
-
-    try carnaval.Style.init().bolded().renderWithProfile("Docent lint rules\n\n", w, profile);
-    try carnaval.Style.init().bolded().renderWithProfile("Rule overrides:\n", w, profile);
-    try w.print("  -r, --rule <RULE=LEVEL>...\n\n", .{});
-    try w.print("  Override one rule's severity. Repeat the flag to override multiple rules.\n\n", .{});
-
-    try carnaval.Style.init().bolded().renderWithProfile("Examples:\n", w, profile);
-    for (docent_kv_help.flag_examples) |ex| {
-        if (ex.description.len > 0) try w.print("  {s}\n", .{ex.description});
-        try w.print("    {s}\n", .{ex.command});
-    }
-    try w.print("\n", .{});
-
-    try carnaval.Style.init().bolded().renderWithProfile("Severity levels:\n", w, profile);
-    for (docent.rule_metadata.levels) |row| {
-        try w.print("  {s}", .{row.name});
-        var pad: usize = 0;
-        while (pad < 8 -| row.name.len) : (pad += 1) try w.print(" ", .{});
-        try w.print(" {s}\n", .{row.summary});
-    }
-    try w.print("\n", .{});
-
-    try carnaval.Style.init().bolded().renderWithProfile("Rules:\n", w, profile);
-    for (docent.rule_metadata.rules) |row| {
-        try w.print("  {s}", .{row.name});
-        var k: usize = 0;
-        while (k < 32 -| row.name.len) : (k += 1) try w.print(" ", .{});
-        try w.print("{s}\n", .{row.default_level});
-        try w.print("    {s}\n\n", .{row.summary});
-    }
-
-    try carnaval.Style.init().bolded().renderWithProfile("Override order:\n", w, profile);
-    var lines = std.mem.splitScalar(u8, docent.rule_metadata.override_behavior_note, '\n');
-    while (lines.next()) |line| try w.print("  {s}\n", .{line});
-
-    try w.flush();
-}
-
-pub fn main(init: std.process.Init) !void {
-    const gpa = init.gpa;
-    const io = init.io;
-
-    var app = try fangz.App.init(gpa, io, .{
-        .display_name = "Docent",
-        .author_name = "",
-        .author_email = "",
-        .tagline = "A Documentation Linter for Zig Projects",
-    });
-
-    defer app.deinit();
-
-    const root = app.root();
-    try registerDocentRoot(root);
     root.hooks.run = &runLint;
 
     try app.executeProcess(init.minimal.args);
