@@ -141,7 +141,7 @@ pub fn build(b: *std.Build) void {
     tests_step.dependOn(&run_integration_tests.step);
 
     const docent_cli_mod = b.createModule(.{
-        .root_source_file = b.path("src/cli/root_commands.zig"),
+        .root_source_file = b.path("src/cli/main.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{

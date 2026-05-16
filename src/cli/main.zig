@@ -4,12 +4,142 @@ const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-const cli = @import("root_commands.zig");
+const docent_kv_help = @import("docent_kv_help.zig");
+
+pub const key_value_rule_count = docent_kv_help.keys.len;
+pub const key_value_level_count = docent_kv_help.values.len;
+
+pub const OutputMode = enum {
+    pretty,
+    text,
+    minimal,
+    json,
+};
+
+pub const AllPreset = enum {
+    warn,
+    deny,
+};
+
+pub const FailFast = enum {
+    none,
+    @"error",
+    warn,
+    any,
+};
 
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
     const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
     return allocator.dupe(u8, buffer[0..len]);
+}
+
+pub fn registerDocentRoot(root: *fangz.Command) !void {
+    root.examples = docent_kv_help.app_examples;
+
+    try root.addPositional(.{
+        .name = "paths",
+        .description = "Files or directories to lint. If omitted, Docent uses package paths from build.zig.zon when available.",
+        .variadic = true,
+    });
+
+    try root.addFlag(fangz.KeyValueList, .{
+        .name = "rule",
+        .short = 'r',
+        .description =
+        \\Override one rule severity
+        \\Repeat the flag to override multiple rules
+        \\Run `docent rules` to see rules and defaults.
+        ,
+        .key_metavar = "RULE",
+        .value_metavar = "LEVEL",
+        .allowed_keys = docent.RuleSet.fieldNames(),
+        .allowed_values = &.{ "allow", "warn", "deny", "forbid" },
+        .key_value_help = &docent_kv_help.key_value_help,
+        .examples = docent_kv_help.flag_examples,
+        .allowed_values_style = .bullet_list,
+    });
+
+    try root.addFlag(?AllPreset, .{
+        .name = "all",
+        .description = "Apply one severity to all rules",
+        .value_hint = "LEVEL",
+    });
+
+    try root.addFlag(OutputMode, .{
+        .name = "format",
+        .short = 'f',
+        .description = "Output format",
+        .value_hint = "FORMAT",
+        .default = .pretty,
+        .allowed_values_style = .comma,
+    });
+
+    try root.addFlag(bool, .{
+        .name = "include-build-scripts",
+        .description = "Include build.zig and build/*.zig files in lint targets",
+        .default = false,
+    });
+
+    try root.addFlag(FailFast, .{
+        .name = "fail-fast",
+        .description = "Stop after the first matching severity",
+        .value_hint = "WHEN",
+        .default = .any,
+    });
+
+    const rules_cmd = try root.addSubcommand(.{
+        .name = "rules",
+        .description = "List lint rules, defaults, and severity levels",
+    });
+    rules_cmd.setHooks(.{ .run = &runRulesCommand });
+}
+
+pub fn runRulesCommand(ctx: *fangz.ParseContext) !void {
+    try printRulesReference(ctx.io);
+}
+
+pub fn printRulesReference(io: std.Io) !void {
+    const profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle);
+    var buf: [16384]u8 = undefined;
+    var out = std.Io.File.stdout().writer(io, &buf);
+    const w = &out.interface;
+
+    try carnaval.Style.init().bolded().renderWithProfile("Docent lint rules\n\n", w, profile);
+    try carnaval.Style.init().bolded().renderWithProfile("Rule overrides:\n", w, profile);
+    try w.print("  -r, --rule <RULE=LEVEL>...\n\n", .{});
+    try w.print("  Override one rule's severity. Repeat the flag to override multiple rules.\n\n", .{});
+
+    try carnaval.Style.init().bolded().renderWithProfile("Examples:\n", w, profile);
+    for (docent_kv_help.flag_examples) |ex| {
+        if (ex.description.len > 0) try w.print("  {s}\n", .{ex.description});
+        try w.print("    {s}\n", .{ex.command});
+    }
+    try w.print("\n", .{});
+
+    try carnaval.Style.init().bolded().renderWithProfile("Severity levels:\n", w, profile);
+    for (docent.rule_metadata.levels) |row| {
+        try w.print("  {s}", .{row.name});
+        var pad: usize = 0;
+        while (pad < 8 -| row.name.len) : (pad += 1) try w.print(" ", .{});
+        try w.print(" {s}\n", .{row.summary});
+    }
+    try w.print("\n", .{});
+
+    try carnaval.Style.init().bolded().renderWithProfile("Rules:\n", w, profile);
+    for (docent.rule_metadata.rules) |row| {
+        try w.print("  {s}", .{row.name});
+        var k: usize = 0;
+        while (k < 32 -| row.name.len) : (k += 1) try w.print(" ", .{});
+        try w.print("{s}\n", .{row.default_level});
+        try w.print("    {s}\n\n", .{row.summary});
+    }
+
+    try carnaval.Style.init().bolded().renderWithProfile("Override order:\n", w, profile);
+    var lines = std.mem.splitScalar(u8, docent.rule_metadata.override_behavior_note, '\n');
+    while (lines.next()) |line| try w.print("  {s}\n", .{line});
+
+    try w.flush();
 }
 
 pub fn main(init: std.process.Init) !void {
@@ -26,8 +156,7 @@ pub fn main(init: std.process.Init) !void {
     defer app.deinit();
 
     const root = app.root();
-    // TODO: There's no need to move all of this out of the main file if it'll be only used here, all should be moved back here to the main file.
-    try cli.registerDocentRoot(root);
+    try registerDocentRoot(root);
     root.hooks.run = &runLint;
 
     try app.executeProcess(init.minimal.args);
@@ -40,10 +169,10 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     const Args = struct {
         positionals: []const []const u8 = &.{},
         rule: fangz.KeyValueList = &.{},
-        all: ?cli.AllPreset = null,
-        format: cli.OutputMode = .pretty,
+        all: ?AllPreset = null,
+        format: OutputMode = .pretty,
         include_build_scripts: bool = false,
-        fail_fast: cli.FailFast = .any,
+        fail_fast: FailFast = .any,
     };
 
     const args = try ctx.extract(Args);
@@ -104,7 +233,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     }
 }
 
-fn failFastMatches(ff: cli.FailFast, severity: docent.Severity) bool {
+fn failFastMatches(ff: FailFast, severity: docent.Severity) bool {
     return switch (ff) {
         .none => false,
         .@"error" => severity.isError(),
@@ -121,9 +250,9 @@ fn lintPath(
     targeting_options: docent.targeting.Options,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
-    output_mode: cli.OutputMode,
+    output_mode: OutputMode,
     path_display_root: []const u8,
-    fail_fast: cli.FailFast,
+    fail_fast: FailFast,
 ) !bool {
     const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch |err| switch (err) {
         // On some platforms statFile returns IsDir for directory paths
@@ -308,9 +437,9 @@ fn lintDirectory(
     targeting_options: docent.targeting.Options,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
-    output_mode: cli.OutputMode,
+    output_mode: OutputMode,
     path_display_root: []const u8,
-    fail_fast: cli.FailFast,
+    fail_fast: FailFast,
 ) !bool {
     var targets = try docent.targeting.collectDirectoryLintTargets(allocator, io, dir_path, targeting_options);
     defer docent.targeting.deinitOwnedPaths(allocator, &targets);
@@ -331,9 +460,9 @@ fn lintSingleFile(
     rule_set: docent.RuleSet,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
-    output_mode: cli.OutputMode,
+    output_mode: OutputMode,
     path_display_root: []const u8,
-    fail_fast: cli.FailFast,
+    fail_fast: FailFast,
 ) !bool {
     var result = docent.lintFile(allocator, io, path, rule_set) catch |err| {
         try printStderr(io, "error: failed to lint '{s}': {}\n", .{ path, err });
@@ -356,7 +485,7 @@ fn lintSingleFile(
     return false;
 }
 
-fn textFormat(mode: cli.OutputMode) docent.output.TextFormat {
+fn textFormat(mode: OutputMode) docent.output.TextFormat {
     return switch (mode) {
         .pretty, .text => .pretty,
         .minimal => .minimal,
@@ -367,7 +496,7 @@ fn textFormat(mode: cli.OutputMode) docent.output.TextFormat {
 /// Builds a `RuleSet` with every field set to the preset severity.
 /// The `inline for` unrolls at comptime — adding a field to `RuleSet` is
 /// automatically picked up here with no manual update needed.
-fn allPresetToRuleSet(preset: cli.AllPreset) docent.RuleSet {
+fn allPresetToRuleSet(preset: AllPreset) docent.RuleSet {
     var rs: docent.RuleSet = .{};
     const sev: docent.Severity = switch (preset) {
         .warn => .warn,
