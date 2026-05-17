@@ -16,7 +16,7 @@ fn keyMeta(comptime i: usize) fangz.Command.KeyValueKeyMeta {
         .name = row.name,
         .default_value = row.default_level,
         .summary = row.summary,
-        .long_description = row.long,
+        .description = row.long,
     };
 }
 
@@ -105,15 +105,15 @@ pub fn main(init: std.process.Init) !void {
 
     try root.addPositional(.{
         .name = "paths",
-        .description = "Files or directories to lint. If omitted, Docent uses package paths from build.zig.zon when available.",
+        .brief = "Files or directories to lint. If omitted, Docent uses package paths from build.zig.zon when available.",
         .variadic = true,
     });
 
     try root.addFlag(fangz.KeyValueList, .{
         .name = "rule",
         .short = 'r',
+        .brief = "Override one rule severity.",
         .description =
-        \\Override one rule severity.
         \\You can repeat the flag to override multiple rules.
         \\Run `docent rules` to see rules and defaults.
         ,
@@ -128,14 +128,14 @@ pub fn main(init: std.process.Init) !void {
 
     try root.addFlag(?AllPreset, .{
         .name = "all",
-        .description = "Apply one severity to all rules",
+        .brief = "Apply one severity to all rules",
         .value_hint = "LEVEL",
     });
 
     try root.addFlag(OutputMode, .{
         .name = "format",
         .short = 'f',
-        .description = "Output format",
+        .brief = "Output format",
         .value_hint = "FORMAT",
         .default = .pretty,
         .allowed_values_style = .comma,
@@ -143,14 +143,14 @@ pub fn main(init: std.process.Init) !void {
 
     try root.addFlag(bool, .{
         .name = "include-build-scripts",
-        .description = "Include build.zig and build/*.zig files in lint targets",
+        .brief = "Include build.zig and build/*.zig files in lint targets",
         .default = false,
     });
 
     try root.addFlag(FailFast, .{
         .name = "fail-fast",
         .short = 'F',
-        .description = "Stop after the first matching severity",
+        .brief = "Stop after the first matching severity",
         .value_hint = "WHEN",
         .default = .any,
     });
