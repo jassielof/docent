@@ -2,6 +2,10 @@ const std = @import("std");
 
 const docent = @import("docent");
 
+test {
+    _ = @import("cli_ux.zig");
+}
+
 fn readFixture(allocator: std.mem.Allocator, rel_path: []const u8) ![:0]const u8 {
     const path = try std.fs.path.join(allocator, &.{ "tests", "fixtures", rel_path });
     defer allocator.free(path);
