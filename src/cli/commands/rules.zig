@@ -22,7 +22,7 @@ pub const flag_examples: []const fangz.Command.CliExample = &.{
 pub fn register(root: *fangz.Command) !void {
     const rules_cmd = try root.addSubcommand(.{
         .name = "rules",
-        .description = "List lint rules, defaults, and severity levels",
+        .brief = "List lint rules, defaults, and severity levels",
     });
     rules_cmd.setHooks(.{ .run = &run });
 }

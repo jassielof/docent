@@ -10,15 +10,15 @@ fn wireCliTree(app: *fangz.App) !void {
 
     try root.addPositional(.{
         .name = "paths",
-        .description = "Files or directories to lint. If omitted, Docent uses package paths from build.zig.zon when available.",
+        .brief = "Files or directories to lint. If omitted, Docent uses package paths from build.zig.zon when available.",
         .variadic = true,
     });
 
     try root.addFlag(fangz.KeyValueList, .{
         .name = "rule",
         .short = 'r',
+        .brief = "Override one rule severity.",
         .description =
-        \\Override one rule severity.
         \\You can repeat the flag to override multiple rules.
         \\Run `docent rules` to see rules and defaults.
         ,
@@ -33,14 +33,14 @@ fn wireCliTree(app: *fangz.App) !void {
 
     try root.addFlag(?cli.AllPreset, .{
         .name = "all",
-        .description = "Apply one severity to all rules",
+        .brief = "Apply one severity to all rules",
         .value_hint = "LEVEL",
     });
 
     try root.addFlag(cli.OutputMode, .{
         .name = "format",
         .short = 'f',
-        .description = "Output format",
+        .brief = "Output format",
         .value_hint = "FORMAT",
         .default = .pretty,
         .allowed_values_style = .comma,
@@ -48,14 +48,14 @@ fn wireCliTree(app: *fangz.App) !void {
 
     try root.addFlag(bool, .{
         .name = "include-build-scripts",
-        .description = "Include build.zig and build/*.zig files in lint targets",
+        .brief = "Include build.zig and build/*.zig files in lint targets",
         .default = false,
     });
 
     try root.addFlag(cli.FailFast, .{
         .name = "fail-fast",
         .short = 'F',
-        .description = "Stop after the first matching severity",
+        .brief = "Stop after the first matching severity",
         .value_hint = "WHEN",
         .default = .any,
     });
@@ -69,7 +69,7 @@ fn makeCliApp() !fangz.App {
     return fangz.App.init(testing.allocator, testing.io, .{
         // display_name is documentation-oriented; binary name still comes from `fangz_meta.name`.
         .display_name = "Docent",
-        .description = "Documentation linter (CLI UX tests).",
+        .brief = "Documentation linter (CLI UX tests).",
     });
 }
 
@@ -91,7 +91,7 @@ test "short help: --rule shows RULE=LEVEL and stays compact" {
 
     try testing.expect(std.mem.indexOf(u8, text, "<RULE=LEVEL>") != null);
     try testing.expect(std.mem.indexOf(u8, text, "Override one rule severity") != null);
-    try testing.expect(std.mem.indexOf(u8, text, "docent rules") != null);
+    try testing.expect(std.mem.indexOf(u8, text, "docent rules") == null);
     // Full rule catalog must not appear in -h-style output.
     try testing.expect(std.mem.indexOf(u8, text, "Public declarations should have doc comments") == null);
 }
@@ -109,6 +109,7 @@ test "full help: --rule includes examples and key-value sections" {
     const text = writer.buffered();
 
     try testing.expect(std.mem.indexOf(u8, text, "<RULE=LEVEL>") != null);
+    try testing.expect(std.mem.indexOf(u8, text, "docent rules") != null);
     try testing.expect(std.mem.indexOf(u8, text, "Examples:") != null);
     try testing.expect(std.mem.indexOf(u8, text, "--rule missing_doc_comment=deny") != null);
     try testing.expect(std.mem.indexOf(u8, text, "Later overrides win") != null);
