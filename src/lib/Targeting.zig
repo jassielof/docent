@@ -9,12 +9,57 @@ fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8)
 
 pub const Options = struct {
     include_build_scripts: bool = false,
+    /// When false (default), files under `exclude_roots` are not linted.
+    lint_dependencies: bool = false,
+    /// Directory roots (typically manifest `.dependencies.*.path`); skipped unless `lint_dependencies`.
+    exclude_roots: []const []const u8 = &.{},
 };
 
-/// Returns true when a path should be skipped by default lint targeting.
+/// Returns true when `path` is the same as or nested under `root` (separator-aware).
+///
+/// Supports prefix matching when both paths share the same style (relative or absolute), and
+/// suffix matching when `path` is absolute but `root` is manifest-relative.
+pub fn isUnderExcludedRoot(path: []const u8, root: []const u8) bool {
+    if (root.len == 0) return false;
+
+    if (path.len >= root.len and pathComponentsEqual(path[0..root.len], root)) {
+        if (path.len == root.len) return true;
+        return pathSeparatorsEqual(path[root.len], '/');
+    }
+
+    if (pathComponentsEqual(path[path.len - root.len ..], root)) {
+        if (path.len == root.len) return true;
+        return pathSeparatorsEqual(path[path.len - root.len - 1], '/');
+    }
+
+    return false;
+}
+
+fn pathComponentsEqual(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    for (a, b) |ac, bc| {
+        if (!pathSeparatorsEqual(ac, bc)) return false;
+    }
+    return true;
+}
+
+fn pathSeparatorsEqual(a: u8, b: u8) bool {
+    const na: u8 = if (a == '\\') '/' else a;
+    const nb: u8 = if (b == '\\') '/' else b;
+    return na == nb;
+}
+
+/// Returns true when a path should be skipped by lint targeting.
 pub fn shouldSkipLintFile(path: []const u8, options: Options) bool {
-    if (options.include_build_scripts) return false;
-    return isBuildScriptPath(path);
+    if (!options.include_build_scripts and isBuildScriptPath(path)) return true;
+
+    if (!options.lint_dependencies) {
+        for (options.exclude_roots) |root| {
+            if (isUnderExcludedRoot(path, root)) return true;
+        }
+    }
+
+    return false;
 }
 
 /// Collects lint targets for a directory using entrypoint-aware behavior.
@@ -73,9 +118,13 @@ fn collectDirectoryEntrypoints(
     const root_candidate = try std.fs.path.join(allocator, &.{ dir_path, "root.zig" });
     defer allocator.free(root_candidate);
 
-    if (!shouldSkipLintFile(root_candidate, options) and isReadableLocalFile(io, root_candidate)) {
+    if (isReadableLocalFile(io, root_candidate)) {
         const root_abs = realPathFileAlloc(allocator, io, root_candidate) catch return;
-        try out.append(allocator, root_abs);
+        if (!shouldSkipLintFile(root_abs, options)) {
+            try out.append(allocator, root_abs);
+        } else {
+            allocator.free(root_abs);
+        }
         return;
     }
 
@@ -90,9 +139,11 @@ fn collectDirectoryEntrypoints(
         const full = try std.fs.path.join(allocator, &.{ dir_path, entry.name });
         defer allocator.free(full);
 
-        if (shouldSkipLintFile(full, options)) continue;
-
         const abs = realPathFileAlloc(allocator, io, full) catch continue;
+        if (shouldSkipLintFile(abs, options)) {
+            allocator.free(abs);
+            continue;
+        }
         try out.append(allocator, abs);
     }
 }
@@ -117,9 +168,11 @@ fn collectRecursiveZigFiles(
         const full = try std.fs.path.join(allocator, &.{ dir_path, entry.path });
         defer allocator.free(full);
 
-        if (shouldSkipLintFile(full, options)) continue;
-
         const abs = realPathFileAlloc(allocator, io, full) catch continue;
+        if (shouldSkipLintFile(abs, options)) {
+            allocator.free(abs);
+            continue;
+        }
         try out.append(allocator, abs);
     }
 }

@@ -1,0 +1,14 @@
+.{
+    .name = .fixture,
+    .version = "0.0.0",
+    .fingerprint = 0x0,
+    .dependencies = .{
+        .dep = .{
+            .path = "modules/dep",
+        },
+    },
+    .paths = .{
+        "src",
+        "modules",
+    },
+}

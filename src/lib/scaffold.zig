@@ -5,8 +5,7 @@ pub const LintStep = struct {
     step: std.Build.Step,
     sources: []const []const u8,
     rule_set: docent.RuleSet,
-    exclude: []const []const u8,
-    include_build_scripts: bool,
+    targeting: docent.targeting.Options,
     output: OutputOptions,
 
     pub fn create(b: *std.Build, options: Options) *LintStep {
@@ -20,8 +19,11 @@ pub const LintStep = struct {
             }),
             .sources = b.allocator.dupe([]const u8, options.sources) catch @panic("OOM"),
             .rule_set = options.rules,
-            .exclude = if (options.exclude) |ex| b.allocator.dupe([]const u8, ex) catch @panic("OOM") else &.{},
-            .include_build_scripts = options.include_build_scripts,
+            .targeting = options.targeting orelse .{
+                .include_build_scripts = options.include_build_scripts,
+                .lint_dependencies = options.lint_dependencies,
+                .exclude_roots = options.exclude_roots orelse &.{},
+            },
             .output = options.output,
         };
         return self;
@@ -54,7 +56,7 @@ pub const LintStep = struct {
             if (stat.kind == .directory) {
                 try self.lintDirectory(allocator, io, source_path, step, &summary, &total_files, path_display_root);
             } else {
-                if (docent.targeting.shouldSkipLintFile(source_path, .{ .include_build_scripts = self.include_build_scripts })) continue;
+                if (docent.targeting.shouldSkipLintFile(source_path, self.targeting)) continue;
                 try self.lintSingleFile(allocator, io, source_path, step, &summary, &total_files, path_display_root);
             }
         }
@@ -73,7 +75,7 @@ pub const LintStep = struct {
             allocator,
             io,
             dir_path,
-            .{ .include_build_scripts = self.include_build_scripts },
+            self.targeting,
         ) catch |err| {
             step.result_error_msgs.append(
                 allocator,
@@ -84,7 +86,6 @@ pub const LintStep = struct {
         defer docent.targeting.deinitOwnedPaths(allocator, &targets);
 
         for (targets.items) |full_path| {
-            if (self.isExcluded(full_path)) continue;
             try self.lintSingleFile(allocator, io, full_path, step, summary, total_files, path_display_root);
         }
     }
@@ -115,20 +116,16 @@ pub const LintStep = struct {
         }
         if (file_has_errors) total_files.* += 1;
     }
-
-    fn isExcluded(self: *LintStep, path: []const u8) bool {
-        for (self.exclude) |pattern| {
-            if (std.mem.indexOf(u8, path, pattern) != null) return true;
-        }
-        return false;
-    }
 };
 
 pub const Options = struct {
     sources: []const []const u8,
     rules: docent.RuleSet = .{},
-    exclude: ?[]const []const u8 = null,
+    /// Full targeting options; when null, `include_build_scripts`, `lint_dependencies`, and `exclude_roots` are used.
+    targeting: ?docent.targeting.Options = null,
     include_build_scripts: bool = false,
+    lint_dependencies: bool = false,
+    exclude_roots: ?[]const []const u8 = null,
     output: OutputOptions = .{},
 };
 

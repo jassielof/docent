@@ -442,3 +442,88 @@ test "targeting: no-root directories include build scripts when enabled" {
     }
     try std.testing.expect(has_build);
 }
+
+const manifest_with_deps_zon = "tests/fixtures/manifest_with_deps/build.zig.zon";
+const manifest_with_deps_root = "tests/fixtures/manifest_with_deps";
+
+fn fixtureManifestPath(allocator: std.mem.Allocator, io: std.Io) ![]const u8 {
+    var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const len = try std.Io.Dir.cwd().realPathFile(io, manifest_with_deps_zon, &buf);
+    return allocator.dupe(u8, buf[0..len]);
+}
+
+test "manifest: dependency path roots from build.zig.zon" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    const manifest_path = try fixtureManifestPath(allocator, io);
+    defer allocator.free(manifest_path);
+
+    var roots = try docent.manifest.loadDependencyPathRoots(allocator, io, manifest_path);
+    defer docent.manifest.deinitOwnedPaths(allocator, &roots);
+
+    try std.testing.expect(roots.items.len == 1);
+    try std.testing.expect(std.mem.indexOf(u8, roots.items[0], "modules") != null);
+    try std.testing.expect(std.mem.indexOf(u8, roots.items[0], "dep") != null);
+}
+
+test "targeting: skips files under dependency root" {
+    const dep_file = "tests/fixtures/manifest_with_deps/modules/dep/lib.zig";
+    const dep_root = "tests/fixtures/manifest_with_deps/modules/dep";
+
+    try std.testing.expect(docent.targeting.isUnderExcludedRoot(dep_file, dep_root));
+    try std.testing.expect(docent.targeting.shouldSkipLintFile(dep_file, .{
+        .exclude_roots = &.{dep_root},
+    }));
+}
+
+test "targeting: lint_dependencies includes dependency files" {
+    const dep_file = "tests/fixtures/manifest_with_deps/modules/dep/lib.zig";
+    const dep_root = "tests/fixtures/manifest_with_deps/modules/dep";
+
+    try std.testing.expect(!docent.targeting.shouldSkipLintFile(dep_file, .{
+        .lint_dependencies = true,
+        .exclude_roots = &.{dep_root},
+    }));
+}
+
+test "targeting: explicit exclude_roots" {
+    try std.testing.expect(docent.targeting.shouldSkipLintFile("vendor/pkg/util.zig", .{
+        .exclude_roots = &.{"vendor"},
+    }));
+    try std.testing.expect(!docent.targeting.shouldSkipLintFile("src/app.zig", .{
+        .exclude_roots = &.{"vendor"},
+    }));
+}
+
+test "targeting: collectDirectoryLintTargets excludes dependency tree by default" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    const manifest_path = try fixtureManifestPath(allocator, io);
+    defer allocator.free(manifest_path);
+
+    var roots = try docent.manifest.loadDependencyPathRoots(allocator, io, manifest_path);
+    defer docent.manifest.deinitOwnedPaths(allocator, &roots);
+
+    var files = try docent.targeting.collectDirectoryLintTargets(
+        allocator,
+        io,
+        manifest_with_deps_root,
+        .{ .exclude_roots = roots.items },
+    );
+    defer docent.targeting.deinitOwnedPaths(allocator, &files);
+
+    var has_app = false;
+    var has_dep_lib = false;
+
+    for (files.items) |path| {
+        if (std.mem.indexOf(u8, path, "manifest_with_deps") == null) continue;
+        const base = std.fs.path.basename(path);
+        if (std.mem.eql(u8, base, "app.zig")) has_app = true;
+        if (std.mem.eql(u8, base, "lib.zig")) has_dep_lib = true;
+    }
+
+    try std.testing.expect(has_app);
+    try std.testing.expect(!has_dep_lib);
+}

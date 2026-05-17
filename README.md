@@ -16,9 +16,15 @@ For the library documentation, just add `.../lib/` to the URL of the repository 
 
 ### Scanning
 
-<!-- TODO: I need a way to add ignored paths, for example, dependencies, I usually put them under modules/ and they end up being scanned too. Once implemented, add respective tests, and ignore the modules/ directory in this repo, or if possible, the manifest itself, defines the possible paths for the dependencies, so just like Rust, it would be good to add a way to specify if dependencies should be included or excluded for linting. (automatically). -->
-
 It expects a manifest file to be present in your current working directory, then scans the configured `.paths` entries.
+
+Path dependencies listed in `build.zig.zon` under `.dependencies` (each entry with a `.path`) are **excluded from linting by default**, similar to how Rust tooling skips crates.io dependencies while linting your workspace crate. A `.paths` entry may still list `modules` for packaging; Docent uses dependency metadata to avoid linting vendored trees under those paths.
+
+- CLI: pass `--lint-dependencies` to include dependency directories (including when you pass an explicit path under a dependency root).
+- Library: `docent.targeting.Options{ .lint_dependencies = true, .exclude_roots = ... }`.
+- Build step: `docent.addLintStep(b, .{ .lint_dependencies = true, ... })`.
+
+Dependency roots are resolved from the nearest `build.zig.zon` and passed as `exclude_roots` automatically when you run the CLI with no path arguments.
 
 Directory behavior:
 
@@ -40,6 +46,11 @@ Build script defaults:
 - CLI users can opt in with `--include-build-scripts`.
 - Library users can opt in via `docent.targeting.Options{ .include_build_scripts = true }`.
 - Build integration users can opt in via `docent.addLintStep(..., .{ .include_build_scripts = true, ... })`.
+
+Dependency exclusion:
+
+- Files under `.dependencies.*.path` roots are skipped unless `lint_dependencies` is enabled (see above).
+- Pass extra directory roots via `docent.targeting.Options.exclude_roots` when you need additional ignores beyond manifest dependencies.
 
 ### Severities
 
