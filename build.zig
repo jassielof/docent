@@ -114,7 +114,7 @@ pub fn build(b: *std.Build) void {
     docs_cli.step.dependOn(&docs.step);
     docs_step.dependOn(&docs.step);
 
-    const tests_step = b.step("test", "Run the test suite");
+    const test_step = b.step("test", "Run the test suite");
 
     const unit_tests = b.addTest(.{
         .name = "Unit",
@@ -122,7 +122,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
-    tests_step.dependOn(&run_unit_tests.step);
+    test_step.dependOn(&run_unit_tests.step);
 
     const integration_tests = b.addTest(.{
         .name = "Integration",
@@ -138,7 +138,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const run_integration_tests = b.addRunArtifact(integration_tests);
-    tests_step.dependOn(&run_integration_tests.step);
+    test_step.dependOn(&run_integration_tests.step);
 
     const docent_cli_mod = b.createModule(.{
         .root_source_file = b.path("src/cli/main.zig"),
@@ -165,5 +165,5 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    tests_step.dependOn(&b.addRunArtifact(cli_ux_tests).step);
+    test_step.dependOn(&b.addRunArtifact(cli_ux_tests).step);
 }

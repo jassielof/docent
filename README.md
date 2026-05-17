@@ -16,7 +16,7 @@ For the library documentation, just add `.../lib/` to the URL of the repository 
 
 ### Scanning
 
-<!-- TODO: I need a way to add ignored paths, for example, dependencies, I usually put them under modules/ and they end up being scanned too. -->
+<!-- TODO: I need a way to add ignored paths, for example, dependencies, I usually put them under modules/ and they end up being scanned too. Once implemented, add respective tests, and ignore the modules/ directory in this repo, or if possible, the manifest itself, defines the possible paths for the dependencies, so just like Rust, it would be good to add a way to specify if dependencies should be included or excluded for linting. (automatically). -->
 
 It expects a manifest file to be present in your current working directory, then scans the configured `.paths` entries.
 
