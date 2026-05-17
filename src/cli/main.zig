@@ -109,8 +109,8 @@ pub fn main(init: std.process.Init) !void {
         .name = "rule",
         .short = 'r',
         .description =
-        \\Override one rule severity
-        \\Repeat the flag to override multiple rules
+        \\Override one rule severity.
+        \\You can repeat the flag to override multiple rules.
         \\Run `docent rules` to see rules and defaults.
         ,
         .key_metavar = "RULE",
