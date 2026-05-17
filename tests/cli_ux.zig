@@ -1,8 +1,69 @@
 const std = @import("std");
 const testing = std.testing;
+const cli = @import("cli");
 const docent = @import("docent");
-const docent_cli = @import("docent_cli");
 const fangz = @import("fangz");
+
+/// Mirrors the root command tree built in `src/cli/main.zig` for parse/help/docgen tests only (no run hook).
+fn wireCliTree(app: *fangz.App) !void {
+    const root = app.root();
+
+    try root.addPositional(.{
+        .name = "paths",
+        .description = "Files or directories to lint. If omitted, Docent uses package paths from build.zig.zon when available.",
+        .variadic = true,
+    });
+
+    try root.addFlag(fangz.KeyValueList, .{
+        .name = "rule",
+        .short = 'r',
+        .description =
+        \\Override one rule severity.
+        \\You can repeat the flag to override multiple rules.
+        \\Run `docent rules` to see rules and defaults.
+        ,
+        .key_metavar = "RULE",
+        .value_metavar = "LEVEL",
+        .allowed_keys = docent.RuleSet.fieldNames(),
+        .allowed_values = &.{ "allow", "warn", "deny", "forbid" },
+        .key_value_help = &cli.key_value_help,
+        .examples = cli.rule_flag_examples,
+        .allowed_values_style = .bullet_list,
+    });
+
+    try root.addFlag(?cli.AllPreset, .{
+        .name = "all",
+        .description = "Apply one severity to all rules",
+        .value_hint = "LEVEL",
+    });
+
+    try root.addFlag(cli.OutputMode, .{
+        .name = "format",
+        .short = 'f',
+        .description = "Output format",
+        .value_hint = "FORMAT",
+        .default = .pretty,
+        .allowed_values_style = .comma,
+    });
+
+    try root.addFlag(bool, .{
+        .name = "include-build-scripts",
+        .description = "Include build.zig and build/*.zig files in lint targets",
+        .default = false,
+    });
+
+    try root.addFlag(cli.FailFast, .{
+        .name = "fail-fast",
+        .short = 'F',
+        .description = "Stop after the first matching severity",
+        .value_hint = "WHEN",
+        .default = .any,
+    });
+
+    root.examples = cli.app_examples;
+
+    try cli.registerRulesSubcommands(root);
+}
 
 fn makeCliApp() !fangz.App {
     return fangz.App.init(testing.allocator, testing.io, .{
@@ -20,7 +81,7 @@ test "short help: --rule shows RULE=LEVEL and stays compact" {
     var app = try makeCliApp();
     defer app.deinit();
 
-    try docent_cli.registerDocentRoot(app.root());
+    try wireCliTree(&app);
     try app.root_command.freeze();
 
     var buf: [8192]u8 = undefined;
@@ -39,7 +100,7 @@ test "full help: --rule includes examples and key-value sections" {
     var app = try makeCliApp();
     defer app.deinit();
 
-    try docent_cli.registerDocentRoot(app.root());
+    try wireCliTree(&app);
     try app.root_command.freeze();
 
     var buf: [32768]u8 = undefined;
@@ -57,7 +118,7 @@ test "parse errors: --rule value without equals" {
     var app = try makeCliApp();
     defer app.deinit();
 
-    try docent_cli.registerDocentRoot(app.root());
+    try wireCliTree(&app);
     try app.root_command.freeze();
 
     const argv: []const []const u8 = &.{ "--rule", "not_a_pair" };
@@ -79,7 +140,7 @@ test "parse errors: unknown rule typo" {
     var app = try makeCliApp();
     defer app.deinit();
 
-    try docent_cli.registerDocentRoot(app.root());
+    try wireCliTree(&app);
     try app.root_command.freeze();
 
     // One-edit typo from `missing_doc_comment` so `Suggest.closest` reliably proposes it.
@@ -104,7 +165,7 @@ test "parse errors: unknown level" {
     var app = try makeCliApp();
     defer app.deinit();
 
-    try docent_cli.registerDocentRoot(app.root());
+    try wireCliTree(&app);
     try app.root_command.freeze();
 
     const argv: []const []const u8 = &.{ "--rule", "missing_doc_comment=error" };
@@ -127,7 +188,7 @@ test "generated AsciiDoc: synopsis, RULE=LEVEL, rules table, no command index by
     var app = try makeCliApp();
     defer app.deinit();
 
-    try docent_cli.registerDocentRoot(app.root());
+    try wireCliTree(&app);
     try app.root_command.freeze();
 
     const out_dir = "zig-out/cliux-docgen";
@@ -151,6 +212,6 @@ test "generated AsciiDoc: synopsis, RULE=LEVEL, rules table, no command index by
 }
 
 test "rule_metadata keys stay aligned with Fangz key-value help" {
-    try testing.expectEqual(docent_cli.key_value_rule_count, docent.rule_metadata.rules.len);
-    try testing.expectEqual(docent_cli.key_value_level_count, docent.rule_metadata.levels.len);
+    try testing.expectEqual(cli.key_value_rule_count, docent.rule_metadata.rules.len);
+    try testing.expectEqual(cli.key_value_level_count, docent.rule_metadata.levels.len);
 }

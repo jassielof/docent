@@ -38,29 +38,22 @@ pub fn build(b: *std.Build) void {
 
     const cli_step = b.step("cli", "Run the CLI");
 
+    const cli_mod = b.createModule(.{
+        .root_source_file = b.path("src/cli/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = mod_name, .module = mod },
+            .{ .name = "fangz", .module = fangz_mod },
+            .{ .name = "carnaval", .module = carnaval_mod },
+        },
+    });
+
     const cli = b.addExecutable(.{
         .name = mod_name,
         // Add exectuable can take a version field, so that should be used for the metadata injection, IF IT'S AVAILABLE, in my case I simply won't use it, so it should fallback to the build.zig.zon version field instead. In the case where the user uses the version here from addExecutable, it's a SemanticVersion type.
         // .version =
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/cli/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{
-                    .name = mod_name,
-                    .module = mod,
-                },
-                .{
-                    .name = "fangz",
-                    .module = fangz_mod,
-                },
-                .{
-                    .name = "carnaval",
-                    .module = carnaval_mod,
-                },
-            },
-        }),
+        .root_module = cli_mod,
     });
 
     // Inject the executable name from addExecutable(), the executable/manifest version, and git metadata so App.init can infer runtime and docs metadata.
@@ -130,40 +123,15 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("tests/suite.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{
-                .name = mod_name,
-                .module = mod,
-            }},
+            .imports = &.{
+                .{ .name = mod_name, .module = mod },
+                .{ .name = "fangz", .module = fangz_mod },
+                .{ .name = "carnaval", .module = carnaval_mod },
+                .{ .name = "cli", .module = cli_mod },
+            },
         }),
     });
 
     const run_integration_tests = b.addRunArtifact(integration_tests);
     test_step.dependOn(&run_integration_tests.step);
-
-    const docent_cli_mod = b.createModule(.{
-        .root_source_file = b.path("src/cli/main.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "docent", .module = mod },
-            .{ .name = "fangz", .module = fangz_mod },
-            .{ .name = "carnaval", .module = carnaval_mod },
-        },
-    });
-
-    const cli_ux_tests = b.addTest(.{
-        .name = "CLI UX",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("tests/cli_ux.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "docent", .module = mod },
-                .{ .name = "fangz", .module = fangz_mod },
-                .{ .name = "docent_cli", .module = docent_cli_mod },
-            },
-        }),
-    });
-
-    test_step.dependOn(&b.addRunArtifact(cli_ux_tests).step);
 }

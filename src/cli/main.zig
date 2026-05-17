@@ -6,6 +6,10 @@ const fangz = @import("fangz");
 
 const rules_command = @import("commands/rules.zig");
 
+/// For `tests/cli_ux.zig`; forwards to `commands/rules.zig`.
+pub const registerRulesSubcommands = rules_command.register;
+pub const rule_flag_examples = rules_command.flag_examples;
+
 fn keyMeta(comptime i: usize) fangz.Command.KeyValueKeyMeta {
     const row = docent.rule_metadata.rules[i];
     return .{
@@ -41,7 +45,7 @@ const key_value_keys: []const fangz.Command.KeyValueKeyMeta = &key_value_keys_st
 
 const key_value_values: []const fangz.Command.KeyValueValueMeta = &key_value_values_storage;
 
-const app_examples: []const fangz.Command.CliExample = &.{
+pub const app_examples: []const fangz.Command.CliExample = &.{
     .{ .description = "", .command = "docent src" },
     .{ .description = "", .command = "docent --rule missing_doc_comment=deny src" },
     .{ .description = "", .command = "docent --all deny --rule missing_doctest=allow src" },
@@ -49,7 +53,7 @@ const app_examples: []const fangz.Command.CliExample = &.{
     .{ .description = "", .command = "docent completion nu" },
 };
 
-const key_value_help: fangz.Command.KeyValueHelp = .{
+pub const key_value_help: fangz.Command.KeyValueHelp = .{
     .keys = key_value_keys,
     .values = key_value_values,
     .override_behavior_note = docent.rule_metadata.override_behavior_note,
