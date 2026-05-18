@@ -26,8 +26,7 @@ pub fn isUnderExcludedRoot(path: []const u8, root: []const u8) bool {
         return pathSeparatorsEqual(path[root.len], '/');
     }
 
-    // FIXME: integer overflow
-    if (pathComponentsEqual(path[path.len - root.len ..], root)) {
+    if (path.len >= root.len and pathComponentsEqual(path[path.len - root.len ..], root)) {
         if (path.len == root.len) return true;
         return pathSeparatorsEqual(path[path.len - root.len - 1], '/');
     }
