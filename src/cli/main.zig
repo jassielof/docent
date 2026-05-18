@@ -158,6 +158,7 @@ pub fn main(init: std.process.Init) !void {
         .short = 'F',
         .brief = "Stop after the first matching severity",
         .value_hint = "WHEN",
+        // TODO: This should be using an enum value, not a manual enum literal
         .default = .any,
     });
 

@@ -17,8 +17,7 @@ pub const Options = struct {
 
 /// Returns true when `path` is the same as or nested under `root` (separator-aware).
 ///
-/// Supports prefix matching when both paths share the same style (relative or absolute), and
-/// suffix matching when `path` is absolute but `root` is manifest-relative.
+/// Supports prefix matching when both paths share the same style (relative or absolute), and suffix matching when `path` is absolute but `root` is manifest-relative.
 pub fn isUnderExcludedRoot(path: []const u8, root: []const u8) bool {
     if (root.len == 0) return false;
 
@@ -27,6 +26,7 @@ pub fn isUnderExcludedRoot(path: []const u8, root: []const u8) bool {
         return pathSeparatorsEqual(path[root.len], '/');
     }
 
+    // FIXME: integer overflow
     if (pathComponentsEqual(path[path.len - root.len ..], root)) {
         if (path.len == root.len) return true;
         return pathSeparatorsEqual(path[path.len - root.len - 1], '/');

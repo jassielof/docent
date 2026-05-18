@@ -8,5 +8,13 @@
       "name": "Fangz",
       "path": "../modules/fangz",
     },
+    {
+      "name": "Vereda",
+      "path": "../modules/vereda",
+    },
+    {
+      "name": "Carnaval",
+      "path": "../modules/carnaval",
+    },
   ],
 }
