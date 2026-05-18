@@ -5,9 +5,12 @@ const docent = @import("docent");
 const fangz = @import("fangz");
 
 const rules_command = @import("commands/rules.zig");
+const status_command = @import("commands/status.zig");
+pub const rule_config = @import("rule_config.zig");
 
 /// For `tests/cli_ux.zig`; forwards to `commands/rules.zig`.
 pub const registerRulesSubcommands = rules_command.register;
+pub const registerStatusSubcommand = status_command.register;
 pub const rule_flag_examples = rules_command.flag_examples;
 
 fn keyMeta(comptime i: usize) fangz.Command.KeyValueKeyMeta {
@@ -70,10 +73,7 @@ pub const OutputMode = enum {
     json,
 };
 
-pub const AllPreset = enum {
-    warn,
-    deny,
-};
+pub const AllPreset = rule_config.AllPreset;
 
 pub const FailFast = enum {
     none,
@@ -164,6 +164,7 @@ pub fn main(init: std.process.Init) !void {
     root.examples = app_examples;
 
     try rules_command.register(root);
+    try status_command.register(root, &key_value_help);
 
     root.hooks.run = &runLint;
 
@@ -188,11 +189,15 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     var rule_set: docent.RuleSet = .{};
 
-    if (args.all) |preset| rule_set = allPresetToRuleSet(preset);
+    if (args.all) |preset| rule_set = rule_config.allPresetToRuleSet(preset);
 
     for (args.rule) |override| {
-        applyRuleOverride(&rule_set, override) catch |err| {
-            try printStderr(io, "error: invalid --rule value '{s}={s}': {}\n", .{ override.key, override.value, err });
+        rule_config.applyRuleOverride(&rule_set, override) catch |err| {
+            try printStderr(io, "error: invalid --rule value '{s}={s}': {s}\n", .{
+                override.key,
+                override.value,
+                rule_config.formatRuleConfigError(err),
+            });
             std.process.exit(1);
         };
     }
@@ -300,8 +305,8 @@ fn formatError(err: anyerror) []const u8 {
         docent.manifest.Error.ManifestNotFound => "manifest 'build.zig.zon' not found in current or parent directories",
         docent.manifest.Error.InvalidManifestPath => "invalid manifest path",
         docent.manifest.Error.ManifestPathsNotFound => "'.paths' field not found in manifest",
-        error.InvalidSeverity => "invalid severity (must be one of allow, warn, deny, forbid)",
-        error.UnknownRule => "unknown rule name",
+        error.InvalidSeverity => rule_config.formatRuleConfigError(error.InvalidSeverity),
+        error.UnknownRule => rule_config.formatRuleConfigError(error.UnknownRule),
         else => "unknown error",
     };
 }
@@ -392,39 +397,6 @@ fn textFormat(mode: OutputMode) docent.output.TextFormat {
         .minimal => .minimal,
         .json => unreachable,
     };
-}
-
-/// Builds a `RuleSet` with every field set to the preset severity.
-/// The `inline for` unrolls at comptime — adding a field to `RuleSet` is
-/// automatically picked up here with no manual update needed.
-fn allPresetToRuleSet(preset: AllPreset) docent.RuleSet {
-    var rs: docent.RuleSet = .{};
-    const sev: docent.Severity = switch (preset) {
-        .warn => .warn,
-        .deny => .deny,
-    };
-    inline for (@typeInfo(docent.RuleSet).@"struct".fields) |f| {
-        @field(rs, f.name) = sev;
-    }
-    return rs;
-}
-
-/// Applies a single `key=severity` override to the rule set.
-/// Uses `std.meta.stringToEnum` for severity parsing and `inline for` for
-/// field dispatch — both auto-sync with any future changes to `RuleSet`.
-/// Because fangz validates `allowed_keys` at parse time, `error.UnknownRule`
-/// here is effectively dead code for values arriving through the CLI.
-fn applyRuleOverride(rs: *docent.RuleSet, kv: fangz.KeyValuePair) !void {
-    const sev = std.meta.stringToEnum(docent.Severity, kv.value) orelse return error.InvalidSeverity;
-    inline for (@typeInfo(docent.RuleSet).@"struct".fields) |f| {
-        if (std.mem.eql(u8, f.name, kv.key)) {
-            const current = @field(rs, f.name);
-            if (current == .forbid and sev != .forbid) return;
-            @field(rs, f.name) = sev;
-            return;
-        }
-    }
-    return error.UnknownRule;
 }
 
 fn printStderr(io: std.Io, comptime fmt: []const u8, args: anytype) !void {

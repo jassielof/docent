@@ -12,6 +12,8 @@ pub const addLintStep = scaffold.addLintStep;
 pub const Severity = @import("Severity.zig").Level;
 pub const manifest = @import("Manifest.zig");
 pub const targeting = @import("Targeting.zig");
+pub const status_plan = @import("StatusPlan.zig");
+pub const build_scan = @import("BuildScan.zig");
 
 pub const Rules = struct {
     pub const missing_doc_comment = @import("rules/missing_doc_comment.zig");

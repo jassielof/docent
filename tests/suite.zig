@@ -1,6 +1,8 @@
 const std = @import("std");
 
+const cli = @import("cli");
 const docent = @import("docent");
+const fangz = @import("fangz");
 
 test {
     _ = @import("cli_ux.zig");
@@ -494,6 +496,95 @@ test "targeting: explicit exclude_roots" {
     try std.testing.expect(!docent.targeting.shouldSkipLintFile("src/app.zig", .{
         .exclude_roots = &.{"vendor"},
     }));
+}
+
+test "manifest: loadPackageMeta reads name and version" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    const manifest_path = try fixtureManifestPath(allocator, io);
+    defer allocator.free(manifest_path);
+
+    var meta = try docent.manifest.loadPackageMeta(allocator, io, manifest_path);
+    defer meta.deinit(allocator);
+
+    try std.testing.expect(meta.name != null);
+    try std.testing.expectEqualStrings("fixture", meta.name.?);
+    try std.testing.expect(meta.version != null);
+    try std.testing.expectEqualStrings("0.0.0", meta.version.?);
+    try std.testing.expect(meta.manifest_path != null);
+    try std.testing.expect(std.mem.indexOf(u8, meta.project_root, "manifest_with_deps") != null);
+}
+
+test "build_scan: finds dependencies and root sources in build.zig text" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\const std = @import("std");
+        \\pub fn build(b: *std.Build) void {
+        \\    const f = b.dependency("fangz", .{}).module("fangz");
+        \\    const m = b.addModule("app", .{ .root_source_file = b.path("src/root.zig"), });
+        \\    _ = f;
+        \\    _ = m;
+        \\}
+    ;
+
+    var scan = try docent.build_scan.scanBuildScript(allocator, text);
+    defer scan.deinit(allocator);
+
+    try std.testing.expect(scan.dependencies.len == 1);
+    try std.testing.expectEqualStrings("fangz", scan.dependencies[0]);
+    try std.testing.expect(scan.root_sources.len == 1);
+    try std.testing.expectEqualStrings("src/root.zig", scan.root_sources[0]);
+}
+
+test "status_plan: gather manifest fixture has two lint roots and excludes dep" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    const manifest_path = try fixtureManifestPath(allocator, io);
+    defer allocator.free(manifest_path);
+
+    var dep_roots = try docent.manifest.loadDependencyPathRoots(allocator, io, manifest_path);
+    defer docent.manifest.deinitOwnedPaths(allocator, &dep_roots);
+
+    var package_paths = try docent.manifest.loadPackagePaths(allocator, io, manifest_path);
+    defer docent.manifest.deinitOwnedPaths(allocator, &package_paths);
+
+    try std.testing.expect(package_paths.items.len == 2);
+
+    var plan = try docent.status_plan.gather(allocator, io, .{
+        .manifest_path = manifest_path,
+    });
+    defer plan.deinit(allocator);
+
+    try std.testing.expect(plan.lint_roots.len == 2);
+    try std.testing.expect(plan.excluded_dependency_roots.len == 1);
+
+    var total_targets: usize = 0;
+    var has_app = false;
+    var has_dep_lib = false;
+
+    for (plan.lint_roots) |root| {
+        total_targets += root.targetCount();
+        for (root.targets) |path| {
+            const base = std.fs.path.basename(path);
+            if (std.mem.eql(u8, base, "app.zig")) has_app = true;
+            if (std.mem.eql(u8, base, "lib.zig")) has_dep_lib = true;
+        }
+    }
+
+    try std.testing.expect(total_targets > 0);
+    try std.testing.expect(has_app);
+    try std.testing.expect(!has_dep_lib);
+}
+
+test "rule_config: forbid cannot be relaxed" {
+    var rs: docent.RuleSet = .{};
+    rs.missing_doc_comment = .forbid;
+
+    const pair = fangz.KeyValuePair{ .key = "missing_doc_comment", .value = "warn" };
+    try cli.rule_config.applyRuleOverride(&rs, pair);
+    try std.testing.expect(rs.missing_doc_comment == .forbid);
 }
 
 test "targeting: collectDirectoryLintTargets excludes dependency tree by default" {
