@@ -4,6 +4,71 @@ const PathsManifest = struct {
     paths: ?[]const []const u8 = null,
 };
 
+const MetaManifest = struct {
+    version: ?[]const u8 = null,
+};
+
+/// Package identity from `build.zig.zon` (when present).
+pub const PackageMeta = struct {
+    name: ?[]const u8 = null,
+    version: ?[]const u8 = null,
+    manifest_path: ?[]const u8 = null,
+    project_root: []const u8,
+
+    pub fn deinit(self: *PackageMeta, allocator: std.mem.Allocator) void {
+        if (self.name) |n| allocator.free(n);
+        if (self.version) |v| allocator.free(v);
+        if (self.manifest_path) |m| allocator.free(m);
+        allocator.free(self.project_root);
+        self.* = .{ .project_root = "" };
+    }
+};
+
+fn scanQuotedField(manifest_text: []const u8, comptime field: []const u8) ?[]const u8 {
+    const needle = "." ++ field;
+    const idx = std.mem.indexOf(u8, manifest_text, needle) orelse return null;
+    var i = idx + needle.len;
+    while (i < manifest_text.len and manifest_text[i] != '=') : (i += 1) {}
+    if (i >= manifest_text.len) return null;
+    i += 1;
+    while (i < manifest_text.len and std.ascii.isWhitespace(manifest_text[i])) : (i += 1) {}
+    if (i >= manifest_text.len or manifest_text[i] != '"') return null;
+    const start = i + 1;
+    i += 1;
+    var escaped = false;
+    while (i < manifest_text.len) : (i += 1) {
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (manifest_text[i] == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (manifest_text[i] == '"') return manifest_text[start..i];
+    }
+    return null;
+}
+
+/// Reads `.name = .identifier` from zon text (enum-style package names).
+fn scanPackageName(manifest_text: []const u8) ?[]const u8 {
+    const idx = std.mem.indexOf(u8, manifest_text, ".name") orelse return null;
+    var i = idx + ".name".len;
+    while (i < manifest_text.len and manifest_text[i] != '=') : (i += 1) {}
+    if (i >= manifest_text.len) return null;
+    i += 1;
+    while (i < manifest_text.len and std.ascii.isWhitespace(manifest_text[i])) : (i += 1) {}
+    if (i >= manifest_text.len or manifest_text[i] != '.') return null;
+    i += 1;
+    const start = i;
+    while (i < manifest_text.len) : (i += 1) {
+        const c = manifest_text[i];
+        if (!std.ascii.isAlphanumeric(c) and c != '_') break;
+    }
+    if (start == i) return null;
+    return manifest_text[start..i];
+}
+
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
     const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
@@ -186,6 +251,68 @@ pub fn loadDependencyPathRoots(allocator: std.mem.Allocator, io: std.Io, manifes
     }
 
     return out;
+}
+
+/// Loads package name, version, and project root from a manifest file.
+pub fn loadPackageMeta(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const u8) !PackageMeta {
+    const manifest_text = try readManifestText(allocator, io, manifest_path);
+    defer allocator.free(manifest_text);
+
+    const dir = try manifestDir(manifest_path);
+    const project_root = try realPathFileAlloc(allocator, io, dir);
+
+    var name: ?[]const u8 = null;
+    if (scanPackageName(manifest_text)) |raw| {
+        name = try allocator.dupe(u8, raw);
+    }
+
+    var version: ?[]const u8 = null;
+    if (scanQuotedField(manifest_text, "version")) |raw| {
+        version = try allocator.dupe(u8, raw);
+    } else {
+        const source = try allocator.dupeZ(u8, manifest_text);
+        defer allocator.free(source);
+
+        var diag: std.zon.parse.Diagnostics = .{};
+        defer diag.deinit(allocator);
+
+        const parsed = std.zon.parse.fromSliceAlloc(
+            MetaManifest,
+            allocator,
+            source,
+            &diag,
+            .{
+                .ignore_unknown_fields = true,
+                .free_on_error = true,
+            },
+        ) catch null;
+        if (parsed) |m| {
+            defer std.zon.parse.free(allocator, m);
+            if (m.version) |v| version = try allocator.dupe(u8, v);
+        }
+    }
+
+    return .{
+        .name = name,
+        .version = version,
+        .manifest_path = try allocator.dupe(u8, manifest_path),
+        .project_root = project_root,
+    };
+}
+
+/// Loads metadata for the nearest `build.zig.zon`, or cwd-only meta when none exists.
+pub fn loadNearestPackageMeta(allocator: std.mem.Allocator, io: std.Io) !PackageMeta {
+    const manifest_path = findNearestManifestPath(allocator, io) catch |err| switch (err) {
+        error.OutOfMemory => return err,
+        else => {
+            const cwd = try realPathFileAlloc(allocator, io, ".");
+            return .{
+                .project_root = cwd,
+            };
+        },
+    };
+    defer allocator.free(manifest_path);
+    return loadPackageMeta(allocator, io, manifest_path);
 }
 
 /// Convenience: nearest manifest package paths (same as CLI default targets).

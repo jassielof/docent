@@ -65,6 +65,23 @@ fn wireCliTree(app: *fangz.App) !void {
     root.examples = cli.app_examples;
 
     try cli.registerRulesSubcommands(root);
+    try cli.registerStatusSubcommand(root, &cli.key_value_help);
+}
+
+test "status subcommand appears in full help" {
+    var app = try makeCliApp();
+    defer app.deinit();
+
+    try wireCliTree(&app);
+    try app.root_command.freeze();
+
+    var buf: [32768]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+    try fangz.HelpRenderer.render(&writer, app.root(), .none, .full);
+    const text = writer.buffered();
+
+    try testing.expect(std.mem.indexOf(u8, text, "status") != null);
+    try testing.expect(std.mem.indexOf(u8, text, "Show project lint plan and diagnostic summary") != null);
 }
 
 fn makeCliApp() !fangz.App {
