@@ -77,33 +77,15 @@ pub fn build(b: *std.Build) void {
         .install_subdir = "docs/lib",
     });
 
-    // const docs_lint = b.addRunArtifact(cli);
-    // docs_lint.addArgs(&.{});
-    // docs.step.dependOn(&docs_lint.step);
-
     const docs_cli = b.addRunArtifact(cli);
     docs_cli.addArgs(&.{ "docs", "--output-dir", "zig-out/docs/" });
     docs_step.dependOn(&docs_cli.step);
 
-    // TODO: Remove this, the rules, should be natively read from the build manifest (build.zig.zon) globally as one manifest represents the whole package/project, or if not present, assume sane defaults.
+    // Lint package paths from build.zig.zon (.paths / .rules) before generating docs.
+    // const docs_lint = b.addRunArtifact(cli);
+    // docs_lint.step.dependOn(b.getInstallStep());
+    // docs_cli.step.dependOn(&docs_lint.step);
 
-    // const docs_lint = scaffold.addLintStep(b, .{
-    //     .sources = &.{
-    //         "src",
-    //         "build.zig",
-    //     },
-    //     .rules = .{
-    //         // Keep docs generation non-blocking on style gaps, like cargo doc.
-    //         .missing_doc_comment = .warn,
-    //         .empty_doc_comment = .warn,
-    //         .missing_doctest = .warn,
-    //         .private_doctest = .warn,
-    //         .doctest_naming_mismatch = .warn,
-    //         .missing_container_doc_comment = .warn,
-    //     },
-    // });
-
-    // Lint must run before docs are generated/installed.
     docs_cli.step.dependOn(&docs.step);
     docs_step.dependOn(&docs.step);
 

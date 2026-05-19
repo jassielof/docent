@@ -3,8 +3,10 @@ const docent = @import("root.zig");
 
 pub const LintStep = struct {
     step: std.Build.Step,
+    /// Explicit sources; empty means load `.paths` from the nearest manifest at run time.
     sources: []const []const u8,
-    rule_set: docent.RuleSet,
+    /// When set, overrides manifest `.rules` and defaults.
+    rules_override: ?docent.RuleSet,
     targeting: docent.targeting.Options,
     output: OutputOptions,
 
@@ -17,8 +19,11 @@ pub const LintStep = struct {
                 .owner = b,
                 .makeFn = make,
             }),
-            .sources = b.allocator.dupe([]const u8, options.sources) catch @panic("OOM"),
-            .rule_set = options.rules,
+            .sources = if (options.sources) |sources|
+                b.allocator.dupe([]const u8, sources) catch @panic("OOM")
+            else
+                &.{},
+            .rules_override = options.rules,
             .targeting = options.targeting orelse .{
                 .include_build_scripts = options.include_build_scripts,
                 .lint_dependencies = options.lint_dependencies,
@@ -34,16 +39,48 @@ pub const LintStep = struct {
         const allocator = step.owner.allocator;
         const io = step.owner.graph.io;
 
+        const rule_set: docent.RuleSet = if (self.rules_override) |rules|
+            rules
+        else
+            docent.manifest.loadNearestRuleSet(allocator, io);
+
+        var manifest_sources: std.ArrayList([]const u8) = .empty;
+        defer if (manifest_sources.items.len > 0) docent.manifest.deinitOwnedPaths(allocator, &manifest_sources);
+
+        const sources: []const []const u8 = if (self.sources.len > 0)
+            self.sources
+        else blk: {
+            manifest_sources = docent.manifest.loadNearestPackagePaths(allocator, io) catch |err| switch (err) {
+                error.ManifestNotFound, error.ManifestPathsNotFound => fallback: {
+                    var fallback: std.ArrayList([]const u8) = .empty;
+                    const cwd = realPathFileAlloc(allocator, io, ".") catch return error.MakeFailed;
+                    try fallback.append(allocator, cwd);
+                    break :fallback fallback;
+                },
+                else => return err,
+            };
+            break :blk manifest_sources.items;
+        };
+
+        var targeting = self.targeting;
+        if (targeting.exclude_roots.len == 0 and !targeting.lint_dependencies) {
+            var exclude_roots = docent.manifest.loadNearestDependencyPathRoots(allocator, io) catch std.ArrayList([]const u8).empty;
+            defer docent.manifest.deinitOwnedPaths(allocator, &exclude_roots);
+            if (exclude_roots.items.len > 0) {
+                targeting.exclude_roots = try allocator.dupe([]const u8, exclude_roots.items);
+            }
+        }
+
         const path_display_root: ?[]const u8 = realPathFileAlloc(allocator, io, ".") catch null;
         defer if (path_display_root) |p| allocator.free(p);
 
         var summary: docent.output.Summary = .{};
         var total_files: usize = 0;
 
-        for (self.sources) |source_path| {
+        for (sources) |source_path| {
             const stat = std.Io.Dir.cwd().statFile(io, source_path, .{}) catch |err| {
                 if (err == error.IsDir) {
-                    try self.lintDirectory(allocator, io, source_path, step, &summary, &total_files, path_display_root);
+                    try lintDirectory(rule_set, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root);
                     continue;
                 }
                 step.result_error_msgs.append(
@@ -54,10 +91,10 @@ pub const LintStep = struct {
             };
 
             if (stat.kind == .directory) {
-                try self.lintDirectory(allocator, io, source_path, step, &summary, &total_files, path_display_root);
+                try lintDirectory(rule_set, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root);
             } else {
-                if (docent.targeting.shouldSkipLintFile(source_path, self.targeting)) continue;
-                try self.lintSingleFile(allocator, io, source_path, step, &summary, &total_files, path_display_root);
+                if (docent.targeting.shouldSkipLintFile(source_path, targeting)) continue;
+                try lintSingleFile(rule_set, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root);
             }
         }
 
@@ -69,58 +106,81 @@ pub const LintStep = struct {
             return error.MakeFailed;
         }
     }
-
-    fn lintDirectory(self: *LintStep, allocator: std.mem.Allocator, io: std.Io, dir_path: []const u8, step: *std.Build.Step, summary: *docent.output.Summary, total_files: *usize, path_display_root: ?[]const u8) !void {
-        var targets = docent.targeting.collectDirectoryLintTargets(
-            allocator,
-            io,
-            dir_path,
-            self.targeting,
-        ) catch |err| {
-            step.result_error_msgs.append(
-                allocator,
-                std.fmt.allocPrint(allocator, "cannot collect lint targets in '{s}': {}", .{ dir_path, err }) catch @panic("OOM"),
-            ) catch @panic("OOM");
-            return error.MakeFailed;
-        };
-        defer docent.targeting.deinitOwnedPaths(allocator, &targets);
-
-        for (targets.items) |full_path| {
-            try self.lintSingleFile(allocator, io, full_path, step, summary, total_files, path_display_root);
-        }
-    }
-
-    fn lintSingleFile(self: *LintStep, allocator: std.mem.Allocator, io: std.Io, path: []const u8, step: *std.Build.Step, summary: *docent.output.Summary, total_files: *usize, path_display_root: ?[]const u8) !void {
-        var result = docent.lintFile(allocator, io, path, self.rule_set) catch |err| {
-            step.result_error_msgs.append(
-                allocator,
-                std.fmt.allocPrint(allocator, "failed to lint '{s}': {}", .{ path, err }) catch @panic("OOM"),
-            ) catch @panic("OOM");
-            return error.MakeFailed;
-        };
-        defer result.deinit();
-
-        var file_has_errors = false;
-        for (result.diagnostics.items) |d| {
-            summary.observe(d);
-            switch (d.severity) {
-                .allow => continue,
-                .warn => {
-                    try docent.output.printDiagnosticStderr(io, d, docent.output.stderrTextOptions(io, self.output.format, self.output.color, path_display_root));
-                },
-                .deny, .forbid => {
-                    file_has_errors = true;
-                    try docent.output.printDiagnosticStderr(io, d, docent.output.stderrTextOptions(io, self.output.format, self.output.color, path_display_root));
-                },
-            }
-        }
-        if (file_has_errors) total_files.* += 1;
-    }
 };
 
+fn lintDirectory(
+    rule_set: docent.RuleSet,
+    targeting: docent.targeting.Options,
+    output: OutputOptions,
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    dir_path: []const u8,
+    step: *std.Build.Step,
+    summary: *docent.output.Summary,
+    total_files: *usize,
+    path_display_root: ?[]const u8,
+) !void {
+    var targets = docent.targeting.collectDirectoryLintTargets(
+        allocator,
+        io,
+        dir_path,
+        targeting,
+    ) catch |err| {
+        step.result_error_msgs.append(
+            allocator,
+            std.fmt.allocPrint(allocator, "cannot collect lint targets in '{s}': {}", .{ dir_path, err }) catch @panic("OOM"),
+        ) catch @panic("OOM");
+        return error.MakeFailed;
+    };
+    defer docent.targeting.deinitOwnedPaths(allocator, &targets);
+
+    for (targets.items) |full_path| {
+        try lintSingleFile(rule_set, output, allocator, io, full_path, step, summary, total_files, path_display_root);
+    }
+}
+
+fn lintSingleFile(
+    rule_set: docent.RuleSet,
+    output: OutputOptions,
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+    step: *std.Build.Step,
+    summary: *docent.output.Summary,
+    total_files: *usize,
+    path_display_root: ?[]const u8,
+) !void {
+    var result = docent.lintFile(allocator, io, path, rule_set) catch |err| {
+        step.result_error_msgs.append(
+            allocator,
+            std.fmt.allocPrint(allocator, "failed to lint '{s}': {}", .{ path, err }) catch @panic("OOM"),
+        ) catch @panic("OOM");
+        return error.MakeFailed;
+    };
+    defer result.deinit();
+
+    var file_has_errors = false;
+    for (result.diagnostics.items) |d| {
+        summary.observe(d);
+        switch (d.severity) {
+            .allow => continue,
+            .warn => {
+                try docent.output.printDiagnosticStderr(io, d, docent.output.stderrTextOptions(io, output.format, output.color, path_display_root));
+            },
+            .deny, .forbid => {
+                file_has_errors = true;
+                try docent.output.printDiagnosticStderr(io, d, docent.output.stderrTextOptions(io, output.format, output.color, path_display_root));
+            },
+        }
+    }
+    if (file_has_errors) total_files.* += 1;
+}
+
 pub const Options = struct {
-    sources: []const []const u8,
-    rules: docent.RuleSet = .{},
+    /// Lint roots; when null, uses `.paths` from the nearest `build.zig.zon`.
+    sources: ?[]const []const u8 = null,
+    /// When null, uses `.rules` from the nearest `build.zig.zon` or `RuleSet` defaults.
+    rules: ?docent.RuleSet = null,
     /// Full targeting options; when null, `include_build_scripts`, `lint_dependencies`, and `exclude_roots` are used.
     targeting: ?docent.targeting.Options = null,
     include_build_scripts: bool = false,

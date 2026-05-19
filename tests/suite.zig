@@ -498,6 +498,18 @@ test "targeting: explicit exclude_roots" {
     }));
 }
 
+test "manifest: loadRuleSet reads .rules from build.zig.zon" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    const manifest_path = try fixtureManifestPath(allocator, io);
+    defer allocator.free(manifest_path);
+
+    const rule_set = try docent.manifest.loadRuleSet(allocator, io, manifest_path);
+    try std.testing.expect(rule_set.missing_doc_comment == .deny);
+    try std.testing.expect(rule_set.missing_doctest == .allow);
+}
+
 test "manifest: loadPackageMeta reads name and version" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
