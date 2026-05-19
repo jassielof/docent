@@ -1,7 +1,24 @@
 const std = @import("std");
 
+const RuleSet = @import("RuleSet.zig");
+const Severity = @import("Severity.zig");
+
 const PathsManifest = struct {
     paths: ?[]const []const u8 = null,
+};
+
+const RulesManifest = struct {
+    rules: ?RuleSetOverrides = null,
+};
+
+/// Optional per-rule severities from `.rules = .{ ... }` in `build.zig.zon`.
+const RuleSetOverrides = struct {
+    missing_doc_comment: ?Severity.Level = null,
+    missing_doctest: ?Severity.Level = null,
+    private_doctest: ?Severity.Level = null,
+    missing_container_doc_comment: ?Severity.Level = null,
+    empty_doc_comment: ?Severity.Level = null,
+    doctest_naming_mismatch: ?Severity.Level = null,
 };
 
 const MetaManifest = struct {
@@ -313,6 +330,50 @@ pub fn loadNearestPackageMeta(allocator: std.mem.Allocator, io: std.Io) !Package
     };
     defer allocator.free(manifest_path);
     return loadPackageMeta(allocator, io, manifest_path);
+}
+
+fn mergeRuleOverrides(base: RuleSet, overrides: RuleSetOverrides) RuleSet {
+    var rs = base;
+    inline for (@typeInfo(RuleSetOverrides).@"struct".fields) |f| {
+        if (@field(overrides, f.name)) |level| {
+            @field(rs, f.name) = level;
+        }
+    }
+    return rs;
+}
+
+/// Loads lint rule severities from `build.zig.zon` (`.rules` block), or `RuleSet` defaults.
+pub fn loadRuleSet(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const u8) !RuleSet {
+    const manifest_text = try readManifestText(allocator, io, manifest_path);
+    defer allocator.free(manifest_text);
+
+    const source = try allocator.dupeZ(u8, manifest_text);
+    defer allocator.free(source);
+
+    var diag: std.zon.parse.Diagnostics = .{};
+    defer diag.deinit(allocator);
+
+    const parsed = std.zon.parse.fromSliceAlloc(
+        RulesManifest,
+        allocator,
+        source,
+        &diag,
+        .{
+            .ignore_unknown_fields = true,
+            .free_on_error = true,
+        },
+    ) catch return .{};
+    defer std.zon.parse.free(allocator, parsed);
+
+    const overrides = parsed.rules orelse return .{};
+    return mergeRuleOverrides(.{}, overrides);
+}
+
+/// Nearest manifest `.rules`, or `RuleSet` defaults when missing or unreadable.
+pub fn loadNearestRuleSet(allocator: std.mem.Allocator, io: std.Io) RuleSet {
+    const manifest_path = findNearestManifestPath(allocator, io) catch return .{};
+    defer allocator.free(manifest_path);
+    return loadRuleSet(allocator, io, manifest_path) catch .{};
 }
 
 /// Convenience: nearest manifest package paths (same as CLI default targets).

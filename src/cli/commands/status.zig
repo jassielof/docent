@@ -82,7 +82,7 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     const args = try ctx.extract(Args);
 
-    var rule_set: docent.RuleSet = .{};
+    var rule_set = docent.manifest.loadNearestRuleSet(allocator, io);
     if (args.all) |preset| rule_set = rule_config.allPresetToRuleSet(preset);
 
     for (args.rule) |override| {

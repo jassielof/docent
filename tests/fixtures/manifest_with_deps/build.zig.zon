@@ -11,4 +11,7 @@
         "src",
         "modules",
     },
+    .rules = .{
+        .missing_doc_comment = .deny,
+    },
 }
