@@ -59,7 +59,7 @@ fn wireCliTree(app: *fangz.App) !void {
         .short = 'F',
         .brief = "Stop after the first matching severity",
         .value_hint = "WHEN",
-        .default = .any,
+        .default = cli.default_fail_fast,
     });
 
     root.examples = cli.app_examples;

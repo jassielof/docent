@@ -85,7 +85,7 @@ pub fn build(b: *std.Build) void {
     docs_cli.addArgs(&.{ "docs", "--output-dir", "zig-out/docs/" });
     docs_step.dependOn(&docs_cli.step);
 
-    // TODO: Remove this, the rules, should be natively read from the build manifest (build.zig.zon) globally as one manifest represents the whole package/project.
+    // TODO: Remove this, the rules, should be natively read from the build manifest (build.zig.zon) globally as one manifest represents the whole package/project, or if not present, assume sane defaults.
 
     // const docs_lint = scaffold.addLintStep(b, .{
     //     .sources = &.{

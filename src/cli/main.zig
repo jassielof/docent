@@ -82,6 +82,9 @@ pub const FailFast = enum {
     any,
 };
 
+/// The default `--fail-fast` behavior is to not fail fast.
+pub const default_fail_fast = FailFast.none;
+
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
     const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
@@ -158,9 +161,7 @@ pub fn main(init: std.process.Init) !void {
         .short = 'F',
         .brief = "Stop after the first matching severity",
         .value_hint = "WHEN",
-        // TODO: This should be using an enum value, not a manual enum literal
-        // TODO: It should default to none, not any.
-        .default = .any,
+        .default = default_fail_fast,
     });
 
     root.examples = app_examples;
@@ -184,7 +185,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         format: OutputMode = .pretty,
         include_build_scripts: bool = false,
         lint_dependencies: bool = false,
-        fail_fast: FailFast = .any,
+        fail_fast: FailFast = default_fail_fast,
     };
 
     const args = try ctx.extract(Args);
