@@ -118,7 +118,23 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_integration_tests.step);
 
     const lint_step = b.step("lint", "Run linters and code quality tools");
-    const lizard = b.addSystemCommand(&.{ "lizard", "-l", "zig", "-C", "10", "-L", "60", "-a", "5", "-m", "-w", "-ENS", "-T", "max_nested_structures=3", "src/" });
+    const lizard = b.addSystemCommand(&.{
+        "lizard",
+        "-l",
+        "zig",
+        "-C",
+        "10",
+        "-L",
+        "60",
+        "-a",
+        "5",
+        "-m",
+        "-w",
+        "-ENS",
+        "-T",
+        "max_nested_structures=3",
+        "src/",
+    });
     lint_step.dependOn(&lizard.step);
     const fmt = b.addFmt(.{
         .check = true,
