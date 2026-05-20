@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -20,8 +20,10 @@ jobs:
           submodules: recursive
       - name: Set up Zig
         uses: jassielof/setup-zig@v1
-      - name: Formatting
-        run: zig fmt .
+      - name: Install Lizard
+        run: pip install lizard
+      - name: Check and lint
+        run: zig build lint
       - name: Build
         run: zig build --summary all
       - name: Tests
