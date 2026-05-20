@@ -114,24 +114,25 @@ pub fn build(b: *std.Build) void {
 
     const lint_step = b.step("lint", "Run linters and code quality checks");
 
-    // const lizard = b.addSystemCommand(&.{
-    //     "lizard",
-    //     "-l",
-    //     "zig",
-    //     "-C",
-    //     "10",
-    //     "-L",
-    //     "60",
-    //     "-a",
-    //     "5",
-    //     "-m",
-    //     "-w",
-    //     "-ENS",
-    //     "-T",
-    //     "max_nested_structures=3",
-    //     "src/",
-    // });
-    // lint_step.dependOn(&lizard.step);
+    const lizard = b.addSystemCommand(&.{
+        "lizard",
+        "--languages",
+        "zig",
+        "--CCN",
+        "10",
+        "--length",
+        "60",
+        "--arguments",
+        "7",
+        "--modified",
+        "--warnings_only",
+        "--extension",
+        "NS",
+        "--Threshold",
+        "max_nested_structures=3",
+        "src/",
+    });
+    lint_step.dependOn(&lizard.step);
 
     const fmt = b.addFmt(.{
         .check = true,
