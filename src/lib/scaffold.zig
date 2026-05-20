@@ -25,8 +25,13 @@ pub const LintStep = struct {
                 &.{},
             .rules_override = options.rules,
             .targeting = options.targeting orelse .{
-                .include_build_scripts = options.include_build_scripts,
-                .lint_dependencies = options.lint_dependencies,
+                .lib = options.lib,
+                .bins = options.bins,
+                .bin_names = options.bin_names orelse &.{},
+                .tests = options.tests,
+                .test_names = options.test_names orelse &.{},
+                .deps = options.deps,
+                .build_script = options.build_script,
                 .exclude_roots = options.exclude_roots orelse &.{},
             },
             .output = options.output,
@@ -63,7 +68,7 @@ pub const LintStep = struct {
         };
 
         var targeting = self.targeting;
-        if (targeting.exclude_roots.len == 0 and !targeting.lint_dependencies) {
+        if (targeting.exclude_roots.len == 0 and !targeting.deps) {
             var exclude_roots = docent.manifest.loadNearestDependencyPathRoots(allocator, io) catch std.ArrayList([]const u8).empty;
             defer docent.manifest.deinitOwnedPaths(allocator, &exclude_roots);
             if (exclude_roots.items.len > 0) {
@@ -181,10 +186,15 @@ pub const Options = struct {
     sources: ?[]const []const u8 = null,
     /// When null, uses `.rules` from the nearest `build.zig.zon` or `RuleSet` defaults.
     rules: ?docent.RuleSet = null,
-    /// Full targeting options; when null, `include_build_scripts`, `lint_dependencies`, and `exclude_roots` are used.
+    /// Full targeting options; when null, the other options are used.
     targeting: ?docent.targeting.Options = null,
-    include_build_scripts: bool = false,
-    lint_dependencies: bool = false,
+    lib: bool = false,
+    bins: bool = false,
+    bin_names: ?[]const []const u8 = null,
+    tests: bool = false,
+    test_names: ?[]const []const u8 = null,
+    deps: bool = false,
+    build_script: bool = false,
     exclude_roots: ?[]const []const u8 = null,
     output: OutputOptions = .{},
 };

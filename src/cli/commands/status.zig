@@ -7,17 +7,11 @@ const fangz = @import("fangz");
 const rule_config = @import("../rule_config.zig");
 const rules_command = @import("rules.zig");
 
-const sample_target_limit = 5;
-
 pub fn register(root: *fangz.Command, key_value_help: *const fangz.Command.KeyValueHelp) !void {
     const status_cmd = try root.addSubcommand(.{
         .name = "status",
         .brief = "Show project lint plan and diagnostic summary",
-        .description =
-        \\Print a quick overview of the project, lint scan roots, excluded dependencies,
-        \\effective rule severities, and diagnostic counts. Always exits 0 after a
-        \\successful report (use `docent` to enforce severities).
-        ,
+        .description = "Print a quick overview of the project, lint scan roots, excluded dependencies, effective rule severities, and diagnostic counts. Always exits 0 after a successful report (use `docent` to enforce severities).",
     });
 
     try status_cmd.addPositional(.{
@@ -47,14 +41,42 @@ pub fn register(root: *fangz.Command, key_value_help: *const fangz.Command.KeyVa
     });
 
     try status_cmd.addFlag(bool, .{
-        .name = "include-build-scripts",
-        .brief = "Include build.zig and build/*.zig files in lint targets",
+        .name = "lib",
+        .brief = "Lint library targets only (default)",
         .default = false,
     });
 
     try status_cmd.addFlag(bool, .{
-        .name = "lint-dependencies",
+        .name = "bins",
+        .brief = "Lint all binary targets",
+        .default = false,
+    });
+
+    try status_cmd.addFlag([]const []const u8, .{
+        .name = "bin",
+        .brief = "Lint specific binary by name (repeatable)",
+    });
+
+    try status_cmd.addFlag(bool, .{
+        .name = "tests",
+        .brief = "Lint all test targets",
+        .default = false,
+    });
+
+    try status_cmd.addFlag([]const []const u8, .{
+        .name = "test",
+        .brief = "Lint specific test by name (repeatable)",
+    });
+
+    try status_cmd.addFlag(bool, .{
+        .name = "deps",
         .brief = "Also lint files under path dependencies from build.zig.zon",
+        .default = false,
+    });
+
+    try status_cmd.addFlag(bool, .{
+        .name = "build-script",
+        .brief = "Include build.zig and build/*.zig files in lint targets",
         .default = false,
     });
 
@@ -75,8 +97,13 @@ fn run(ctx: *fangz.ParseContext) !void {
         positionals: []const []const u8 = &.{},
         rule: fangz.KeyValueList = &.{},
         all: ?rule_config.AllPreset = null,
-        include_build_scripts: bool = false,
-        lint_dependencies: bool = false,
+        lib: bool = false,
+        bins: bool = false,
+        bin: []const []const u8 = &.{},
+        tests: bool = false,
+        @"test": []const []const u8 = &.{},
+        deps: bool = false,
+        build_script: bool = false,
         no_scan: bool = false,
     };
 
@@ -97,8 +124,13 @@ fn run(ctx: *fangz.ParseContext) !void {
     }
 
     var plan = docent.status_plan.gather(allocator, io, .{
-        .include_build_scripts = args.include_build_scripts,
-        .lint_dependencies = args.lint_dependencies,
+        .lib = args.lib,
+        .bins = args.bins,
+        .bin_names = args.bin,
+        .tests = args.tests,
+        .test_names = args.@"test",
+        .deps = args.deps,
+        .build_script = args.build_script,
         .positionals = args.positionals,
     }) catch |err| {
         try printStderr(io, "error: failed to build lint plan: {}\n", .{err});
@@ -106,20 +138,13 @@ fn run(ctx: *fangz.ParseContext) !void {
     };
     defer plan.deinit(allocator);
 
-    var build_scan_result: ?docent.build_scan.Result = null;
-    if (docent.build_scan.scanProjectBuildScript(allocator, io, plan.package.project_root)) |scan| {
-        build_scan_result = scan;
-    } else |_| {}
-    defer if (build_scan_result) |*r| r.deinit(allocator);
-
-    try printStatusReport(allocator, io, plan, build_scan_result, rule_set, args.no_scan);
+    try printStatusReport(allocator, io, plan, rule_set, args.no_scan);
 }
 
 pub fn printStatusReport(
     allocator: std.mem.Allocator,
     io: std.Io,
     plan: docent.status_plan.Plan,
-    build_scan_result: ?docent.build_scan.Result,
     rule_set: docent.RuleSet,
     no_scan: bool,
 ) !void {
@@ -140,51 +165,64 @@ pub fn printStatusReport(
     }
     try w.print("  root:      {s}\n\n", .{plan.package.project_root});
 
-    try sectionHeading(w, profile, "Lint roots");
-    if (plan.lint_roots.len == 0) {
-        try w.print("  (none)\n\n", .{});
-    } else {
-        for (plan.lint_roots) |root| {
-            try w.print("  {s}\n", .{root.path});
-            try w.print("    mode:    {s}\n", .{@tagName(root.mode)});
-            try w.print("    targets: {d}\n", .{root.targetCount()});
-            const show = @min(root.targets.len, sample_target_limit);
-            for (root.targets[0..show]) |target| {
-                try w.print("      - {s}\n", .{target});
-            }
-            if (root.targets.len > show) {
-                try w.print("      ... and {d} more\n", .{root.targets.len - show});
-            }
+    try sectionHeading(w, profile, "Target Selection Report");
+    if (plan.explicit_paths) {
+        try w.print("  Bypassed build.zig analysis due to explicit path override.\n", .{});
+        try w.print("  Target files:\n", .{});
+        for (plan.extra_lint_files) |path| {
+            try w.print("    - {s}\n", .{path});
         }
         try w.print("\n", .{});
+    } else {
+        if (plan.resolved_targets.len == 0) {
+            try w.print("  No targets resolved from build.zig.\n", .{});
+            if (plan.extra_lint_files.len > 0) {
+                try w.print("  Fallback files (from build.zig.zon or project root):\n", .{});
+                for (plan.extra_lint_files) |path| {
+                    try w.print("    - {s}\n", .{path});
+                }
+            } else {
+                try w.print("  No source files found for linting.\n", .{});
+            }
+            try w.print("\n", .{});
+        } else {
+            for (plan.resolved_targets) |rt| {
+                const status_str = if (rt.status == .linted) "LINTED" else "SKIPPED";
+                try w.print("  Target: {s} ({s})\n", .{ rt.name, @tagName(rt.kind) });
+                try w.print("    - Source: {s}\n", .{rt.root_source_file});
+                try w.print("    - Status: {s}\n", .{status_str});
+                try w.print("    - Reason: {s}\n", .{rt.reason});
+                if (rt.status == .linted) {
+                    try w.print("    - Files:\n", .{});
+                    const limit = 5;
+                    const show = @min(rt.files.len, limit);
+                    for (rt.files[0..show]) |f| {
+                        try w.print("      - {s}\n", .{f});
+                    }
+                    if (rt.files.len > show) {
+                        try w.print("      ... and {d} more\n", .{rt.files.len - show});
+                    }
+                }
+                try w.print("\n", .{});
+            }
+            if (plan.extra_lint_files.len > 0) {
+                try w.print("  Extra/Build files:\n", .{});
+                for (plan.extra_lint_files) |f| {
+                    try w.print("    - {s}\n", .{f});
+                }
+                try w.print("\n", .{});
+            }
+        }
     }
 
     try sectionHeading(w, profile, "Excluded dependencies");
-    if (plan.excluded_dependency_roots.len == 0) {
-        try w.print("  (none; use --lint-dependencies to include path dependencies)\n\n", .{});
+    if (plan.targeting.exclude_roots.len == 0) {
+        try w.print("  (none; use --deps to include path dependencies)\n\n", .{});
     } else {
-        for (plan.excluded_dependency_roots) |dep| {
+        for (plan.targeting.exclude_roots) |dep| {
             try w.print("  - {s}\n", .{dep});
         }
-        try w.print("  Skipped unless --lint-dependencies is set.\n\n", .{});
-    }
-
-    try sectionHeading(w, profile, "Build script (best effort)");
-    if (build_scan_result) |scan| {
-        if (scan.dependencies.len > 0) {
-            try w.print("  dependencies:\n", .{});
-            for (scan.dependencies) |dep| try w.print("    - {s}\n", .{dep});
-        }
-        if (scan.root_sources.len > 0) {
-            try w.print("  root_source_file:\n", .{});
-            for (scan.root_sources) |src| try w.print("    - {s}\n", .{src});
-        }
-        if (scan.dependencies.len == 0 and scan.root_sources.len == 0) {
-            try w.print("  (no patterns matched)\n", .{});
-        }
-        try w.print("  Heuristic scan only; manifest .paths / .dependencies drive lint targeting.\n\n", .{});
-    } else {
-        try w.print("  (build.zig not found or unreadable)\n\n", .{});
+        try w.print("  Skipped unless --deps is set.\n\n", .{});
     }
 
     try sectionHeading(w, profile, "Effective rules");
@@ -212,15 +250,36 @@ pub fn printStatusReport(
     var summary: docent.output.Summary = .{};
     var rule_counts = RuleCounts.init();
 
-    for (plan.lint_roots) |root| {
-        for (root.targets) |path| {
-            var result = docent.lintFile(allocator, io, path, rule_set) catch continue;
-            defer result.deinit();
+    var linted_files = std.StringHashMap(void).init(allocator);
+    defer linted_files.deinit();
 
-            for (result.diagnostics.items) |d| {
-                summary.observe(d);
-                rule_counts.observe(d);
+    for (plan.resolved_targets) |rt| {
+        if (rt.status == .linted) {
+            for (rt.files) |path| {
+                const gptr = try linted_files.getOrPut(path);
+                if (gptr.found_existing) continue;
+
+                var result = docent.lintFile(allocator, io, path, rule_set) catch continue;
+                defer result.deinit();
+
+                for (result.diagnostics.items) |d| {
+                    summary.observe(d);
+                    rule_counts.observe(d);
+                }
             }
+        }
+    }
+
+    for (plan.extra_lint_files) |path| {
+        const gptr = try linted_files.getOrPut(path);
+        if (gptr.found_existing) continue;
+
+        var result = docent.lintFile(allocator, io, path, rule_set) catch continue;
+        defer result.deinit();
+
+        for (result.diagnostics.items) |d| {
+            summary.observe(d);
+            rule_counts.observe(d);
         }
     }
 

@@ -387,7 +387,7 @@ test "targeting: build scripts are skipped by default" {
 }
 
 test "targeting: include_build_scripts overrides default skip" {
-    const opts: docent.targeting.Options = .{ .include_build_scripts = true };
+    const opts: docent.targeting.Options = .{ .build_script = true };
     try std.testing.expect(!docent.targeting.shouldSkipLintFile("build.zig", opts));
     try std.testing.expect(!docent.targeting.shouldSkipLintFile("build/helpers/steps.zig", opts));
 }
@@ -432,7 +432,7 @@ test "targeting: no-root directories include build scripts when enabled" {
         std.testing.allocator,
         std.testing.io,
         "tests/fixtures/valid/multi_module_no_root",
-        .{ .include_build_scripts = true },
+        .{ .build_script = true },
     );
     defer docent.targeting.deinitOwnedPaths(std.testing.allocator, &files);
 
@@ -484,7 +484,7 @@ test "targeting: lint_dependencies includes dependency files" {
     const dep_root = "tests/fixtures/manifest_with_deps/modules/dep";
 
     try std.testing.expect(!docent.targeting.shouldSkipLintFile(dep_file, .{
-        .lint_dependencies = true,
+        .deps = true,
         .exclude_roots = &.{dep_root},
     }));
 }
@@ -545,8 +545,10 @@ test "build_scan: finds dependencies and root sources in build.zig text" {
 
     try std.testing.expect(scan.dependencies.len == 1);
     try std.testing.expectEqualStrings("fangz", scan.dependencies[0]);
-    try std.testing.expect(scan.root_sources.len == 1);
-    try std.testing.expectEqualStrings("src/root.zig", scan.root_sources[0]);
+    try std.testing.expect(scan.targets.len == 1);
+    try std.testing.expectEqualStrings("src/root.zig", scan.targets[0].root_source_file);
+    try std.testing.expectEqualStrings("app", scan.targets[0].name);
+    try std.testing.expect(scan.targets[0].kind == .lib);
 }
 
 test "status_plan: gather manifest fixture has two lint roots and excludes dep" {
@@ -569,23 +571,18 @@ test "status_plan: gather manifest fixture has two lint roots and excludes dep" 
     });
     defer plan.deinit(allocator);
 
-    try std.testing.expect(plan.lint_roots.len == 2);
-    try std.testing.expect(plan.excluded_dependency_roots.len == 1);
+    try std.testing.expect(plan.extra_lint_files.len > 0);
+    try std.testing.expect(plan.targeting.exclude_roots.len == 1);
 
-    var total_targets: usize = 0;
     var has_app = false;
     var has_dep_lib = false;
 
-    for (plan.lint_roots) |root| {
-        total_targets += root.targetCount();
-        for (root.targets) |path| {
-            const base = std.fs.path.basename(path);
-            if (std.mem.eql(u8, base, "app.zig")) has_app = true;
-            if (std.mem.eql(u8, base, "lib.zig")) has_dep_lib = true;
-        }
+    for (plan.extra_lint_files) |path| {
+        const base = std.fs.path.basename(path);
+        if (std.mem.eql(u8, base, "app.zig")) has_app = true;
+        if (std.mem.eql(u8, base, "lib.zig")) has_dep_lib = true;
     }
 
-    try std.testing.expect(total_targets > 0);
     try std.testing.expect(has_app);
     try std.testing.expect(!has_dep_lib);
 }
@@ -630,3 +627,4 @@ test "targeting: collectDirectoryLintTargets excludes dependency tree by default
     try std.testing.expect(has_app);
     try std.testing.expect(!has_dep_lib);
 }
+

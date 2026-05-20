@@ -145,14 +145,42 @@ pub fn main(init: std.process.Init) !void {
     });
 
     try root.addFlag(bool, .{
-        .name = "include-build-scripts",
-        .brief = "Include build.zig and build/*.zig files in lint targets",
+        .name = "lib",
+        .brief = "Lint library targets only (default)",
         .default = false,
     });
 
     try root.addFlag(bool, .{
-        .name = "lint-dependencies",
+        .name = "bins",
+        .brief = "Lint all binary targets",
+        .default = false,
+    });
+
+    try root.addFlag([]const []const u8, .{
+        .name = "bin",
+        .brief = "Lint specific binary by name (repeatable)",
+    });
+
+    try root.addFlag(bool, .{
+        .name = "tests",
+        .brief = "Lint all test targets",
+        .default = false,
+    });
+
+    try root.addFlag([]const []const u8, .{
+        .name = "test",
+        .brief = "Lint specific test by name (repeatable)",
+    });
+
+    try root.addFlag(bool, .{
+        .name = "deps",
         .brief = "Also lint files under path dependencies from build.zig.zon",
+        .default = false,
+    });
+
+    try root.addFlag(bool, .{
+        .name = "build-script",
+        .brief = "Include build.zig and build/*.zig files in lint targets",
         .default = false,
     });
 
@@ -183,8 +211,13 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         rule: fangz.KeyValueList = &.{},
         all: ?AllPreset = null,
         format: OutputMode = .pretty,
-        include_build_scripts: bool = false,
-        lint_dependencies: bool = false,
+        lib: bool = false,
+        bins: bool = false,
+        bin: []const []const u8 = &.{},
+        tests: bool = false,
+        @"test": []const []const u8 = &.{},
+        deps: bool = false,
+        build_script: bool = false,
         fail_fast: FailFast = default_fail_fast,
     };
 
@@ -205,19 +238,20 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         };
     }
 
-    var exclude_roots: std.ArrayList([]const u8) = .empty;
-    defer docent.manifest.deinitOwnedPaths(allocator, &exclude_roots);
-
-    if (docent.manifest.findNearestManifestPath(allocator, io)) |manifest_path| {
-        exclude_roots = docent.manifest.loadDependencyPathRoots(allocator, io, manifest_path) catch .empty;
-        allocator.free(manifest_path);
-    } else |_| {}
-
-    const targeting_options: docent.targeting.Options = .{
-        .include_build_scripts = args.include_build_scripts,
-        .lint_dependencies = args.lint_dependencies,
-        .exclude_roots = exclude_roots.items,
+    var plan = docent.status_plan.gather(allocator, io, .{
+        .lib = args.lib,
+        .bins = args.bins,
+        .bin_names = args.bin,
+        .tests = args.tests,
+        .test_names = args.@"test",
+        .deps = args.deps,
+        .build_script = args.build_script,
+        .positionals = args.positionals,
+    }) catch |err| {
+        try printStderr(io, "error: failed to build lint plan: {}\n", .{err});
+        std.process.exit(1);
     };
+    defer plan.deinit(allocator);
 
     const path_display_root = try allocPathDisplayRoot(allocator, io);
     defer allocator.free(path_display_root);
@@ -226,26 +260,34 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;
     defer all_diagnostics.deinit(allocator);
 
-    var manifest_paths: std.ArrayList([]const u8) = .empty;
-    defer docent.manifest.deinitOwnedPaths(allocator, &manifest_paths);
+    var linted_files = std.StringHashMap(void).init(allocator);
+    defer linted_files.deinit();
 
-    const target_paths = if (args.positionals.len > 0)
-        args.positionals
-    else blk: {
-        manifest_paths = docent.manifest.loadNearestPackagePaths(allocator, io) catch |err| {
-            try printStderr(io, "error: failed to read manifest 'build.zig.zon': {}\n", .{err});
-            std.process.exit(1);
-        };
-        if (manifest_paths.items.len == 0) {
-            try printStderr(io, "error: manifest 'build.zig.zon' has an empty .paths field\n", .{});
-            std.process.exit(1);
+    var should_stop = false;
+
+    for (plan.resolved_targets) |rt| {
+        if (rt.status == .linted) {
+            for (rt.files) |path| {
+                const gptr = try linted_files.getOrPut(path);
+                if (gptr.found_existing) continue;
+
+                if (try lintSingleFile(allocator, io, path, rule_set, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
+                    should_stop = true;
+                    break;
+                }
+            }
         }
-        break :blk manifest_paths.items;
-    };
+        if (should_stop) break;
+    }
 
-    for (target_paths) |path| {
-        if (try lintPath(allocator, io, path, rule_set, targeting_options, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
-            break;
+    if (!should_stop) {
+        for (plan.extra_lint_files) |path| {
+            const gptr = try linted_files.getOrPut(path);
+            if (gptr.found_existing) continue;
+
+            if (try lintSingleFile(allocator, io, path, rule_set, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
+                break;
+            }
         }
     }
 
@@ -267,38 +309,6 @@ fn failFastMatches(ff: FailFast, severity: docent.Severity) bool {
         .warn => severity == .warn,
         .any => severity == .warn or severity.isError(),
     };
-}
-
-fn lintPath(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    path: []const u8,
-    rule_set: docent.RuleSet,
-    targeting_options: docent.targeting.Options,
-    all_diagnostics: *std.ArrayList(docent.Diagnostic),
-    summary: *docent.output.Summary,
-    output_mode: OutputMode,
-    path_display_root: []const u8,
-    fail_fast: FailFast,
-) !bool {
-    const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch |err| switch (err) {
-        // On some platforms statFile returns IsDir for directory paths
-        error.IsDir => {
-            return try lintDirectory(allocator, io, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root, fail_fast);
-        },
-        else => {
-            try printAccessError(io, path, err);
-            return false;
-        },
-    };
-
-    if (stat.kind == .directory) {
-        return try lintDirectory(allocator, io, path, rule_set, targeting_options, all_diagnostics, summary, output_mode, path_display_root, fail_fast);
-    } else {
-        if (!std.mem.endsWith(u8, path, ".zig")) return false;
-        if (docent.targeting.shouldSkipLintFile(path, targeting_options)) return false;
-        return try lintSingleFile(allocator, io, path, rule_set, all_diagnostics, summary, output_mode, path_display_root, fail_fast);
-    }
 }
 
 // Format the error type to a prettier message
@@ -338,29 +348,6 @@ fn printAccessError(io: std.Io, path: []const u8, err: anyerror) !void {
     try writer.flush();
 }
 
-fn lintDirectory(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    dir_path: []const u8,
-    rule_set: docent.RuleSet,
-    targeting_options: docent.targeting.Options,
-    all_diagnostics: *std.ArrayList(docent.Diagnostic),
-    summary: *docent.output.Summary,
-    output_mode: OutputMode,
-    path_display_root: []const u8,
-    fail_fast: FailFast,
-) !bool {
-    var targets = try docent.targeting.collectDirectoryLintTargets(allocator, io, dir_path, targeting_options);
-    defer docent.targeting.deinitOwnedPaths(allocator, &targets);
-
-    for (targets.items) |path| {
-        if (try lintSingleFile(allocator, io, path, rule_set, all_diagnostics, summary, output_mode, path_display_root, fail_fast)) {
-            return true;
-        }
-    }
-
-    return false;
-}
 
 fn lintSingleFile(
     allocator: std.mem.Allocator,

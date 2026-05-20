@@ -1,5 +1,6 @@
 const std = @import("std");
 const reachability = @import("Reachability.zig");
+const build_scan = @import("BuildScan.zig");
 
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
@@ -8,16 +9,25 @@ fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8)
 }
 
 pub const Options = struct {
-    include_build_scripts: bool = false,
-    /// When false (default), files under `exclude_roots` are not linted.
-    lint_dependencies: bool = false,
-    /// Directory roots (typically manifest `.dependencies.*.path`); skipped unless `lint_dependencies`.
+    lib: bool = false,
+    bins: bool = false,
+    bin_names: []const []const u8 = &.{},
+    tests: bool = false,
+    test_names: []const []const u8 = &.{},
+
+    deps: bool = false,
+    build_script: bool = false,
+
     exclude_roots: []const []const u8 = &.{},
+
+    pub fn effectiveLib(self: Options) bool {
+        if (self.lib) return true;
+        if (self.bins or self.bin_names.len > 0 or self.tests or self.test_names.len > 0) return false;
+        return true; // Default behavior
+    }
 };
 
 /// Returns true when `path` is the same as or nested under `root` (separator-aware).
-///
-/// Supports prefix matching when both paths share the same style (relative or absolute), and suffix matching when `path` is absolute but `root` is manifest-relative.
 pub fn isUnderExcludedRoot(path: []const u8, root: []const u8) bool {
     if (root.len == 0) return false;
 
@@ -50,9 +60,9 @@ fn pathSeparatorsEqual(a: u8, b: u8) bool {
 
 /// Returns true when a path should be skipped by lint targeting.
 pub fn shouldSkipLintFile(path: []const u8, options: Options) bool {
-    if (!options.include_build_scripts and isBuildScriptPath(path)) return true;
+    if (!options.build_script and isBuildScriptPath(path)) return true;
 
-    if (!options.lint_dependencies) {
+    if (!options.deps) {
         for (options.exclude_roots) |root| {
             if (isUnderExcludedRoot(path, root)) return true;
         }
@@ -62,13 +72,6 @@ pub fn shouldSkipLintFile(path: []const u8, options: Options) bool {
 }
 
 /// Collects lint targets for a directory using entrypoint-aware behavior.
-///
-/// If `root.zig` exists, it is treated as the primary entrypoint.
-/// Otherwise, all top-level `.zig` files in the directory are treated as
-/// independent module entrypoints and expanded by public reachability.
-///
-/// If no top-level `.zig` files exist, the function falls back to recursively
-/// collecting every `.zig` file under the directory.
 pub fn collectDirectoryLintTargets(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -182,7 +185,7 @@ fn isReadableLocalFile(io: std.Io, path: []const u8) bool {
     return true;
 }
 
-fn isBuildScriptPath(path: []const u8) bool {
+pub fn isBuildScriptPath(path: []const u8) bool {
     const base = std.fs.path.basename(path);
     if (std.mem.eql(u8, base, "build.zig")) return true;
 
@@ -199,4 +202,51 @@ fn containsPath(items: []const []const u8, needle: []const u8) bool {
         if (std.mem.eql(u8, it, needle)) return true;
     }
     return false;
+}
+
+pub fn matchesTarget(options: Options, name: []const u8, kind: build_scan.TargetKind) bool {
+    return switch (kind) {
+        .lib => options.effectiveLib(),
+        .bin => blk: {
+            if (options.bins) break :blk true;
+            for (options.bin_names) |bin_name| {
+                if (std.mem.eql(u8, bin_name, name)) break :blk true;
+            }
+            break :blk false;
+        },
+        .test_target => blk: {
+            if (options.tests) break :blk true;
+            for (options.test_names) |test_name| {
+                if (std.mem.eql(u8, test_name, name)) break :blk true;
+            }
+            break :blk false;
+        },
+    };
+}
+
+pub fn skipReason(kind: build_scan.TargetKind, options: Options, _name: []const u8) []const u8 {
+    _ = _name;
+    return switch (kind) {
+        .lib => "Libraries are not selected by active filters.",
+        .bin => blk: {
+            if (options.bin_names.len > 0) {
+                break :blk "Executable name does not match active --bin filters.";
+            }
+            break :blk "Executables are opt-in (add --bins or --bin <NAME>).";
+        },
+        .test_target => blk: {
+            if (options.test_names.len > 0) {
+                break :blk "Test name does not match active --test filters.";
+            }
+            break :blk "Tests are opt-in (add --tests or --test <NAME>).";
+        },
+    };
+}
+
+pub fn matchReason(kind: build_scan.TargetKind) []const u8 {
+    return switch (kind) {
+        .lib => "Selected by default (library surface).",
+        .bin => "Selected by active filters (--bins / --bin).",
+        .test_target => "Selected by active filters (--tests / --test).",
+    };
 }
