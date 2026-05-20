@@ -348,7 +348,6 @@ fn printAccessError(io: std.Io, path: []const u8, err: anyerror) !void {
     try writer.flush();
 }
 
-
 fn lintSingleFile(
     allocator: std.mem.Allocator,
     io: std.Io,

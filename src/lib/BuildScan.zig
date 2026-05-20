@@ -69,7 +69,7 @@ fn matchBuilderCall(tree: std.zig.Ast, node: std.zig.Ast.Node.Index, b_name: []c
         const node_data = tree.nodeData(fn_expr);
         const lhs = node_data.node_and_token[0];
         const tok = node_data.node_and_token[1];
-        
+
         if (tree.nodeTag(lhs) == .identifier) {
             const receiver = tree.tokenSlice(tree.nodeMainToken(lhs));
             if (std.mem.eql(u8, receiver, b_name)) {
@@ -143,10 +143,10 @@ fn scanCall(
             }
         } else {
             const is_lib = std.mem.eql(u8, call.method, "addLibrary") or
-                           std.mem.eql(u8, call.method, "addSharedLibrary") or
-                           std.mem.eql(u8, call.method, "addStaticLibrary") or
-                           std.mem.eql(u8, call.method, "addModule") or
-                           std.mem.eql(u8, call.method, "createModule");
+                std.mem.eql(u8, call.method, "addSharedLibrary") or
+                std.mem.eql(u8, call.method, "addStaticLibrary") or
+                std.mem.eql(u8, call.method, "addModule") or
+                std.mem.eql(u8, call.method, "createModule");
             const is_bin = std.mem.eql(u8, call.method, "addExecutable");
             const is_test = std.mem.eql(u8, call.method, "addTest");
 
