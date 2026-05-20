@@ -1,4 +1,5 @@
 const std = @import("std");
+const carnaval = @import("carnaval");
 
 const manifest = @import("Manifest.zig");
 const targeting = @import("Targeting.zig");
@@ -35,6 +36,7 @@ pub const Options = struct {
     positionals: []const []const u8 = &.{},
     /// When set, use this manifest instead of searching upward from cwd.
     manifest_path: ?[]const u8 = null,
+    color_profile: carnaval.ColorProfile = .none,
 };
 
 pub const Plan = struct {
@@ -241,7 +243,7 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
                             .kind = t.kind,
                             .root_source_file = try allocator.dupe(u8, t.root_source_file),
                             .status = .skipped,
-                            .reason = try allocator.dupe(u8, targeting.skipReason(t.kind, targeting_options, t.name)),
+                            .reason = try targeting.skipReason(allocator, options.color_profile, t.kind, targeting_options, t.name),
                             .files = &.{},
                         });
                     } else {

@@ -1,6 +1,7 @@
 const std = @import("std");
 const reachability = @import("Reachability.zig");
 const build_scan = @import("BuildScan.zig");
+const carnaval = @import("carnaval");
 
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
@@ -224,21 +225,40 @@ pub fn matchesTarget(options: Options, name: []const u8, kind: build_scan.Target
     };
 }
 
-pub fn skipReason(kind: build_scan.TargetKind, options: Options, _name: []const u8) []const u8 {
-    _ = _name;
+pub fn skipReason(allocator: std.mem.Allocator, profile: carnaval.ColorProfile, kind: build_scan.TargetKind, options: Options, name: []const u8) ![]const u8 {
     return switch (kind) {
-        .lib => "Libraries are not selected by active filters.",
+        .lib => try allocator.dupe(u8, "Libraries are not selected by active filters."),
         .bin => blk: {
             if (options.bin_names.len > 0) {
-                break :blk "Executable name does not match active --bin filters.";
+                const bin_flag = try carnaval.Style.init().italicized().underlined().renderAllocWithProfile("--bin", allocator, profile);
+                defer allocator.free(bin_flag);
+                break :blk try std.fmt.allocPrint(allocator, "Executable name does not match active {s} filters.", .{bin_flag});
             }
-            break :blk "Executables are opt-in (add --bins or --bin <NAME>).";
+            const bins_styled = try carnaval.Style.init().underlined().renderAllocWithProfile("--bins", allocator, profile);
+            defer allocator.free(bins_styled);
+
+            const bin_raw = try std.fmt.allocPrint(allocator, "--bin {s}", .{name});
+            defer allocator.free(bin_raw);
+            const bin_styled = try carnaval.Style.init().underlined().renderAllocWithProfile(bin_raw, allocator, profile);
+            defer allocator.free(bin_styled);
+
+            break :blk try std.fmt.allocPrint(allocator, "Executables are opt-in (add {s} or {s}).", .{ bins_styled, bin_styled });
         },
         .test_target => blk: {
             if (options.test_names.len > 0) {
-                break :blk "Test name does not match active --test filters.";
+                const test_flag = try carnaval.Style.init().underlined().renderAllocWithProfile("--test", allocator, profile);
+                defer allocator.free(test_flag);
+                break :blk try std.fmt.allocPrint(allocator, "Test name does not match active {s} filters.", .{test_flag});
             }
-            break :blk "Tests are opt-in (add --tests or --test <NAME>).";
+            const tests_styled = try carnaval.Style.init().underlined().renderAllocWithProfile("--tests", allocator, profile);
+            defer allocator.free(tests_styled);
+
+            const test_raw = try std.fmt.allocPrint(allocator, "--test {s}", .{name});
+            defer allocator.free(test_raw);
+            const test_styled = try carnaval.Style.init().underlined().renderAllocWithProfile(test_raw, allocator, profile);
+            defer allocator.free(test_styled);
+
+            break :blk try std.fmt.allocPrint(allocator, "Tests are opt-in (add {s} or {s}).", .{ tests_styled, test_styled });
         },
     };
 }

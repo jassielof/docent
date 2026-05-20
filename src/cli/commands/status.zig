@@ -132,6 +132,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         .deps = args.deps,
         .build_script = args.build_script,
         .positionals = args.positionals,
+        .color_profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle),
     }) catch |err| {
         try printStderr(io, "error: failed to build lint plan: {}\n", .{err});
         std.process.exit(1);
@@ -187,13 +188,51 @@ pub fn printStatusReport(
             try w.print("\n", .{});
         } else {
             for (plan.resolved_targets) |rt| {
-                const status_str = if (rt.status == .linted) "LINTED" else "SKIPPED";
-                try w.print("  Target: {s} ({s})\n", .{ rt.name, @tagName(rt.kind) });
-                try w.print("    - Source: {s}\n", .{rt.root_source_file});
-                try w.print("    - Status: {s}\n", .{status_str});
-                try w.print("    - Reason: {s}\n", .{rt.reason});
+                try w.writeAll("  Target: ");
+                try carnaval.Style.init().italicized().renderWithProfile(
+                    rt.name,
+                    w,
+                    profile,
+                );
+
+                try w.writeAll(" (");
+
+                const kind_style = switch (rt.kind) {
+                    .lib => carnaval.Style.init().fg(.{ .ansi16 = .cyan }),
+                    .bin => carnaval.Style.init().fg(.{ .ansi16 = .green }),
+                    .test_target => carnaval.Style.init().fg(.{ .ansi16 = .magenta }),
+                };
+
+                const kind_name = switch (rt.kind) {
+                    .lib => "Library",
+                    .bin => "Executable",
+                    .test_target => "Test",
+                };
+
+                try kind_style.renderWithProfile(kind_name, w, profile);
+                try w.writeAll(")\n");
+
+                try w.writeAll("    - ");
+                try carnaval.Style.init().bolded().renderWithProfile("Source", w, profile);
+                try w.print(": {s}\n", .{rt.root_source_file});
+
+                try w.writeAll("    - ");
+                try carnaval.Style.init().bolded().renderWithProfile("Status", w, profile);
+                try w.writeAll(": ");
                 if (rt.status == .linted) {
-                    try w.print("    - Files:\n", .{});
+                    try carnaval.Style.init().fg(.{ .ansi16 = .green }).renderWithProfile("LINTED", w, profile);
+                } else {
+                    try carnaval.Style.init().dimmed().renderWithProfile("SKIPPED", w, profile);
+                }
+                try w.writeAll("\n");
+
+                try w.writeAll("    - ");
+                try carnaval.Style.init().bolded().renderWithProfile("Reason", w, profile);
+                try w.print(": {s}\n", .{rt.reason});
+                if (rt.status == .linted) {
+                    try w.writeAll("    - ");
+                    try carnaval.Style.init().bolded().renderWithProfile("Files", w, profile);
+                    try w.writeAll(":\n");
                     const limit = 5;
                     const show = @min(rt.files.len, limit);
                     for (rt.files[0..show]) |f| {
