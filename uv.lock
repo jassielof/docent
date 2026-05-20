@@ -1,0 +1,49 @@
+version = 1
+revision = 3
+requires-python = ">=3.14"
+
+[[package]]
+name = "docent"
+version = "0.1.0"
+source = { virtual = "." }
+
+[package.dev-dependencies]
+dev = [
+    { name = "lizard" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [{ name = "lizard", specifier = ">=1.22.1" }]
+
+[[package]]
+name = "lizard"
+version = "1.22.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pathspec" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b3/c7/776f75710b0033d69249b45ed571f8a314c1a8980c1d3c64e3c12f541869/lizard-1.22.1.tar.gz", hash = "sha256:29fe26f3746f8539227ba909a6143c749548690271e13a3f73204b22e2e62590", size = 90616, upload-time = "2026-04-23T01:54:30.645Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/45/aa/54d9292917f0f9cc684fd053f879e3e8292bf4bc40e984d542dbfe393063/lizard-1.22.1-py2.py3-none-any.whl", hash = "sha256:cc629472d4b031f7692bd7f7e78d2574029008148fba75e45f3592774c8e7420", size = 98713, upload-time = "2026-04-23T01:54:29.008Z" },
+]
+
+[[package]]
+name = "pathspec"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/82/42f767fc1c1143d6fd36efb827202a2d997a375e160a71eb2888a925aac1/pathspec-1.1.1.tar.gz", hash = "sha256:17db5ecd524104a120e173814c90367a96a98d07c45b2e10c2f3919fff91bf5a", size = 135180, upload-time = "2026-04-27T01:46:08.907Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl", hash = "sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189", size = 57328, upload-time = "2026-04-27T01:46:07.06Z" },
+]
+
+[[package]]
+name = "pygments"
+version = "2.20.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/b2/bc9c9196916376152d655522fdcebac55e66de6603a76a02bca1b6414f6c/pygments-2.20.0.tar.gz", hash = "sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f", size = 4955991, upload-time = "2026-03-29T13:29:33.898Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176", size = 1231151, upload-time = "2026-03-29T13:29:30.038Z" },
+]
