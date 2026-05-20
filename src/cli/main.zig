@@ -286,6 +286,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
             if (gptr.found_existing) continue;
 
             if (try lintSingleFile(allocator, io, path, rule_set, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
+                should_stop = true;
                 break;
             }
         }
@@ -297,7 +298,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, "docent", .auto));
     }
 
-    if (summary.errors > 0) {
+    if (summary.errors > 0 or should_stop) {
         std.process.exit(1);
     }
 }
