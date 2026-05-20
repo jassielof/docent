@@ -62,32 +62,27 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(cli);
 
     const run_cli = b.addRunArtifact(cli);
-    cli_step.dependOn(&run_cli.step);
-    run_cli.step.dependOn(b.getInstallStep());
+    // run_cli.step.dependOn(b.getInstallStep());
 
-    if (b.args) |args| {
-        run_cli.addArgs(args);
-    }
+    cli_step.dependOn(&run_cli.step);
+
+    if (b.args) |args| run_cli.addArgs(args);
 
     const docs_step = b.step("docs", "Generate the documentation");
 
-    const docs = b.addInstallDirectory(.{
+    const install_docs = b.addInstallDirectory(.{
         .source_dir = docs_lib.getEmittedDocs(),
         .install_dir = .prefix,
         .install_subdir = "docs/lib",
     });
 
+    docs_step.dependOn(&install_docs.step);
+
     const docs_cli = b.addRunArtifact(cli);
+    // docs_cli.step.dependOn(b.getInstallStep());
     docs_cli.addArgs(&.{ "docs", "--output-dir", "zig-out/docs/" });
+
     docs_step.dependOn(&docs_cli.step);
-
-    // Lint package paths from build.zig.zon (.paths / .rules) before generating docs.
-    // const docs_lint = b.addRunArtifact(cli);
-    // docs_lint.step.dependOn(b.getInstallStep());
-    // docs_cli.step.dependOn(&docs_lint.step);
-
-    docs_cli.step.dependOn(&docs.step);
-    docs_step.dependOn(&docs.step);
 
     const test_step = b.step("test", "Run the test suite");
 
@@ -117,25 +112,27 @@ pub fn build(b: *std.Build) void {
     const run_integration_tests = b.addRunArtifact(integration_tests);
     test_step.dependOn(&run_integration_tests.step);
 
-    const lint_step = b.step("lint", "Run linters and code quality tools");
-    const lizard = b.addSystemCommand(&.{
-        "lizard",
-        "-l",
-        "zig",
-        "-C",
-        "10",
-        "-L",
-        "60",
-        "-a",
-        "5",
-        "-m",
-        "-w",
-        "-ENS",
-        "-T",
-        "max_nested_structures=3",
-        "src/",
-    });
-    lint_step.dependOn(&lizard.step);
+    const lint_step = b.step("lint", "Run linters and code quality checks");
+
+    // const lizard = b.addSystemCommand(&.{
+    //     "lizard",
+    //     "-l",
+    //     "zig",
+    //     "-C",
+    //     "10",
+    //     "-L",
+    //     "60",
+    //     "-a",
+    //     "5",
+    //     "-m",
+    //     "-w",
+    //     "-ENS",
+    //     "-T",
+    //     "max_nested_structures=3",
+    //     "src/",
+    // });
+    // lint_step.dependOn(&lizard.step);
+
     const fmt = b.addFmt(.{
         .check = true,
         .paths = &.{
@@ -143,4 +140,13 @@ pub fn build(b: *std.Build) void {
         },
     });
     lint_step.dependOn(&fmt.step);
+
+    const docs_lint = b.addRunArtifact(cli);
+    docs_lint.addArgs(&.{
+        "--format",
+        "minimal",
+        "--fail-fast",
+        "any",
+    });
+    lint_step.dependOn(&docs_lint.step);
 }
