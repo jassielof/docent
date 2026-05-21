@@ -237,6 +237,25 @@ test "reexport_documented: no diagnostic when original declaration is documented
     }
 }
 
+test "reexport_undocumented: diagnostic file paths use forward slashes" {
+    var result = try docent.lintFile(
+        std.testing.allocator,
+        std.testing.io,
+        "tests/fixtures/invalid/reexport_undocumented/root.zig",
+        .{ .missing_doc_comment = .deny },
+        .{},
+        &.{},
+    );
+    defer result.deinit();
+
+    for (result.diagnostics.items) |d| {
+        if (std.mem.eql(u8, d.rule, "missing_doc_comment")) {
+            try std.testing.expect(std.mem.indexOf(u8, d.file, "\\") == null);
+            try std.testing.expect(std.mem.endsWith(u8, d.file, "severity.zig"));
+        }
+    }
+}
+
 test "reexport_undocumented: diagnostic points to definition site, not re-export" {
     // `root.zig` re-exports `Level` from `severity.zig`, but `Level` has no doc
     // comment.  Exactly one `missing_doc_comment` diagnostic must be emitted and

@@ -86,7 +86,7 @@ const Style = struct {
 pub fn stderrTextOptions(io: std.Io, format: TextFormat, color: ColorMode, path_display_root: ?[]const u8) TextOptions {
     return .{
         .format = format,
-        .color = color,
+        .color = if (format == .minimal) .never else color,
         .tty_config = detectTerminalMode(io, std.Io.File.stderr()),
         .color_profile = carnaval.colorProfileForHandle(std.Io.File.stderr().handle),
         .path_display_root = path_display_root,
@@ -113,8 +113,8 @@ pub fn writeDiagnostic(writer: anytype, diagnostic: Diagnostic, options: TextOpt
     const style = resolveStyle();
     const color_profile = resolveProfile(options.color, options.tty_config, options.color_profile);
     switch (options.format) {
-        .pretty => try writePrettyDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root),
-        .minimal => try writeMinimalDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root),
+        .pretty => try writePrettyDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root, .pretty),
+        .minimal => try writeMinimalDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root, .minimal),
     }
 }
 
@@ -231,8 +231,9 @@ fn writePrettyDiagnostic(
     style: Style,
     color_profile: carnaval.ColorProfile,
     path_display_root: ?[]const u8,
+    format: TextFormat,
 ) !void {
-    try writeHeader(writer, diagnostic, style, color_profile, path_display_root);
+    try writeHeader(writer, diagnostic, style, color_profile, path_display_root, format);
 
     if (diagnostic.source_line.len == 0) return;
 
@@ -272,16 +273,42 @@ fn writeMinimalDiagnostic(
     style: Style,
     color_profile: carnaval.ColorProfile,
     path_display_root: ?[]const u8,
+    format: TextFormat,
 ) !void {
-    try writeHeader(writer, diagnostic, style, color_profile, path_display_root);
+    try writeHeader(writer, diagnostic, style, color_profile, path_display_root, format);
 }
 
 /// Shortens `file_path` when it is an absolute path under `path_display_root` (e.g. package root).
-pub fn pathForDisplay(path_display_root: ?[]const u8, file_path: []const u8) []const u8 {
-    const root = path_display_root orelse return file_path;
-    if (root.len == 0) return file_path;
-    if (!std.fs.path.isAbsolute(file_path)) return file_path;
-    return stripAbsolutePrefix(root, file_path) orelse file_path;
+///
+/// Normalized output is written into `file_buf` (caller-owned). `root_buf` is scratch space when a
+/// display root is present. Returns a slice into `file_buf`, or the original `file_path` when it
+/// does not fit.
+pub fn pathForDisplay(
+    path_display_root: ?[]const u8,
+    file_path: []const u8,
+    file_buf: []u8,
+    root_buf: []u8,
+) []const u8 {
+    if (file_path.len > file_buf.len) return file_path;
+
+    const file_slice = file_buf[0..normalizeSeparatorsInPlace(file_buf, file_path)];
+
+    const root = path_display_root orelse return file_slice;
+    if (root.len == 0) return file_slice;
+    if (!std.fs.path.isAbsolute(file_slice)) return file_slice;
+
+    if (root.len > root_buf.len) return stripAbsolutePrefix(root, file_slice) orelse file_slice;
+
+    const root_slice = root_buf[0..normalizeSeparatorsInPlace(root_buf, root)];
+    return stripAbsolutePrefix(root_slice, file_slice) orelse file_slice;
+}
+
+fn normalizeSeparatorsInPlace(buf: []u8, path: []const u8) usize {
+    const len = @min(path.len, buf.len);
+    for (path[0..len], 0..) |c, i| {
+        buf[i] = if (c == '\\') '/' else c;
+    }
+    return len;
 }
 
 fn stripAbsolutePrefix(root: []const u8, path: []const u8) ?[]const u8 {
@@ -320,6 +347,7 @@ fn writeHeader(
     style: Style,
     color_profile: carnaval.ColorProfile,
     path_display_root: ?[]const u8,
+    format: TextFormat,
 ) !void {
     const severity_label: []const u8 = switch (diagnostic.severity) {
         .warn => "warning",
@@ -327,7 +355,21 @@ fn writeHeader(
         .allow => return,
     };
 
-    const file_shown = pathForDisplay(path_display_root, diagnostic.file);
+    var path_bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
+    const file_shown = pathForDisplay(path_display_root, diagnostic.file, &path_bufs[0], &path_bufs[1]);
+
+    if (format == .minimal) {
+        try writer.print("{s}:{d}:{d}: {s}[{s}]: {s}\n", .{
+            file_shown,
+            diagnostic.line,
+            diagnostic.column,
+            severity_label,
+            diagnostic.rule,
+            diagnostic.message,
+        });
+        return;
+    }
+
     try writer.print("{s}:{d}:{d}: ", .{ file_shown, diagnostic.line, diagnostic.column });
     try severityStyle(style, diagnostic).renderWithProfile(severity_label, writer, color_profile);
     try writer.writeAll("[");
@@ -361,6 +403,32 @@ fn severityStyle(style: Style, diagnostic: Diagnostic) carnaval.Style {
 
 fn caretStyle(style: Style, diagnostic: Diagnostic) carnaval.Style {
     return if (diagnostic.severity.isError()) style.caret_error else style.caret_warning;
+}
+
+test "minimal formatter shortens absolute paths under display root" {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(std.testing.allocator);
+
+    var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
+    defer writer.deinit();
+
+    try writeDiagnostic(&writer.writer, .{
+        .rule = "missing_doc_comment",
+        .severity = .warn,
+        .message = "missing doc comment",
+        .file = "C:\\proj\\src\\lib\\root.zig",
+        .line = 27,
+        .column = 11,
+    }, .{
+        .format = .minimal,
+        .color = .never,
+        .path_display_root = "C:\\proj",
+    });
+    out = writer.toArrayList();
+
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "src/lib/root.zig:27:11") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "\x1b") == null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "\\") == null);
 }
 
 test "minimal formatter renders one line" {
@@ -420,23 +488,24 @@ test "pretty formatter renders source snippet" {
 }
 
 test "pathForDisplay shortens absolute path under root" {
+    var bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
     if (builtin.os.tag == .windows) {
-        try std.testing.expectEqualStrings("src\\main.zig", pathForDisplay("C:\\proj", "C:\\proj\\src\\main.zig"));
-        try std.testing.expectEqualStrings(".", pathForDisplay("D:\\repo", "D:\\repo"));
-        try std.testing.expectEqualStrings("src\\main.zig", pathForDisplay("c:\\proj", "C:\\proj\\src\\main.zig"));
+        try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("C:\\proj", "C:\\proj\\src\\main.zig", &bufs[0], &bufs[1]));
+        try std.testing.expectEqualStrings(".", pathForDisplay("D:\\repo", "D:\\repo", &bufs[0], &bufs[1]));
+        try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("c:\\proj", "C:\\proj\\src\\main.zig", &bufs[0], &bufs[1]));
     } else {
-        try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("/proj", "/proj/src/main.zig"));
-        try std.testing.expectEqualStrings(".", pathForDisplay("/repo", "/repo"));
+        try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("/proj", "/proj/src/main.zig", &bufs[0], &bufs[1]));
+        try std.testing.expectEqualStrings(".", pathForDisplay("/repo", "/repo", &bufs[0], &bufs[1]));
     }
 }
 
 test "pathForDisplay leaves non-absolute and out-of-root paths unchanged" {
-    try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("/proj", "src/main.zig"));
+    var bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
+    try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("/proj", "src/main.zig", &bufs[0], &bufs[1]));
     if (builtin.os.tag == .windows) {
-        const p = "D:\\other\\main.zig";
-        try std.testing.expectEqualStrings(p, pathForDisplay("C:\\proj", p));
+        try std.testing.expectEqualStrings("D:/other/main.zig", pathForDisplay("C:\\proj", "D:\\other\\main.zig", &bufs[0], &bufs[1]));
     } else {
-        try std.testing.expectEqualStrings("/other/main.zig", pathForDisplay("/proj", "/other/main.zig"));
+        try std.testing.expectEqualStrings("/other/main.zig", pathForDisplay("/proj", "/other/main.zig", &bufs[0], &bufs[1]));
     }
 }
 
