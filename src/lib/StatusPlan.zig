@@ -1,3 +1,5 @@
+//! Builds the lint plan used by `docent status` and the default CLI run (targets, paths, skip reasons).
+
 const std = @import("std");
 const carnaval = @import("carnaval");
 
@@ -6,14 +8,22 @@ const targeting = @import("Targeting.zig");
 const build_scan = @import("BuildScan.zig");
 const reachability = @import("Reachability.zig");
 
+/// One build target after applying lint filters, with the files that would be checked.
 pub const ResolvedTarget = struct {
+    /// Step name from `build.zig` (for example `docent` or an executable name).
     name: []const u8,
+    /// Whether this row is a library, executable, or test target.
     kind: build_scan.TargetKind,
+    /// `root_source_file` path from the build script, as written in `build.zig`.
     root_source_file: []const u8,
+    /// Whether files for this target are included in the lint run.
     status: enum { linted, skipped },
+    /// Human-readable explanation for `status` (included or skipped reason).
     reason: []const u8,
+    /// Absolute paths of Zig files that would be linted when `status == .linted`.
     files: []const []const u8,
 
+    /// Frees all owned strings and the `files` slice.
     pub fn deinit(self: *ResolvedTarget, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
         allocator.free(self.root_source_file);
@@ -23,29 +33,46 @@ pub const ResolvedTarget = struct {
     }
 };
 
+/// Inputs for `gather` (CLI flags and optional manifest override).
 pub const Options = struct {
+    /// When true, include library targets from `build.zig`.
     lib: bool = false,
+    /// When true, include all executable targets.
     bins: bool = false,
+    /// When non-empty, include only executables with matching step names.
     bin_names: []const []const u8 = &.{},
+    /// When true, include all test targets.
     tests: bool = false,
+    /// When non-empty, include only tests with matching step names.
     test_names: []const []const u8 = &.{},
 
+    /// When true, do not exclude path-dependency trees.
     deps: bool = false,
+    /// When true, include `build.zig` and `build/*.zig` in the plan.
     build_script: bool = false,
 
+    /// Explicit file or directory paths from the command line (empty uses project discovery).
     positionals: []const []const u8 = &.{},
     /// When set, use this manifest instead of searching upward from cwd.
     manifest_path: ?[]const u8 = null,
+    /// Terminal color profile for styled skip reasons in status output.
     color_profile: carnaval.ColorProfile = .none,
 };
 
+/// Result of planning a lint run: package metadata, per-target resolution, and extra paths.
 pub const Plan = struct {
+    /// Package name, version, and roots from `build.zig.zon` when available.
     package: manifest.PackageMeta,
+    /// Build targets from `build.zig` with lint/skip status and file lists.
     resolved_targets: []ResolvedTarget,
+    /// Additional files to lint from explicit paths or manifest `.paths` fallback.
     extra_lint_files: []const []const u8,
+    /// True when the user passed positional paths instead of default project discovery.
     explicit_paths: bool,
+    /// Resolved targeting options used while building this plan.
     targeting: targeting.Options,
 
+    /// Frees all owned data in the plan.
     pub fn deinit(self: *Plan, allocator: std.mem.Allocator) void {
         self.package.deinit(allocator);
         for (self.resolved_targets) |*rt| rt.deinit(allocator);
@@ -115,6 +142,7 @@ fn collectBuildFiles(allocator: std.mem.Allocator, io: std.Io, project_root: []c
     }
 }
 
+/// Resolves which files Docent would lint for the given options and project layout.
 pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan {
     var package: manifest.PackageMeta = undefined;
     if (options.manifest_path) |mp| {
