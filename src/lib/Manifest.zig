@@ -1,3 +1,5 @@
+//! Reads `build.zig.zon` for package metadata, lint paths, rule overrides, and dependency roots.
+
 const std = @import("std");
 
 const RuleSet = @import("RuleSet.zig");
@@ -27,11 +29,16 @@ const MetaManifest = struct {
 
 /// Package identity from `build.zig.zon` (when present).
 pub const PackageMeta = struct {
+    /// Package name from `.name = .identifier` when present.
     name: ?[]const u8 = null,
+    /// Semantic version string from `.version` when present.
     version: ?[]const u8 = null,
+    /// Absolute path to the `build.zig.zon` file that was loaded.
     manifest_path: ?[]const u8 = null,
+    /// Absolute path to the directory containing the manifest.
     project_root: []const u8,
 
+    /// Frees all owned strings in `self`.
     pub fn deinit(self: *PackageMeta, allocator: std.mem.Allocator) void {
         if (self.name) |n| allocator.free(n);
         if (self.version) |v| allocator.free(v);
@@ -390,13 +397,18 @@ pub fn loadNearestDependencyPathRoots(allocator: std.mem.Allocator, io: std.Io) 
     return loadDependencyPathRoots(allocator, io, manifest_path);
 }
 
+/// Frees every owned path in `paths` and then deinits the list.
 pub fn deinitOwnedPaths(allocator: std.mem.Allocator, paths: *std.ArrayList([]const u8)) void {
     for (paths.items) |path| allocator.free(path);
     paths.deinit(allocator);
 }
 
+/// Errors returned while locating or parsing `build.zig.zon`.
 pub const Error = error{
+    /// No `build.zig.zon` was found while walking up from the working directory.
     ManifestNotFound,
+    /// A manifest path could not be turned into a parent directory.
     InvalidManifestPath,
+    /// The manifest exists but has no `.paths` array for lint roots.
     ManifestPathsNotFound,
 };
