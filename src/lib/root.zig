@@ -17,31 +17,12 @@ pub const manifest = @import("Manifest.zig");
 pub const targeting = @import("Targeting.zig");
 pub const status_plan = @import("StatusPlan.zig");
 pub const build_scan = @import("BuildScan.zig");
-
-/// Per-file options for `lintSource` / `lintFile`.
-pub const LintOptions = struct {
-    /// When true, require a file-level `//!` doc comment for this source file.
-    require_module_doc: bool = false,
-};
-
-/// Rule implementation modules used by `lintSource`.
-pub const Rules = struct {
-    pub const missing_doc_comment = @import("rules/missing_doc_comment.zig");
-    pub const empty_doc_comment = @import("rules/empty_doc_comment.zig");
-    pub const missing_doctest = @import("rules/missing_doctest.zig");
-    pub const private_doctest = @import("rules/private_doctest.zig");
-    pub const doctest_naming_mismatch = @import("rules/doctest_naming_mismatch.zig");
-    // COMPAT: //! top-level doc comments — remove if deprecated in 0.16
-    // Top level comments might be moved to simply:
-    // /// <Doc comment content>
-    // const Self = @This()
-    pub const missing_container_doc_comment = @import("rules/missing_container_doc_comment.zig");
-};
+pub const LintOptions = @import("LintOptions.zig");
+pub const rules = @import("rules.zig");
 
 /// Returns whether the file-level `//!` check applies to `path`.
 ///
-/// Enabled when `options.require_module_doc` is set, when `path` is a library
-/// entry root from `collectLibraryEntryRoots`, or when the basename is `root.zig`.
+/// Enabled when `options.require_module_doc` is set, when `path` is a library entry root from `collectLibraryEntryRoots`, or when the basename is `root.zig`.
 pub fn resolveRequireModuleDoc(
     path: []const u8,
     options: LintOptions,
@@ -51,6 +32,7 @@ pub fn resolveRequireModuleDoc(
     for (library_entry_roots) |root| {
         if (targeting.pathsEqual(path, root)) return true;
     }
+
     return std.mem.eql(u8, std.fs.path.basename(path), "root.zig");
 }
 
@@ -94,8 +76,7 @@ pub fn collectLibraryEntryRoots(
 
 /// Lints in-memory Zig source and returns all rule diagnostics.
 ///
-/// `file` is the path stored on each diagnostic (normalized to forward slashes).
-/// Message and file strings live in the result's message arena until `deinit`.
+/// `file` is the path stored on each diagnostic (normalized to forward slashes). Message and file strings live in the result's message arena until `deinit`.
 pub fn lintSource(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -116,13 +97,13 @@ pub fn lintSource(
 
     const require_module_doc = resolveRequireModuleDoc(file_owned, options, library_entry_roots);
 
-    try Rules.missing_doc_comment.check(&tree, rule_set.missing_doc_comment, file_owned, allocator, io, msg, &result.diagnostics);
-    try Rules.empty_doc_comment.check(&tree, rule_set.empty_doc_comment, file_owned, allocator, msg, &result.diagnostics);
-    try Rules.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, allocator, msg, &result.diagnostics);
-    try Rules.private_doctest.check(&tree, rule_set.private_doctest, file_owned, allocator, msg, &result.diagnostics);
-    try Rules.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, allocator, msg, &result.diagnostics);
+    try rules.missing_doc_comment.check(&tree, rule_set.missing_doc_comment, file_owned, allocator, io, msg, &result.diagnostics);
+    try rules.empty_doc_comment.check(&tree, rule_set.empty_doc_comment, file_owned, allocator, msg, &result.diagnostics);
+    try rules.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, allocator, msg, &result.diagnostics);
+    try rules.private_doctest.check(&tree, rule_set.private_doctest, file_owned, allocator, msg, &result.diagnostics);
+    try rules.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, allocator, msg, &result.diagnostics);
     // COMPAT: //! top-level doc comments — remove if deprecated in 0.16
-    try Rules.missing_container_doc_comment.check(
+    try rules.missing_container_doc_comment.check(
         &tree,
         rule_set.missing_container_doc_comment,
         file_owned,
