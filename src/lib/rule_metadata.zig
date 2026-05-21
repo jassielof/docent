@@ -37,7 +37,7 @@ pub const rules: []const RuleRow = &.{
     .{
         .name = "missing_container_doc_comment",
         .default_level = "warn",
-        .summary = "Library entry points and public containers should include //! documentation.",
+        .summary = "Library entry points should include a file-level //! doc comment.",
     },
     .{
         .name = "empty_doc_comment",

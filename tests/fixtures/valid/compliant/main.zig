@@ -7,8 +7,6 @@ pub fn add(a: i32, b: i32) i32 {
 
 /// A point in 2D space.
 pub const Point = struct {
-    //! Represents a two-dimensional coordinate.
-
     /// The x coordinate.
     x: f64,
     /// The y coordinate.

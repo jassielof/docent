@@ -18,15 +18,11 @@ pub const build_scan = @import("BuildScan.zig");
 
 /// Per-file options for `lintSource` / `lintFile`.
 pub const LintOptions = struct {
-    //! Options that control how a single file is linted.
-
     /// When true, require a file-level `//!` doc comment for this source file.
     require_module_doc: bool = false,
 };
 
 pub const Rules = struct {
-    //! Lint rule implementations used by `lintSource`.
-
     pub const missing_doc_comment = @import("rules/missing_doc_comment.zig");
     pub const empty_doc_comment = @import("rules/empty_doc_comment.zig");
     pub const missing_doctest = @import("rules/missing_doctest.zig");
