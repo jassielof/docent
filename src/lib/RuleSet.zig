@@ -14,7 +14,7 @@ private_doctest: Severity.Level = .warn,
 /// ## Possible removal
 ///
 /// Top-level doc comments (`//!`) are being considered for removal. The rule will be kept until they are removed, so the rule analysis needs to be implmented in a way that it can be easily disabled or removed. Relevant issue: <https://codeberg.org/ziglang/zig/issues/30132>
-missing_container_doc_comment: Severity.Level = .allow,
+missing_container_doc_comment: Severity.Level = .warn,
 empty_doc_comment: Severity.Level = .warn,
 doctest_naming_mismatch: Severity.Level = .warn,
 

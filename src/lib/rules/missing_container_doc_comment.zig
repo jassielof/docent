@@ -12,13 +12,14 @@ pub fn check(
     tree: *const Ast,
     severity: Severity.Level,
     file: []const u8,
+    require_module_doc: bool,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     if (!severity.isActive()) return;
 
-    if (!hasContainerDocComment(tree, 0)) {
+    if (require_module_doc and !hasContainerDocComment(tree, 0)) {
         const basename = std.fs.path.basename(file);
         // Use the first token (index 0) so we get a properly owned copy of the source line.
         const first_src = if (tree.tokens.len > 0)
@@ -28,7 +29,7 @@ pub fn check(
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity = severity,
-            .message = try std.fmt.allocPrint(msg_allocator, "missing //! module doc comment for '{s}'", .{basename}),
+            .message = try std.fmt.allocPrint(msg_allocator, "missing //! library entry point doc comment for '{s}'", .{basename}),
             .file = file,
             .line = 1,
             .column = 1,
@@ -160,7 +161,7 @@ fn runCheck(source: [:0]const u8) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", true, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 

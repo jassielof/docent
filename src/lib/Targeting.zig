@@ -28,6 +28,15 @@ pub const Options = struct {
     }
 };
 
+/// Returns true when `a` and `b` refer to the same path (separator- and case-aware on Windows).
+pub fn pathsEqual(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    for (a, b) |ac, bc| {
+        if (!pathSeparatorsEqual(ac, bc)) return false;
+    }
+    return true;
+}
+
 /// Returns true when `path` is the same as or nested under `root` (separator-aware).
 pub fn isUnderExcludedRoot(path: []const u8, root: []const u8) bool {
     if (root.len == 0) return false;

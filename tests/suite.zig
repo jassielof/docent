@@ -28,7 +28,7 @@ fn readFixture(allocator: std.mem.Allocator, rel_path: []const u8) ![:0]const u8
 fn lintFixture(allocator: std.mem.Allocator, rel_path: []const u8, rule_set: docent.RuleSet) !docent.LintResult {
     const source = try readFixture(allocator, rel_path);
     defer allocator.free(source);
-    return docent.lintSource(allocator, std.testing.io, source, rule_set, rel_path);
+    return docent.lintSource(allocator, std.testing.io, source, rule_set, rel_path, .{}, &.{});
 }
 
 test "compliant: no missing_doc_comment violations" {
@@ -89,21 +89,36 @@ test "mixed: detects multiple rule violations" {
     var has_empty_doc = false;
     var has_private_doctest = false;
     var has_naming_mismatch = false;
-    var has_missing_container = false;
 
     for (result.diagnostics.items) |d| {
         if (std.mem.eql(u8, d.rule, "missing_doc_comment")) has_missing_doc = true;
         if (std.mem.eql(u8, d.rule, "empty_doc_comment")) has_empty_doc = true;
         if (std.mem.eql(u8, d.rule, "private_doctest")) has_private_doctest = true;
         if (std.mem.eql(u8, d.rule, "doctest_naming_mismatch")) has_naming_mismatch = true;
-        if (std.mem.eql(u8, d.rule, "missing_container_doc_comment")) has_missing_container = true;
     }
 
     try std.testing.expect(has_missing_doc);
     try std.testing.expect(has_empty_doc);
     try std.testing.expect(has_private_doctest);
     try std.testing.expect(has_naming_mismatch);
-    try std.testing.expect(has_missing_container);
+}
+
+test "missing_module_doc: library entry root without //! is reported" {
+    const allocator = std.testing.allocator;
+    var result = try lintFixture(allocator, "invalid/missing_module_doc/root.zig", .{
+        .missing_container_doc_comment = .warn,
+    });
+    defer result.deinit();
+
+    var count: usize = 0;
+    for (result.diagnostics.items) |d| {
+        if (std.mem.eql(u8, d.rule, "missing_container_doc_comment")) {
+            count += 1;
+            try std.testing.expect(std.mem.indexOf(u8, d.message, "library entry point") != null);
+            try std.testing.expect(std.mem.indexOf(u8, d.message, "root.zig") != null);
+        }
+    }
+    try std.testing.expectEqual(@as(usize, 1), count);
 }
 
 test "compliant: no violations with all rules enabled" {
@@ -185,6 +200,8 @@ test "reexport_documented: no diagnostic when original declaration is documented
         std.testing.io,
         "tests/fixtures/valid/reexport_documented/root.zig",
         .{ .missing_doc_comment = .deny },
+        .{},
+        &.{},
     );
     defer result.deinit();
 
@@ -205,6 +222,8 @@ test "reexport_undocumented: diagnostic points to definition site, not re-export
         std.testing.io,
         "tests/fixtures/invalid/reexport_undocumented/root.zig",
         .{ .missing_doc_comment = .deny },
+        .{},
+        &.{},
     );
     defer result.deinit();
 
@@ -261,6 +280,8 @@ test "reexport: unresolvable import produces no false positive (single-file mode
         source,
         .{ .missing_doc_comment = .deny },
         "<fake-file.zig>",
+        .{},
+        &.{},
     );
     defer result.deinit();
 
@@ -313,6 +334,8 @@ test "reachability: linting reachable public_api emits no missing_doc_comment" {
             std.testing.io,
             path,
             .{ .missing_doc_comment = .warn },
+            .{},
+            &.{},
         );
         defer result.deinit();
 
@@ -371,6 +394,8 @@ test "reachability: private-only file is excluded from linted deep set" {
             std.testing.io,
             path,
             .{ .missing_doc_comment = .warn },
+            .{},
+            &.{},
         );
         defer result.deinit();
 

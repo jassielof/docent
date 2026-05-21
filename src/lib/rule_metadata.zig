@@ -36,8 +36,8 @@ pub const rules: []const RuleRow = &.{
     },
     .{
         .name = "missing_container_doc_comment",
-        .default_level = "allow",
-        .summary = "Modules and public containers may include //! documentation.",
+        .default_level = "warn",
+        .summary = "Library entry points and public containers should include //! documentation.",
     },
     .{
         .name = "empty_doc_comment",

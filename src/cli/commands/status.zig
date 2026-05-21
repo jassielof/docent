@@ -298,7 +298,7 @@ pub fn printStatusReport(
                 const gptr = try linted_files.getOrPut(path);
                 if (gptr.found_existing) continue;
 
-                var result = docent.lintFile(allocator, io, path, rule_set) catch continue;
+                var result = docent.lintFile(allocator, io, path, rule_set, .{}, &.{}) catch continue;
                 defer result.deinit();
 
                 for (result.diagnostics.items) |d| {
@@ -313,7 +313,7 @@ pub fn printStatusReport(
         const gptr = try linted_files.getOrPut(path);
         if (gptr.found_existing) continue;
 
-        var result = docent.lintFile(allocator, io, path, rule_set) catch continue;
+        var result = docent.lintFile(allocator, io, path, rule_set, .{}, &.{}) catch continue;
         defer result.deinit();
 
         for (result.diagnostics.items) |d| {
