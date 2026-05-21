@@ -1,3 +1,5 @@
+//! Flags doc comments that are empty or whitespace-only.
+
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../Diagnostic.zig");
@@ -6,6 +8,7 @@ const utils = @import("utils.zig");
 
 const rule_name = "empty_doc_comment";
 
+/// Walks `tree` and appends diagnostics for vacuous doc comments.
 pub fn check(
     tree: *const Ast,
     severity: Severity.Level,

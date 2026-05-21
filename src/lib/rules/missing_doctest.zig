@@ -1,3 +1,5 @@
+//! Suggests runnable doctests on public functions that lack examples.
+
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../Diagnostic.zig");
@@ -6,6 +8,7 @@ const utils = @import("utils.zig");
 
 const rule_name = "missing_doctest";
 
+/// Walks `tree` and appends diagnostics for public functions without matching doctests.
 pub fn check(
     tree: *const Ast,
     severity: Severity.Level,
