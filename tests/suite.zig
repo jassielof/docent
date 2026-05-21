@@ -187,7 +187,31 @@ test "severity levels: deny causes hasErrors" {
     try std.testing.expect(result.errorCount() > 0);
 }
 
-// ── Re-export resolution tests ─────────────────────────────────────────────
+test "lint exit policy: warnings alone do not fail the process" {
+    var summary: docent.output.Summary = .{ .warnings = 3 };
+    try std.testing.expect(!summary.hasErrors());
+    summary.errors = 1;
+    try std.testing.expect(summary.hasErrors());
+}
+
+test "reexport_local_binding: follows local import alias to documented symbol" {
+    var result = try docent.lintFile(
+        std.testing.allocator,
+        std.testing.io,
+        "tests/fixtures/valid/reexport_local_binding/root.zig",
+        .{ .missing_doc_comment = .deny },
+        .{},
+        &.{},
+    );
+    defer result.deinit();
+
+    for (result.diagnostics.items) |d| {
+        if (std.mem.eql(u8, d.rule, "missing_doc_comment")) {
+            std.debug.print("Unexpected diagnostic: {s}:{d}:{d}: {s}\n", .{ d.file, d.line, d.column, d.message });
+            return error.UnexpectedDiagnostic;
+        }
+    }
+}
 
 test "reexport_documented: no diagnostic when original declaration is documented" {
     // `root.zig` has `pub const Severity = @import("severity.zig").Level` with no

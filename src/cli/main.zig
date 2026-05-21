@@ -304,7 +304,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, "docent", .auto));
     }
 
-    if (summary.errors > 0 or should_stop) {
+    if (summary.hasErrors()) {
         std.process.exit(1);
     }
 }
