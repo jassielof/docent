@@ -1,3 +1,5 @@
+//! Requires doctest names to match the function they document.
+
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../Diagnostic.zig");
@@ -6,6 +8,7 @@ const utils = @import("utils.zig");
 
 const rule_name = "doctest_naming_mismatch";
 
+/// Walks `tree` and appends diagnostics when doctest names disagree with declarations.
 pub fn check(
     tree: *const Ast,
     severity: Severity.Level,

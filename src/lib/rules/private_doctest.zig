@@ -1,3 +1,5 @@
+//! Disallows identifier-style doctests on private declarations.
+
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../Diagnostic.zig");
@@ -6,6 +8,7 @@ const utils = @import("utils.zig");
 
 const rule_name = "private_doctest";
 
+/// Walks `tree` and appends diagnostics when private items use public-style doctests.
 pub fn check(
     tree: *const Ast,
     severity: Severity.Level,

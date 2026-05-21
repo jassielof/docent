@@ -2,10 +2,15 @@
 const std = @import("std");
 const RuleSet = @import("RuleSet.zig");
 
+/// One rule entry for CLI help, docs, and shell completions.
 pub const RuleRow = struct {
+    /// Rule identifier (matches `RuleSet` field names).
     name: []const u8,
+    /// Default severity string (`allow`, `warn`, `deny`, or `forbid`).
     default_level: []const u8,
+    /// Short one-line description shown in help output.
     summary: []const u8,
+    /// Optional extended help; empty when unused.
     long: []const u8 = "",
 };
 
@@ -67,6 +72,7 @@ comptime {
     }
 }
 
+/// Help text describing how later `--rule` overrides interact with `forbid`.
 pub const override_behavior_note =
     \\Override order:
     \\  Later overrides win, except when a rule has already been set to forbid.

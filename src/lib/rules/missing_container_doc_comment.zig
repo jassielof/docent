@@ -1,3 +1,4 @@
+//! Requires a file-level `//!` doc comment on library entry points.
 // COMPAT: //! top-level doc comments — remove this file if deprecated in 0.16
 
 const std = @import("std");
@@ -8,6 +9,7 @@ const utils = @import("utils.zig");
 
 const rule_name = "missing_container_doc_comment";
 
+/// Appends a diagnostic when `require_module_doc` is set and the file has no `//!` comment.
 pub fn check(
     tree: *const Ast,
     severity: Severity.Level,

@@ -1,3 +1,5 @@
+//! Requires doc comments on public declarations; resolves re-exports across files.
+
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../Diagnostic.zig");
@@ -6,6 +8,7 @@ const utils = @import("utils.zig");
 
 const rule_name = "missing_doc_comment";
 
+/// Walks `tree` and appends diagnostics for undocumented public items.
 pub fn check(
     tree: *const Ast,
     severity: Severity.Level,
