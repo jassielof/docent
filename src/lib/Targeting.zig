@@ -1,3 +1,5 @@
+//! Selects which files and build targets Docent lints based on CLI flags and `build.zig` metadata.
+
 const std = @import("std");
 const reachability = @import("Reachability.zig");
 const build_scan = @import("BuildScan.zig");
@@ -9,18 +11,28 @@ fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8)
     return allocator.dupe(u8, buffer[0..len]);
 }
 
+/// CLI and build-step filters that control which sources are linted.
 pub const Options = struct {
+    /// When true, include library targets (default when no bin/test filters are set).
     lib: bool = false,
+    /// When true, include all executable targets from `build.zig`.
     bins: bool = false,
+    /// When non-empty, include only executables whose step name matches one of these strings.
     bin_names: []const []const u8 = &.{},
+    /// When true, include all test targets from `build.zig`.
     tests: bool = false,
+    /// When non-empty, include only tests whose step name matches one of these strings.
     test_names: []const []const u8 = &.{},
 
+    /// When true, lint files under path dependencies instead of excluding them.
     deps: bool = false,
+    /// When true, include `build.zig` and `build/*.zig` files.
     build_script: bool = false,
 
+    /// Directory roots to skip (for example path-dependency trees).
     exclude_roots: []const []const u8 = &.{},
 
+    /// Returns whether library targets should be linted for the current filter set.
     pub fn effectiveLib(self: Options) bool {
         if (self.lib) return true;
         if (self.bins or self.bin_names.len > 0 or self.tests or self.test_names.len > 0) return false;
@@ -115,6 +127,7 @@ pub fn collectDirectoryLintTargets(
     return targets;
 }
 
+/// Frees every owned path in `paths` and then deinits the list.
 pub fn deinitOwnedPaths(allocator: std.mem.Allocator, paths: *std.ArrayList([]const u8)) void {
     for (paths.items) |path| allocator.free(path);
     paths.deinit(allocator);
@@ -195,6 +208,7 @@ fn isReadableLocalFile(io: std.Io, path: []const u8) bool {
     return true;
 }
 
+/// Returns whether `path` refers to a build script (`build.zig` or under `build/`).
 pub fn isBuildScriptPath(path: []const u8) bool {
     const base = std.fs.path.basename(path);
     if (std.mem.eql(u8, base, "build.zig")) return true;
@@ -214,6 +228,7 @@ fn containsPath(items: []const []const u8, needle: []const u8) bool {
     return false;
 }
 
+/// Returns whether a scanned build target matches the active targeting options.
 pub fn matchesTarget(options: Options, name: []const u8, kind: build_scan.TargetKind) bool {
     return switch (kind) {
         .lib => options.effectiveLib(),
@@ -234,6 +249,7 @@ pub fn matchesTarget(options: Options, name: []const u8, kind: build_scan.Target
     };
 }
 
+/// Allocates a human-readable explanation for why a target was not linted.
 pub fn skipReason(allocator: std.mem.Allocator, profile: carnaval.ColorProfile, kind: build_scan.TargetKind, options: Options, name: []const u8) ![]const u8 {
     return switch (kind) {
         .lib => try allocator.dupe(u8, "Libraries are not selected by active filters."),
@@ -272,6 +288,7 @@ pub fn skipReason(allocator: std.mem.Allocator, profile: carnaval.ColorProfile, 
     };
 }
 
+/// Returns a short explanation for why a target was included in the lint plan.
 pub fn matchReason(kind: build_scan.TargetKind) []const u8 {
     return switch (kind) {
         .lib => "Selected by default (library surface).",
