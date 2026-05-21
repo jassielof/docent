@@ -173,7 +173,8 @@ const ReexportInfo = struct {
     field_name: ?[]const u8,
 };
 
-/// Returns info when `node` matches the pattern `@import("path").Field` or `@import("path")`, otherwise returns null.
+/// Returns info when `node` matches `@import("path").Field`, `@import("path")`, or `alias.field`
+/// where `alias` is a file-local `@import` binding.
 fn getReexportInfo(tree: *const Ast, node: Ast.Node.Index) ?ReexportInfo {
     const tag = tree.nodeTag(node);
     if (tag == .field_access) {
@@ -183,16 +184,44 @@ fn getReexportInfo(tree: *const Ast, node: Ast.Node.Index) ?ReexportInfo {
 
         if (tree.tokenTag(field_name_tok) != .identifier) return null;
 
-        const import_path = getImportPath(tree, obj_node) orelse return null;
-        return .{
-            .import_path = import_path,
-            .field_name = tree.tokenSlice(field_name_tok),
-        };
+        const field_name = tree.tokenSlice(field_name_tok);
+
+        if (getImportPath(tree, obj_node)) |import_path| {
+            return .{
+                .import_path = import_path,
+                .field_name = field_name,
+            };
+        }
+
+        if (tree.nodeTag(obj_node) == .identifier) {
+            const alias = tree.tokenSlice(tree.nodeMainToken(obj_node));
+            if (findLocalImportPath(tree, alias)) |import_path| {
+                return .{
+                    .import_path = import_path,
+                    .field_name = field_name,
+                };
+            }
+        }
+
+        return null;
     } else if (getImportPath(tree, node)) |import_path| {
         return .{
             .import_path = import_path,
             .field_name = null,
         };
+    }
+    return null;
+}
+
+/// Returns the import path for `const alias = @import("path");` at file scope.
+fn findLocalImportPath(tree: *const Ast, alias: []const u8) ?[]const u8 {
+    for (tree.rootDecls()) |decl| {
+        if (tree.fullVarDecl(decl)) |vd| {
+            const name_tok = vd.ast.mut_token + 1;
+            if (!std.mem.eql(u8, tree.tokenSlice(name_tok), alias)) continue;
+            const init_node = vd.ast.init_node.unwrap() orelse continue;
+            if (getImportPath(tree, init_node)) |path| return path;
+        }
     }
     return null;
 }
@@ -602,5 +631,15 @@ test "re-export with unresolvable import is silently skipped (no false positive)
     // the re-export must produce zero diagnostics.
     var r = try runCheck("pub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;");
     defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
+}
+
+test "re-export through local import alias is recognized" {
+    var r = try runCheck(
+        \\const helpers = @import("helpers.zig");
+        \\pub const greet = helpers.greet;
+    );
+    defer r.deinit();
+    // Unresolvable from <test> path — must not false-positive on the re-export line.
     try std.testing.expectEqual(0, r.items.items.len);
 }
