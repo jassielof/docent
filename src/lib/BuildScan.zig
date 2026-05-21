@@ -1,21 +1,35 @@
+//! Lightweight AST scan of `build.zig` to discover lint targets and dependency names.
+
 const std = @import("std");
 
+/// Kind of build step discovered in `build.zig`.
 pub const TargetKind = enum {
+    /// Library module or `addLibrary` / `addModule` target.
     lib,
+    /// Executable from `addExecutable`.
     bin,
+    /// Test artifact from `addTest`.
     test_target,
 };
 
+/// One lintable target extracted from the build script.
 pub const Target = struct {
+    /// Step or module name (for example `docent` or `default`).
     name: []const u8,
+    /// Whether this target is a library, binary, or test.
     kind: TargetKind,
+    /// `root_source_file` path as written in the build script.
     root_source_file: []const u8,
 };
 
+/// Parsed output from scanning a `build.zig` file.
 pub const Result = struct {
+    /// Library, executable, and test targets with root source files.
     targets: []const Target,
+    /// Dependency names passed to `b.dependency(...)` (for example `fangz`).
     dependencies: []const []const u8,
 
+    /// Frees all owned target and dependency strings.
     pub fn deinit(self: *Result, allocator: std.mem.Allocator) void {
         for (self.targets) |t| {
             allocator.free(t.name);
