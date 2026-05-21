@@ -1,3 +1,5 @@
+//! Traverses local `pub` import graphs to discover which Zig files belong to a library's public API surface.
+
 const std = @import("std");
 
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
@@ -8,9 +10,7 @@ fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8)
 
 /// Collects local Zig files that are publicly reachable from a root entry file.
 ///
-/// Reachability is resolved by recursively following declarations that match
-/// `pub const X = @import("...")` and `pub const X = @import("...").Y`
-/// patterns, including nested public container members.
+/// Reachability is resolved by recursively following declarations that match `pub const X = @import("...")` and `pub const X = @import("...").Y` patterns, including nested public container members.
 pub fn collectReachablePublicFiles(allocator: std.mem.Allocator, io: std.Io, root_path: []const u8) !std.ArrayList([]const u8) {
     var files: std.ArrayList([]const u8) = .empty;
     errdefer deinitOwnedPaths(allocator, &files);
