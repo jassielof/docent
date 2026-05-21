@@ -24,6 +24,7 @@ pub const LintOptions = struct {
     require_module_doc: bool = false,
 };
 
+/// Rule implementation modules used by `lintSource`.
 pub const Rules = struct {
     pub const missing_doc_comment = @import("rules/missing_doc_comment.zig");
     pub const empty_doc_comment = @import("rules/empty_doc_comment.zig");
@@ -37,7 +38,10 @@ pub const Rules = struct {
     pub const missing_container_doc_comment = @import("rules/missing_container_doc_comment.zig");
 };
 
-/// Returns whether the file-level `//!` check should run for `path`.
+/// Returns whether the file-level `//!` check applies to `path`.
+///
+/// Enabled when `options.require_module_doc` is set, when `path` is a library
+/// entry root from `collectLibraryEntryRoots`, or when the basename is `root.zig`.
 pub fn resolveRequireModuleDoc(
     path: []const u8,
     options: LintOptions,
@@ -57,6 +61,8 @@ fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8)
 }
 
 /// Collects canonical `root_source_file` paths for library targets from `build.zig`.
+///
+/// Caller owns the returned slice and each path string; free with `targeting.deinitOwnedPaths`.
 pub fn collectLibraryEntryRoots(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -86,6 +92,10 @@ pub fn collectLibraryEntryRoots(
     return try roots.toOwnedSlice(allocator);
 }
 
+/// Lints in-memory Zig source and returns all rule diagnostics.
+///
+/// `file` is the path stored on each diagnostic (normalized to forward slashes).
+/// Message and file strings live in the result's message arena until `deinit`.
 pub fn lintSource(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -125,6 +135,7 @@ pub fn lintSource(
     return result;
 }
 
+/// Reads `path` from the cwd and runs `lintSource` on its contents.
 pub fn lintFile(
     allocator: std.mem.Allocator,
     io: std.Io,
