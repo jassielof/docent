@@ -281,7 +281,9 @@ fn tryResolveReexportImpl(
 ) !void {
     // Resolve the import path relative to the current file's directory.
     const base_dir = std.fs.path.dirname(current_file) orelse ".";
-    const imported_path = try std.fs.path.join(allocator, &.{ base_dir, info.import_path });
+    const joined = try std.fs.path.join(allocator, &.{ base_dir, info.import_path });
+    defer allocator.free(joined);
+    const imported_path = try utils.normalizePathSeparators(allocator, joined);
     defer allocator.free(imported_path);
 
     _ = try resolveDocForSymbolInFile(
@@ -356,7 +358,9 @@ fn resolveDocForSymbolInFile(
 
                 if (getReexportInfo(&imported_tree, init_node)) |nested| {
                     const nested_base_dir = std.fs.path.dirname(file_path) orelse ".";
-                    const nested_imported_path = try std.fs.path.join(allocator, &.{ nested_base_dir, nested.import_path });
+                    const nested_joined = try std.fs.path.join(allocator, &.{ nested_base_dir, nested.import_path });
+                    defer allocator.free(nested_joined);
+                    const nested_imported_path = try utils.normalizePathSeparators(allocator, nested_joined);
                     defer allocator.free(nested_imported_path);
 
                     const nested_outcome = try resolveDocForSymbolInFile(
@@ -440,7 +444,7 @@ fn emitUndocumentedReexportDiagnosticForFile(
             .{display_symbol},
         ),
         // Store an owned copy of the path so it outlives the allocator.
-        .file = try msg_allocator.dupe(u8, file_path),
+        .file = try utils.normalizePathSeparators(msg_allocator, file_path),
         .line = line + 1,
         .column = column + 1,
         .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(tree, 0, msg_allocator) else "",
@@ -468,7 +472,7 @@ fn emitUndocumentedReexportDiagnostic(
             .{display_symbol},
         ),
         // Store an owned copy of the path so it outlives the allocator.
-        .file = try msg_allocator.dupe(u8, file_path),
+        .file = try utils.normalizePathSeparators(msg_allocator, file_path),
         .line = loc.line + 1,
         .column = loc.column + 1,
         .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),

@@ -2,6 +2,8 @@
 
 const std = @import("std");
 
+const path_utils = @import("rules/utils.zig");
+
 pub const Diagnostic = @import("Diagnostic.zig");
 pub const LintResult = @import("LintResult.zig");
 pub const output = @import("Output.zig");
@@ -100,18 +102,20 @@ pub fn lintSource(
     errdefer result.deinit();
 
     const msg = result.messageAllocator();
-    const require_module_doc = resolveRequireModuleDoc(file, options, library_entry_roots);
+    const file_owned = try path_utils.normalizePathSeparators(msg, file);
 
-    try Rules.missing_doc_comment.check(&tree, rule_set.missing_doc_comment, file, allocator, io, msg, &result.diagnostics);
-    try Rules.empty_doc_comment.check(&tree, rule_set.empty_doc_comment, file, allocator, msg, &result.diagnostics);
-    try Rules.missing_doctest.check(&tree, rule_set.missing_doctest, file, allocator, msg, &result.diagnostics);
-    try Rules.private_doctest.check(&tree, rule_set.private_doctest, file, allocator, msg, &result.diagnostics);
-    try Rules.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file, allocator, msg, &result.diagnostics);
+    const require_module_doc = resolveRequireModuleDoc(file_owned, options, library_entry_roots);
+
+    try Rules.missing_doc_comment.check(&tree, rule_set.missing_doc_comment, file_owned, allocator, io, msg, &result.diagnostics);
+    try Rules.empty_doc_comment.check(&tree, rule_set.empty_doc_comment, file_owned, allocator, msg, &result.diagnostics);
+    try Rules.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, allocator, msg, &result.diagnostics);
+    try Rules.private_doctest.check(&tree, rule_set.private_doctest, file_owned, allocator, msg, &result.diagnostics);
+    try Rules.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, allocator, msg, &result.diagnostics);
     // COMPAT: //! top-level doc comments — remove if deprecated in 0.16
     try Rules.missing_container_doc_comment.check(
         &tree,
         rule_set.missing_container_doc_comment,
-        file,
+        file_owned,
         require_module_doc,
         allocator,
         msg,
