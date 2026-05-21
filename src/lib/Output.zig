@@ -1,3 +1,5 @@
+//! Formats and prints lint diagnostics to stderr, stdout, or arbitrary writers.
+
 const std = @import("std");
 const builtin = @import("builtin");
 
@@ -5,37 +7,58 @@ const carnaval = @import("carnaval");
 
 const Diagnostic = @import("Diagnostic.zig");
 
+/// Text layout for a single diagnostic line.
 pub const TextFormat = enum {
+    /// Multi-line output with source snippet and caret underline.
     pretty,
+    /// Single-line `file:line:col: severity[rule]: message` output.
     minimal,
 };
 
+/// When ANSI colors and styling are applied to formatted output.
 pub const ColorMode = enum {
+    /// Use color when stderr is a TTY and the terminal supports it.
     auto,
+    /// Force color even when not attached to a TTY.
     always,
+    /// Never emit ANSI color or style sequences.
     never,
 };
 
+/// Options passed to diagnostic formatters.
 pub const TextOptions = struct {
+    /// Layout style for each diagnostic.
     format: TextFormat = .pretty,
+    /// Color policy for styled output.
     color: ColorMode = .auto,
+    /// Detected terminal capabilities for the output stream.
     tty_config: std.Io.Terminal.Mode = .no_color,
+    /// Optional detected color profile for the output stream.
     color_profile: ?carnaval.ColorProfile = null,
     /// When set, absolute paths under this directory are printed relative to it (Cargo-style).
     path_display_root: ?[]const u8 = null,
 };
 
+/// Options for the final error/warning summary line.
 pub const SummaryOptions = struct {
+    /// Color policy for the summary line.
     color: ColorMode = .auto,
+    /// Detected terminal capabilities for stderr.
     tty_config: std.Io.Terminal.Mode = .no_color,
+    /// Optional detected color profile for stderr.
     color_profile: ?carnaval.ColorProfile = null,
+    /// Tool name shown in the summary (e.g. `docent generated N warning(s)`).
     tool_name: []const u8 = "docent",
 };
 
+/// Running counts of errors and warnings observed while linting.
 pub const Summary = struct {
+    /// Number of diagnostics with error severity.
     errors: usize = 0,
+    /// Number of diagnostics with warning severity.
     warnings: usize = 0,
 
+    /// Updates counts from a single diagnostic.
     pub fn observe(self: *Summary, diagnostic: Diagnostic) void {
         if (diagnostic.severity.isError()) {
             self.errors += 1;
@@ -44,6 +67,7 @@ pub const Summary = struct {
         }
     }
 
+    /// Returns whether any error-level diagnostic was observed.
     pub fn hasErrors(self: Summary) bool {
         return self.errors > 0;
     }
@@ -58,6 +82,7 @@ const Style = struct {
     caret_error: carnaval.Style,
 };
 
+/// Builds `TextOptions` for stderr using detected TTY and color profile.
 pub fn stderrTextOptions(io: std.Io, format: TextFormat, color: ColorMode, path_display_root: ?[]const u8) TextOptions {
     return .{
         .format = format,
@@ -68,6 +93,7 @@ pub fn stderrTextOptions(io: std.Io, format: TextFormat, color: ColorMode, path_
     };
 }
 
+/// Builds `SummaryOptions` for stderr using detected TTY and color profile.
 pub fn stderrSummaryOptions(io: std.Io, tool_name: []const u8, color: ColorMode) SummaryOptions {
     return .{
         .color = color,
@@ -77,6 +103,7 @@ pub fn stderrSummaryOptions(io: std.Io, tool_name: []const u8, color: ColorMode)
     };
 }
 
+/// Writes one diagnostic to `writer` according to `options`. Skips `.allow` severities.
 pub fn writeDiagnostic(writer: anytype, diagnostic: Diagnostic, options: TextOptions) !void {
     switch (diagnostic.severity) {
         .allow => return,
@@ -91,6 +118,7 @@ pub fn writeDiagnostic(writer: anytype, diagnostic: Diagnostic, options: TextOpt
     }
 }
 
+/// Writes a trailing summary line when `summary` has errors or warnings.
 pub fn writeSummary(writer: anytype, summary: Summary, options: SummaryOptions) !void {
     if (summary.errors == 0 and summary.warnings == 0) return;
 
@@ -112,6 +140,7 @@ pub fn writeSummary(writer: anytype, summary: Summary, options: SummaryOptions) 
     try writer.print(" generated {d} warning(s)\n", .{summary.warnings});
 }
 
+/// Writes diagnostics as a JSON array to `writer`.
 pub fn writeJson(writer: anytype, allocator: std.mem.Allocator, diagnostics: []const Diagnostic) !void {
     try writer.writeAll("[");
     for (diagnostics, 0..) |diagnostic, i| {
@@ -146,6 +175,7 @@ pub fn writeJson(writer: anytype, allocator: std.mem.Allocator, diagnostics: []c
     try writer.writeAll("]\n");
 }
 
+/// Formats and prints one diagnostic to stderr.
 pub fn printDiagnosticStderr(io: std.Io, diagnostic: Diagnostic, options: TextOptions) !void {
     var buffer: [4096]u8 = undefined;
     var stderr = std.Io.File.stderr().writer(io, &buffer);
@@ -153,6 +183,7 @@ pub fn printDiagnosticStderr(io: std.Io, diagnostic: Diagnostic, options: TextOp
     try stderr.interface.flush();
 }
 
+/// Prints the lint summary line to stderr when there are errors or warnings.
 pub fn printSummaryStderr(io: std.Io, summary: Summary, options: SummaryOptions) !void {
     var buffer: [512]u8 = undefined;
     var stderr = std.Io.File.stderr().writer(io, &buffer);
@@ -160,6 +191,7 @@ pub fn printSummaryStderr(io: std.Io, summary: Summary, options: SummaryOptions)
     try stderr.interface.flush();
 }
 
+/// Writes diagnostics as JSON to stdout.
 pub fn printJsonStdout(io: std.Io, allocator: std.mem.Allocator, diagnostics: []const Diagnostic) !void {
     var buffer: [8192]u8 = undefined;
     var stdout = std.Io.File.stdout().writer(io, &buffer);
