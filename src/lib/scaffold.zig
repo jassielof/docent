@@ -160,6 +160,7 @@ fn lintSingleFile(
             allocator,
             std.fmt.allocPrint(allocator, "failed to lint '{s}': {}", .{ path, err }) catch @panic("OOM"),
         ) catch @panic("OOM");
+
         return error.MakeFailed;
     };
     defer result.deinit();

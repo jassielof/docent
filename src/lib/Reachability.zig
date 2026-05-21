@@ -138,6 +138,7 @@ fn collectPublicImportsFromNode(
                 }
             }
         }
+
         return;
     }
 
