@@ -62,19 +62,19 @@ fn checkNode(
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.visib_token) |vt| {
             if (tree.tokenTag(vt) == .keyword_pub and !hasDocComment(tree, var_decl.firstToken())) {
-                // Check whether this is a re-export: `pub const Foo = @import("…").Bar`
+                // Check whether this is a re-export: `pub const Foo = @import("…").Bar` or `pub const Foo = @import("…")`
                 // If so, delegate to the cross-file resolver rather than emitting a
                 // false positive on the re-export line itself.
+                const name_tok = var_decl.ast.mut_token + 1;
+                const name = tree.tokenSlice(name_tok);
                 const is_reexport: bool = blk: {
                     const init_node = var_decl.ast.init_node.unwrap() orelse break :blk false;
                     const info = getReexportInfo(tree, init_node) orelse break :blk false;
-                    try tryResolveReexport(info, file, severity, allocator, io, msg_allocator, diagnostics);
+                    try tryResolveReexport(info, name, file, severity, allocator, io, msg_allocator, diagnostics);
                     break :blk true;
                 };
 
                 if (!is_reexport) {
-                    const name_tok = var_decl.ast.mut_token + 1;
-                    const name = tree.tokenSlice(name_tok);
                     const kind = if (tree.tokenTag(var_decl.ast.mut_token) == .keyword_const) "constant" else "variable";
                     const loc = tree.tokenLocation(0, name_tok);
                     try diagnostics.append(allocator, .{
@@ -169,25 +169,32 @@ const ReexportInfo = struct {
     /// Raw import path from @import("…"), without quotes.
     import_path: []const u8,
     /// The identifier after the dot, e.g. "Level" in `@import(…).Level`.
-    field_name: []const u8,
+    /// Null if re-exporting the entire file/module directly.
+    field_name: ?[]const u8,
 };
 
-/// Returns info when `node` matches the pattern `@import("path").Field`,
-/// otherwise returns null.
+/// Returns info when `node` matches the pattern `@import("path").Field` or `@import("path")`, otherwise returns null.
 fn getReexportInfo(tree: *const Ast, node: Ast.Node.Index) ?ReexportInfo {
-    // field_access data: .node_and_token = { object: Node.Index, field_name: TokenIndex }
-    if (tree.nodeTag(node) != .field_access) return null;
-    const fa = tree.nodeData(node).node_and_token;
-    const obj_node: Ast.Node.Index = fa[0];
-    const field_name_tok: Ast.TokenIndex = fa[1];
+    const tag = tree.nodeTag(node);
+    if (tag == .field_access) {
+        const fa = tree.nodeData(node).node_and_token;
+        const obj_node: Ast.Node.Index = fa[0];
+        const field_name_tok: Ast.TokenIndex = fa[1];
 
-    if (tree.tokenTag(field_name_tok) != .identifier) return null;
+        if (tree.tokenTag(field_name_tok) != .identifier) return null;
 
-    const import_path = getImportPath(tree, obj_node) orelse return null;
-    return .{
-        .import_path = import_path,
-        .field_name = tree.tokenSlice(field_name_tok),
-    };
+        const import_path = getImportPath(tree, obj_node) orelse return null;
+        return .{
+            .import_path = import_path,
+            .field_name = tree.tokenSlice(field_name_tok),
+        };
+    } else if (getImportPath(tree, node)) |import_path| {
+        return .{
+            .import_path = import_path,
+            .field_name = null,
+        };
+    }
+    return null;
 }
 
 /// Returns the import path string when `node` is `@import("path")`,
@@ -219,6 +226,7 @@ fn getImportPath(tree: *const Ast, node: Ast.Node.Index) ?[]const u8 {
 /// that unresolvable imports never produce false positives.
 fn tryResolveReexport(
     info: ReexportInfo,
+    decl_name: []const u8,
     current_file: []const u8,
     severity: Severity.Level,
     allocator: std.mem.Allocator,
@@ -226,7 +234,7 @@ fn tryResolveReexport(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    tryResolveReexportImpl(info, current_file, severity, allocator, io, msg_allocator, diagnostics) catch |e| switch (e) {
+    tryResolveReexportImpl(info, decl_name, current_file, severity, allocator, io, msg_allocator, diagnostics) catch |e| switch (e) {
         error.OutOfMemory => return error.OutOfMemory,
         else => {}, // silently skip: file not found, parse error, symbol not found, etc.
     };
@@ -234,6 +242,7 @@ fn tryResolveReexport(
 
 fn tryResolveReexportImpl(
     info: ReexportInfo,
+    decl_name: []const u8,
     current_file: []const u8,
     severity: Severity.Level,
     allocator: std.mem.Allocator,
@@ -249,7 +258,7 @@ fn tryResolveReexportImpl(
     _ = try resolveDocForSymbolInFile(
         imported_path,
         info.field_name,
-        info.field_name,
+        info.field_name orelse decl_name,
         severity,
         allocator,
         io,
@@ -267,7 +276,7 @@ const ResolveOutcome = enum {
 
 fn resolveDocForSymbolInFile(
     file_path: []const u8,
-    symbol_name: []const u8,
+    symbol_name: ?[]const u8,
     display_symbol: []const u8,
     severity: Severity.Level,
     allocator: std.mem.Allocator,
@@ -292,53 +301,74 @@ fn resolveDocForSymbolInFile(
     var imported_tree = try std.zig.Ast.parse(allocator, source, .zig);
     defer imported_tree.deinit(allocator);
 
-    // Search the top-level declarations of the imported file.
-    for (imported_tree.rootDecls()) |decl| {
-        const found = findNamedDecl(&imported_tree, decl, symbol_name) orelse continue;
-        if (hasDocComment(&imported_tree, found.first_tok)) {
+    if (symbol_name) |sym_name| {
+        // Search the top-level declarations of the imported file.
+        for (imported_tree.rootDecls()) |decl| {
+            const found = findNamedDecl(&imported_tree, decl, sym_name) orelse continue;
+            if (hasDocComment(&imported_tree, found.first_tok)) {
+                return .documented;
+            }
+
+            // Undocumented declaration found: recurse if it's itself a re-export.
+            if (imported_tree.fullVarDecl(found.node)) |vd| {
+                const init_node = vd.ast.init_node.unwrap() orelse {
+                    try emitUndocumentedReexportDiagnostic(
+                        &imported_tree,
+                        found.name_tok,
+                        display_symbol,
+                        file_path,
+                        severity,
+                        allocator,
+                        msg_allocator,
+                        diagnostics,
+                    );
+                    return .undocumented;
+                };
+
+                if (getReexportInfo(&imported_tree, init_node)) |nested| {
+                    const nested_base_dir = std.fs.path.dirname(file_path) orelse ".";
+                    const nested_imported_path = try std.fs.path.join(allocator, &.{ nested_base_dir, nested.import_path });
+                    defer allocator.free(nested_imported_path);
+
+                    const nested_outcome = try resolveDocForSymbolInFile(
+                        nested_imported_path,
+                        nested.field_name,
+                        display_symbol,
+                        severity,
+                        allocator,
+                        io,
+                        msg_allocator,
+                        diagnostics,
+                        depth + 1,
+                    );
+
+                    return nested_outcome;
+                }
+            }
+
+            try emitUndocumentedReexportDiagnostic(
+                &imported_tree,
+                found.name_tok,
+                display_symbol,
+                file_path,
+                severity,
+                allocator,
+                msg_allocator,
+                diagnostics,
+            );
+            return .undocumented;
+        }
+
+        // Symbol not found in the imported file — silently skip.
+        return .unresolved;
+    } else {
+        // We are importing the entire file/module, so we check if it has a file-level (container) doc comment
+        if (hasContainerDocComment(&imported_tree, 0)) {
             return .documented;
         }
 
-        // Undocumented declaration found: recurse if it's itself a re-export.
-        if (imported_tree.fullVarDecl(found.node)) |vd| {
-            const init_node = vd.ast.init_node.unwrap() orelse {
-                try emitUndocumentedReexportDiagnostic(
-                    &imported_tree,
-                    found.name_tok,
-                    display_symbol,
-                    file_path,
-                    severity,
-                    allocator,
-                    msg_allocator,
-                    diagnostics,
-                );
-                return .undocumented;
-            };
-
-            if (getReexportInfo(&imported_tree, init_node)) |nested| {
-                const nested_base_dir = std.fs.path.dirname(file_path) orelse ".";
-                const nested_imported_path = try std.fs.path.join(allocator, &.{ nested_base_dir, nested.import_path });
-                defer allocator.free(nested_imported_path);
-
-                const nested_outcome = try resolveDocForSymbolInFile(
-                    nested_imported_path,
-                    nested.field_name,
-                    display_symbol,
-                    severity,
-                    allocator,
-                    io,
-                    msg_allocator,
-                    diagnostics,
-                    depth + 1,
-                );
-
-                return nested_outcome;
-            }
-        }
-
-        try emitUndocumentedReexportDiagnostic(
+        try emitUndocumentedReexportDiagnosticForFile(
             &imported_tree,
-            found.name_tok,
             display_symbol,
             file_path,
             severity,
@@ -348,9 +378,45 @@ fn resolveDocForSymbolInFile(
         );
         return .undocumented;
     }
+}
 
-    // Symbol not found in the imported file — silently skip.
-    return .unresolved;
+fn hasContainerDocComment(tree: *const Ast, start_token: Ast.TokenIndex) bool {
+    const tags = tree.tokens.items(.tag);
+    if (start_token >= tags.len) return false;
+    return tags[start_token] == .container_doc_comment;
+}
+
+fn emitUndocumentedReexportDiagnosticForFile(
+    tree: *const Ast,
+    display_symbol: []const u8,
+    file_path: []const u8,
+    severity: Severity.Level,
+    allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
+    diagnostics: *std.ArrayList(Diagnostic),
+) std.mem.Allocator.Error!void {
+    var line: usize = 0;
+    var column: usize = 0;
+    if (tree.tokens.len > 0) {
+        const loc = tree.tokenLocation(0, 0);
+        line = loc.line;
+        column = loc.column;
+    }
+    try diagnostics.append(allocator, .{
+        .rule = rule_name,
+        .severity = severity,
+        .message = try std.fmt.allocPrint(
+            msg_allocator,
+            "missing doc comment for '{s}' (re-exported without documentation)",
+            .{display_symbol},
+        ),
+        // Store an owned copy of the path so it outlives the allocator.
+        .file = try msg_allocator.dupe(u8, file_path),
+        .line = line + 1,
+        .column = column + 1,
+        .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(tree, 0, msg_allocator) else "",
+        .symbol_len = display_symbol.len,
+    });
 }
 
 fn emitUndocumentedReexportDiagnostic(

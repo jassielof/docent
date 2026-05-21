@@ -1,5 +1,4 @@
 const std = @import("std");
-const refAllDecls = std.testing.refAllDecls;
 
 pub const Diagnostic = @import("Diagnostic.zig");
 pub const LintResult = @import("LintResult.zig");
@@ -74,5 +73,5 @@ pub fn lintFile(
 }
 
 comptime {
-    refAllDecls(@This());
+    std.testing.refAllDecls(@This());
 }

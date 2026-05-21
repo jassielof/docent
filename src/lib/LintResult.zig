@@ -21,8 +21,7 @@ pub fn deinit(self: *LintResult) void {
     self.msg_arena.deinit();
 }
 
-/// Returns the allocator to use for diagnostic message strings.
-/// Lifetime of returned strings is tied to this LintResult.
+/// Returns the allocator to use for diagnostic message strings. Lifetime of returned strings is tied to this LintResult.
 pub fn messageAllocator(self: *LintResult) std.mem.Allocator {
     return self.msg_arena.allocator();
 }
@@ -31,6 +30,7 @@ pub fn hasErrors(self: *const LintResult) bool {
     for (self.diagnostics.items) |d| {
         if (d.severity.isError()) return true;
     }
+
     return false;
 }
 
@@ -39,6 +39,7 @@ pub fn errorCount(self: *const LintResult) usize {
     for (self.diagnostics.items) |d| {
         if (d.severity.isError()) count += 1;
     }
+
     return count;
 }
 
@@ -47,5 +48,6 @@ pub fn warningCount(self: *const LintResult) usize {
     for (self.diagnostics.items) |d| {
         if (d.severity == .warn) count += 1;
     }
+
     return count;
 }

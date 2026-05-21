@@ -1,11 +1,14 @@
 const std = @import("std");
+const testing = std.testing;
+const refAllDecls = testing.refAllDecls;
 
 const cli = @import("cli");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-test {
-    _ = @import("cli_ux.zig");
+comptime {
+    refAllDecls(@This());
+    refAllDecls(@import("cli_ux.zig"));
 }
 
 fn readFixture(allocator: std.mem.Allocator, rel_path: []const u8) ![:0]const u8 {
@@ -287,7 +290,7 @@ test "reachability: collects only public reachable files from root.zig" {
 
         const base = std.fs.path.basename(path);
         if (std.mem.eql(u8, base, "root.zig")) has_root = true;
-        if (std.mem.eql(u8, base, "vision.zig")) has_vision = true;
+        if (std.mem.eql(u8, base, "Vision.zig")) has_vision = true;
         if (std.mem.eql(u8, base, "utils.zig")) has_utils = true;
     }
 
@@ -627,4 +630,3 @@ test "targeting: collectDirectoryLintTargets excludes dependency tree by default
     try std.testing.expect(has_app);
     try std.testing.expect(!has_dep_lib);
 }
-
