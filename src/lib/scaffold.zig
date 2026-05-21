@@ -1,15 +1,22 @@
+//! Build-system integration: custom `build.zig` step that runs Docent during `zig build`.
+
 const std = @import("std");
 const docent = @import("root.zig");
 
+/// Custom build step that lints Zig sources and fails the build on configured severities.
 pub const LintStep = struct {
+    /// Underlying Zig build step (`docent`).
     step: std.Build.Step,
     /// Explicit sources; empty means load `.paths` from the nearest manifest at run time.
     sources: []const []const u8,
     /// When set, overrides manifest `.rules` and defaults.
     rules_override: ?docent.RuleSet,
+    /// Target filters (library vs binaries vs tests, dependency roots, etc.).
     targeting: docent.targeting.Options,
+    /// Diagnostic output formatting for stderr.
     output: OutputOptions,
 
+    /// Creates and returns a `LintStep` owned by `b`.
     pub fn create(b: *std.Build, options: Options) *LintStep {
         const self = b.allocator.create(LintStep) catch @panic("OOM");
         self.* = .{
@@ -191,6 +198,7 @@ fn lintSingleFile(
     if (file_has_errors) total_files.* += 1;
 }
 
+/// Options for `addLintStep` / `LintStep.create`.
 pub const Options = struct {
     /// Lint roots; when null, uses `.paths` from the nearest `build.zig.zon`.
     sources: ?[]const []const u8 = null,
@@ -198,22 +206,35 @@ pub const Options = struct {
     rules: ?docent.RuleSet = null,
     /// Full targeting options; when null, the other options are used.
     targeting: ?docent.targeting.Options = null,
+    /// Lint library targets only (used when `targeting` is null).
     lib: bool = false,
+    /// Lint all binary targets (used when `targeting` is null).
     bins: bool = false,
+    /// Lint specific binaries by name (used when `targeting` is null).
     bin_names: ?[]const []const u8 = null,
+    /// Lint all test targets (used when `targeting` is null).
     tests: bool = false,
+    /// Lint specific tests by name (used when `targeting` is null).
     test_names: ?[]const []const u8 = null,
+    /// Also lint files under path dependencies from `build.zig.zon`.
     deps: bool = false,
+    /// Include `build.zig` and `build/*.zig` in lint targets.
     build_script: bool = false,
+    /// Directory roots excluded from lint (e.g. path dependencies).
     exclude_roots: ?[]const []const u8 = null,
+    /// Diagnostic output options for the build step.
     output: OutputOptions = .{},
 };
 
+/// Output formatting options for diagnostics printed during the build step.
 pub const OutputOptions = struct {
+    /// Text layout for each diagnostic line.
     format: docent.output.TextFormat = .pretty,
+    /// When ANSI colors are applied to build-step output.
     color: docent.output.ColorMode = .auto,
 };
 
+/// Registers a Docent lint step on `b` and returns it for `dependOn` / `enableIf`.
 pub fn addLintStep(b: *std.Build, options: Options) *LintStep {
     return LintStep.create(b, options);
 }

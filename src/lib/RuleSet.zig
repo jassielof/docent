@@ -9,11 +9,11 @@ const Severity = @import("Severity.zig");
 missing_doc_comment: Severity.Level = .warn,
 missing_doctest: Severity.Level = .allow,
 private_doctest: Severity.Level = .warn,
-/// Checks for modules missing a top-level doc comment (`//!`).
+/// Checks library entry points for a file-level `//!` doc comment (the implicit module container only).
 ///
 /// ## Possible removal
 ///
-/// Top-level doc comments (`//!`) are being considered for removal. The rule will be kept until they are removed, so the rule analysis needs to be implmented in a way that it can be easily disabled or removed. Relevant issue: <https://codeberg.org/ziglang/zig/issues/30132>
+/// Top-level doc comments (`//!`) are being considered for removal. The rule will be kept until they are removed. Relevant issue: <https://codeberg.org/ziglang/zig/issues/30132>
 missing_container_doc_comment: Severity.Level = .warn,
 empty_doc_comment: Severity.Level = .warn,
 doctest_naming_mismatch: Severity.Level = .warn,

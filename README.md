@@ -133,8 +133,7 @@ Checks `//!` container doc comments.
 
 What it checks:
 
-- File-level module container doc comment (`//!`) near the beginning of the file.
-- Public container declarations assigned to `pub const` (for example `pub const Config = struct { ... }`) and recursively nested public containers.
+- File-level module doc comment (`//!`) at the start of a library entry point file (the implicit module container). Named `pub const` structs, enums, and unions use `///` doc comments instead; inner `//!` is not required or expected on those types.
 
 Note:
 
