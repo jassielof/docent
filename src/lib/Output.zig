@@ -133,7 +133,7 @@ pub fn writeSummary(writer: anytype, summary: Summary, options: SummaryOptions) 
         } else {
             try writer.writeAll("\n");
         }
-        
+
         return;
     }
 
