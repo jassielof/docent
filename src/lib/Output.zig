@@ -86,7 +86,7 @@ const Style = struct {
 pub fn stderrTextOptions(io: std.Io, format: TextFormat, color: ColorMode, path_display_root: ?[]const u8) TextOptions {
     return .{
         .format = format,
-        .color = if (format == .minimal) .never else color,
+        .color = color,
         .tty_config = detectTerminalMode(io, std.Io.File.stderr()),
         .color_profile = carnaval.colorProfileForHandle(std.Io.File.stderr().handle),
         .path_display_root = path_display_root,
@@ -113,8 +113,8 @@ pub fn writeDiagnostic(writer: anytype, diagnostic: Diagnostic, options: TextOpt
     const style = resolveStyle();
     const color_profile = resolveProfile(options.color, options.tty_config, options.color_profile);
     switch (options.format) {
-        .pretty => try writePrettyDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root, .pretty),
-        .minimal => try writeMinimalDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root, .minimal),
+        .pretty => try writePrettyDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root),
+        .minimal => try writeMinimalDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root),
     }
 }
 
@@ -231,9 +231,8 @@ fn writePrettyDiagnostic(
     style: Style,
     color_profile: carnaval.ColorProfile,
     path_display_root: ?[]const u8,
-    format: TextFormat,
 ) !void {
-    try writeHeader(writer, diagnostic, style, color_profile, path_display_root, format);
+    try writeHeader(writer, diagnostic, style, color_profile, path_display_root);
 
     if (diagnostic.source_line.len == 0) return;
 
@@ -273,9 +272,8 @@ fn writeMinimalDiagnostic(
     style: Style,
     color_profile: carnaval.ColorProfile,
     path_display_root: ?[]const u8,
-    format: TextFormat,
 ) !void {
-    try writeHeader(writer, diagnostic, style, color_profile, path_display_root, format);
+    try writeHeader(writer, diagnostic, style, color_profile, path_display_root);
 }
 
 /// Shortens `file_path` when it is an absolute path under `path_display_root` (e.g. package root).
@@ -347,7 +345,6 @@ fn writeHeader(
     style: Style,
     color_profile: carnaval.ColorProfile,
     path_display_root: ?[]const u8,
-    format: TextFormat,
 ) !void {
     const severity_label: []const u8 = switch (diagnostic.severity) {
         .warn => "warning",
@@ -357,18 +354,6 @@ fn writeHeader(
 
     var path_bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
     const file_shown = pathForDisplay(path_display_root, diagnostic.file, &path_bufs[0], &path_bufs[1]);
-
-    if (format == .minimal) {
-        try writer.print("{s}:{d}:{d}: {s}[{s}]: {s}\n", .{
-            file_shown,
-            diagnostic.line,
-            diagnostic.column,
-            severity_label,
-            diagnostic.rule,
-            diagnostic.message,
-        });
-        return;
-    }
 
     try writer.print("{s}:{d}:{d}: ", .{ file_shown, diagnostic.line, diagnostic.column });
     try severityStyle(style, diagnostic).renderWithProfile(severity_label, writer, color_profile);
