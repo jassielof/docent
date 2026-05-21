@@ -1,4 +1,7 @@
-//! The set of rules used by the linter.
+//! Per-rule severity defaults for a lint run.
+//!
+//! Each field names a rule and holds its effective level (`allow`, `warn`, `deny`, or `forbid`).
+//! Override levels via CLI `--rule` flags or project config; see `rule_metadata` for summaries.
 const Severity = @import("Severity.zig");
 
 /// Checks for public declarations without doc comments.
@@ -7,7 +10,9 @@ const Severity = @import("Severity.zig");
 ///
 /// Check the `reexport` fixture for how this is applied, the resolution needs to perform a full project or API reachability analysis (traversal).
 missing_doc_comment: Severity.Level = .warn,
+/// Suggests runnable `///` examples on public functions when enabled.
 missing_doctest: Severity.Level = .allow,
+/// Flags doc comments on private declarations that look like public doctests.
 private_doctest: Severity.Level = .warn,
 /// Checks library entry points for a file-level `//!` doc comment (the implicit module container only).
 ///
@@ -15,7 +20,9 @@ private_doctest: Severity.Level = .warn,
 ///
 /// Top-level doc comments (`//!`) are being considered for removal. The rule will be kept until they are removed. Relevant issue: <https://codeberg.org/ziglang/zig/issues/30132>
 missing_container_doc_comment: Severity.Level = .warn,
+/// Requires non-empty text in doc comments.
 empty_doc_comment: Severity.Level = .warn,
+/// Requires doctest names to match the declaration they document.
 doctest_naming_mismatch: Severity.Level = .warn,
 
 /// Comptime-computed array of all rule field names in declaration order.
