@@ -47,7 +47,7 @@ pub const SummaryOptions = struct {
     tty_config: std.Io.Terminal.Mode = .no_color,
     /// Optional detected color profile for stderr.
     color_profile: ?carnaval.ColorProfile = null,
-    /// Tool name shown in the summary (e.g. `docent generated N warning(s)`).
+    /// Tool name shown in the summary (e.g. `docent generated N warnings`).
     tool_name: []const u8 = "docent",
 };
 
@@ -127,17 +127,23 @@ pub fn writeSummary(writer: anytype, summary: Summary, options: SummaryOptions) 
 
     if (summary.errors > 0) {
         try style.error_style.renderWithProfile("error", writer, color_profile);
-        try writer.print(": aborting due to {d} error(s)", .{summary.errors});
+        try writer.print(": aborting due to {d} {s}", .{ summary.errors, countNoun(summary.errors, "error", "errors") });
         if (summary.warnings > 0) {
-            try writer.print(", {d} warning(s)\n", .{summary.warnings});
+            try writer.print(", {d} {s}\n", .{ summary.warnings, countNoun(summary.warnings, "warning", "warnings") });
         } else {
             try writer.writeAll("\n");
         }
+        
         return;
     }
 
     try style.plain_bold.renderWithProfile(options.tool_name, writer, color_profile);
-    try writer.print(" generated {d} warning(s)\n", .{summary.warnings});
+    try writer.print(" generated {d} {s}\n", .{ summary.warnings, countNoun(summary.warnings, "warning", "warnings") });
+}
+
+fn countNoun(count: usize, singular: []const u8, plural: []const u8) []const u8 {
+    if (count == 1) return singular;
+    return plural;
 }
 
 /// Writes diagnostics as a JSON array to `writer`.
@@ -492,6 +498,13 @@ test "pathForDisplay leaves non-absolute and out-of-root paths unchanged" {
     } else {
         try std.testing.expectEqualStrings("/other/main.zig", pathForDisplay("/proj", "/other/main.zig", &bufs[0], &bufs[1]));
     }
+}
+
+test "countNoun uses singular only for one" {
+    try std.testing.expectEqualStrings("warning", countNoun(1, "warning", "warnings"));
+    try std.testing.expectEqualStrings("warnings", countNoun(2, "warning", "warnings"));
+    try std.testing.expectEqualStrings("error", countNoun(1, "error", "errors"));
+    try std.testing.expectEqualStrings("errors", countNoun(3, "error", "errors"));
 }
 
 test "json formatter escapes message fields" {
