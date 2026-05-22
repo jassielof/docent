@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  quality:
+    name: Code quality checks
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Zig
+        uses: jassielof/setup-zig@v1
+      - name: Install Lizard
+        run: pip install lizard
+      - name: Run code quality checks
+        run: zig build check
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Set up Zig
+        uses: jassielof/setup-zig@v1
+      - name: Build
+        run: zig build --summary all
+  test:
+    name: Test on ${{ matrix.os }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Set up Zig
+        uses: jassielof/setup-zig@v1
+      - name: Run tests
+        run: zig build test --summary all
+  docs:
+    runs-on: ubuntu-latest
+    needs: test
+    name: Build documentation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Set up Zig
+        uses: jassielof/setup-zig@v1
+      - name: Build documentation
+        run: zig build docs --summary all
+      - name: Install AsciiDoctor
+        run: sudo gem install asciidoctor asciidoctor-pdf
+      - name: Convert AsciiDoc to HTML and PDF
+        working-directory: zig-out/docs
+        run: |
+          asciidoctor cli.adoc --out-file index.html
+          asciidoctor-pdf cli.adoc
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: zig-out/docs
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: docs
+    if: github.event_name != 'pull_request'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deployment
+        id: deployment
+        uses: actions/deploy-pages@v5
