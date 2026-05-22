@@ -13,8 +13,8 @@ permissions:
   id-token: write
 
 jobs:
-  lint:
-    name: Lint & static analysis
+  quality:
+    name: Code quality checks
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -26,8 +26,8 @@ jobs:
         uses: jassielof/setup-zig@v1
       - name: Install Lizard
         run: pip install lizard
-      - name: Run lint checks
-        run: zig build lint
+      - name: Run code quality checks
+        run: zig build check
   build:
     name: Build
     runs-on: ubuntu-latest
