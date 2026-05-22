@@ -1,5 +1,6 @@
 const std = @import("std");
 
+/// Warning mode for Lizard.
 pub const WarningMode = enum {
     /// Show lizard's default report, including the general summary.
     summary,
@@ -18,8 +19,9 @@ pub const Options = struct {
     length: usize = 80,
     /// Argument count warning threshold passed as `--arguments`.
     arguments: usize = 7,
-    /// When true, only analyze files changed from source control.
-    modified: bool = true,
+    /// Use Lizard's modified cyclomatic complexity mode (`--modified`).
+    modified_ccn: bool = true,
+    /// The warning style.
     warning_mode: WarningMode = .warnings_only,
     /// Lizard extensions to enable. Each item is emitted as a repeated `--extension` flag.
     extensions: []const []const u8 = &.{"NS"},
@@ -27,12 +29,15 @@ pub const Options = struct {
     paths: []const []const u8 = &.{"src"},
     /// No excluded paths by default, since considering the source directory is usually enough to not include the tests, modules, etc.
     excluded_paths: []const []const u8 = &.{},
-    step_name: []const u8 = "lizzy",
+    /// The name of the step.
+    step_name: []const u8 = "lizard",
+    /// The description of the step.
     step_description: []const u8 = "Run lizard checks.",
     /// Lizard threshold settings. Each item is emitted as a repeated `--Threshold` flag.
-    thresholds: []const []const u8 = &.{"max_nested_structures=4"},
+    thresholds: []const []const u8 = &.{"max_nested_structures=3"},
 };
 
+///
 pub fn addStep(b: *std.Build, options: Options) *std.Build.Step {
     const lizard = b.addSystemCommand(&.{options.lizard_path});
     lizard.addArgs(&.{
@@ -46,7 +51,7 @@ pub fn addStep(b: *std.Build, options: Options) *std.Build.Step {
         b.fmt("{d}", .{options.arguments}),
     });
 
-    if (options.modified) lizard.addArg("--modified");
+    if (options.modified_ccn) lizard.addArg("--modified");
 
     switch (options.warning_mode) {
         .summary => {},
@@ -80,18 +85,24 @@ pub fn addStep(b: *std.Build, options: Options) *std.Build.Step {
     return step;
 }
 
-fn optionsFromBuild(b: *std.Build) Options {
+pub fn addStepFromBuild(b: *std.Build, defaults: Options) *std.Build.Step {
+    return addStep(b, optionsFromBuild(b, defaults));
+}
+
+pub fn optionsFromBuild(b: *std.Build, defaults: Options) Options {
     return .{
-        .lizard_path = b.option([]const u8, "lizard-path", "Executable name or path used to invoke lizard") orelse "lizard",
-        .ccn = b.option(usize, "ccn", "Cyclomatic complexity warning threshold") orelse 10,
-        .length = b.option(usize, "length", "Function length warning threshold") orelse 80,
-        .arguments = b.option(usize, "arguments", "Argument count warning threshold") orelse 7,
-        .modified = b.option(bool, "modified", "Only analyze files changed from source control") orelse true,
-        .warning_mode = b.option(WarningMode, "warning-mode", "Warning output mode") orelse .warnings_only,
-        .extensions = stringListOption(b, "extensions", "Comma-separated lizard extensions to enable", &.{"NS"}),
-        .paths = stringListOption(b, "paths", "Comma-separated paths to analyze", &.{"src"}),
-        .excluded_paths = stringListOption(b, "excluded-paths", "Comma-separated paths or patterns to exclude", &.{}),
-        .thresholds = stringListOption(b, "thresholds", "Comma-separated lizard threshold settings", &.{"max_nested_structures=4"}),
+        .lizard_path = b.option([]const u8, "lizard-path", "Executable name or path used to invoke lizard") orelse defaults.lizard_path,
+        .ccn = b.option(usize, "ccn", "Cyclomatic complexity warning threshold") orelse defaults.ccn,
+        .length = b.option(usize, "length", "Function length warning threshold") orelse defaults.length,
+        .arguments = b.option(usize, "arguments", "Argument count warning threshold") orelse defaults.arguments,
+        .modified_ccn = b.option(bool, "modified", "Only analyze files changed from source control") orelse defaults.modified_ccn,
+        .warning_mode = b.option(WarningMode, "warning-mode", "Warning output mode") orelse defaults.warning_mode,
+        .extensions = stringListOption(b, "extensions", "Comma-separated lizard extensions to enable", defaults.extensions),
+        .paths = stringListOption(b, "paths", "Comma-separated paths to analyze", defaults.paths),
+        .excluded_paths = stringListOption(b, "excluded-paths", "Comma-separated paths or patterns to exclude", defaults.excluded_paths),
+        .step_name = defaults.step_name,
+        .step_description = defaults.step_description,
+        .thresholds = stringListOption(b, "thresholds", "Comma-separated lizard threshold settings", defaults.thresholds),
     };
 }
 
@@ -124,15 +135,5 @@ fn stringListOption(
 }
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
-
-    const mod = b.addModule("lizzy", .{
-        .root_source_file = b.path("src/lib/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    _ = mod;
-
-    _ = addStep(b, optionsFromBuild(b));
+    _ = b;
 }
