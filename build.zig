@@ -119,26 +119,7 @@ pub fn build(b: *std.Build) void {
 
     const lint_step = b.step("check", "Run code quality checks");
 
-    // const lizard = b.addSystemCommand(&.{"lizard"});
-    // lizard.addArgs(&.{
-    //     "--languages",
-    //     "zig",
-    //     "--CCN",
-    //     "10",
-    //     "--length",
-    //     "80",
-    //     "--arguments",
-    //     "7",
-    //     "--modified",
-    //     "--warnings_only",
-    //     "--extension",
-    //     "NS",
-    //     "--Threshold",
-    //     "max_nested_structures=4",
-    //     "src/",
-    // });
-    // lint_step.dependOn(&lizard.step);
-    const lizzy_step = lizzy.addStep(b, .{});
+    const lizzy_step = lizzy.addStepFromBuild(b, .{});
     lint_step.dependOn(lizzy_step);
 
     const fmt = b.addFmt(.{
