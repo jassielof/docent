@@ -8,8 +8,8 @@
         .carnaval = .{ .path = "modules/carnaval" },
         .vereda = .{ .path = "modules/vereda" },
         .lizzy = .{
-            .url = "https://github.com/jassielof/lizzy/archive/refs/tags/v0.1.0.tar.gz",
-            .hash = "lizzy-0.1.0-ybJjEuZZAAB3rz5I7HBZD0hneJvf2hiNNsBQnLM7hXm0",
+            .url = "https://github.com/jassielof/lizzy/archive/refs/tags/v0.2.0.tar.gz",
+            .hash = "lizzy-0.1.0-ybJjErdjAABns5N5MWswPAVjPofzkwB5p_MNE-IbNcu7",
         },
     },
     .minimum_zig_version = "0.16.0",
