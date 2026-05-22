@@ -117,16 +117,16 @@ pub fn build(b: *std.Build) void {
     const run_integration_tests = b.addRunArtifact(integration_tests);
     test_step.dependOn(&run_integration_tests.step);
 
-    const lint_step = b.step("check", "Run code quality checks");
+    const check_step = b.step("check", "Run code quality checks");
 
     const lizzy_step = lizzy.addStepWithBuildOptions(b, .{});
-    lint_step.dependOn(lizzy_step);
+    check_step.dependOn(lizzy_step);
 
     const fmt = b.addFmt(.{
         .check = true,
         .paths = &.{"src/"},
     });
-    lint_step.dependOn(&fmt.step);
+    check_step.dependOn(&fmt.step);
 
     const docs_lint = b.addRunArtifact(cli);
     docs_lint.addArgs(&.{
@@ -135,5 +135,5 @@ pub fn build(b: *std.Build) void {
         "--fail-fast",
         "any",
     });
-    lint_step.dependOn(&docs_lint.step);
+    check_step.dependOn(&docs_lint.step);
 }
