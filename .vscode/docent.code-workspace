@@ -16,9 +16,5 @@
       "name": "Carnaval",
       "path": "../modules/carnaval",
     },
-    {
-      "name": "Lizzy",
-      "path": "../modules/lizzy",
-    },
   ],
 }
