@@ -4,15 +4,10 @@
     .version = "0.0.0",
     .fingerprint = 0xf25cae59b814c9e6,
     .dependencies = .{
-        .fangz = .{
-            .path = "modules/fangz",
-        },
-        .carnaval = .{
-            .path = "modules/carnaval",
-        },
-        .vereda = .{
-            .path = "modules/vereda",
-        },
+        .fangz = .{ .path = "modules/fangz" },
+        .carnaval = .{ .path = "modules/carnaval" },
+        .vereda = .{ .path = "modules/vereda" },
+        .lizzy = .{ .path = "modules/lizzy" },
     },
     .minimum_zig_version = "0.16.0",
     .paths = .{

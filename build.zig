@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const fangz_build = @import("fangz");
+const lizzy = @import("lizzy");
 
 pub fn build(b: *std.Build) void {
     const mod_name = "docent";
@@ -80,7 +81,11 @@ pub fn build(b: *std.Build) void {
 
     const docs_cli = b.addRunArtifact(cli);
     // docs_cli.step.dependOn(b.getInstallStep());
-    docs_cli.addArgs(&.{ "docs", "--output-dir", "zig-out/docs/" });
+    docs_cli.addArgs(&.{
+        "docs",
+        "--output-dir",
+        "zig-out/docs/",
+    });
 
     docs_step.dependOn(&docs_cli.step);
 
@@ -112,16 +117,16 @@ pub fn build(b: *std.Build) void {
     const run_integration_tests = b.addRunArtifact(integration_tests);
     test_step.dependOn(&run_integration_tests.step);
 
-    const lint_step = b.step("lint", "Run linters and code quality checks");
+    const lint_step = b.step("check", "Run code quality checks");
 
-    // const lizard = b.addSystemCommand(&.{
-    //     "lizard",
+    // const lizard = b.addSystemCommand(&.{"lizard"});
+    // lizard.addArgs(&.{
     //     "--languages",
     //     "zig",
     //     "--CCN",
     //     "10",
     //     "--length",
-    //     "60",
+    //     "80",
     //     "--arguments",
     //     "7",
     //     "--modified",
@@ -129,16 +134,16 @@ pub fn build(b: *std.Build) void {
     //     "--extension",
     //     "NS",
     //     "--Threshold",
-    //     "max_nested_structures=3",
+    //     "max_nested_structures=4",
     //     "src/",
     // });
     // lint_step.dependOn(&lizard.step);
+    const lizzy_step = lizzy.addStep(b, .{});
+    lint_step.dependOn(lizzy_step);
 
     const fmt = b.addFmt(.{
         .check = true,
-        .paths = &.{
-            "src/",
-        },
+        .paths = &.{"src/"},
     });
     lint_step.dependOn(&fmt.step);
 
