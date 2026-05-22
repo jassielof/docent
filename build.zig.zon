@@ -7,10 +7,7 @@
         .fangz = .{ .path = "modules/fangz" },
         .carnaval = .{ .path = "modules/carnaval" },
         .vereda = .{ .path = "modules/vereda" },
-        .lizzy = .{
-            .url = "https://github.com/jassielof/lizzy/archive/refs/tags/v0.2.0.tar.gz",
-            .hash = "lizzy-0.1.0-ybJjErdjAABns5N5MWswPAVjPofzkwB5p_MNE-IbNcu7",
-        },
+        .lizzy = .{ .path = "modules/lizzy" },
     },
     .minimum_zig_version = "0.16.0",
     .paths = .{
