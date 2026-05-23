@@ -17,4 +17,9 @@
       "path": "../modules/carnaval",
     },
   ],
+  "settings": {
+    "git.repositoryScanIgnoredFolders": ["node_modules", "references"],
+    "git.detectSubmodules": false,
+    "git.scanRepositories": ["modules"],
+  },
 }
