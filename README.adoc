@@ -5,325 +5,198 @@ Docent is a documentation linter for Zig.
 Available as a CLI, library, and build integration step.
 
 == Documentation
-
-Documentation is available as:
-
+.Available as:
 - This README file
 - link:cli[The CLI documentation], as well available as a link:cli/docent.pdf[PDF version] for offline reading.
 - link:lib[The library documentation]
 
 == Definitions
+Some key terms for better understanding taken from the https://ziglang.org/documentation/0.16.0/#Compilation-Model[compilation model]:
 
-Some key terms for better understanding taken from the
-https://ziglang.org/documentation/0.16.0/#Compilation-Model[compilation
-model]:
-
-* *Zig module:* Any valid Zig file, such as a namespace, or implicit
-struct, etc.
+* *Zig module:* Any valid Zig file, such as a namespace, or implicit struct, etc.
 * *Manifest:* The `build.zig.zon` file in the project root.
 * *Build system script:* The `build.zig` module.
-** This module works similar to an executable, so it’s basically an
-entry point with the reserved `build()` public function.
-* *Libraries:* Modules that are meant to be imported by other modules,
-these don’t have a `main()` public function, and by convention are
-usually named `root.zig`, but this is not a strict requirement. When
-scanned, the linter will crawl around all the public reachable
-declarations from the entry point or root source file, *this behavior is
-shared across all module types.*
-* *Executables:* Executables are those modules that have the special
-public function `main()`, a module with that function is strictly
-considered an executable, treating it as its entry point.
-* *Test modules:* Test modules are similar to libraries, any `test`
-declaration presence will mark the module as a test module, Zig allows
-to define special test modules too.
+** This module works similar to an executable, so it’s basically an entry point with the reserved `build()` public function.
+* *Libraries:* Modules that are meant to be imported by other modules, these don’t have a `main()` public function, and by convention are `usually named `root.zig`, but this is not a strict requirement. When `scanned, the linter will crawl around all the public reachable `declarations from the entry point or root source file, *this behavior is `shared across all module types.*
+* *Executables:* Executables are those modules that have the special public function `main()`, a module with that function is strictly considered an executable, treating it as its entry point.
+* *Test modules:* Test modules are similar to libraries, any `test` declaration presence will mark the module as a test module, Zig allows to define special test modules too.
 * *Documentation comments:*
 ** Standard: `///`
 ** Top-level: `//!`
 
 == Scanning strategy
-
 === Default scanning without path arguments
-
-Whenever the CLI is run without any path arguments, the current working
-directory is scanned. The scanning strategy will attempt to find both
-build system script and related files to resolve the project structure
-and dependencies.
+Whenever the CLI is run without any path arguments, the current working directory is scanned. The scanning strategy will attempt to find both build system script and related files to resolve the project structure and dependencies.
 
 ==== Build system script scanning
+It expects a manifest file to be present in your current working directory, then scans the configured `.paths` entries.
 
-It expects a manifest file to be present in your current working
-directory, then scans the configured `.paths` entries.
+Path dependencies listed in `build.zig.zon` under `.dependencies` (each entry with a `.path`) are *excluded from linting by default*, similar to how Rust tooling skips crates.io dependencies while linting your workspace crate. A `.paths` entry may still list `modules` for packaging; Docent uses dependency metadata to avoid linting vendored trees under those paths.
 
-Path dependencies listed in `build.zig.zon` under `.dependencies` (each
-entry with a `.path`) are *excluded from linting by default*, similar to
-how Rust tooling skips crates.io dependencies while linting your
-workspace crate. A `.paths` entry may still list `modules` for
-packaging; Docent uses dependency metadata to avoid linting vendored
-trees under those paths.
+* CLI: pass `--lint-dependencies` to include dependency directories (including when you pass an explicit path under a dependency root).
+* Library: `docent.targeting.Options{ .lint_dependencies = true, .exclude_roots = ... }`.
+* Build step: `docent.addLintStep(b, .{ .lint_dependencies = true, ... })`.
 
-* CLI: pass `--lint-dependencies` to include dependency directories
-(including when you pass an explicit path under a dependency root).
-* Library:
-`docent.targeting.Options++{++ .lint++_++dependencies = true, .exclude++_++roots = ... }`.
-* Build step:
-`docent.addLintStep(b, .++{++ .lint++_++dependencies = true, ... })`.
+Dependency roots are resolved from the nearest `build.zig.zon` and passed as `exclude_roots` automatically when you run the CLI with no path arguments.
 
-Dependency roots are resolved from the nearest `build.zig.zon` and
-passed as `exclude++_++roots` automatically when you run the CLI with no
-path arguments.
+.Directory behavior:
+* If a directory contains `root.zig`, Docent treats it as an entrypoint and lints files that are publicly reachable from that root via `pub const ... = @import("...")` chains.
+* If a directory has no `root.zig`, Docent treats each top-level `.zig` file as a module entrypoint and lints the union of their publicly reachable files.
+* If no top-level `.zig` files exist, Docent falls back to linting all `.zig` files in that directory tree.
 
-Directory behavior:
-
-* If a directory contains `root.zig`, Docent treats it as an entrypoint
-and lints files that are publicly reachable from that root via
-`pub const ... = @import("...")` chains.
-* If a directory has no `root.zig`, Docent treats each top-level `.zig`
-file as a module entrypoint and lints the union of their publicly
-reachable files.
-* If no top-level `.zig` files exist, Docent falls back to linting all
-`.zig` files in that directory tree.
-
-Reachability notes:
-
-* Traversal is recursive across imported files, so multi-hop public
-chains are included.
+.Reachability notes:
+* Traversal is recursive across imported files, so multi-hop public chains are included.
 * Imports reachable only through non-public declarations are excluded.
-* Package imports (for example `@import("std")`) are not treated as
-local lint targets.
+* Package imports (for example `@import("std")`) are not treated as local lint targets.
 * `build.zig` and files under `build/` are ignored by default.
-** Instead of files within the build directory, it’s mostly all of those
-files that are used/imported by the main build script (`build.zig`).
-* This avoids false-positive API checks from build tooling paths that
-are commonly present in `build.zig.zon` `.paths`.
+** Instead of files within the build directory, it’s mostly all of those files that are used/imported by the main build script (`build.zig`).
+* This avoids false-positive API checks from build tooling paths that are commonly present in `build.zig.zon` `.paths`.
 * CLI users can opt in with `--include-build-scripts`.
-* Library users can opt in via
-`docent.targeting.Options++{++ .include++_++build++_++scripts = true }`.
-* Build integration users can opt in via
-`docent.addLintStep(..., .++{++ .include++_++build++_++scripts = true, ... })`.
+* Library users can opt in via `docent.targeting.Options{ .include_build_scripts = true }`.
+* Build integration users can opt in via `docent.addLintStep(..., .{ .include_build_scripts = true, ... })`.
 
-Dependency exclusion:
-
-* Files under `.dependencies.++*++.path` roots are skipped unless
-`lint++_++dependencies` is enabled (see above).
-* Pass extra directory roots via
-`docent.targeting.Options.exclude++_++roots` when you need additional
-ignores beyond manifest dependencies.
+.Dependency exclusion:
+* Files under `.dependencies.*.path` roots are skipped unless `lint_dependencies` is enabled (see above).
+* Pass extra directory roots via `docent.targeting.Options.exclude_roots` when you need additional ignores beyond manifest dependencies.
 
 ==== Scanning with arguments
-
-When explicit paths are passed, each single argument is treated as a
-path to scan for, these can be either files or directories. Tbe cases
-could be:
+When explicit paths are passed, each single argument is treated as a path to scan for, these can be either files or directories. The cases could be:
 
 * Passing a sinlge file.
 * Passing a single directory.
 * Passing a mix of files and directories.
 
-In all cases, the default scanning will be overriden, focusing *only* on
-the specified paths.
+In all cases, the default scanning will be overriden, focusing *only* on the specified paths.
+// TODO: Decide which option is better UX, whether to exit as error or skip with warning for invalid paths
 
-* If it’s obviously a Zig module (_file_), otherwise it’ll exit with an
-error or skipped gracefully with a warning.
-* For each file or directory, the linter will attempt to resolve what
-type of module it is:
-** If it has a `main()` or `build()` public function it’ll be treated as
-an executable or build script, respectively.
-*** If it doesn’t, it’ll be treated as a library module. In both cases,
-it’ll crawl the reachable public API defining the given argument as the
-entry point (_root source file_).
+* If it’s obviously a Zig module (_file_), otherwise it’ll exit with an error or skipped gracefully with a warning.
+* For each file or directory, the linter will attempt to resolve what type of module it is:
+** If it has a `main()` or `build()` public function it’ll be treated as an executable or build script, respectively.
+*** If it doesn’t, it’ll be treated as a library module. In both cases, it’ll crawl the reachable public API defining the given argument as the entry point (_root source file_).
 
 == Severity levels
-
 All rules accept one of these levels:
 
 * *Allow:* Rule is disabled. No diagnostics are emitted.
-* *Warn:* Diagnostics are emitted, but they do not cause the process to
-exit with an error code.
-* *Deny:* Diagnostics are emitted, and the process exits with an error
-code.
-* *Forbid:* Similar to "`Deny`", but the rule cannot be overriden by a
-subsequent configuration.
+* *Warn:* Diagnostics are emitted, but they do not cause the process to exit with an error code.
+* *Deny:* Diagnostics are emitted, and the process exits with an error code.
+* *Forbid:* Similar to "`Deny`", but the rule cannot be overriden by a subsequent configuration.
 
-The distinction between _Deny_ and _Forbid_ matter for locking a rule in
-CI regardless of any local flag overrides. For example, setting _Forbid_
-in the manifest cannot be weakened to any other level in the command
-line.
+The distinction between _Deny_ and _Forbid_ matter for locking a rule in CI regardless of any local flag overrides. For example, setting _Forbid_ in the manifest cannot be weakened to any other level in the command line.
 
 == Rules
+=== Missing document comment (`missing_doc_comment`)
+Checks (_warned_ by default) for missing documentation comments on public declarations. Including, but not limited to:
 
-=== Missing document comment (`missing++_++doc++_++comment`)
-
-Checks (_warned_ by default) for missing documentation comments on
-public declarations. Including, but not limited to:
-
-* https://ziglang.org/documentation/0.16.0/#Functions[Functions and its
-parameters]
+* https://ziglang.org/documentation/0.16.0/#Functions[Functions and its parameters]
 * https://ziglang.org/documentation/0.16.0/#Variables[Global variables]
-* https://ziglang.org/documentation/0.16.0/#enum[Enumerations and its
-fields]
-* https://ziglang.org/documentation/0.16.0/#struct[Structures and its
-fields]
+* https://ziglang.org/documentation/0.16.0/#enum[Enumerations and its fields]
+* https://ziglang.org/documentation/0.16.0/#struct[Structures and its fields]
 * https://ziglang.org/documentation/0.16.0/#union[Unions and its fields]
 * https://ziglang.org/documentation/0.16.0/#Errors[Error sets]
-** Error set fields aren’t checked since Zig documentation generator
-doesn’t support them.
+** Error set fields aren’t checked since Zig documentation generator doesn’t support them.
 
 ==== Re-exported declarations
-
 Public re-exports are resolved transitively.
 
-For `pub const Foo = @import("other.zig").Bar`, the rule follows the
-re-export chain and checks the documentation on the final resolved
-declaration.
+For `pub const Foo = @import("other.zig").Bar`, the rule follows the re-export chain and checks the documentation on the final resolved declaration.
 
 * If the resolved declaration is documented, no diagnostic is emitted.
-* If it is undocumented, the diagnostic points to the resolved
-declaration.
-* If resolution fails, the re-export is skipped to avoid false
-positives.
+* If it is undocumented, the diagnostic points to the resolved declaration.
+* If resolution fails, the re-export is skipped to avoid false positives.
 
-=== Empty documentation comment (`empty++_++doc++_++comment`)
-
+=== Empty documentation comment (`empty_doc_comment`)
 Checks (_warned_ by default) for comments that are present but blank.
 
-=== Missing documentation test (`missing++_++doctest`)
-
+=== Missing documentation test (`missing_doctest`)
 Checks (_allowed_ by default) for public declarations doctest coverage.
 
-What it checks:
-
+.What it checks:
 * Collects top-level `pub fn name(...)` declarations.
-* Collects identifier-style tests `test name ++{++ ... }`.
-* Emits a diagnostic when a public function has no matching
-identifier-style doctest.
+* Collects identifier-style tests `test name { ... }`.
+* Emits a diagnostic when a public function has no matching identifier-style doctest.
 
-Notes:
-
+.Notes:
 * String-literal test names (for example `test "name"`) are not counted
 as doctests for this rule.
 
-=== Rule: Private documentation test (`private++_++doctest`)
-
+=== Rule: Private documentation test (`private_doctest`)
 Checks that identifier-style doctests reference public symbols.
 
-What it checks:
+.What it checks:
+* Collects top-level public function names and public variable/constant names.
+* For each `test name { ... }`, emits a diagnostic if `name` is not public.
 
-* Collects top-level public function names and public variable/constant
-names.
-* For each `test name ++{++ ... }`, emits a diagnostic if `name` is not
-public.
+==== Documentation test naming mismatch (`doctest_naming_mismatch`)
+Checks for style mismatch when a doctest name matches a public function but is written as a string literal.
 
-==== Documentation test naming mismatch (`doctest++_++naming++_++mismatch`)
-
-Checks for style mismatch when a doctest name matches a public function
-but is written as a string literal.
-
-What it checks:
-
-* If `pub fn foo(...)` exists and the file uses `test "foo"`, it
-suggests using `test foo`.
+.What it checks:
+* If `pub fn foo(...)` exists and the file uses `test "foo"`, it suggests using `test foo`.
 
 ===== Future refactoring due to extension proposal
+There’s an open proposal to extend the syntax of document tests by Mitchell Hashimoto: https://github.com/ziglang/zig/issues/19518. It aims to allow multiple document test declarations, each one having its own description.
 
-There’s an open proposal to extend the syntax of document tests by
-Mitchell Hashimoto: https://github.com/ziglang/zig/issues/19518. It aims
-to allow multiple document test declarations, each one having its own
-description.
+// TODO: TODO: `//!` aren't called container doc comments, but rather top-level doc comments, so these should be renamed across all the project for consistency, review and check for inconsistencies.
+==== Missing top-level documentation comment (`missing_top_level_doc_comment`)
+Checks (_warned_ by default) for missing top-level documentation comments.
 
-==== Missing top-level documentation comment (`missing++_++top++_++level++_++doc++_++comment`)
+.What it checks:
+* File-level module doc comment (`//!`) at the start of a library entry point file (the implicit module container). Named `pub const` structs, enums, and unions use `///` doc comments instead; inner `//!` is not required or expected on those types.
 
-Checks (_warned_ by default) for missing top-level documentation
-comments.
-
-What it checks:
-
-* File-level module doc comment (`//!`) at the start of a library entry
-point file (the implicit module container). Named `pub const` structs,
-enums, and unions use `///` doc comments instead; inner `//!` is not
-required or expected on those types.
-
-This rule works as an extension of the following rules:
-
+.This rule works as an extension of the following rules:
 * _Missing documentation comment,_ because the comment is missing.
 * _Empty documentation comment,_ if the comment is present but blank.
 
 ===== Future refactoring due to removal proposal
+Top-level comments are marked as an https://codeberg.org/ziglang/zig/issues/30132[_urgent proposal_ for removal]. If it’s removed, this rule will be refactored to the respective alternative.
 
-Top-level comments are marked as an
-https://codeberg.org/ziglang/zig/issues/30132[_urgent proposal_ for
-removal]. If it’s removed, this rule will be refactored to the
-respective alternative.
+==== Missing entry point documentation comment (`missing_entry_point_doc_comment`)
+Checks (_warned_ by default) for missing documentation comments on the entry point of a module.
 
-==== Missing entry point documentation comment (`missing++_++entry++_++point++_++doc++_++comment`)
+This is specially relevant for libraries or public package modules, where a library has a single entry point (the root source file), and this rule ensures that the entry point itself is documented.
 
-Checks (_warned_ by default) for missing documentation comments on the
-entry point of a module.
-
-This is specially relevant for libraries or public package modules,
-where a library has a single entry point (the root source file), and
-this rule ensures that the entry point itself is documented.
-
-The rule works as an extension of the following rules:
-
+.The rule works as an extension of the following rules:
 * _Missing documentation comment,_ because the comment is missing.
 * _Empty documentation comment,_ if the comment is present but blank.
-* _Missing top-level documentation comment,_ because the type of
-documentation comment for the entry point is a top-level one.
+* _Missing top-level documentation comment,_ because the type of documentation comment for the entry point is a top-level one.
+
+== Style checks
+.Includes
+* Naming conventions
+* LoC column lengh
+* File size
+
+== Complexity checks
+.Includes
+* Cognitive complexity
+* Cyclomatic complexity
+* Nesting depth
+* NLoC in functions
+* Function parameter count
 
 == References
-
 === Zig documentation
-
-On documentation comments:
-
+.On documentation comments:
 * https://ziglang.org/documentation/0.16.0/#Doc-Comments
 * https://ziglang.org/documentation/0.16.0/#Top-Level-Doc-Comments
 * https://ziglang.org/documentation/0.16.0/#Doctests
 * https://ziglang.org/documentation/0.16.0/#Doc-Comment-Guidance
 
 === Rust
+The user already has the two core Rust links. A third Clippy-specific lint is worth adding for private item coverage, since `rustc`’s `missing_docs` only covers public items: https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs[github]
 
-The user already has the two core Rust links. A third Clippy-specific
-lint is worth adding for private item coverage, since `rustc`’s
-`missing++_++docs` only covers public items:
-https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs[github]
-
-* https://doc.rust-lang.org/rustdoc/lints.html — full list of `rustdoc`
-lints (`missing++_++docs`, `missing++_++doc++_++code++_++examples`,
-`broken++_++intra++_++doc++_++links`, etc.)
-https://doc.rust-lang.org/rustdoc/lints.html[doc.rust-lang]
+* https://doc.rust-lang.org/rustdoc/lints.html — full list of `rustdoc` lints (`missing_docs`, `missing_doc_code_examples`, `broken_intra_doc_links`, etc.) https://doc.rust-lang.org/rustdoc/lints.html[doc.rust-lang]
 ** Zig docs seem to support intra links by only wrapping on backticks.
-* https://doc.rust-lang.org/beta/rustc/lints/listing/allowed-by-default.html#missing-docs
-— `rustc`-level `missing++_++docs` lint details (allowed by default,
-enable with `++#++!++[++warn/deny(missing++_++docs)++]++`)
-https://bsdwatch.net/docs/sharedocs/rust/html/rustdoc/lints.html[bsdwatch]
-* https://rust-lang.github.io/rust-clippy/master/index.html#missing_docs_in_private_items
-— Clippy’s `MISSING++_++DOCS++_++IN++_++PRIVATE++_++ITEMS` (restriction
-lint), which extends coverage to private items that `rustc` ignores
-https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs[github]
+* https://doc.rust-lang.org/beta/rustc/lints/listing/allowed-by-default.html#missing-docs — `rustc`-level `missing_docs` lint details (allowed by default, enable with `#![warn/deny(missing_docs)]`) https://bsdwatch.net/docs/sharedocs/rust/html/rustdoc/lints.html[bsdwatch]
+* https://rust-lang.github.io/rust-clippy/master/index.html#missing_docs_in_private_items — Clippy’s `MISSING_DOCS_IN_PRIVATE_ITEMS` (restriction lint), which extends coverage to private items that `rustc` ignores https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs[github]
 
 === Go
+Go has no compiler-level equivalent to `#![deny(missing_docs)]`. The canonical approach is through external linters, backed by the official doc comment spec: https://go.dev/doc/comment[go]
 
-Go has no compiler-level equivalent to
-`++#++!++[++deny(missing++_++docs)++]++`. The canonical approach is
-through external linters, backed by the official doc comment spec:
-https://go.dev/doc/comment[go]
-
-* https://go.dev/doc/comment — official Go doc comment syntax
-specification (paragraphs, headings, links, lists, code blocks, and
-formatting rules enforced by `gofmt`) https://go.dev/doc/comment[go]
-* https://pkg.go.dev/go/doc/comment — `go/doc/comment` standard library
-package for parsing and reformatting doc comments programmatically
-https://pkg.go.dev/go/doc/comment[pkg.go]
-* https://github.com/godoc-lint/godoc-lint — dedicated godoc lint
-checker with rules like `require-doc`, `start-with-name`, `deprecated`,
-`max-len`, `no-unused-link`, and `require-stdlib-doclink`
-https://github.com/godoc-lint/godoc-lint[github]
-* https://golangci-lint.run/docs/linters/ — `golangci-lint` integrates
-`godoclint` as a configurable linter runner with YAML-based rule
-configuration https://golangci-lint.run/docs/linters/[golangci-lint]
+* https://go.dev/doc/comment — official Go doc comment syntax specification (paragraphs, headings, links, lists, code blocks, and formatting rules enforced by `gofmt`) https://go.dev/doc/comment[go]
+* https://pkg.go.dev/go/doc/comment — `go/doc/comment` standard library package for parsing and reformatting doc comments programmatically https://pkg.go.dev/go/doc/comment[pkg.go]
+* https://github.com/godoc-lint/godoc-lint — dedicated godoc lint checker with rules like `require-doc`, `start-with-name`, `deprecated`, `max-len`, `no-unused-link`, and `require-stdlib-doclink` https://github.com/godoc-lint/godoc-lint[github]
+* https://golangci-lint.run/docs/linters/ — `golangci-lint` integrates `godoclint` as a configurable linter runner with YAML-based rule configuration https://golangci-lint.run/docs/linters/[golangci-lint]
 
 == Credits
-
-Mainly Rust/Cargo’s documentation (and probably Clippy too) linter
-checks, while also taking inspiration from Go’s linting.
+Mainly Rust/Cargo’s documentation (and probably Clippy too) linter checks, while also taking inspiration from Go’s linting.
