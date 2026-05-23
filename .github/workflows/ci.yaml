@@ -72,11 +72,13 @@ jobs:
         run: zig build docs --summary all
       - name: Install AsciiDoctor
         run: sudo gem install asciidoctor asciidoctor-pdf
-      - name: Convert AsciiDoc to HTML and PDF
-        working-directory: zig-out/docs
+      - name: Convert CLI documentation
+        working-directory: zig-out/docs/cli
         run: |
-          asciidoctor cli.adoc --out-file index.html
-          asciidoctor-pdf cli.adoc
+          asciidoctor docent.adoc --out-file index.html
+          asciidoctor-pdf docent.adoc
+      - name: Convert README
+        run: asciidoctor README.adoc --out-file zig-out/docs/index.html
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
