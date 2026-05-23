@@ -84,7 +84,7 @@ pub fn build(b: *std.Build) void {
     docs_cli.addArgs(&.{
         "docs",
         "--output-dir",
-        "zig-out/docs/",
+        "zig-out/docs/cli/",
     });
 
     docs_step.dependOn(&docs_cli.step);
