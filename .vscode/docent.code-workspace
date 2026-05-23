@@ -18,7 +18,7 @@
     },
   ],
   "settings": {
-    "git.repositoryScanIgnoredFolders": ["node_modules", "references"],
+    "git.repositoryScanIgnoredFolders": ["references"],
     "git.detectSubmodules": false,
     "git.scanRepositories": ["modules"],
   },
