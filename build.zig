@@ -85,6 +85,8 @@ pub fn build(b: *std.Build) void {
         "docs",
         "--output-dir",
         "zig-out/docs/cli/",
+        "--file",
+        "docent.adoc",
     });
 
     docs_step.dependOn(&docs_cli.step);
