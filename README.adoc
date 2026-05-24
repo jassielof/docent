@@ -1,16 +1,19 @@
-= Docent: Zig Documentation Linter
+= Docent: Code quality linter for Zig
+:toc: auto
+:doctype: book
+:source-highlighter: rouge
+:repo-url: https://github.com/jassielof/docent
+:page-url: https://jassielof.github.io/docent/
 
-Docent is a documentation linter for Zig.
-
-Available as a CLI, library, and build integration step.
+Docent is a code quality linter for Zig, focused on documentation, complexity and style. It's available as a CLI and library.
 
 == Documentation
 .Available as:
 - This README file
-- link:cli[The CLI documentation], as well available as a link:cli/docent.pdf[PDF version] for offline reading.
-- link:lib[The library documentation]
+- https://jassielof.github.io/docent/cli[The CLI documentation], as well available as a https://jassielof.github.io/docent/cli/docent.pdf[PDF version] for offline reading.
+- https://jassielof.github.io/docent/lib[The library documentation]
 
-== Definitions
+== Concepts and terminology
 Some key terms for better understanding taken from the https://ziglang.org/documentation/0.16.0/#Compilation-Model[compilation model]:
 
 * *Zig module:* Any valid Zig file, such as a namespace, or implicit struct, etc.
@@ -60,19 +63,29 @@ Dependency roots are resolved from the nearest `build.zig.zon` and passed as `ex
 * Pass extra directory roots via `docent.targeting.Options.exclude_roots` when you need additional ignores beyond manifest dependencies.
 
 ==== Scanning with arguments
-When explicit paths are passed, each single argument is treated as a path to scan for, these can be either files or directories. The cases could be:
+When explicit paths are passed, each argument is treated as a file or directory target.
 
-* Passing a sinlge file.
-* Passing a single directory.
-* Passing a mix of files and directories.
+.Supported cases include:
+* A single file.
+* A single directory.
+* A mix of files and directories.
 
-In all cases, the default scanning will be overriden, focusing *only* on the specified paths.
-// TODO: Decide which option is better UX, whether to exit as error or skip with warning for invalid paths
+When explicit paths are provided, the default project discovery is disabled and only the specified targets are scanned.
 
-* If it’s obviously a Zig module (_file_), otherwise it’ll exit with an error or skipped gracefully with a warning.
-* For each file or directory, the linter will attempt to resolve what type of module it is:
-** If it has a `main()` or `build()` public function it’ll be treated as an executable or build script, respectively.
-*** If it doesn’t, it’ll be treated as a library module. In both cases, it’ll crawl the reachable public API defining the given argument as the entry point (_root source file_).
+.Path validity
+* Explicit paths are validated strictly by default.
+* If a path does not exist, cannot be accessed, or refers to a non-Zig module, an error is emitted and the process exits with a non-zero status.
+* If a directory is valid but does not yield any Zig lint targets, a warning is emitted and that directory is skipped.
+* If all explicit targets are valid but none yield any Zig lint targets, the process exits with a non-zero status.
+
+.Path resolution
+* If the target is a Zig source file, it is treated as a module entry point candidate.
+* If the target is a directory, module entry points are resolved within that directory.
+* For each resolved file or directory, the module kind is determined:
+** A file containing a public `main()` is treated as an executable entry point.
+** A file containing a public `build()` is treated as a build script entry point.
+** Otherwise, it is treated as a library entry point.
+* In all cases, the publicly reachable API is traversed starting from the resolved entry point.
 
 == Severity levels
 All rules accept one of these levels:
@@ -84,9 +97,9 @@ All rules accept one of these levels:
 
 The distinction between _Deny_ and _Forbid_ matter for locking a rule in CI regardless of any local flag overrides. For example, setting _Forbid_ in the manifest cannot be weakened to any other level in the command line.
 
-== Rules
-=== Missing document comment (`missing_doc_comment`)
-Checks (_warned_ by default) for missing documentation comments on public declarations. Including, but not limited to:
+== Documentation rules
+=== Missing documentation comment (`missing_doc_comment`)
+Checks (_warned_ by default) for missing https://ziglang.org/documentation/0.16.0/#Doc-Comments[documentation comments] on public declarations. Including, but not limited to:
 
 * https://ziglang.org/documentation/0.16.0/#Functions[Functions and its parameters]
 * https://ziglang.org/documentation/0.16.0/#Variables[Global variables]
@@ -106,10 +119,12 @@ For `pub const Foo = @import("other.zig").Bar`, the rule follows the re-export c
 * If resolution fails, the re-export is skipped to avoid false positives.
 
 === Empty documentation comment (`empty_doc_comment`)
-Checks (_warned_ by default) for comments that are present but blank.
+Checks (_warned_ by default) for comments that are present but blank/empty.
+
+For guidance on how to write good documentation comments, see https://ziglang.org/documentation/0.16.0/#Doc-Comment-Guidance[Zig’s documentation comment guidance].
 
 === Missing documentation test (`missing_doctest`)
-Checks (_allowed_ by default) for public declarations doctest coverage.
+Checks (_allowed_ by default) for https://ziglang.org/documentation/0.16.0/#Doctests[documentation test] coverage.
 
 .What it checks:
 * Collects top-level `pub fn name(...)` declarations.
@@ -120,25 +135,25 @@ Checks (_allowed_ by default) for public declarations doctest coverage.
 * String-literal test names (for example `test "name"`) are not counted
 as doctests for this rule.
 
-=== Rule: Private documentation test (`private_doctest`)
+=== Private documentation test (`private_doctest`)
 Checks that identifier-style doctests reference public symbols.
 
 .What it checks:
 * Collects top-level public function names and public variable/constant names.
 * For each `test name { ... }`, emits a diagnostic if `name` is not public.
 
-==== Documentation test naming mismatch (`doctest_naming_mismatch`)
+=== Documentation test naming mismatch (`doctest_naming_mismatch`)
 Checks for style mismatch when a doctest name matches a public function but is written as a string literal.
 
 .What it checks:
 * If `pub fn foo(...)` exists and the file uses `test "foo"`, it suggests using `test foo`.
 
-===== Future refactoring due to extension proposal
+==== Future refactoring due to extension proposal
 There’s an open proposal to extend the syntax of document tests by Mitchell Hashimoto: https://github.com/ziglang/zig/issues/19518. It aims to allow multiple document test declarations, each one having its own description.
 
-// TODO: TODO: `//!` aren't called container doc comments, but rather top-level doc comments, so these should be renamed across all the project for consistency, review and check for inconsistencies.
-==== Missing top-level documentation comment (`missing_top_level_doc_comment`)
-Checks (_warned_ by default) for missing top-level documentation comments.
+// TODO: `//!` aren't called container doc comments, but rather top-level doc comments, so these should be renamed across all the project for consistency, review and check for inconsistencies.
+=== Missing top-level documentation comment (`missing_top_level_doc_comment`)
+Checks (_warned_ by default) for missing https://ziglang.org/documentation/0.16.0/#Top-Level-Doc-Comments[top-level documentation comments].
 
 .What it checks:
 * File-level module doc comment (`//!`) at the start of a library entry point file (the implicit module container). Named `pub const` structs, enums, and unions use `///` doc comments instead; inner `//!` is not required or expected on those types.
@@ -147,10 +162,10 @@ Checks (_warned_ by default) for missing top-level documentation comments.
 * _Missing documentation comment,_ because the comment is missing.
 * _Empty documentation comment,_ if the comment is present but blank.
 
-===== Future refactoring due to removal proposal
+==== Future refactoring due to removal proposal
 Top-level comments are marked as an https://codeberg.org/ziglang/zig/issues/30132[_urgent proposal_ for removal]. If it’s removed, this rule will be refactored to the respective alternative.
 
-==== Missing entry point documentation comment (`missing_entry_point_doc_comment`)
+=== Missing entry point documentation comment (`missing_entry_point_doc_comment`)
 Checks (_warned_ by default) for missing documentation comments on the entry point of a module.
 
 This is specially relevant for libraries or public package modules, where a library has a single entry point (the root source file), and this rule ensures that the entry point itself is documented.
@@ -160,43 +175,105 @@ This is specially relevant for libraries or public package modules, where a libr
 * _Empty documentation comment,_ if the comment is present but blank.
 * _Missing top-level documentation comment,_ because the type of documentation comment for the entry point is a top-level one.
 
-== Style checks
-.Includes
-* Naming conventions
-* LoC column lengh
-* File size
+=== Starts with _module_
+Checks that a module entry-point doc comment starts with _Module_. Inspired by https://github.com/godoc-lint/godoc-lint#pkg-doc[Godoc-Lint's `pkg-doc` rule].
 
-== Complexity checks
-.Includes
-* Cognitive complexity
-* Cyclomatic complexity
-* Nesting depth
-* NLoC in functions
-* Function parameter count
+For example, let's consider https://github.com/jassielof/carnaval[Carnaval's] module entry point (`src/lib/root.zig`).
+
+.Compliant
+[source,zig]
+----
+//! Module carnaval provides style definitions and utilities for formatting output in the terminal.
+----
+
+.Non-compliant
+[source,zig]
+----
+//! This module provides style definitions and utilities for formatting output in the terminal.
+----
+
+=== Starts with _identifier_
+Checks that a declaration doc comment starts with its identifier. Inspired by https://github.com/godoc-lint/godoc-lint#start-with-name[Godoc-Lint's `start-with-name` rule].
+
+For example, let's consider an addition function.
+
+.Compliant
+[source,zig]
+----
+///
+pub fn add(a: i32, b: i32) i32 {
+    return a + b;
+}
+----
+
+.Non-compliant
+[source,zig]
+----
+
+----
+
+// Both style and complexity are yet in low priority, I'll want to first find a stable point with the doc linting to then pass to these style/complexity checks. Defaults should be defined here.
+== Style rules
+=== Naming conventions
+Naming conventions for declarations and module (file names) follow the https://ziglang.org/documentation/0.16.0/#Names[Zig documentation].
+
+.With the following clarifications:
+* Error set values are expected to be snake_cased, even though the standard library uses PascalCase for them, they technically fall under the value category, similar to enumeration values. And Zig itself isn't quite consistent with https://ziglang.org/documentation/0.16.0/std/#std.builtin.OptimizeMode[its own naming conventions]
+
+==== Tiger Beetle's Tiger Style
+
+Tiger Beetle has its own style convention called https://tigerstyle.dev/[Tiger Style], and it's a nice reference point to consider for _experience_:
+
+* https://tigerstyle.dev/#nouns-and-verbs[Noun and Verbs]
+* https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md#naming-things[Naming things (Markdown version, more detailed)]
+
+It's also worth considering for its 3 main points: _Safety, Performance, and Experience_.
+
+=== LoC column lengh
+// TODO: Figure out if including inline comments might be a good idea, for example, `const foo = "bar" // this is an inline comment.`
+Considering up to the last valid code character in the line, excluding inline comments.
+
+// File size is a low priority, meaning I need to define the details on how it's gonna be implemented yet properly, so other checks should be focused first.
+=== File size
+.By:
+** NLoC
+** Byte size
+
+// TODO: Here also figure out how will the function size be determined, in Lizard for example, there are 2 main metrics, length which considers all the factors mentioned, and NLoC which excludes blank lines and comments As they aren't true LoCs. Also as low priority like file size.
+=== Function size
+.Affected by the following factors:
+** Comments
+** Blank or empty lines
+** True LoC, the code per se
+** Braces (Zig's defaults to inline opening brace and newline closing brace)
+** Function signature, the whole declaration of the function (e.g. `fn hello()`)
+
+== Complexity rules
+=== Cyclomatic complexity
+By default a limit of 10.
+
+=== Cognitive complexity
+By default the recommended (default) by Sonar, which is 15.
+// Both depth and control structure are taken from how Lizard defines them, but Lizard defines them quite vague, it's mostly understandable once you read its source code, but basically the nested control structures metric is the one similar to the Linux guideline of maximum of 3 levels of indentation or depth. While the nesting depth metric, is similar to the control structure one, except it takes in consideration the logic/branches within the condition. So these 2 are low priority.
+=== Nesting depth
+=== Nested control structures
+
+// Function parameter count seems the easiest to implement.
+=== Function parameter count
 
 == References
-=== Zig documentation
-.On documentation comments:
-* https://ziglang.org/documentation/0.16.0/#Doc-Comments
-* https://ziglang.org/documentation/0.16.0/#Top-Level-Doc-Comments
-* https://ziglang.org/documentation/0.16.0/#Doctests
-* https://ziglang.org/documentation/0.16.0/#Doc-Comment-Guidance
-
 === Rust
-The user already has the two core Rust links. A third Clippy-specific lint is worth adding for private item coverage, since `rustc`’s `missing_docs` only covers public items: https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs[github]
-
-* https://doc.rust-lang.org/rustdoc/lints.html — full list of `rustdoc` lints (`missing_docs`, `missing_doc_code_examples`, `broken_intra_doc_links`, etc.) https://doc.rust-lang.org/rustdoc/lints.html[doc.rust-lang]
-** Zig docs seem to support intra links by only wrapping on backticks.
-* https://doc.rust-lang.org/beta/rustc/lints/listing/allowed-by-default.html#missing-docs — `rustc`-level `missing_docs` lint details (allowed by default, enable with `#![warn/deny(missing_docs)]`) https://bsdwatch.net/docs/sharedocs/rust/html/rustdoc/lints.html[bsdwatch]
-* https://rust-lang.github.io/rust-clippy/master/index.html#missing_docs_in_private_items — Clippy’s `MISSING_DOCS_IN_PRIVATE_ITEMS` (restriction lint), which extends coverage to private items that `rustc` ignores https://github.com/rust-lang/rust-clippy/blob/master/clippy_lints/src/missing_doc.rs[github]
+* https://doc.rust-lang.org/rustdoc/lints.html[The Rustdoc book, 5. Rustdoc-specific lints]
+// TODO: Zig docs seem to support intra links by only wrapping on backticks (e.g. `/// This is a doc comment with an intra link to the `foo` function`), as it's linked in the generated docs, but I can't find a reference of it anywhere. So, this gives the possibility to index every single declaration to later do a broken intra links lint rule, which would be hard. But at the same time useful for checks like unused code. The only reference to doc syntax is by looking at the source code of the parser at https://codeberg.org/ziglang/zig/src/commit/b86841244421da7001a070e9515e57223f695674/lib/docs/wasm/markdown.zig, and there's an open issue on documenting its syntax https://github.com/ziglang/zig/issues/19866.
+* https://doc.rust-lang.org/rustc/lints/[The Rustc book, 4. Lints]
+** https://doc.rust-lang.org/rustc/lints/listing/allowed-by-default.html#missing-docs[Missing docs rule]
+* https://rust-lang.github.io/rust-clippy/master/index.html[Clippy lints related to documentation (filter by doc/s or documentation)]
 
 === Go
-Go has no compiler-level equivalent to `#![deny(missing_docs)]`. The canonical approach is through external linters, backed by the official doc comment spec: https://go.dev/doc/comment[go]
-
-* https://go.dev/doc/comment — official Go doc comment syntax specification (paragraphs, headings, links, lists, code blocks, and formatting rules enforced by `gofmt`) https://go.dev/doc/comment[go]
-* https://pkg.go.dev/go/doc/comment — `go/doc/comment` standard library package for parsing and reformatting doc comments programmatically https://pkg.go.dev/go/doc/comment[pkg.go]
-* https://github.com/godoc-lint/godoc-lint — dedicated godoc lint checker with rules like `require-doc`, `start-with-name`, `deprecated`, `max-len`, `no-unused-link`, and `require-stdlib-doclink` https://github.com/godoc-lint/godoc-lint[github]
-* https://golangci-lint.run/docs/linters/ — `golangci-lint` integrates `godoclint` as a configurable linter runner with YAML-based rule configuration https://golangci-lint.run/docs/linters/[golangci-lint]
+* https://go.dev/doc/comment[Go Doc Comments]
+* https://pkg.go.dev/go/doc/comment[Standard library package `go/doc/comment`]
+* https://github.com/godoc-lint/godoc-lint[Go Doc Lint]
+* https://golangci-lint.run/docs/linters/[Go CI linter suite]
 
 == Credits
-Mainly Rust/Cargo’s documentation (and probably Clippy too) linter checks, while also taking inspiration from Go’s linting.
+Mainly Rust/Cargo’s documentation (and probably Clippy too) and linter checks, while also taking inspiration from Go’s linting tooling. As well as https://codeberg.org/RhyosLabs/ephor[Scott Matheina’s Ephor]
