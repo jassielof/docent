@@ -1,0 +1,147 @@
+= Linting Rules
+== Documentation rules
+For examples on each rule, see the link:{test-fixtures}[test fixtures] to understand what's valid and what's not.
+
+=== Missing documentation comment (`missing_doc_comment`)
+Checks (_warned_ by default) for missing {zig-docs}#Doc-Comments[documentation comments] on public declarations. Including, but not limited to:
+
+* {zig-docs}#Functions[Functions and its parameters]
+* {zig-docs}#Variables[Global variables]
+* {zig-docs}#enum[Enumerations and its fields]
+* {zig-docs}#struct[Structures and its fields]
+* {zig-docs}#union[Unions and its fields]
+* {zig-docs}#Errors[Error sets]
+** Error set fields aren’t checked since Zig documentation generator doesn’t support them.
+
+==== Re-exported declarations
+Public re-exports are resolved transitively.
+
+For `pub const Foo = @import("other.zig").Bar`, the rule follows the re-export chain and checks the documentation on the final resolved declaration.
+
+* If the resolved declaration is documented, no diagnostic is emitted.
+* If it is undocumented, the diagnostic points to the resolved declaration.
+* If resolution fails, the re-export is skipped to avoid false positives.
+
+=== Empty documentation comment (`empty_doc_comment`)
+Checks (_warned_ by default) for comments that are present but blank/empty.
+
+For guidance on how to write good documentation comments, see {zig-docs}#Doc-Comment-Guidance[Zig’s documentation comment guidance].
+
+=== Missing documentation test (`missing_doctest`)
+Checks (_allowed_ by default) for {zig-docs}#Doctests[documentation test] coverage.
+
+.What it checks:
+* Collects top-level `pub fn name(...)` declarations.
+* Collects identifier-style tests `test name { ... }`.
+* Emits a diagnostic when a public function has no matching identifier-style doctest.
+
+.Notes:
+* String-literal test names (for example `test "name"`) are not counted
+as doctests for this rule.
+
+=== Private documentation test (`private_doctest`)
+Checks that identifier-style doctests reference public symbols.
+
+.What it checks:
+* Collects top-level public function names and public variable/constant names.
+* For each `test name { ... }`, emits a diagnostic if `name` is not public.
+
+=== Documentation test naming mismatch (`doctest_naming_mismatch`)
+Checks for style mismatch when a doctest name matches a public function but is written as a string literal.
+
+.What it checks:
+* If `pub fn foo(...)` exists and the file uses `test "foo"`, it suggests using `test foo`.
+
+==== Future refactoring due to extension proposal
+There’s an https://github.com/ziglang/zig/issues/19518[open proposal to extend the syntax of document tests by Mitchell Hashimoto]. It aims to allow multiple document test declarations, each one having its own description.
+
+// TODO: `//!` aren't called container doc comments, but rather top-level doc comments, so these should be renamed across all the project for consistency, review and check for inconsistencies.
+=== Missing top-level documentation comment (`missing_top_level_doc_comment`)
+Checks (_warned_ by default) for missing {zig-docs}#Top-Level-Doc-Comments[top-level documentation comments].
+
+.What it checks:
+* File-level module doc comment (`//!`) at the start of a library entry point file (the implicit module container). Named `pub const` structs, enums, and unions use `///` doc comments instead; inner `//!` is not required or expected on those types.
+
+.This rule works as an extension of the following rules:
+* _Missing documentation comment,_ because the comment is missing.
+* _Empty documentation comment,_ if the comment is present but blank.
+
+==== Future refactoring due to removal proposal
+Top-level comments are marked as an https://codeberg.org/ziglang/zig/issues/30132[_urgent proposal_ for removal]. If it’s removed, this rule will be refactored to the respective alternative.
+
+=== Missing entry point documentation comment (`missing_entry_point_doc_comment`)
+Checks (_warned_ by default) for missing documentation comments on the entry point of a module.
+
+This is specially relevant for libraries or public package modules, where a library has a single entry point (the root source file), and this rule ensures that the entry point itself is documented.
+
+.The rule works as an extension of the following rules:
+* _Missing documentation comment,_ because the comment is missing.
+* _Empty documentation comment,_ if the comment is present but blank.
+* _Missing top-level documentation comment,_ because the type of documentation comment for the entry point is a top-level one.
+
+=== Starts with _module_
+Checks that a module entry-point doc comment starts with _Module_. Inspired by https://github.com/godoc-lint/godoc-lint#pkg-doc[Godoc-Lint's `pkg-doc` rule].
+
+For example, let's consider https://github.com/jassielof/carnaval[Carnaval's] module entry point (`src/lib/root.zig`).
+
+.Valid examples:
+* link:{valid-fixtures}starts_with_module[]
+
+.Invalid examples
+
+=== Starts with _identifier_
+Checks that a declaration doc comment starts with its identifier. Inspired by https://github.com/godoc-lint/godoc-lint#start-with-name[Godoc-Lint's `start-with-name` rule]. And to have consistency within module declarations, Go style conventions for this case are quite recoverable, considering the fact that Zig and Go are both take motivation from C. So following Go style rules and conventions and adapting them to Zig seems like a good idea overall.
+
+.Examples:
+* Valid:
+** link:{valid-fixtures}starts_with_identifier[]
+* Invalid:
+** link:{invalid-fixtures}starts_with_identifier[]
+
+// Both style and complexity are yet in low priority, I'll want to first find a stable point with the doc linting to then pass to these style/complexity checks. Defaults should be defined here.
+== Style rules
+=== Naming conventions
+Naming conventions for declarations and module (file names) follow the {zig-docs}#Names[Zig documentation].
+
+.With the following clarifications:
+* Error set values are expected to be snake_cased, even though the standard library uses PascalCase for them, they technically fall under the value category, similar to enumeration values. And Zig itself isn't quite consistent with {zig-docs}std/#std.builtin.OptimizeMode[its own naming conventions]
+
+==== Tiger Beetle's Tiger Style
+Tiger Beetle has its own style convention called https://tigerstyle.dev/[Tiger Style], and it's a nice reference point to consider for _experience_:
+
+* https://tigerstyle.dev/#nouns-and-verbs[Noun and Verbs]
+* https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md#naming-things[Naming things (Markdown version, more detailed)]
+
+It's also worth considering for its 3 main points: _Safety, Performance, and Experience_.
+
+=== LoC column lengh
+// TODO: Figure out if including inline comments might be a good idea, for example, `const foo = "bar" // this is an inline comment.`
+Considering up to the last valid code character in the line, excluding inline comments.
+
+// File size is a low priority, meaning I need to define the details on how it's gonna be implemented yet properly, so other checks should be focused first.
+=== File size
+.By:
+** NLoC
+** Byte size
+
+// TODO: Here also figure out how will the function size be determined, in Lizard for example, there are 2 main metrics, length which considers all the factors mentioned, and NLoC which excludes blank lines and comments As they aren't true LoCs. Also as low priority like file size.
+=== Function size
+.Affected by the following factors:
+** Comments
+** Blank or empty lines
+** True LoC, the code per se
+** Braces (Zig's defaults to inline opening brace and newline closing brace)
+** Function signature, the whole declaration of the function (e.g. `fn hello()`)
+
+== Complexity rules
+=== Cyclomatic complexity
+By default a limit of 10.
+
+=== Cognitive complexity
+By default the recommended (default) by Sonar, which is 15.
+// Both depth and control structure are taken from how Lizard defines them, but Lizard defines them quite vague, it's mostly understandable once you read its source code, but basically the nested control structures metric is the one similar to the Linux guideline of maximum of 3 levels of indentation or depth. While the nesting depth metric, is similar to the control structure one, except it takes in consideration the logic/branches within the condition. So these 2 are low priority.
+=== Nesting depth
+=== Nested control structures
+
+// Function parameter count seems the easiest to implement.
+=== Function parameter count
