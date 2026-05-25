@@ -1,3 +1,4 @@
+//! Test suite aggregator.
 const std = @import("std");
 const testing = std.testing;
 const refAllDecls = testing.refAllDecls;
