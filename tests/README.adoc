@@ -1,8 +1,5 @@
 = Test Suite
 
-The test suite is a collection of tests that are used to verify the correctness and functionality of Docent linting rules. At the same time, these tests serve as examples of DOs and DON'Ts for each rule.
+The test suite verifies the correctness of linting rules and doubles as living examples of what Docent considers valid and invalid.
 
-[source,zig]
-----
-include::suite.zig[]
-----
+Each Zig test module is documented with its purpose and the rules it covers. To browse valid and invalid cases directly, refer to the link:fixtures[fixtures directory].

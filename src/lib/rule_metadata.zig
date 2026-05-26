@@ -58,7 +58,9 @@ pub const rules: []const RuleRow = &.{
 
 comptime {
     const fnames = RuleSet.fieldNames();
-    if (rules.len != fnames.len) @compileError("rule_metadata.rules length must match RuleSet fields");
+    if (rules.len != fnames.len)
+        @compileError("rule_metadata.rules length must match RuleSet fields");
+
     for (rules, fnames) |row, n| {
         if (!std.mem.eql(u8, row.name, n)) @compileError("rule_metadata.rules order/names must match RuleSet fields");
     }

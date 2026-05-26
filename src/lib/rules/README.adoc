@@ -1,9 +1,26 @@
 = Linting Rules
-== Documentation rules
-For examples on each rule, see the link:{test-fixtures}[test fixtures] to understand what's valid and what's not.
 
-=== Missing documentation comment (`missing_doc_comment`)
-Checks (_warned_ by default) for missing {zig-docs}#Doc-Comments[documentation comments] on public declarations. Including, but not limited to:
+Several rules are inspired by established Go documentation conventions, particularly those enforced by <<godoc-comments>> and <<godoc-lint>>. Go's standard library is notable for its strict, consistent documentation guidelines, and its tooling ecosystem — especially <<golangci-lint>>'s aggregation approach — reflects a culture of broad, opinionated quality checks across style, complexity, and documentation simultaneously.
+
+Rust's Rustdoc and Clippy also informed specific rules here, though their documentation linting tends to focus narrower: missing docs and broken intra-links, etc.. Both ecosystems influenced Docent's rule design.
+
+While default rules focus on documentation comments, style and complexity rules are also available as explicit sub-commands. The reasoning is mostly separation of concerns, as well as keeping consistency with other ecosystem's tooling.
+
+[NOTE]
+.Severity and examples
+====
+* For severity levels, see the link:{website}lib/#docent.Severity[library documentation].
+* Each rule description starts with the verb of the severity level, for example, _"Warns on...", "Allows..."_, etc...
+* For examples, see <<_test_suite>>.
+====
+
+== Doc comments
+
+By default, these rules will be enforced across the public API surface. One can also configure the rules selectively or completely if desired to consider private declarations as well.
+
+=== Missing doc comment
+
+Warns on missing doc comments on public declarations. Including, but not limited to:
 
 * {zig-docs}#Functions[Functions and its parameters]
 * {zig-docs}#Variables[Global variables]
@@ -14,6 +31,7 @@ Checks (_warned_ by default) for missing {zig-docs}#Doc-Comments[documentation c
 ** Error set fields aren’t checked since Zig documentation generator doesn’t support them.
 
 ==== Re-exported declarations
+
 Public re-exports are resolved transitively.
 
 For `pub const Foo = @import("other.zig").Bar`, the rule follows the re-export chain and checks the documentation on the final resolved declaration.
@@ -22,84 +40,101 @@ For `pub const Foo = @import("other.zig").Bar`, the rule follows the re-export c
 * If it is undocumented, the diagnostic points to the resolved declaration.
 * If resolution fails, the re-export is skipped to avoid false positives.
 
-=== Empty documentation comment (`empty_doc_comment`)
-Checks (_warned_ by default) for comments that are present but blank/empty.
+==== Specializations
+
+To help with clarifications and context, the following cases are reported with a more specific diagnostic message.
+
+Missing module doc comment::
+Warns on missing doc comments on the module root source file.
+
+Missing source file doc comment::
+Warns on missing doc comments on source files, this is mainly applied to implicit struct files and namespaces that are re-exported and exposed to the API surface, or reached from the module root.
+
+=== Empty doc comment
+
+Warns on comments that are present but empty.
 
 For guidance on how to write good documentation comments, see {zig-docs}#Doc-Comment-Guidance[Zig’s documentation comment guidance].
 
-=== Missing documentation test (`missing_doctest`)
-Checks (_allowed_ by default) for {zig-docs}#Doctests[documentation test] coverage.
+==== Specializations
+
+To help with clarifications and context, the following cases are reported with a more specific diagnostic message.
+
+Empty module doc comment::
+Warns on empty doc comments on the module root source file.
+
+// TODO: This is a bit complex, for example, if the module root, re-exports as an alias an implicit struct module or a namespace module, and that imported module doesn't have a doc comment, it should throw the warning of a missing doc comment, but it should explain that it is a missing module doc comment. For example, if I have a namespace called "enums.zig", that aggregates a lot of enums, and I only re-export a single enum from there, while the rest being private from the library, the missing module doc warning shouldn't be emitted, as the module isn't being exposed as a public API, but rather its selected content.
+Empty source file doc comment::
+Warns on empty doc comments on source files, this is mainly applied to implicit struct files and
+
+=== Missing doctest
+Allows declarations to have missing doctests.
 
 .What it checks:
 * Collects top-level `pub fn name(...)` declarations.
 * Collects identifier-style tests `test name { ... }`.
 * Emits a diagnostic when a public function has no matching identifier-style doctest.
 
-.Notes:
-* String-literal test names (for example `test "name"`) are not counted
-as doctests for this rule.
-
-=== Private documentation test (`private_doctest`)
-Checks that identifier-style doctests reference public symbols.
+=== Private doctest
+Allows a doctest to reference a private declaration.
 
 .What it checks:
 * Collects top-level public function names and public variable/constant names.
 * For each `test name { ... }`, emits a diagnostic if `name` is not public.
 
-=== Documentation test naming mismatch (`doctest_naming_mismatch`)
-Checks for style mismatch when a doctest name matches a public function but is written as a string literal.
+=== Doctest name mismatch
+Warns when a test is likely intended as a doctest but won't be recognized as one.
 
-.What it checks:
-* If `pub fn foo(...)` exists and the file uses `test "foo"`, it suggests using `test foo`.
+NOTE: Only checks declarations within the same source file. Cross-file cases are out of scope, mismatched imports are compile errors, and cross-file ambiguitiy makes reliable suggestions infeasible.
 
-==== Future refactoring due to extension proposal
-There’s an https://github.com/ziglang/zig/issues/19518[open proposal to extend the syntax of document tests by Mitchell Hashimoto]. It aims to allow multiple document test declarations, each one having its own description.
+.Checks:
+String literal match:: `test "foo"` where `pub fn foo(...)` exists – suggests rewriting as `test foo`.
+Casing mismatch:: `test Foo` where `Foo` has no matching public declaration but `foo` does — suggests rewriting with the correct casing.
 
-// TODO: `//!` aren't called container doc comments, but rather top-level doc comments, so these should be renamed across all the project for consistency, review and check for inconsistencies.
-=== Missing top-level documentation comment (`missing_top_level_doc_comment`)
-Checks (_warned_ by default) for missing {zig-docs}#Top-Level-Doc-Comments[top-level documentation comments].
+.Checks:
+String literal match:: When a public declaration exists with the same name as a string-literal test, suggests rewriting it as an identifier-style test instead.
+Casing mismatch:: When an identifier-style test has no matching public declaration but one exists under a different casing, suggests the correctly cased identifier.
 
-.What it checks:
-* File-level module doc comment (`//!`) at the start of a library entry point file (the implicit module container). Named `pub const` structs, enums, and unions use `///` doc comments instead; inner `//!` is not required or expected on those types.
+.Checks:
+String literal match:: A test that matches an existing public declaration by identifier — suggests rewriting it as a doctest.
+Casing mismatch:: A doctest identifier that has no matching public declaration
+but a case-variant of it does — suggests the correct casing. Currently limited
+to capitalization differences; snake_case normalization may be added later.
 
-.This rule works as an extension of the following rules:
-* _Missing documentation comment,_ because the comment is missing.
-* _Empty documentation comment,_ if the comment is present but blank.
+=== Starts with _"Module"_
+Warns if a module root doc comment doesn't start with _Module <name>..._.
 
-==== Future refactoring due to removal proposal
-Top-level comments are marked as an https://codeberg.org/ziglang/zig/issues/30132[_urgent proposal_ for removal]. If it’s removed, this rule will be refactored to the respective alternative.
+.Checks:
+Matching case:: It's valid if the module name case differs in casing.
+English articles:: It's valid if it's preceded by an English article (a, an, the).
+Backticked:: It's valid if the module name is wrapped in backticks.
 
-=== Missing entry point documentation comment (`missing_entry_point_doc_comment`)
-Checks (_warned_ by default) for missing documentation comments on the entry point of a module.
+.Options:
+Module name consistency:: Whether to enforce the consistency of the module name in the doc comment with the actual module name.
+Backtick consistency:: Whether to enforce a consistent use of backticks for module names in doc comments.
 
-This is specially relevant for libraries or public package modules, where a library has a single entry point (the root source file), and this rule ensures that the entry point itself is documented.
+=== Starts with _"identifier"_
+Warns, on declaration doc comments, if it doens't start with its identifier.
 
-.The rule works as an extension of the following rules:
-* _Missing documentation comment,_ because the comment is missing.
-* _Empty documentation comment,_ if the comment is present but blank.
-* _Missing top-level documentation comment,_ because the type of documentation comment for the entry point is a top-level one.
+.Checks:
+Matching casing:: Use of matching casing.
+Backticked:: It's valid if its respective identifier is wrapped in backticks. Configuration
+English articles:: It's valid if it's preceded by an English article (a, an, the).
 
-=== Starts with _module_
-Checks that a module entry-point doc comment starts with _Module_. Inspired by https://github.com/godoc-lint/godoc-lint#pkg-doc[Godoc-Lint's `pkg-doc` rule].
+.Options:
+Backtick consistency:: Whether to enforce a consistent use of backticks.
 
-For example, let's consider https://github.com/jassielof/carnaval[Carnaval's] module entry point (`src/lib/root.zig`).
+=== Ends with punctuation mark
+Warns if, within a doc comment, a sentence or paragraph doesn't end with a punctuation mark.
 
-.Valid examples:
-* link:{valid-fixtures}starts_with_module[]
+.Checks:
+Last character:: Checks if the last character of a sentence or paragraph is a punctuation mark (e.g., period, exclamation mark, question mark).
 
-.Invalid examples
-
-=== Starts with _identifier_
-Checks that a declaration doc comment starts with its identifier. Inspired by https://github.com/godoc-lint/godoc-lint#start-with-name[Godoc-Lint's `start-with-name` rule]. And to have consistency within module declarations, Go style conventions for this case are quite recoverable, considering the fact that Zig and Go are both take motivation from C. So following Go style rules and conventions and adapting them to Zig seems like a good idea overall.
-
-.Examples:
-* Valid:
-** link:{valid-fixtures}starts_with_identifier[]
-* Invalid:
-** link:{invalid-fixtures}starts_with_identifier[]
+=== Trailing empty lines in doc comments
+Warns if doc comments have trailing empty lines.
 
 // Both style and complexity are yet in low priority, I'll want to first find a stable point with the doc linting to then pass to these style/complexity checks. Defaults should be defined here.
-== Style rules
+== Style
 === Naming conventions
 Naming conventions for declarations and module (file names) follow the {zig-docs}#Names[Zig documentation].
 
@@ -120,12 +155,16 @@ Considering up to the last valid code character in the line, excluding inline co
 
 // File size is a low priority, meaning I need to define the details on how it's gonna be implemented yet properly, so other checks should be focused first.
 === File size
+
 .By:
 ** NLoC
 ** Byte size
 
 // TODO: Here also figure out how will the function size be determined, in Lizard for example, there are 2 main metrics, length which considers all the factors mentioned, and NLoC which excludes blank lines and comments As they aren't true LoCs. Also as low priority like file size.
 === Function size
+
+Function size is measured in terms of physical true LoCs, which excludes comments, blank lines, function declaration, and braces.
+
 .Affected by the following factors:
 ** Comments
 ** Blank or empty lines
@@ -133,15 +172,28 @@ Considering up to the last valid code character in the line, excluding inline co
 ** Braces (Zig's defaults to inline opening brace and newline closing brace)
 ** Function signature, the whole declaration of the function (e.g. `fn hello()`)
 
-== Complexity rules
-=== Cyclomatic complexity
-By default a limit of 10.
+Logical LoCs, which counts the number of statements or expressions, isn't considered here, as there are already complexity checks (<<_cyclomatic_complexity>> and <<_cognitive_complexity>>).
 
-=== Cognitive complexity
-By default the recommended (default) by Sonar, which is 15.
+NOTE: This doesn't mean that it will never be implemented, but it's implementation effort will only be considered on demand and contribution.
+
+== Complexity
+
+=== Cyclomatic Complexity
+Defaults to a limit of 10 linearly independent paths, as suggested by <<mccabe-guidance>>. A score of 10–15 is considered _complex_, and anything above 15 is considered _risky_.
+
+NOTE: Unlike tools like Lizard—which can be configured to treat an entire `switch` statement as a single branch—this tool enforces the traditional mathematical definition of _Cyclomatic Complexity_. While some teams modify CC to act as a proxy for readability, it should be used strictly as a **testability metric** (mapping directly to the number of required unit tests). Readability and maintainability are instead handled by **Cognitive Complexity**, which provides a much more reliable metric for human code comprehension.
+
+.Edge cases:
+* Exhaustive `switch` statements over `enum`s are still penalized, as each branch represents a real, testable path regardless of whether the compiler requires it.
+
+=== Cognitive Complexity
+Defaults to the Sonar-recommended threshold of 15. See <<sonar-reasoning>>.
+
 // Both depth and control structure are taken from how Lizard defines them, but Lizard defines them quite vague, it's mostly understandable once you read its source code, but basically the nested control structures metric is the one similar to the Linux guideline of maximum of 3 levels of indentation or depth. While the nesting depth metric, is similar to the control structure one, except it takes in consideration the logic/branches within the condition. So these 2 are low priority.
 === Nesting depth
 === Nested control structures
 
 // Function parameter count seems the easiest to implement.
 === Function parameter count
+
+Parameter count limits in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, Writergate and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
