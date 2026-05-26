@@ -4,6 +4,12 @@ const std = @import("std");
 
 const path_utils = @import("rules/utils.zig");
 
+fn littletest() void {
+    const te = "hola";const hola = "hola";
+    const a = if (true) "hla" else "hola";
+    if (true) _ = te;
+}
+
 pub const Diagnostic = @import("Diagnostic.zig");
 pub const LintResult = @import("LintResult.zig");
 pub const output = @import("Output.zig");
@@ -12,6 +18,7 @@ pub const RuleSet = @import("RuleSet.zig");
 pub const rule_metadata = @import("rule_metadata.zig");
 pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
+// TODO: Rename to SeverityLevel.
 pub const Severity = @import("Severity.zig").Level;
 pub const manifest = @import("Manifest.zig");
 pub const targeting = @import("Targeting.zig");

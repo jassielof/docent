@@ -1,5 +1,13 @@
-= Docent: Code quality linter for Zig
+= Docent: Code Quality Linter for Zig
+ifdef::backend-html5[]
+:toc: left
+endif::[]
+ifdef::backend-pdf[]
 :toc: auto
+endif::[]
+ifdef::env-github[]
+:toc!:
+endif::[]
 :doctype: book
 :source-highlighter: rouge
 :repo: https://github.com/jassielof/docent/
@@ -13,27 +21,55 @@
 :zig-docs: https://ziglang.org/documentation/{zig-version}/
 :zig-stdlib: {zig-docs}std/
 
+[abstract]
+--
 Docent is a code quality linter for Zig, focused on documentation, complexity and style. It's available as a CLI and library.
+--
 
-== Documentation
+[preface]
+== About this documentation
+
+This documentation covers both the CLI tool and the public library API. The CLI docs are aimed at end users; the library docs target developers embedding Docent programmatically.
+
 .Available as:
-- This README.
+- {website}[This README].
 - {website}cli/[The CLI documentation], available as well as a {website}cli/docent.pdf[PDF] for offline reading.
 - {website}lib/[The library documentation].
 
+[glossary]
 == Concepts and terminology
+
 Some key terms for better understanding taken from the {zig-docs}#Compilation-Model[compilation model]:
 
-* *Zig module:* Any valid Zig file, such as a namespace, or implicit struct, etc.
-* *Manifest:* The `build.zig.zon` file in the project root.
-* *Build system script:* The `build.zig` module.
-** This module works similar to an executable, so it’s basically an entry point with the reserved `build()` public function.
-* *Libraries:* Modules that are meant to be imported by other modules, these don’t have a `main()` public function, and by convention are `usually named `root.zig`, but this is not a strict requirement. When `scanned, the linter will crawl around all the public reachable `declarations from the entry point or root source file, *this behavior is `shared across all module types.*
-* *Executables:* Executables are those modules that have the special public function `main()`, a module with that function is strictly considered an executable, treating it as its entry point.
-* *Test modules:* Test modules are similar to libraries, any `test` declaration presence will mark the module as a test module, Zig allows to define special test modules too.
-* *Documentation comments:*
-** Standard: `///`
-** Top-level: `//!`
+Zig module::
+A Zig package or compilation is made up of one or more modules.
+
+Zig source file::
+A Zig source file is a file with the `.zig` extension. A module is defined by a collection of these.
+
+Manifest::
+The project's `build.zig.zon` source file.
+
+Build system script::
+The `build.zig` source file, which works similar to an executable, so it’s basically an module root with the reserved `build()` entry point.
+
+Module root::
+The designated top-level file of a module's source tree, declared in `build.zig`. Serves as the scan origin for the compiler, linter, and doc system. For libraries, it is also the *import surface* resolved by `@import()`. Not to be confused with *entry point*, which is execution-specific and only applies to executables and the test runner. By convention usually named `root.zig`, but this is not a strict requirement.
+
+Module types::
+Libraries or modules per-se:::
+Modules that are meant to be imported by other modules, these don’t have a `main()` public function, and by convention are usually named `root.zig`, but this is not a strict requirement. When scanned, the linter will crawl around all the public reachable declarations from the module root, *this behavior is shared across all module types.*
+
+Executables:::
+Executables are those modules that have the special public function `main()`, a source file with that function is strictly considered an executable, treated as a module root.
+
+Test module:::
+Test modules are similar to libraries, any `test` declaration presence can mark the module as a test module, Zig allows to define special test modules too.
+
+Doc comments:: Documentation comments.
+`///`::: See <<doc-comments>>.
+`//!`::: See <<top-level-doc-comments>>. As well, these are marked as an https://codeberg.org/ziglang/zig/issues/30132[_urgent proposal_ for removal].
+Doctests::: See <<doctests>>. As well, there’s an https://github.com/ziglang/zig/issues/19518[open proposal to extend the syntax by Mitchell Hashimoto]. It aims to allow multiple doctest declarations for the same identifier but each one having its own description.
 
 == Scanning strategy
 === Default scanning without path arguments
@@ -52,7 +88,7 @@ Dependency roots are resolved from the nearest `build.zig.zon` and passed as `ex
 
 .Directory behavior:
 * If a directory contains `root.zig`, Docent treats it as an entrypoint and lints files that are publicly reachable from that root via `pub const ... = @import("...")` chains.
-* If a directory has no `root.zig`, Docent treats each top-level `.zig` file as a module entrypoint and lints the union of their publicly reachable files.
+* If a directory has no `root.zig`, Docent treats each top-level `.zig` file as a module root and lints the union of their publicly reachable files.
 * If no top-level `.zig` files exist, Docent falls back to linting all `.zig` files in that directory tree.
 
 .Reachability notes:
@@ -82,46 +118,53 @@ When explicit paths are provided, the default project discovery is disabled and 
 
 .Path validity
 * Explicit paths are validated strictly by default.
-* If a path does not exist, cannot be accessed, or refers to a non-Zig module, an error is emitted and the process exits with a non-zero status.
+* If a path does not exist, cannot be accessed, or refers to a non-Zig source file, an error is emitted and the process exits with a non-zero status.
 * If a directory is valid but does not yield any Zig lint targets, a warning is emitted and that directory is skipped.
 * If all explicit targets are valid but none yield any Zig lint targets, the process exits with a non-zero status.
 
 .Path resolution
-* If the target is a Zig source file, it is treated as a module entry point candidate.
-* If the target is a directory, module entry points are resolved within that directory.
-* For each resolved file or directory, the module kind is determined:
-** A file containing a public `main()` is treated as an executable entry point.
-** A file containing a public `build()` is treated as a build script entry point.
-** Otherwise, it is treated as a library entry point.
-* In all cases, the publicly reachable API is traversed starting from the resolved entry point.
+* If the target is a Zig source file, it is treated as a module root candidate.
+* If the target is a directory, module roots are resolved within that directory.
+* For each resolved source file or directory, the module kind is determined:
+** A file containing a public `main()` is treated as an executable root module.
+** A file containing a public `build()` is treated as a build script root module.
+** Otherwise, it is treated as a library source file.
+* In all cases, the publicly reachable API is traversed starting from the resolved module root.
 
-// TODO: I should link this to the library section instead of re-explaining it.
-== Severity levels
-All rules accept one of these levels:
+ifdef::env-github[]
+== Linting rules
+Please refer to link:src/lib/rules/README.adoc[Linting rules documentation] for the list of available rules and their details.
 
-* *Allow:* Rule is disabled. No diagnostics are emitted.
-* *Warn:* Diagnostics are emitted, but they do not cause the process to exit with an error code.
-* *Deny:* Diagnostics are emitted, and the process exits with an error code.
-* *Forbid:* Similar to "`Deny`", but the rule cannot be overriden by a subsequent configuration.
+== Test suite
+Please refer to link:tests/README.adoc[Test suite documentation] for the list of available tests and their details.
 
-The distinction between _Deny_ and _Forbid_ matter for locking a rule in CI regardless of any local flag overrides. For example, setting _Forbid_ in the manifest cannot be weakened to any other level in the command line.
+endif::env-github[]
 
-include::src/lib/rules/README.adoc[]
-include::tests/README.adoc[]
+ifndef::env-github[]
+include::src/lib/rules/README.adoc[leveloffset=1]
 
+include::tests/README.adoc[leveloffset=1]
+endif::env-github[]
+
+[bibliography]
 == References
-=== Rust
-* https://doc.rust-lang.org/rustdoc/lints.html[The Rustdoc book, 5. Rustdoc-specific lints]
+
 // TODO: Zig docs seem to support intra links by only wrapping on backticks (e.g. `/// This is a doc comment with an intra link to the `foo` function`), as it's linked in the generated docs, but I can't find a reference of it anywhere. So, this gives the possibility to index every single declaration to later do a broken intra links lint rule, which would be hard. But at the same time useful for checks like unused code. The only reference to doc syntax is by looking at the source code of the parser at https://codeberg.org/ziglang/zig/src/commit/b86841244421da7001a070e9515e57223f695674/lib/docs/wasm/markdown.zig, and there's an open issue on documenting its syntax https://github.com/ziglang/zig/issues/19866.
-* https://doc.rust-lang.org/rustc/lints/[The Rustc book, 4. Lints]
-** https://doc.rust-lang.org/rustc/lints/listing/allowed-by-default.html#missing-docs[Missing docs rule]
-* https://rust-lang.github.io/rust-clippy/master/index.html[Clippy lints related to documentation (filter by doc/s or documentation)]
+* [[[doctests]]] Doctests in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Doctests
+* [[[mccabe-guidance]]] NIST/McCabe guidance (_Structured Testing: A Testing Methodology Using the Cyclomatic Complexity Metric_):
+** Section 2.5: _Limiting cyclomatic complexity to 10_.
+* [[[sonar-reasoning]]] Sonar's reasoning for defaulting cognitive complexity to 15 — https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103
+* [[[doc-comments]]] Doc comments in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Doc-Comments
+* [[[top-level-doc-comments]]] Top-level documentation comments in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Top-Level-Doc-Comments
+* [[[rustdoc-lints]]] The Rustdoc Book — https://doc.rust-lang.org/rustdoc/lints.html[§5. Rustdoc-specific lints].
+* [[[rustc-lints]]] The Rustc Book — https://doc.rust-lang.org/rustc/lints/[§4. Lints].
+* [[[rustc-missing-docs]]] The Rustc Book — https://doc.rust-lang.org/rustc/lints/listing/allowed-by-default.html#missing-docs[Missing docs lint].
+* [[[clippy-lints]]] https://rust-lang.github.io/rust-clippy/master/index.html[Clippy lints] (filter by `doc` or `documentation`).
+* [[[godoc-comments]]] https://go.dev/doc/comment[Go Doc Comments].
+* [[[godoc-comment-pkg]]] Go standard library — https://pkg.go.dev/go/doc/comment[`go/doc/comment`].
+* [[[godoc-lint]]] https://github.com/godoc-lint/godoc-lint[Godoc-Lint].
+* [[[golangci-lint]]] https://golangci-lint.run/docs/linters/[Golangci-lint linter suite].
 
-=== Go
-* https://go.dev/doc/comment[Go Doc Comments]
-* https://pkg.go.dev/go/doc/comment[Standard library package `go/doc/comment`]
-* https://github.com/godoc-lint/godoc-lint[Go Doc Lint]
-* https://golangci-lint.run/docs/linters/[Go CI linter suite]
-
-== Credits
+[acknowledgments]
+== Acknowledgments and prior art
 Mainly Rust/Cargo’s documentation (and probably Clippy too) and linter checks, while also taking inspiration from Go’s linting tooling. As well as https://codeberg.org/RhyosLabs/ephor[Scott Matheina’s Ephor]

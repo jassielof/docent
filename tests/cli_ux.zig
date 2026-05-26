@@ -1,4 +1,4 @@
-//! This tests cover CLI UX aspects of both Docent and Fangz, since Fangz is just a library, Docent works as a first-class user of Fangz, to help me test more complex CLI features in a real-world context.
+//! CLI UX isn't related to linting tests, but rather to cover aspects of Fangz, since it's just a library, Docent works as a first-class user of Fangz, to help test CLI features and general UI/UX in a real-world context.
 
 const std = @import("std");
 const testing = std.testing;

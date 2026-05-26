@@ -1,4 +1,4 @@
-//! Test suite aggregator.
+//! Test suite aggregator, every test module must be imported here to be executed and no test logic should be defined here.
 const std = @import("std");
 const testing = std.testing;
 const refAllDecls = testing.refAllDecls;
