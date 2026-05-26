@@ -4,12 +4,6 @@ const std = @import("std");
 
 const path_utils = @import("rules/utils.zig");
 
-fn littletest() void {
-    const te = "hola";const hola = "hola";
-    const a = if (true) "hla" else "hola";
-    if (true) _ = te;
-}
-
 pub const Diagnostic = @import("Diagnostic.zig");
 pub const LintResult = @import("LintResult.zig");
 pub const output = @import("Output.zig");

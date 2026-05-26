@@ -219,7 +219,7 @@ test "generated AsciiDoc: synopsis, RULE=LEVEL, rules table, no command index by
         .output_dir = out_dir,
     });
 
-    const path = try std.fs.path.join(testing.allocator, &.{ out_dir, "cli.adoc" });
+    const path = try std.fs.path.join(testing.allocator, &.{ out_dir, "docent.adoc" });
     defer testing.allocator.free(path);
 
     const content = try readFileAlloc(path);
