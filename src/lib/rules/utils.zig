@@ -1,6 +1,7 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
 
+// TODO: This normalize path separator util should be delegated to my Vereda library.
 /// Normalizes `\` to `/` so diagnostic paths match Zig source import style on every platform.
 pub fn normalizePathSeparators(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
     if (std.mem.indexOfScalar(u8, path, '\\') == null) return try allocator.dupe(u8, path);

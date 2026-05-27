@@ -10,6 +10,7 @@ ifdef::env-github[]
 endif::[]
 :doctype: book
 :source-highlighter: rouge
+:stem: latexmath
 :repo: https://github.com/jassielof/docent/
 :default-repo-branch: main
 :repo-source: {repo}tree/{default-repo-branch}/
