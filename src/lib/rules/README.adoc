@@ -68,6 +68,7 @@ Blank source file doc comment::
 Warns on blank doc comments on source files, this is mainly applied to implicit struct files and namespaces.
 
 === Missing doctest
+
 Allows declarations to have missing doctests.
 
 .What it checks:
@@ -83,6 +84,7 @@ Allows a doctest to reference a private declaration.
 * For each `test name { ... }`, emits a diagnostic if `name` is not public.
 
 === Doctest name mismatch
+
 Warns when a test is likely intended as a doctest but won't be recognized as one.
 
 NOTE: Only checks declarations within the same source file. Cross-file cases are out of scope, mismatched imports are compile errors, and cross-file ambiguitiy makes reliable suggestions infeasible.
