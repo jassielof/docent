@@ -77,6 +77,7 @@ Allows declarations to have missing doctests.
 * Emits a diagnostic when a public function has no matching identifier-style doctest.
 
 === Private doctest
+
 Allows a doctest to reference a private declaration.
 
 .What it checks:
@@ -144,34 +145,43 @@ Declarations::
 ** `pi` being a global constant or variable.
 ====
 
+The rationale on this rule comes from <<godoc-comments>>. 
+
 === Missing summary terminal punctuation
+
 Warns if, within a doc comment, the first and foremost paragraph (summary) doesn't end with a punctuation mark.
 
 .Checks:
 Last character:: Checks if the last character is a punctuation mark (e.g., period, exclamation mark, question mark).
 
-=== Trailing empty lines in doc comments
-Warns if doc comments have trailing empty lines.
+=== Trailing blank lines
+
+Warns if doc comments have trailing blank lines.
 
 // Both style and complexity are yet in low priority, I'll want to first find a stable point with the doc linting to then pass to these style/complexity checks. Defaults should be defined here.
 == Style
-=== Naming conventions
-Naming conventions for declarations and module (file names) follow the {zig-docs}#Names[Zig documentation].
+
+=== Identifier case
+
+Checks for consistent identifier naming case conventions, by default it follows the {zig-docs}#Names[Zig documentation style]. 
 
 .With the following clarifications:
-* Error set values are expected to be snake_cased, even though the standard library uses PascalCase for them, they technically fall under the value category, similar to enumeration values. And Zig itself isn't quite consistent with {zig-docs}std/#std.builtin.OptimizeMode[its own naming conventions]
+* Error set values are expected to be snake_cased, even though the standard library uses PascalCase for them, they technically fall under the value category, similar to enumeration values. And Zig itself isn't quite consistent with {zig-docs}std/#std.builtin.OptimizeMode[its own conventions].
 
 ==== Tiger Beetle's Tiger Style
-Tiger Beetle has its own style convention called https://tigerstyle.dev/[Tiger Style], and it's a nice reference point to consider for _experience_:
 
-* https://tigerstyle.dev/#nouns-and-verbs[Noun and Verbs]
-* https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md#naming-things[Naming things (Markdown version, more detailed)]
+Tiger Beetle has its own style convention called https://tigerstyle.dev/[Tiger Style], a solid reference point for _experience_:
 
-It's also worth considering for its 3 main points: _Safety, Performance, and Experience_.
+* https://tigerstyle.dev/#nouns-and-verbs[Nouns and Verbs]
+* https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md#naming-things[Naming Things (Markdown version, more detailed)]
 
-=== LoC column lengh
-// TODO: Figure out if including inline comments might be a good idea, for example, `const foo = "bar" // this is an inline comment.`
-Considering up to the last valid code character in the line, excluding inline comments.
+It centers on three pillars: _Safety_, _Performance_, and _Experience_.
+
+This convention is included as a preset.
+
+=== LoC column length
+
+Warns if the true LoC, up to the last valid code character, surpasses the threshold. This excludes comments, whitespace, etc.
 
 // File size is a low priority, meaning I need to define the details on how it's gonna be implemented yet properly, so other checks should be focused first.
 === File size
@@ -186,11 +196,11 @@ Considering up to the last valid code character in the line, excluding inline co
 Function size is measured in terms of physical true LoCs, which excludes comments, blank lines, function declaration, and braces.
 
 .Affected by the following factors:
-** Comments
-** Blank lines
-** True LoC, the code per se
-** Braces (Zig's defaults to inline opening brace and newline closing brace)
-** Function signature, the whole declaration of the function (e.g. `fn hello()`)
+* Comments
+* Blank lines
+* True LoC, the code per se
+* Braces (Zig's defaults to inline opening brace and newline closing brace)
+* Function signature, the whole declaration of the function (e.g. `fn hello()`)
 
 Logical LoCs, which counts the number of statements or expressions, isn't considered here, as there are already complexity checks (<<_cyclomatic_complexity>> and <<_cognitive_complexity>>).
 
@@ -199,6 +209,7 @@ NOTE: This doesn't mean that it will never be implemented, but it's implementati
 == Complexity
 
 === Cyclomatic Complexity
+
 Defaults to a limit of 10 linearly independent paths, as suggested by <<mccabe-guidance>>. A score of 10–15 is considered _complex_, and anything above 15 is considered _risky_.
 
 NOTE: Unlike tools like Lizard—which can be configured to treat an entire `switch` statement as a single branch—this tool enforces the traditional mathematical definition of _Cyclomatic Complexity_. While some teams modify CC to act as a proxy for readability, it should be used strictly as a **testability metric** (mapping directly to the number of required unit tests). Readability and maintainability are instead handled by **Cognitive Complexity**, which provides a much more reliable metric for human code comprehension.
@@ -207,13 +218,15 @@ NOTE: Unlike tools like Lizard—which can be configured to treat an entire `swi
 * Exhaustive `switch` statements over `enum`s are still penalized, as each branch represents a real, testable path regardless of whether the compiler requires it.
 
 === Cognitive Complexity
+
 Defaults to the Sonar-recommended threshold of 15. See <<sonar-reasoning>>.
 
 // Both depth and control structure are taken from how Lizard defines them, but Lizard defines them quite vague, it's mostly understandable once you read its source code, but basically the nested control structures metric is the one similar to the Linux guideline of maximum of 3 levels of indentation or depth. While the nesting depth metric, is similar to the control structure one, except it takes in consideration the logic/branches within the condition. So these 2 are low priority.
 === Nesting depth
+
 === Nested control structures
 
 // Function parameter count seems the easiest to implement.
-=== Function parameter count
+=== Maximum function parameter
 
 Parameter count limits in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, Writergate and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
