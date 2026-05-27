@@ -1,6 +1,5 @@
 .zig-cache
 zig-out
 zig-pkg
-docs
 *.pdf
 *.html

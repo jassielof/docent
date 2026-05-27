@@ -1,3 +1,5 @@
+// TODO: Rename from `empty_doc_comment` to `blank_doc_comment`
+//! The namespace blank_doc_comment 
 //! Flags doc comments that are empty or whitespace-only.
 
 const std = @import("std");

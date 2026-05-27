@@ -1,4 +1,39 @@
-//! Requires doc comments on public declarations; resolves re-exports across files.
+//! The `missing_doc_comment` namespace warns for missing doc comments.
+//!
+//! This includes:
+//!
+//! - Functions and its parameters
+//! - Global variables and constants
+//! - Enumerations and its enumerators
+//! - Structures and its fields
+//! - Unions and its fields
+//! - Error sets, its values (or tags) aren't checked.
+//!
+//! ## Re-exported declarations
+//!
+//! Public re-exports are resolved transitively.
+//!
+//! For example, for `pub const Bar = @import("Foo.zig").Bar`, the rule follows the re-export chain and checks the documentation on the final resolved declaration.
+//!
+//! - If the resolved declaration is documented, no diagnostic is emitted.
+//! - If it is undocumented, the diagnostic points to the resolved declaration.
+//! - If resolution fails, the re-export is skipped to avoid false positives.
+//!
+//! ## Specializations
+//!
+//! To help with clarification and context, the following cases are reported with special diagnostic messages.
+//!
+//! ### Missing module doc comment
+//!
+//! Warns when a module root source file is missing a doc comment.
+//!
+//! ### Missing source file doc comment
+//!
+//! Warns when a source file is missing a doc comment.
+//!
+//! This will produce the respective message depending on the source file type, either a namespace or an implicit structure, that are publicly re-exported and exposed to the API surface (reached from the module root).
+
+const missing_doc_comment = @This();
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -65,9 +100,7 @@ fn checkNode(
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.visib_token) |vt| {
             if (tree.tokenTag(vt) == .keyword_pub and !hasDocComment(tree, var_decl.firstToken())) {
-                // Check whether this is a re-export: `pub const Foo = @import("…").Bar` or `pub const Foo = @import("…")`
-                // If so, delegate to the cross-file resolver rather than emitting a
-                // false positive on the re-export line itself.
+                // Check whether this is a re-export: `pub const Foo = @import("…").Bar` or `pub const Foo = @import("…")`. If so, delegate to the cross-file resolver rather than emitting a false positive on the re-export line itself.
                 const name_tok = var_decl.ast.mut_token + 1;
                 const name = tree.tokenSlice(name_tok);
                 const is_reexport: bool = blk: {
@@ -137,8 +170,7 @@ fn checkVarDeclInit(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    // Fields and `pub fn` inside `const S = struct { ... }` are not public API;
-    // only walk container members when the declaration itself is `pub`.
+    // Fields and `pub fn` inside `const S = struct { ... }` are not public API; only walk container members when the declaration itself is `pub`.
     const decl_is_pub: bool = blk: {
         const vt = var_decl.visib_token orelse break :blk false;
         break :blk tree.tokenTag(vt) == .keyword_pub;
@@ -156,16 +188,9 @@ fn checkVarDeclInit(
     }
 }
 
-// ── Re-export resolution ───────────────────────────────────────────────────
+// When we see `pub const Foo = @import("other.zig").Bar` with no doc comment, we follow the import and check whether `Bar` in `other.zig` has a doc comment there.  If it does, no diagnostic is emitted.  If it doesn't, the diagnostic is pointed at the definition in the imported file, not at the re-export line.
 //
-// When we see `pub const Foo = @import("other.zig").Bar` with no doc comment,
-// we follow the import and check whether `Bar` in `other.zig` has a doc
-// comment there.  If it does, no diagnostic is emitted.  If it doesn't, the
-// diagnostic is pointed at the definition in the imported file, not at the
-// re-export line.
-//
-// If the import cannot be resolved (missing file, package import, parse
-// error, etc.) the re-export is silently skipped — no false positive.
+// If the import cannot be resolved (missing file, package import, parse error, etc.) the re-export is silently skipped — no false positive.
 
 /// Extracted info about a potential re-export expression.
 const ReexportInfo = struct {
@@ -176,8 +201,7 @@ const ReexportInfo = struct {
     field_name: ?[]const u8,
 };
 
-/// Returns info when `node` matches `@import("path").Field`, `@import("path")`, or `alias.field`
-/// where `alias` is a file-local `@import` binding.
+/// Returns info when `node` matches `@import("path").Field`, `@import("path")`, or `alias.field` where `alias` is a file-local `@import` binding.
 fn getReexportInfo(tree: *const Ast, node: Ast.Node.Index) ?ReexportInfo {
     const tag = tree.nodeTag(node);
     if (tag == .field_access) {
@@ -252,10 +276,7 @@ fn getImportPath(tree: *const Ast, node: Ast.Node.Index) ?[]const u8 {
     return raw[1 .. raw.len - 1];
 }
 
-/// Attempts to resolve the re-export and check whether the original
-/// declaration has a doc comment.  Only `OutOfMemory` is propagated; all
-/// other errors (missing file, parse failure, …) are swallowed silently so
-/// that unresolvable imports never produce false positives.
+/// Attempts to resolve the re-export and check whether the original declaration has a doc comment.  Only `OutOfMemory` is propagated; all other errors (missing file, parse failure, …) are swallowed silently so that unresolvable imports never produce false positives.
 fn tryResolveReexport(
     info: ReexportInfo,
     decl_name: []const u8,
@@ -489,8 +510,7 @@ const FoundDecl = struct {
     name_tok: Ast.TokenIndex,
 };
 
-/// Searches `decl` (a root-level node) for a declaration named `name` and
-/// returns the first/name tokens needed for doc-comment checking.
+/// Searches `decl` (a root-level node) for a declaration named `name` and returns the first/name tokens needed for doc-comment checking.
 fn findNamedDecl(tree: *const Ast, decl: Ast.Node.Index, name: []const u8) ?FoundDecl {
     if (tree.fullVarDecl(decl)) |vd| {
         const nt = vd.ast.mut_token + 1;
@@ -508,8 +528,6 @@ fn findNamedDecl(tree: *const Ast, decl: Ast.Node.Index, name: []const u8) ?Foun
     }
     return null;
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────
 
 fn hasDocComment(tree: *const Ast, first_token: Ast.TokenIndex) bool {
     if (first_token == 0) return false;
@@ -534,8 +552,6 @@ fn isContainerDecl(tag: Ast.Node.Tag) bool {
         else => false,
     };
 }
-
-// ── Tests ──────────────────────────────────────────────────────────────────
 
 const TestResult = struct {
     msg_arena: std.heap.ArenaAllocator,
