@@ -15,6 +15,7 @@ pub const addLintStep = scaffold.addLintStep;
 // TODO: Rename to SeverityLevel.
 pub const Severity = @import("Severity.zig").Level;
 pub const manifest = @import("Manifest.zig");
+pub const config = @import("Config.zig");
 pub const targeting = @import("Targeting.zig");
 pub const status_plan = @import("StatusPlan.zig");
 pub const build_scan = @import("BuildScan.zig");

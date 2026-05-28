@@ -16,6 +16,8 @@ fn wireCliTree(app: *fangz.App) !void {
         .variadic = true,
     });
 
+    try cli.registerConfigPathFlag(root);
+
     try root.addFlag(cli.OutputMode, .{
         .name = "format",
         .short = 'f',
@@ -76,6 +78,22 @@ test "short help: no rule override flags" {
     try testing.expect(std.mem.indexOf(u8, text, "<RULE=LEVEL>") == null);
     try testing.expect(std.mem.indexOf(u8, text, "--rule") == null);
     try testing.expect(std.mem.indexOf(u8, text, "--all") == null);
+}
+
+test "full help: documents --config-path" {
+    var app = try makeCliApp();
+    defer app.deinit();
+
+    try wireCliTree(&app);
+    try app.root_command.freeze();
+
+    var buf: [32768]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+    try fangz.HelpRenderer.render(&writer, app.root(), .none, .full);
+    const text = writer.buffered();
+
+    try testing.expect(std.mem.indexOf(u8, text, "--config-path") != null);
+    try testing.expect(std.mem.indexOf(u8, text, "docent.json") != null);
 }
 
 test "parse errors: unknown --rule flag" {
