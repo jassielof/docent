@@ -4,9 +4,9 @@
 
 const std = @import("std");
 const Ast = std.zig.Ast;
-const Diagnostic = @import("../Diagnostic.zig");
-const Severity = @import("../Severity.zig");
-const utils = @import("utils.zig");
+const Diagnostic = @import("../../Diagnostic.zig");
+const Severity = @import("../../Severity.zig");
+const utils = @import("../utils.zig");
 
 const rule_name = "empty_doc_comment";
 
