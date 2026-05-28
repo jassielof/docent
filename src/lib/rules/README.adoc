@@ -9,7 +9,7 @@ While default rules focus on documentation comments, style and complexity rules 
 [NOTE]
 .Severity and examples
 ====
-* For severity levels, see the link:{website}lib/#docent.Severity[library documentation].
+* For severity levels, see the link:{website}lib/#docent.SeverityLevel[library documentation].
 * Each rule description starts with the verb of the severity level, for example, _"Warns on...", "Allows..."_, etc...
 * For examples, see <<_test_suite>>.
 ====

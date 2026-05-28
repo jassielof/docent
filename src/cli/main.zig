@@ -226,7 +226,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     }
 }
 
-fn failFastMatches(ff: FailFast, severity: docent.Severity) bool {
+fn failFastMatches(ff: FailFast, severity: docent.SeverityLevel) bool {
     return switch (ff) {
         .none => false,
         .@"error" => severity.isError(),

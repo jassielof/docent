@@ -12,8 +12,7 @@ pub const RuleSet = @import("RuleSet.zig");
 pub const rule_metadata = @import("rule_metadata.zig");
 pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
-// TODO: Rename to SeverityLevel.
-pub const Severity = @import("Severity.zig").Level;
+pub const SeverityLevel = @import("Severity.zig").Level;
 pub const manifest = @import("Manifest.zig");
 pub const config = @import("Config.zig");
 pub const targeting = @import("Targeting.zig");
