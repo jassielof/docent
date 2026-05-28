@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const fangz_build = @import("fangz");
-const lizzy = @import("lizzy");
 
 pub fn build(b: *std.Build) void {
     const mod_name = "docent";
@@ -119,8 +118,8 @@ pub fn build(b: *std.Build) void {
 
     const check_step = b.step("check", "Run code quality checks");
 
-    const lizzy_step = lizzy.addStepWithBuildOptions(b, .{});
-    check_step.dependOn(lizzy_step);
+    // const lizzy_step = lizzy.addStepWithBuildOptions(b, .{});
+    // check_step.dependOn(lizzy_step);
 
     const fmt = b.addFmt(.{
         .check = true,

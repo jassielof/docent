@@ -205,7 +205,7 @@ pub fn printStatusReport(
                 try w.writeAll(")\n");
 
                 try w.writeAll("    - ");
-                try carnaval.Style.init().bolded().renderWithProfile("Source", w, profile);
+                try carnaval.Style.init().bolded().renderWithProfile("Module root", w, profile);
                 try w.print(": {s}\n", .{rt.root_source_file});
 
                 try w.writeAll("    - ");
@@ -223,16 +223,8 @@ pub fn printStatusReport(
                 try w.print(": {s}\n", .{rt.reason});
                 if (rt.status == .linted) {
                     try w.writeAll("    - ");
-                    try carnaval.Style.init().bolded().renderWithProfile("Files", w, profile);
-                    try w.writeAll(":\n");
-                    const limit = 5;
-                    const show = @min(rt.files.len, limit);
-                    for (rt.files[0..show]) |f| {
-                        try w.print("      - {s}\n", .{f});
-                    }
-                    if (rt.files.len > show) {
-                        try w.print("      ... and {d} more\n", .{rt.files.len - show});
-                    }
+                    try carnaval.Style.init().bolded().renderWithProfile("Reachable files", w, profile);
+                    try w.print(": {d}\n", .{rt.files.len});
                 }
                 try w.print("\n", .{});
             }
