@@ -5,10 +5,7 @@ const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-const rule_config = @import("../rule_config.zig");
-const rules_command = @import("rules.zig");
-
-pub fn register(root: *fangz.Command, key_value_help: *const fangz.Command.KeyValueHelp) !void {
+pub fn register(root: *fangz.Command) !void {
     const status_cmd = try root.addSubcommand(.{
         .name = "status",
         .brief = "Show project lint plan and effective rules",
@@ -19,26 +16,6 @@ pub fn register(root: *fangz.Command, key_value_help: *const fangz.Command.KeyVa
         .name = "paths",
         .brief = "Files or directories to summarize. If omitted, uses package paths from build.zig.zon when available.",
         .variadic = true,
-    });
-
-    try status_cmd.addFlag(fangz.KeyValueList, .{
-        .name = "rule",
-        .short = 'r',
-        .brief = "Override one rule severity for this report",
-        .description = "Repeat to override multiple rules. Run `docent rules` for defaults.",
-        .key_metavar = "RULE",
-        .value_metavar = "LEVEL",
-        .allowed_keys = docent.RuleSet.fieldNames(),
-        .allowed_values = &.{ "allow", "warn", "deny", "forbid" },
-        .key_value_help = key_value_help,
-        .examples = rules_command.flag_examples,
-        .allowed_values_style = .bullet_list,
-    });
-
-    try status_cmd.addFlag(?rule_config.AllPreset, .{
-        .name = "all",
-        .brief = "Apply one severity to all rules for this report",
-        .value_hint = "LEVEL",
     });
 
     try status_cmd.addFlag(bool, .{
@@ -90,8 +67,6 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     const Args = struct {
         positionals: []const []const u8 = &.{},
-        rule: fangz.KeyValueList = &.{},
-        all: ?rule_config.AllPreset = null,
         lib: bool = false,
         bins: bool = false,
         bin: []const []const u8 = &.{},
@@ -103,19 +78,7 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     const args = try ctx.extract(Args);
 
-    var rule_set = docent.manifest.loadNearestRuleSet(allocator, io);
-    if (args.all) |preset| rule_set = rule_config.allPresetToRuleSet(preset);
-
-    for (args.rule) |override| {
-        rule_config.applyRuleOverride(&rule_set, override) catch |err| {
-            try printStderr(io, "error: invalid --rule value '{s}={s}': {s}\n", .{
-                override.key,
-                override.value,
-                rule_config.formatRuleConfigError(err),
-            });
-            std.process.exit(1);
-        };
-    }
+    const rule_set = docent.manifest.loadNearestRuleSet(allocator, io);
 
     var plan = docent.status_plan.gather(allocator, io, .{
         .lib = args.lib,

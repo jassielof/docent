@@ -2,7 +2,7 @@
 //!
 //! All rules accept one of the levels from `Level`.
 //!
-//! The distinction between _Deny_ and _Forbid_ matter for locking a rule in CI regardless of any local flag overrides. For example, setting _Forbid_ in the manifest cannot be weakened to any other level in the command line.
+//! The distinction between _Deny_ and _Forbid_ matters for locking a rule in CI: `forbid` cannot be weakened by later configuration overrides.
 
 /// Effective level of a rule or diagnostic.
 pub const Level = enum {
@@ -14,7 +14,7 @@ pub const Level = enum {
     /// Report issues and cause a non-zero exit when any diagnostic is present.
     /// Diagnostics are emitted, and the process exits with an error code.
     deny,
-    /// Like "deny", but cannot be relaxed by later `--rule` overrides.
+    /// Like "deny", but cannot be relaxed by later config overrides.
     /// Similar to "deny", but the rule cannot be overriden by a subsequent configuration.
     forbid,
 
