@@ -1,5 +1,26 @@
-= Test Suite
+= Test suite
 
-The test suite verifies the correctness of linting rules and doubles as living examples of what Docent considers valid and invalid.
+Integration tests live under `tests/rules/` and `tests/scenarios/`. Fixture data lives under `tests/fixtures/` with the same shape.
 
-Each Zig test module is documented with its purpose and the rules it covers. To browse valid and invalid cases directly, refer to the link:fixtures[fixtures directory].
+== Layout
+
+* `tests/suite.zig` — imports test modules only (no test logic).
+* `tests/harness.zig` — resolves fixture paths from rule/scenario ids.
+* `tests/utils.zig` — shared diagnostic assertions.
+* `tests/rules/{docs,complexity,style}/<rule_id>.zig` — one rule per file.
+* `tests/scenarios/<name>.zig` — multi-rule or integration scenarios.
+* `tests/fixtures/rules/{docs,complexity,style}/<rule_id>/{valid,invalid}/` — single-file cases.
+* `tests/fixtures/rules/.../<rule_id>/project/{valid,invalid}/<case>/` — project roots (`root.zig`).
+* `tests/fixtures/scenarios/<name>/` — scenario project trees.
+
+== Adding a rule test
+
+1. Add fixtures under `tests/fixtures/rules/docs/<rule_id>/valid|invalid/`.
+2. Add `tests/rules/docs/<rule_id>.zig` with a `RuleLocator` constant and tests.
+3. Import the file from `tests/suite.zig`.
+
+No central fixture registry is required.
+
+== CLI UX
+
+Help rendering, unknown-flag parsing, and AsciiDoc docgen for the CLI are covered in the Fangz test suite (`modules/fangz/tests/cli_ux.zig`).
