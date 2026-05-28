@@ -5,6 +5,8 @@ const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
+const cli_flags = @import("../flags.zig");
+
 pub fn register(root: *fangz.Command) !void {
     const status_cmd = try root.addSubcommand(.{
         .name = "status",
@@ -17,6 +19,8 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "Files or directories to summarize. If omitted, uses package paths from build.zig.zon when available.",
         .variadic = true,
     });
+
+    try cli_flags.registerConfigPath(status_cmd);
 
     try status_cmd.addFlag(bool, .{
         .name = "lib",
@@ -67,6 +71,7 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     const Args = struct {
         positionals: []const []const u8 = &.{},
+        config_path: ?[]const u8 = null,
         lib: bool = false,
         bins: bool = false,
         bin: []const []const u8 = &.{},
@@ -78,7 +83,10 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     const args = try ctx.extract(Args);
 
-    const rule_set = docent.manifest.loadNearestRuleSet(allocator, io);
+    const rule_set = docent.config.loadRuleSetFromCli(allocator, io, args.config_path) catch |err| {
+        try printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+        std.process.exit(1);
+    };
 
     var plan = docent.status_plan.gather(allocator, io, .{
         .lib = args.lib,
@@ -96,13 +104,23 @@ fn run(ctx: *fangz.ParseContext) !void {
     };
     defer plan.deinit(allocator);
 
-    try printStatusReport(io, plan, rule_set);
+    const config_path = docent.config.resolveConfigPathForDisplay(allocator, io, args.config_path) catch |err| {
+        try printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+        std.process.exit(1);
+    };
+    if (config_path) |path| {
+        defer allocator.free(path);
+        try printStatusReport(io, plan, rule_set, path);
+    } else {
+        try printStatusReport(io, plan, rule_set, null);
+    }
 }
 
 pub fn printStatusReport(
     io: std.Io,
     plan: docent.status_plan.Plan,
     rule_set: docent.RuleSet,
+    config_path: ?[]const u8,
 ) !void {
     const profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle);
     var buf: [32768]u8 = undefined;
@@ -118,6 +136,11 @@ pub fn printStatusReport(
         try w.print("  manifest:  {s}\n", .{mp});
     } else {
         try w.print("  manifest:  (none found)\n", .{});
+    }
+    if (config_path) |cp| {
+        try w.print("  config:    {s}\n", .{cp});
+    } else {
+        try w.print("  config:    (none found; using rule defaults)\n", .{});
     }
     try w.print("  root:      {s}\n\n", .{plan.package.project_root});
 

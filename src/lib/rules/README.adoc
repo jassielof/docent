@@ -271,5 +271,23 @@ The maximum number of parameters in many tools and teams often default to around
 // TODO: JSON is mainly for initial development, the format will be later changed to either TOML or YAML, as I look around the configuration model, if it ends up being too nested, then YAML, otherwise, if quite flat, then TOML. I have my own libraries for it, but JSON is part of the standard library, so that for now. Ideally it should be TOML for simplicity.
 Configuration options for the rules are defined in the project root, under the `.config` directory, in the file `docent.json`. It wont be Zig's own notation (ZON) due to lack of JSON schema support.
 
+When no config file is found, or a rule is omitted, Docent uses the `RuleSet` defaults from the library.
+
+.`docent.json`:
+====
+[source,json]
+----
+{
+  "rules": {
+    "missing_doc_comment": "deny",
+    "missing_doctest": "allow",
+    "private_doctest": "warn"
+  }
+}
+----
+====
+
+Severity values are `allow`, `warn`, `deny`, and `forbid`. A `forbid` level cannot be relaxed by a later entry in the same file.
+
 .Options:
-* You can specify a custom path for the configuration file with the `--config-path` flag.
+* You can specify a custom path for the configuration file with `--config-path PATH` on `docent` and `docent status`.

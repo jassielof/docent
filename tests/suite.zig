@@ -591,15 +591,59 @@ test "targeting: explicit exclude_roots" {
     }));
 }
 
-test "manifest: loadRuleSet reads .rules from build.zig.zon" {
+fn fixtureConfigPath(allocator: std.mem.Allocator, io: std.Io) ![]const u8 {
+    var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const rel = "tests/fixtures/manifest_with_deps/.config/docent.json";
+    const len = try std.Io.Dir.cwd().realPathFile(io, rel, &buf);
+    return try allocator.dupe(u8, buf[0..len]);
+}
+
+test "config: loadRuleSet reads rules from docent.json" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    const manifest_path = try fixtureManifestPath(allocator, io);
-    defer allocator.free(manifest_path);
+    const config_path = try fixtureConfigPath(allocator, io);
+    defer allocator.free(config_path);
 
-    const rule_set = try docent.manifest.loadRuleSet(allocator, io, manifest_path);
+    const rule_set = try docent.config.loadRuleSet(allocator, io, config_path);
     try std.testing.expect(rule_set.missing_doc_comment == .deny);
+    try std.testing.expect(rule_set.missing_doctest == .allow);
+}
+
+test "config: explicit config-path loads rules" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    const config_path = try fixtureConfigPath(allocator, io);
+    defer allocator.free(config_path);
+
+    const rule_set = try docent.config.loadRuleSetFromCli(allocator, io, config_path);
+    try std.testing.expect(rule_set.missing_doc_comment == .deny);
+    try std.testing.expect(rule_set.missing_doctest == .allow);
+}
+
+test "config: explicit config-path errors when file is missing" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    try std.testing.expectError(
+        error.ConfigNotFound,
+        docent.config.loadRuleSetFromCli(allocator, io, "tests/fixtures/no_such_docent.json"),
+    );
+}
+
+test "config: empty rules object uses RuleSet defaults" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const rel = "tests/fixtures/config_defaults/.config/docent.json";
+    const len = try std.Io.Dir.cwd().realPathFile(io, rel, &buf);
+    const config_path = try allocator.dupe(u8, buf[0..len]);
+    defer allocator.free(config_path);
+
+    const rule_set = try docent.config.loadRuleSet(allocator, io, config_path);
+    try std.testing.expect(rule_set.missing_doc_comment == .warn);
     try std.testing.expect(rule_set.missing_doctest == .allow);
 }
 

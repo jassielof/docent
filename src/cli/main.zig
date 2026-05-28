@@ -5,9 +5,11 @@ const docent = @import("docent");
 const fangz = @import("fangz");
 
 const status_command = @import("commands/status.zig");
+const cli_flags = @import("flags.zig");
 pub const rule_config = @import("rule_config.zig");
 
 pub const registerStatusSubcommand = status_command.register;
+pub const registerConfigPathFlag = @import("flags.zig").registerConfigPath;
 
 pub const app_examples: []const fangz.Command.CliExample = &.{
     .{ .description = "", .command = "docent src" },
@@ -59,6 +61,8 @@ pub fn main(init: std.process.Init) !void {
         .brief = "Files or directories to lint. If omitted, Docent uses package paths from build.zig.zon when available.",
         .variadic = true,
     });
+
+    try cli_flags.registerConfigPath(root);
 
     try root.addFlag(OutputMode, .{
         .name = "format",
@@ -132,6 +136,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     const Args = struct {
         positionals: []const []const u8 = &.{},
+        config_path: ?[]const u8 = null,
         format: OutputMode = .pretty,
         lib: bool = false,
         bins: bool = false,
@@ -145,7 +150,10 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     const args = try ctx.extract(Args);
 
-    const rule_set = docent.manifest.loadNearestRuleSet(allocator, io);
+    const rule_set = docent.config.loadRuleSetFromCli(allocator, io, args.config_path) catch |err| {
+        try printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+        std.process.exit(1);
+    };
 
     var plan = docent.status_plan.gather(allocator, io, .{
         .lib = args.lib,

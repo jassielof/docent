@@ -1,0 +1,6 @@
+{
+  "rules": {
+    "missing_doc_comment": "deny",
+    "missing_doctest": "allow"
+  }
+}
