@@ -1,2 +1,2 @@
-//! The complexity sub-command is in charge to trigger and report related rules.
+//! The complexity sub-command is in charge to report related rules about complexity.
 const std = @import("std");

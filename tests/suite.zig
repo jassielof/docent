@@ -1,4 +1,25 @@
 //! Test suite aggregator, every test module must be imported here to be executed and no test logic should be defined here.
+
+// TODO: Refactor the test suite. The current structure is bothersome causing me to repeat rules. The new structure should be as follows:
+// - `suite.zig` only imports test files, no test logic should be defined here.
+// - `cli_ux.zig` should be moved to the Fangz test suite, as explained in the file itself.
+// - The `fixtures` directory should only contain test cases.
+// - There will be 2 types of tests, `tests/rules/{docs,complexity,style}/` and `tests/scenarios/`. The
+//   first is strictly focused on individual rule testing, while the second serves as complementary,
+//   where a single fixture can cover many rules and edge cases to help avoid false positives.
+//   Both hold the test logic.
+// - `tests/harness.zig` provides utilities to load and resolve fixtures. Fixture paths are derived
+//   automatically from the calling file's path via `@src()`, so no manual registry is needed —
+//   the filesystem is the registry. Adding a new rule only requires creating the fixture directory
+//   and the test file, nothing else to update.
+// - The `fixtures` directory mirrors the test structure:
+//   - `tests/fixtures/rules/{docs,complexity,style}/<rule_id>/{valid,invalid}/` for single-file rule tests.
+//   - `tests/fixtures/rules/{docs,complexity,style}/<rule_id>/project/{valid,invalid}/` for project-based
+//     tests, where a `root.zig` acts as the module root so the full API surface is in effect.
+//   - `tests/fixtures/scenarios/<scenario_name>/` for scenario fixtures.
+// - Scenario test files (`tests/scenarios/<name>.zig`) must document their intent and rule coverage
+//   via doc comments on each test block, since a single scenario can span many rules and edge cases.
+
 const std = @import("std");
 const testing = std.testing;
 const refAllDecls = testing.refAllDecls;

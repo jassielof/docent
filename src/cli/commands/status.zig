@@ -1,3 +1,4 @@
+//! Reports the effective lint plan: project metadata, lint targets, and rule severities.
 const std = @import("std");
 
 const carnaval = @import("carnaval");
@@ -10,8 +11,8 @@ const rules_command = @import("rules.zig");
 pub fn register(root: *fangz.Command, key_value_help: *const fangz.Command.KeyValueHelp) !void {
     const status_cmd = try root.addSubcommand(.{
         .name = "status",
-        .brief = "Show project lint plan and diagnostic summary",
-        .description = "Print a quick overview of the project, lint scan roots, excluded dependencies, effective rule severities, and diagnostic counts. Always exits 0 after a successful report (use `docent` to enforce severities).",
+        .brief = "Show project lint plan and effective rules",
+        .description = "Print project metadata, lint scan roots, excluded dependencies, resolved targets, and effective rule severities. Always exits 0 after a successful report (use `docent` to lint and enforce severities).",
     });
 
     try status_cmd.addPositional(.{
@@ -23,7 +24,7 @@ pub fn register(root: *fangz.Command, key_value_help: *const fangz.Command.KeyVa
     try status_cmd.addFlag(fangz.KeyValueList, .{
         .name = "rule",
         .short = 'r',
-        .brief = "Override one rule severity for the summary scan",
+        .brief = "Override one rule severity for this report",
         .description = "Repeat to override multiple rules. Run `docent rules` for defaults.",
         .key_metavar = "RULE",
         .value_metavar = "LEVEL",
@@ -36,7 +37,7 @@ pub fn register(root: *fangz.Command, key_value_help: *const fangz.Command.KeyVa
 
     try status_cmd.addFlag(?rule_config.AllPreset, .{
         .name = "all",
-        .brief = "Apply one severity to all rules for the summary scan",
+        .brief = "Apply one severity to all rules for this report",
         .value_hint = "LEVEL",
     });
 
@@ -80,12 +81,6 @@ pub fn register(root: *fangz.Command, key_value_help: *const fangz.Command.KeyVa
         .default = false,
     });
 
-    try status_cmd.addFlag(bool, .{
-        .name = "no-scan",
-        .brief = "Skip running the linter; only show the scan plan",
-        .default = false,
-    });
-
     status_cmd.setHooks(.{ .run = &run });
 }
 
@@ -104,7 +99,6 @@ fn run(ctx: *fangz.ParseContext) !void {
         @"test": []const []const u8 = &.{},
         deps: bool = false,
         build_script: bool = false,
-        no_scan: bool = false,
     };
 
     const args = try ctx.extract(Args);
@@ -139,15 +133,13 @@ fn run(ctx: *fangz.ParseContext) !void {
     };
     defer plan.deinit(allocator);
 
-    try printStatusReport(allocator, io, plan, rule_set, args.no_scan);
+    try printStatusReport(io, plan, rule_set);
 }
 
 pub fn printStatusReport(
-    allocator: std.mem.Allocator,
     io: std.Io,
     plan: docent.status_plan.Plan,
     rule_set: docent.RuleSet,
-    no_scan: bool,
 ) !void {
     const profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle);
     var buf: [32768]u8 = undefined;
@@ -274,111 +266,13 @@ pub fn printStatusReport(
     }
     try w.print("\n", .{});
 
-    if (no_scan) {
-        try carnaval.Style.init().dimmed().renderWithProfile(
-            "Scan skipped (--no-scan). Run without it for diagnostic counts.\n",
-            w,
-            profile,
-        );
-        try w.flush();
-        return;
-    }
-
-    try sectionHeading(w, profile, "Scan summary");
-
-    var summary: docent.output.Summary = .{};
-    var rule_counts = RuleCounts.init();
-
-    var linted_files = std.StringHashMap(void).init(allocator);
-    defer linted_files.deinit();
-
-    for (plan.resolved_targets) |rt| {
-        if (rt.status == .linted) {
-            for (rt.files) |path| {
-                const gptr = try linted_files.getOrPut(path);
-                if (gptr.found_existing) continue;
-
-                var result = docent.lintFile(allocator, io, path, rule_set, .{}, &.{}) catch continue;
-                defer result.deinit();
-
-                for (result.diagnostics.items) |d| {
-                    summary.observe(d);
-                    rule_counts.observe(d);
-                }
-            }
-        }
-    }
-
-    for (plan.extra_lint_files) |path| {
-        const gptr = try linted_files.getOrPut(path);
-        if (gptr.found_existing) continue;
-
-        var result = docent.lintFile(allocator, io, path, rule_set, .{}, &.{}) catch continue;
-        defer result.deinit();
-
-        for (result.diagnostics.items) |d| {
-            summary.observe(d);
-            rule_counts.observe(d);
-        }
-    }
-
-    try w.print("  errors:   {d}\n", .{summary.errors});
-    try w.print("  warnings: {d}\n\n", .{summary.warnings});
-
-    var any_rule_output = false;
-    inline for (@typeInfo(docent.RuleSet).@"struct".fields) |f| {
-        const c = rule_counts.get(f.name);
-        if (c.errors > 0 or c.warnings > 0) {
-            any_rule_output = true;
-            try w.print("  {s}: {d} error(s), {d} warning(s)\n", .{ f.name, c.errors, c.warnings });
-        }
-    }
-    if (!any_rule_output) {
-        try w.print("  (no diagnostics)\n", .{});
-    }
-
-    try w.print("\n", .{});
     try carnaval.Style.init().dimmed().renderWithProfile(
-        "Run `docent` to enforce severities. `docent status` always exits 0 when the report completes.\n",
+        "Run `docent` to lint and enforce severities.\n",
         w,
         profile,
     );
     try w.flush();
 }
-
-const RuleCounts = struct {
-    counts: [@typeInfo(docent.RuleSet).@"struct".fields.len]Count,
-
-    const Count = struct {
-        errors: usize = 0,
-        warnings: usize = 0,
-    };
-
-    fn init() RuleCounts {
-        return .{ .counts = [_]Count{.{}} ** @typeInfo(docent.RuleSet).@"struct".fields.len };
-    }
-
-    fn observe(self: *RuleCounts, d: docent.Diagnostic) void {
-        const idx = findRuleIndex(d.rule) orelse return;
-        if (d.severity.isError()) {
-            self.counts[idx].errors += 1;
-        } else if (d.severity == .warn) {
-            self.counts[idx].warnings += 1;
-        }
-    }
-
-    fn get(self: RuleCounts, name: []const u8) Count {
-        const idx = findRuleIndex(name) orelse return .{};
-        return self.counts[idx];
-    }
-
-    fn findRuleIndex(name: []const u8) ?usize {
-        inline for (@typeInfo(docent.RuleSet).@"struct".fields, 0..) |f, i| {
-            if (std.mem.eql(u8, f.name, name)) return i;
-        }
-        return null;
-    }
-};
 
 fn sectionHeading(w: *std.Io.Writer, profile: carnaval.ColorProfile, title: []const u8) !void {
     try carnaval.Style.init().bolded().renderWithProfile(title, w, profile);

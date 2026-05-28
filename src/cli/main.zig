@@ -4,6 +4,7 @@ const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
+// TODO: The rules command should be gone, for now, to avoid keep maintaining and duplicated docs, I'll just keep the README for rules, and eventually (possibly) migrate it as part of the CLI.
 const rules_command = @import("commands/rules.zig");
 const status_command = @import("commands/status.zig");
 pub const rule_config = @import("rule_config.zig");
@@ -112,6 +113,7 @@ pub fn main(init: std.process.Init) !void {
         .variadic = true,
     });
 
+    // TODO: Rules flag need to be removed, the CLI job should only be invocation of linting rules and emit diagnostics, the configurations should live in its file, as described in the rules README.
     try root.addFlag(fangz.KeyValueList, .{
         .name = "rule",
         .short = 'r',
@@ -129,6 +131,7 @@ pub fn main(init: std.process.Init) !void {
         .allowed_values_style = .bullet_list,
     });
 
+    // TODO: Similar to the rules TODO, this flag should be removed.
     try root.addFlag(?AllPreset, .{
         .name = "all",
         .brief = "Apply one severity to all rules",
