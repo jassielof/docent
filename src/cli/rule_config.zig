@@ -10,7 +10,7 @@ pub const RuleConfigError = error{
 
 /// Applies a single `key=severity` override to the rule set (used by project config loaders and tests).
 pub fn applyRuleOverride(rs: *docent.RuleSet, kv: fangz.KeyValuePair) RuleConfigError!void {
-    const sev = std.meta.stringToEnum(docent.Severity, kv.value) orelse return error.InvalidSeverity;
+    const sev = std.meta.stringToEnum(docent.SeverityLevel, kv.value) orelse return error.InvalidSeverity;
     inline for (@typeInfo(docent.RuleSet).@"struct".fields) |f| {
         if (std.mem.eql(u8, f.name, kv.key)) {
             const current = @field(rs, f.name);
