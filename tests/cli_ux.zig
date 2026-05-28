@@ -1,4 +1,5 @@
 //! CLI UX isn't related to linting tests, but rather to cover aspects of Fangz, since it's just a library, Docent works as a first-class user of Fangz, to help test CLI features and general UI/UX in a real-world context.
+// TODO: CLI UX tests are somewhat inconvenient to cross-depend with the Fangz library and my Docent project. So these will be moved to the Fangz test suite with generic fixtures so it doesn't depend on Docent, nor causes bothersome.
 
 const std = @import("std");
 const testing = std.testing;
@@ -81,7 +82,7 @@ test "status subcommand appears in full help" {
     const text = writer.buffered();
 
     try testing.expect(std.mem.indexOf(u8, text, "status") != null);
-    try testing.expect(std.mem.indexOf(u8, text, "Show project lint plan and diagnostic summary") != null);
+    try testing.expect(std.mem.indexOf(u8, text, "Show project lint plan and effective rules") != null);
 }
 
 fn makeCliApp() !fangz.App {

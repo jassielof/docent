@@ -73,10 +73,13 @@ Doc comments:: Documentation comments.
 Doctests::: See <<doctests>>. As well, there’s an https://github.com/ziglang/zig/issues/19518[open proposal to extend the syntax by Mitchell Hashimoto]. It aims to allow multiple doctest declarations for the same identifier but each one having its own description.
 
 == Scanning strategy
+
 === Default scanning without path arguments
+
 Whenever the CLI is run without any path arguments, the current working directory is scanned. The scanning strategy will attempt to find both build system script and related files to resolve the project structure and dependencies.
 
 ==== Build system script scanning
+
 It expects a manifest file to be present in your current working directory, then scans the configured `.paths` entries.
 
 Path dependencies listed in `build.zig.zon` under `.dependencies` (each entry with a `.path`) are *excluded from linting by default*, similar to how Rust tooling skips crates.io dependencies while linting your workspace crate. A `.paths` entry may still list `modules` for packaging; Docent uses dependency metadata to avoid linting vendored trees under those paths.
@@ -108,6 +111,7 @@ Dependency roots are resolved from the nearest `build.zig.zon` and passed as `ex
 * Pass extra directory roots via `docent.targeting.Options.exclude_roots` when you need additional ignores beyond manifest dependencies.
 
 ==== Scanning with arguments
+
 When explicit paths are passed, each argument is treated as a file or directory target.
 
 .Supported cases include:
@@ -134,9 +138,11 @@ When explicit paths are provided, the default project discovery is disabled and 
 
 ifdef::env-github[]
 == Linting rules
+
 Please refer to link:src/lib/rules/README.adoc[Linting rules documentation] for the list of available rules and their details.
 
 == Test suite
+
 Please refer to link:tests/README.adoc[Test suite documentation] for the list of available tests and their details.
 
 endif::env-github[]
@@ -154,6 +160,7 @@ endif::env-github[]
 * [[[doctests]]] Doctests in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Doctests
 * [[[mccabe-guidance]]] NIST/McCabe guidance (_Structured Testing: A Testing Methodology Using the Cyclomatic Complexity Metric_):
 ** Section 2.5: _Limiting cyclomatic complexity to 10_.
+* [[[sonar-paper]]] Cognitive Complexity, a Sonar exclusive metric formulated to more accurately measure the relative understandability of methods — https://www.sonarsource.com/resources/cognitive-complexity/
 * [[[sonar-reasoning]]] Sonar's reasoning for defaulting cognitive complexity to 15 — https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103
 * [[[doc-comments]]] Doc comments in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Doc-Comments
 * [[[top-level-doc-comments]]] Top-level documentation comments in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Top-Level-Doc-Comments
@@ -168,4 +175,5 @@ endif::env-github[]
 
 [acknowledgments]
 == Acknowledgments and prior art
+
 Mainly Rust/Cargo’s documentation (and probably Clippy too) and linter checks, while also taking inspiration from Go’s linting tooling. As well as https://codeberg.org/RhyosLabs/ephor[Scott Matheina’s Ephor]

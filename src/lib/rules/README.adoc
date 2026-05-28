@@ -145,7 +145,15 @@ Declarations::
 ** `pi` being a global constant or variable.
 ====
 
-The rationale on this rule comes from <<godoc-comments>>. 
+.Options:
+* Whether to require always an article or keep it optional (default).
+* Whether to always require backticks, optional (default) or never allow them.
+* Whether to require the identifier kind to be present or not.
+** If required, the position can also be configured, whether to enforce it always before or after, or just allow both (default).
+* Identifier presence isn't configurable, it's always expected to be present and match the identifier case.
+** Edge cases for false positives and errors should be considered with literal identifiers (e.g. `const @"foo bar" = 1;`).
+
+The rationale on this rule comes from <<godoc-comments>>.
 
 === Missing summary terminal punctuation
 
@@ -163,10 +171,28 @@ Warns if doc comments have trailing blank lines.
 
 === Identifier case
 
-Checks for consistent identifier naming case conventions, by default it follows the {zig-docs}#Names[Zig documentation style]. 
+Checks for consistent identifier naming case conventions, by default it follows the {zig-docs}#Names[Zig documentation style].
 
-.With the following clarifications:
-* Error set values are expected to be snake_cased, even though the standard library uses PascalCase for them, they technically fall under the value category, similar to enumeration values. And Zig itself isn't quite consistent with {zig-docs}std/#std.builtin.OptimizeMode[its own conventions].
+Checks are:
+`snake_case`::
+* Namespaces, considering that every Zig source file is basically a structure, to ease the differentiation between a structure file and a namespace file, without depending on the file name case or its identifier, if a source file doesn't have structure fields, it's automatically marked as a namespace.
+* Global variables and constants
+* Enumerators
+* Fields or values from structures, union, and error sets.
+`camelCase`::
+* Functions (concrete ones).
+`PascalCase`::
+* Structures
+* Unions
+* Enumerations
+* Error sets
+* Generic functions.
+
+[NOTE]
+====
+* Error set values technically fall under the value category, similar to enumerators. And Zig itself isn't quite consistent with {zig-docs}std/#std.builtin.OptimizeMode[its own conventions]. Regardless, we'll follow the standard library conventions.
+* It must be careful on re-exported declarations that work as aliases, for example a function that is re-exported in the module root, but lives in a different place, it's a global constant, but internally, it's a function being aliased to that constant. Mostly to avoid false positives, this causes `camelCase` global constants that are in fact just aliases to functions.
+====
 
 ==== Tiger Beetle's Tiger Style
 
@@ -177,20 +203,20 @@ Tiger Beetle has its own style convention called https://tigerstyle.dev/[Tiger S
 
 It centers on three pillars: _Safety_, _Performance_, and _Experience_.
 
-This convention is included as a preset.
-
 === LoC column length
 
-Warns if the true LoC, up to the last valid code character, surpasses the threshold. This excludes comments, whitespace, etc.
+Warns if the true LoC, from the first and up to the last valid code character, surpasses the threshold of 100 characters, as recommended by {zig-docs}#Whitespace[Zig documentation style].
+
+NOTE: This excludes comments, whitespace, etc.
 
 // File size is a low priority, meaning I need to define the details on how it's gonna be implemented yet properly, so other checks should be focused first.
-=== File size
+// === File size
 
-.By:
-** NLoC
-** Byte size
+// .By:
+// ** NLoC
+// ** Byte size
 
-// TODO: Here also figure out how will the function size be determined, in Lizard for example, there are 2 main metrics, length which considers all the factors mentioned, and NLoC which excludes blank lines and comments As they aren't true LoCs. Also as low priority like file size.
+// Also low priority.
 === Function size
 
 Function size is measured in terms of physical true LoCs, which excludes comments, blank lines, function declaration, and braces.
@@ -217,16 +243,33 @@ NOTE: Unlike tools like Lizard—which can be configured to treat an entire `swi
 .Edge cases:
 * Exhaustive `switch` statements over `enum`s are still penalized, as each branch represents a real, testable path regardless of whether the compiler requires it.
 
+.Options:
+* The threshold can be configured with whole numbers.
+
 === Cognitive Complexity
 
-Defaults to the Sonar-recommended threshold of 15. See <<sonar-reasoning>>.
+Defaults to the Sonar-recommended threshold of 15. See <<sonar-reasoning>> and <<sonar-paper>>.
+
+.Options
+* The threshold can be configured with whole numbers.
 
 // Both depth and control structure are taken from how Lizard defines them, but Lizard defines them quite vague, it's mostly understandable once you read its source code, but basically the nested control structures metric is the one similar to the Linux guideline of maximum of 3 levels of indentation or depth. While the nesting depth metric, is similar to the control structure one, except it takes in consideration the logic/branches within the condition. So these 2 are low priority.
-=== Nesting depth
+// === Nesting depth
 
-=== Nested control structures
+// === Nested control structures
 
-// Function parameter count seems the easiest to implement.
+// TODO: Function parameter count seems the easiest to implement.
 === Maximum function parameter
 
-Parameter count limits in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, Writergate and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
+The maximum number of parameters in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, Writergate and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
+
+.Options
+* The threshold can be configured with whole numbers.
+
+== Configuration of rule options
+
+// TODO: JSON is mainly for initial development, the format will be later changed to either TOML or YAML, as I look around the configuration model, if it ends up being too nested, then YAML, otherwise, if quite flat, then TOML. I have my own libraries for it, but JSON is part of the standard library, so that for now.
+Configuration options for the rules are defined in the project root, under the `.config` directory, in the file `docent.json`. It wont be Zig's own notation (ZON) due to lack of JSON schema support.
+
+.Options:
+* You can specify a custom path for the configuration file with the `--config-path` flag.

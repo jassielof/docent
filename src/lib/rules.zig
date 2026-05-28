@@ -1,5 +1,10 @@
-//! Rule implementation modules used by `lintSource`.
+//! The rules namespace organizes the various linting rules that can be applied to source code.
 
+pub const style = @import("rules/style.zig");
+pub const complexity = @import("rules/complexity.zig");
+pub const docs = @import("rules/docs.zig");
+
+// TODO: These should be moved under the `docs` namespace as well as under the `rules/docs` directory.
 pub const missing_doc_comment = @import("rules/missing_doc_comment.zig");
 pub const empty_doc_comment = @import("rules/empty_doc_comment.zig");
 pub const missing_doctest = @import("rules/missing_doctest.zig");
