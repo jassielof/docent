@@ -268,7 +268,7 @@ The maximum number of parameters in many tools and teams often default to around
 
 == Configuration of rule options
 
-// TODO: JSON is mainly for initial development, the format will be later changed to either TOML or YAML, as I look around the configuration model, if it ends up being too nested, then YAML, otherwise, if quite flat, then TOML. I have my own libraries for it, but JSON is part of the standard library, so that for now.
+// TODO: JSON is mainly for initial development, the format will be later changed to either TOML or YAML, as I look around the configuration model, if it ends up being too nested, then YAML, otherwise, if quite flat, then TOML. I have my own libraries for it, but JSON is part of the standard library, so that for now. Ideally it should be TOML for simplicity.
 Configuration options for the rules are defined in the project root, under the `.config` directory, in the file `docent.json`. It wont be Zig's own notation (ZON) due to lack of JSON schema support.
 
 .Options:

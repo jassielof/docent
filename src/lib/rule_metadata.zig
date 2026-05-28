@@ -14,7 +14,7 @@ pub const RuleRow = struct {
     long: []const u8 = "",
 };
 
-/// Severity levels documented for `--rule` and friends (order matches public explanations).
+/// Severity levels documented for project config (order matches public explanations).
 pub const levels: []const struct { name: []const u8, summary: []const u8 } = &.{
     .{ .name = "allow", .summary = "Disable the rule." },
     .{ .name = "warn", .summary = "Report diagnostics without failing the process." },
@@ -74,7 +74,7 @@ comptime {
     }
 }
 
-/// Help text describing how later `--rule` overrides interact with `forbid`.
+/// How later config overrides interact with `forbid`.
 pub const override_behavior_note =
     \\Override order:
     \\  Later overrides win, except when a rule has already been set to forbid.

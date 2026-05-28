@@ -4,68 +4,17 @@ const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-// TODO: The rules command should be gone, for now, to avoid keep maintaining and duplicated docs, I'll just keep the README for rules, and eventually (possibly) migrate it as part of the CLI.
-const rules_command = @import("commands/rules.zig");
 const status_command = @import("commands/status.zig");
 pub const rule_config = @import("rule_config.zig");
 
-/// For `tests/cli_ux.zig`; forwards to `commands/rules.zig`.
-pub const registerRulesSubcommands = rules_command.register;
 pub const registerStatusSubcommand = status_command.register;
-pub const rule_flag_examples = rules_command.flag_examples;
-
-fn keyMeta(comptime i: usize) fangz.Command.KeyValueKeyMeta {
-    const row = docent.rule_metadata.rules[i];
-    return .{
-        .name = row.name,
-        .default_value = row.default_level,
-        .summary = row.summary,
-        .description = row.long,
-    };
-}
-
-fn valueMeta(comptime i: usize) fangz.Command.KeyValueValueMeta {
-    const row = docent.rule_metadata.levels[i];
-    return .{ .name = row.name, .summary = row.summary };
-}
-
-const key_value_keys_storage: [docent.rule_metadata.rules.len]fangz.Command.KeyValueKeyMeta = blk: {
-    var a: [docent.rule_metadata.rules.len]fangz.Command.KeyValueKeyMeta = undefined;
-    for (0..docent.rule_metadata.rules.len) |i| {
-        a[i] = keyMeta(i);
-    }
-    break :blk a;
-};
-
-const key_value_values_storage: [docent.rule_metadata.levels.len]fangz.Command.KeyValueValueMeta = blk: {
-    var a: [docent.rule_metadata.levels.len]fangz.Command.KeyValueValueMeta = undefined;
-    for (0..docent.rule_metadata.levels.len) |i| {
-        a[i] = valueMeta(i);
-    }
-    break :blk a;
-};
-
-const key_value_keys: []const fangz.Command.KeyValueKeyMeta = &key_value_keys_storage;
-
-const key_value_values: []const fangz.Command.KeyValueValueMeta = &key_value_values_storage;
 
 pub const app_examples: []const fangz.Command.CliExample = &.{
     .{ .description = "", .command = "docent src" },
-    .{ .description = "", .command = "docent --rule missing_doc_comment=deny src" },
-    .{ .description = "", .command = "docent --all deny --rule missing_doctest=allow src" },
+    .{ .description = "", .command = "docent status" },
     .{ .description = "", .command = "docent docs --output-dir docs" },
     .{ .description = "", .command = "docent completion nu" },
 };
-
-pub const key_value_help: fangz.Command.KeyValueHelp = .{
-    .keys = key_value_keys,
-    .values = key_value_values,
-    .override_behavior_note = docent.rule_metadata.override_behavior_note,
-    .examples = rules_command.flag_examples,
-};
-
-pub const key_value_rule_count = key_value_keys.len;
-pub const key_value_level_count = key_value_values.len;
 
 pub const OutputMode = enum {
     pretty,
@@ -73,8 +22,6 @@ pub const OutputMode = enum {
     minimal,
     json,
 };
-
-pub const AllPreset = rule_config.AllPreset;
 
 pub const FailFast = enum {
     none,
@@ -111,31 +58,6 @@ pub fn main(init: std.process.Init) !void {
         .name = "paths",
         .brief = "Files or directories to lint. If omitted, Docent uses package paths from build.zig.zon when available.",
         .variadic = true,
-    });
-
-    // TODO: Rules flag need to be removed, the CLI job should only be invocation of linting rules and emit diagnostics, the configurations should live in its file, as described in the rules README.
-    try root.addFlag(fangz.KeyValueList, .{
-        .name = "rule",
-        .short = 'r',
-        .brief = "Override one rule severity.",
-        .description =
-        \\You can repeat the flag to override multiple rules.
-        \\Run `docent rules` to see rules and defaults.
-        ,
-        .key_metavar = "RULE",
-        .value_metavar = "LEVEL",
-        .allowed_keys = docent.RuleSet.fieldNames(),
-        .allowed_values = &.{ "allow", "warn", "deny", "forbid" },
-        .key_value_help = &key_value_help,
-        .examples = rules_command.flag_examples,
-        .allowed_values_style = .bullet_list,
-    });
-
-    // TODO: Similar to the rules TODO, this flag should be removed.
-    try root.addFlag(?AllPreset, .{
-        .name = "all",
-        .brief = "Apply one severity to all rules",
-        .value_hint = "LEVEL",
     });
 
     try root.addFlag(OutputMode, .{
@@ -197,8 +119,7 @@ pub fn main(init: std.process.Init) !void {
 
     root.examples = app_examples;
 
-    try rules_command.register(root);
-    try status_command.register(root, &key_value_help);
+    try status_command.register(root);
 
     root.hooks.run = &runLint;
 
@@ -211,8 +132,6 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     const Args = struct {
         positionals: []const []const u8 = &.{},
-        rule: fangz.KeyValueList = &.{},
-        all: ?AllPreset = null,
         format: OutputMode = .pretty,
         lib: bool = false,
         bins: bool = false,
@@ -226,20 +145,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     const args = try ctx.extract(Args);
 
-    var rule_set = docent.manifest.loadNearestRuleSet(allocator, io);
-
-    if (args.all) |preset| rule_set = rule_config.allPresetToRuleSet(preset);
-
-    for (args.rule) |override| {
-        rule_config.applyRuleOverride(&rule_set, override) catch |err| {
-            try printStderr(io, "error: invalid --rule value '{s}={s}': {s}\n", .{
-                override.key,
-                override.value,
-                rule_config.formatRuleConfigError(err),
-            });
-            std.process.exit(1);
-        };
-    }
+    const rule_set = docent.manifest.loadNearestRuleSet(allocator, io);
 
     var plan = docent.status_plan.gather(allocator, io, .{
         .lib = args.lib,
@@ -328,8 +234,6 @@ fn formatError(err: anyerror) []const u8 {
         docent.manifest.Error.ManifestNotFound => "manifest 'build.zig.zon' not found in current or parent directories",
         docent.manifest.Error.InvalidManifestPath => "invalid manifest path",
         docent.manifest.Error.ManifestPathsNotFound => "'.paths' field not found in manifest",
-        error.InvalidSeverity => rule_config.formatRuleConfigError(error.InvalidSeverity),
-        error.UnknownRule => rule_config.formatRuleConfigError(error.UnknownRule),
         else => "unknown error",
     };
 }

@@ -1,7 +1,7 @@
 //! Per-rule severity defaults for a lint run.
 //!
 //! Each field names a rule and holds its effective level (`allow`, `warn`, `deny`, or `forbid`).
-//! Override levels via CLI `--rule` flags or project config; see `rule_metadata` for summaries.
+//! Override levels via project config; see `rule_metadata` for summaries.
 const Severity = @import("Severity.zig");
 
 /// Checks for public declarations without doc comments.
@@ -35,7 +35,7 @@ const _field_names_buf = init: {
 
 /// Returns a slice of all rule field names in declaration order.
 ///
-/// Use this to keep `--rule` flag `allowed_keys` in sync with the struct automatically — adding a new field here makes it available in the CLI without any manual update.
+/// Field names for config loaders and diagnostics; adding a field here should be reflected in `rule_metadata`.
 pub fn fieldNames() []const []const u8 {
     return &_field_names_buf;
 }
