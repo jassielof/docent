@@ -241,6 +241,9 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
         .recursive;
 
     if (options.positionals.len > 0) {
+        var explicit_targeting = targeting_options;
+        explicit_targeting.apply_exclude_roots = false;
+
         for (options.positionals) |raw| {
             const resolved = try resolveUserPath(allocator, package.project_root, raw);
             errdefer allocator.free(resolved);
@@ -250,7 +253,7 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
                     allocator,
                     io,
                     resolved,
-                    targeting_options,
+                    explicit_targeting,
                     &extra_lint_files,
                     &module_entry_roots_list,
                 ),
@@ -258,7 +261,7 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
                     allocator,
                     io,
                     resolved,
-                    targeting_options,
+                    explicit_targeting,
                     &extra_lint_files,
                 ),
                 .project => unreachable,
@@ -462,8 +465,17 @@ fn collectModuleRootLintFiles(
         allocator.free(abs);
         return;
     }
-    try module_roots.append(allocator, try allocator.dupe(u8, abs));
-    try extra.append(allocator, abs);
+    errdefer allocator.free(abs);
+    try module_roots.append(allocator, abs);
+
+    var reachable = try reachability.collectReachablePublicFiles(allocator, io, abs);
+    defer reachability.deinitOwnedPaths(allocator, &reachable);
+
+    for (reachable.items) |path| {
+        if (targeting.shouldSkipLintFile(path, options)) continue;
+        if (targeting.containsPath(extra.items, path)) continue;
+        try extra.append(allocator, try allocator.dupe(u8, path));
+    }
 }
 
 fn collectRecursiveLintFiles(
