@@ -1,4 +1,4 @@
-// //! Module Docent serves as the core library for the Docent CLI offering code quality checks for Zig, focusing mainly on documentation. Additionallty, it also offers style and complexity lints.
+//! Core library for the Docent CLI: documentation, style, and complexity checks for Zig projects.
 
 const std = @import("std");
 

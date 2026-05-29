@@ -62,7 +62,7 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(cli);
 
     const run_cli = b.addRunArtifact(cli);
-    // run_cli.step.dependOn(b.getInstallStep());
+    run_cli.step.dependOn(b.getInstallStep());
 
     cli_step.dependOn(&run_cli.step);
 
@@ -79,7 +79,7 @@ pub fn build(b: *std.Build) void {
     docs_step.dependOn(&install_docs.step);
 
     const docs_cli = b.addRunArtifact(cli);
-    // docs_cli.step.dependOn(b.getInstallStep());
+    docs_cli.step.dependOn(b.getInstallStep());
     docs_cli.addArgs(&.{
         "docs",
         "--output-dir",
@@ -118,6 +118,7 @@ pub fn build(b: *std.Build) void {
 
     const check_step = b.step("check", "Run code quality checks");
 
+    // TODO: End up replacing Lizard with Docent's own complexity checks.
     // const lizzy_step = lizzy.addStepWithBuildOptions(b, .{});
     // check_step.dependOn(lizzy_step);
 

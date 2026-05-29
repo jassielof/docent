@@ -23,6 +23,8 @@ By default, these rules will be enforced across the public API surface. One can 
 Warns on missing doc comments on public declarations. Including, but not limited to:
 
 * {zig-docs}#Functions[Functions and its parameters]
+// TODO: Add a check for function parameters being undocumented, this case should be disabled by default (or "allowed"), since it's usually bothersome to document, and parameters should mostly be self-explanatory, but some users might want to enforce it, in that case, the missing doc comment rule should allow for this option to be enabled, and when enabled, it should check for parameters without doc comments.
+** Parameters aren't checked,
 * {zig-docs}#Variables[Global variables]
 * {zig-docs}#enum[Enumerations and its fields]
 * {zig-docs}#struct[Structures and its fields]

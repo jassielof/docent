@@ -458,7 +458,7 @@ test "minimal formatter renders one line" {
     try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
         .severity = .warn,
-        .message = "missing doc comment for function 'main'",
+        .message = "Missing doc comment for function 'main'.",
         .file = "src/main.zig",
         .line = 5,
         .column = 8,
@@ -469,7 +469,7 @@ test "minimal formatter renders one line" {
     out = writer.toArrayList();
 
     try std.testing.expectEqualStrings(
-        "src/main.zig:5:8: warning[missing_doc_comment]: missing doc comment for function 'main'\n",
+        "src/main.zig:5:8: warning[missing_doc_comment]: Missing doc comment for function 'main'.\n",
         out.items,
     );
 }
@@ -484,7 +484,7 @@ test "pretty formatter renders source snippet" {
     try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
         .severity = .warn,
-        .message = "missing doc comment for function 'main'",
+        .message = "Missing doc comment for function 'main'.",
         .file = "src/main.zig",
         .line = 5,
         .column = 8,
@@ -497,7 +497,7 @@ test "pretty formatter renders source snippet" {
     out = writer.toArrayList();
 
     try std.testing.expectEqualStrings(
-        "src/main.zig:5:8: warning[missing_doc_comment]: missing doc comment for function 'main'\n" ++
+        "src/main.zig:5:8: warning[missing_doc_comment]: Missing doc comment for function 'main'.\n" ++
             "    pub fn main() void {}\n" ++
             "           ^~~~\n\n",
         out.items,

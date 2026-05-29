@@ -98,6 +98,44 @@ fn formatModuleDocMessage(msg_allocator: std.mem.Allocator, module_display_name:
     };
 }
 
+fn formatQuotedSymbolMessage(
+    msg_allocator: std.mem.Allocator,
+    lead: []const u8,
+    symbol: []const u8,
+) std.mem.Allocator.Error!FormattedMessage {
+    const message = try std.fmt.allocPrint(msg_allocator, "{s}'{s}'.", .{ lead, symbol });
+    return .{
+        .message = message,
+        .emphasis = .{
+            .offset = lead.len + 1,
+            .len = symbol.len,
+        },
+    };
+}
+
+fn formatKindQuotedSymbolMessage(
+    msg_allocator: std.mem.Allocator,
+    kind: []const u8,
+    symbol: []const u8,
+) std.mem.Allocator.Error!FormattedMessage {
+    const message = try std.fmt.allocPrint(msg_allocator, "Missing doc comment for {s} '{s}'.", .{ kind, symbol });
+    const prefix = "Missing doc comment for ";
+    return .{
+        .message = message,
+        .emphasis = .{
+            .offset = prefix.len + kind.len + 2,
+            .len = symbol.len,
+        },
+    };
+}
+
+fn pubVarDeclKind(tree: *const Ast, var_decl: Ast.full.VarDecl) []const u8 {
+    if (tree.tokenTag(var_decl.ast.mut_token) != .keyword_const) return "variable";
+    const init_node = var_decl.ast.init_node.unwrap() orelse return "constant";
+    if (tree.nodeTag(init_node) == .error_set_decl) return "error set";
+    return "constant";
+}
+
 fn checkNode(
     tree: *const Ast,
     node: Ast.Node.Index,
@@ -119,10 +157,16 @@ fn checkNode(
                         const name_tok = proto.name_token orelse proto.ast.fn_token;
                         const name = tree.tokenSlice(name_tok);
                         const loc = tree.tokenLocation(0, name_tok);
+                        const formatted = try formatQuotedSymbolMessage(
+                            msg_allocator,
+                            "Missing doc comment for function ",
+                            name,
+                        );
                         try diagnostics.append(allocator, .{
                             .rule = rule_name,
                             .severity = severity,
-                            .message = try std.fmt.allocPrint(msg_allocator, "missing doc comment for function '{s}'", .{name}),
+                            .message = formatted.message,
+                            .emphasis = formatted.emphasis,
                             .file = file,
                             .line = loc.line + 1,
                             .column = loc.column + 1,
@@ -150,12 +194,14 @@ fn checkNode(
                 };
 
                 if (!is_reexport) {
-                    const kind = if (tree.tokenTag(var_decl.ast.mut_token) == .keyword_const) "constant" else "variable";
+                    const kind = pubVarDeclKind(tree, var_decl);
                     const loc = tree.tokenLocation(0, name_tok);
+                    const formatted = try formatKindQuotedSymbolMessage(msg_allocator, kind, name);
                     try diagnostics.append(allocator, .{
                         .rule = rule_name,
                         .severity = severity,
-                        .message = try std.fmt.allocPrint(msg_allocator, "missing doc comment for {s} '{s}'", .{ kind, name }),
+                        .message = formatted.message,
+                        .emphasis = formatted.emphasis,
                         .file = file,
                         .line = loc.line + 1,
                         .column = loc.column + 1,
@@ -184,10 +230,12 @@ fn checkNode(
             const name_tok = field.ast.main_token;
             const name = tree.tokenSlice(name_tok);
             const loc = tree.tokenLocation(0, name_tok);
+            const formatted = try formatQuotedSymbolMessage(msg_allocator, "Missing doc comment for field ", name);
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
-                .message = try std.fmt.allocPrint(msg_allocator, "missing doc comment for field '{s}'", .{name}),
+                .message = formatted.message,
+                .emphasis = formatted.emphasis,
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
@@ -497,14 +545,16 @@ fn emitUndocumentedReexportDiagnosticForFile(
         line = loc.line;
         column = loc.column;
     }
+    const formatted = try formatQuotedSymbolMessage(
+        msg_allocator,
+        "Missing source file doc comment for ",
+        source_basename,
+    );
     try diagnostics.append(allocator, .{
         .rule = rule_name,
         .severity = severity,
-        .message = try std.fmt.allocPrint(
-            msg_allocator,
-            "missing source file doc comment for '{s}'",
-            .{source_basename},
-        ),
+        .message = formatted.message,
+        .emphasis = formatted.emphasis,
         .file = try utils.normalizePathSeparators(msg_allocator, file_path),
         .line = line + 1,
         .column = column + 1,
@@ -524,14 +574,20 @@ fn emitUndocumentedReexportDiagnostic(
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     const loc = tree.tokenLocation(0, name_tok);
+    const reexport_lead = "Missing doc comment for '";
+    const message = try std.fmt.allocPrint(
+        msg_allocator,
+        "{s}{s}' (re-exported without documentation).",
+        .{ reexport_lead, display_symbol },
+    );
     try diagnostics.append(allocator, .{
         .rule = rule_name,
         .severity = severity,
-        .message = try std.fmt.allocPrint(
-            msg_allocator,
-            "missing doc comment for '{s}' (re-exported without documentation)",
-            .{display_symbol},
-        ),
+        .message = message,
+        .emphasis = .{
+            .offset = reexport_lead.len,
+            .len = display_symbol.len,
+        },
         // Store an owned copy of the path so it outlives the allocator.
         .file = try utils.normalizePathSeparators(msg_allocator, file_path),
         .line = loc.line + 1,
@@ -630,7 +686,7 @@ test "no module doc diagnostic when //! present" {
     var r = try runCheck("//! Module documentation.\npub fn foo() void {}", true, "fixture");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
-    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "missing doc comment for function") != null);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "Missing doc comment for function") != null);
 }
 
 test "no module doc check when require_module_doc is false" {
@@ -682,6 +738,14 @@ test "detects missing doc comment on pub const, names the symbol" {
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'answer'") != null);
+    try std.testing.expect(std.mem.endsWith(u8, r.items.items[0].message, "."));
+}
+
+test "detects missing doc comment on pub const error set" {
+    var r = try runCheck("pub const MyErr = error{ OutOfMemory };", false, null);
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "error set 'MyErr'") != null);
 }
 
 test "detects missing doc comment on container fields, names the field" {
