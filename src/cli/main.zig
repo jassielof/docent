@@ -188,13 +188,17 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         allocator.free(library_entry_roots);
     }
 
+    const lint_options: docent.LintOptions = .{
+        .module_name = plan.package.name,
+    };
+
     for (plan.resolved_targets) |rt| {
         if (rt.status == .linted) {
             for (rt.files) |path| {
                 const gptr = try linted_files.getOrPut(path);
                 if (gptr.found_existing) continue;
 
-                if (try lintSingleFile(allocator, io, path, rule_set, .{}, library_entry_roots, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
+                if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
                     should_stop = true;
                     break;
                 }
@@ -208,7 +212,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
 
-            if (try lintSingleFile(allocator, io, path, rule_set, .{}, library_entry_roots, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
+            if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
                 should_stop = true;
                 break;
             }

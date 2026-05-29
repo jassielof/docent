@@ -75,6 +75,7 @@ pub const Summary = struct {
 
 const Style = struct {
     plain_bold: carnaval.Style,
+    emphasis: carnaval.Style,
     warning_style: carnaval.Style,
     error_style: carnaval.Style,
     dim: carnaval.Style,
@@ -208,6 +209,7 @@ pub fn printJsonStdout(io: std.Io, allocator: std.mem.Allocator, diagnostics: []
 fn resolveStyle() Style {
     return .{
         .plain_bold = carnaval.Style.init().bolded(),
+        .emphasis = carnaval.Style.init().italicized(),
         .warning_style = carnaval.Style.init().fg(.{ .ansi16 = .yellow }).bolded(),
         .error_style = carnaval.Style.init().fg(.{ .ansi16 = .red }).bolded(),
         .dim = carnaval.Style.init().dimmed(),
@@ -366,8 +368,32 @@ fn writeHeader(
     try writer.writeAll("[");
     try style.dim.renderWithProfile(diagnostic.rule, writer, color_profile);
     try writer.writeAll("]: ");
-    try style.plain_bold.renderWithProfile(diagnostic.message, writer, color_profile);
+    try writeDiagnosticMessage(writer, diagnostic, style, color_profile);
     try writer.writeAll("\n");
+}
+
+fn writeDiagnosticMessage(
+    writer: anytype,
+    diagnostic: Diagnostic,
+    style: Style,
+    color_profile: carnaval.ColorProfile,
+) !void {
+    const msg = diagnostic.message;
+    const emphasis = diagnostic.emphasis orelse {
+        try style.plain_bold.renderWithProfile(msg, writer, color_profile);
+        return;
+    };
+
+    const start = emphasis.offset;
+    const end = start + emphasis.len;
+    if (end > msg.len or start > end) {
+        try style.plain_bold.renderWithProfile(msg, writer, color_profile);
+        return;
+    }
+
+    try style.plain_bold.renderWithProfile(msg[0..start], writer, color_profile);
+    try style.emphasis.renderWithProfile(msg[start..end], writer, color_profile);
+    try style.plain_bold.renderWithProfile(msg[end..], writer, color_profile);
 }
 
 fn jsonEscape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
