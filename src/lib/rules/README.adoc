@@ -14,69 +14,6 @@ While default rules focus on documentation comments, style and complexity rules 
 * For examples, see <<_test_suite>>.
 ====
 
-[source]
-----
-warning[blank_doc_comment]
-Warning: Blank doc comment on module 'docent'.
- --> src/lib/root.zig:1:1
-  |
-1 |     //!
-  |     ^~~~
-
-warning[missing_doc_comment]
-Warning: Missing doc comment on field 'offset'.
- --> src/lib/Diagnostic.zig:8:5
-  |
-8 |         offset: usize,
-  |         ^~~~~~
-
-warning[missing_doc_comment]
-Warning: Missing doc comment on error set 'Error'.
-  --> src/lib/Config.zig:24:11
-   |
-24 |     pub const Error = error{
-   |               ^~~~~
-
-docent generated 3 warnings
-----
-
-On the pretty format (default), the output needs to be prosed, and more readable:
-
-[source]
-----
-severity[rule_id]
-<Severity>: <Prosed rule> on <declaration kind> '<italicized declaration name>'.
- --> <file path>:<line>:<column>
-  |
-n |  <code snippet triggering the diagnostic>
-  |  <carets underlining the relevant part of the code snippet, for example, not extending to braces, etc. This should be colored with the same severity color>
-
-----
-
-.Where:
-* `n` is the line number
-
-[source]
-----
-src/lib/root.zig:1:1: warning[blank_doc_comment]
-src/lib/Diagnostic.zig:8:5: warning[missing_doc_comment]
-src/lib/Config.zig:24:11: warning[missing_doc_comment]
-
-docent generated 3 warnings
-----
-
-Basically for minimal, the output format is:
-
-  path:line:column: severity[rule_id]
-
-Notice how there's an empty newline before the last summary line.
-
-[NOTE]
-====
-* The `-->` and `|`` indentation should account for line number width — line 24 is 2 digits so everything shifts one space to keep the | columns aligned. You'll want to compute the max line number width per diagnostic block when rendering.
-* Each diagnostic block is separated by a blank line, but there's no blank line between the last diagnostic and the summary, since the summary already feels visually detached enough on its own.
-====
-
 == Doc comments
 
 By default, these rules will be enforced across the public API surface. One can also configure the rules selectively or completely if desired to consider private declarations as well.
