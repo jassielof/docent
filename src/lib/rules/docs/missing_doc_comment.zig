@@ -28,7 +28,7 @@ pub fn check(
     if (!severity.isActive()) return;
     try checkModuleDocComment(tree, severity, file, require_module_doc, module_name, allocator, msg_allocator, diagnostics);
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity, file, public_api_only, allocator, io, msg_allocator, diagnostics);
+        try checkNode(tree, decl, severity, file, public_api_only, .field, allocator, io, msg_allocator, diagnostics);
     }
 }
 
@@ -62,10 +62,17 @@ fn checkModuleDocComment(
     });
 }
 
+fn isEnumContainer(tree: *const Ast, container_node: Ast.Node.Index) bool {
+    var buf: [2]Ast.Node.Index = undefined;
+    const container = tree.fullContainerDecl(&buf, container_node) orelse return false;
+    return tree.tokenTag(container.ast.main_token) == .keyword_enum;
+}
+
 fn pubVarDeclSubjectKind(tree: *const Ast, var_decl: Ast.full.VarDecl) Diagnostic.SubjectKind {
     if (tree.tokenTag(var_decl.ast.mut_token) != .keyword_const) return .variable;
     const init_node = var_decl.ast.init_node.unwrap() orelse return .constant;
     if (tree.nodeTag(init_node) == .error_set_decl) return .error_set;
+    if (isEnumContainer(tree, init_node)) return .enumeration;
     return .constant;
 }
 
@@ -85,6 +92,7 @@ fn checkNode(
     severity: Severity.Level,
     file: []const u8,
     public_api_only: bool,
+    member_field_kind: Diagnostic.SubjectKind,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
@@ -150,8 +158,12 @@ fn checkNode(
     if (isContainerDecl(tag)) {
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
+            const child_member_kind: Diagnostic.SubjectKind = if (isEnumContainer(tree, node))
+                .enumerator
+            else
+                member_field_kind;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, public_api_only, allocator, io, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity, file, public_api_only, child_member_kind, allocator, io, msg_allocator, diagnostics);
             }
         }
         return;
@@ -165,7 +177,7 @@ fn checkNode(
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
-                .subject = try utils.ownedSubject(msg_allocator, .field, name),
+                .subject = try utils.ownedSubject(msg_allocator, member_field_kind, name),
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
@@ -194,8 +206,12 @@ fn checkVarDeclInit(
     if (isContainerDecl(tree.nodeTag(init_node))) {
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, init_node)) |container| {
+            const child_member_kind: Diagnostic.SubjectKind = if (isEnumContainer(tree, init_node))
+                .enumerator
+            else
+                .field;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, public_api_only, allocator, io, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity, file, public_api_only, child_member_kind, allocator, io, msg_allocator, diagnostics);
             }
         }
     }
@@ -669,7 +685,26 @@ test "detects missing doc comment on container fields, names the field" {
     defer r.deinit();
     try std.testing.expectEqual(2, r.items.items.len);
     try std.testing.expectEqualStrings("x", r.items.items[0].subject.?.name);
+    try std.testing.expectEqual(.field, r.items.items[0].subject.?.kind);
     try std.testing.expectEqualStrings("y", r.items.items[1].subject.?.name);
+    try std.testing.expectEqual(.field, r.items.items[1].subject.?.kind);
+}
+
+test "detects missing doc comment on pub enum and enumerators" {
+    var r = try runCheck(
+        \\pub const Color = enum {
+        \\    red,
+        \\    green,
+        \\};
+    , false, null);
+    defer r.deinit();
+    try std.testing.expectEqual(3, r.items.items.len);
+    try std.testing.expectEqual(.enumeration, r.items.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("Color", r.items.items[0].subject.?.name);
+    try std.testing.expectEqual(.enumerator, r.items.items[1].subject.?.kind);
+    try std.testing.expectEqualStrings("red", r.items.items[1].subject.?.name);
+    try std.testing.expectEqual(.enumerator, r.items.items[2].subject.?.kind);
+    try std.testing.expectEqualStrings("green", r.items.items[2].subject.?.name);
 }
 
 test "no diagnostic for private const struct members and pub fn inside" {
