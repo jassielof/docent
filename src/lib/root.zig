@@ -135,6 +135,15 @@ pub fn lintSource(
     try rules.docs.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, options.public_api_only, allocator, msg, &result.diagnostics);
     try rules.docs.private_doctest.check(&tree, rule_set.private_doctest, file_owned, allocator, msg, &result.diagnostics);
     try rules.docs.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, options.public_api_only, allocator, msg, &result.diagnostics);
+    try rules.docs.missing_leading_phrase.check(
+        &tree,
+        rule_set.missing_leading_phrase,
+        file_owned,
+        options.module_name,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
 
     return result;
 }

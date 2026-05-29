@@ -22,6 +22,8 @@ missing_summary_terminal_punctuation: Severity.Level = .warn,
 trailing_blank_doc_comment: Severity.Level = .warn,
 /// Requires doctest names to match the declaration they document.
 doctest_naming_mismatch: Severity.Level = .warn,
+/// Requires the summary to begin with a leading phrase naming the documented identifier.
+missing_leading_phrase: Severity.Level = .warn,
 
 /// Comptime-computed array of all rule field names in declaration order.
 const _field_names_buf = init: {

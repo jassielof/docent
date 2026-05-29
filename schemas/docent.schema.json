@@ -1,0 +1,244 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://jassielof.github.io/docent/schema/config.json",
+  "title": "Docent Configuration",
+  "description": "Configuration schema for the Docent Zig documentation linter.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Schema version for forward-compatibility detection.",
+      "const": 1
+    },
+    "lint": {
+      "type": "object",
+      "description": "Global linting options.",
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "type": "array",
+          "description": "Source paths to lint. Defaults to the library entrypoints discovered from build.zig.",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "profile": {
+          "type": "string",
+          "description": "Lint profile to use as the baseline rule set.",
+          "enum": ["default", "strict", "pedantic"],
+          "default": "default"
+        },
+        "categories": {
+          "type": "object",
+          "description": "Enable or disable entire rule categories.",
+          "additionalProperties": false,
+          "properties": {
+            "documentation": { "type": "boolean", "default": true },
+            "style": { "type": "boolean", "default": true },
+            "complexity": { "type": "boolean", "default": true },
+            "api": { "type": "boolean", "default": true },
+            "correctness": { "type": "boolean", "default": true }
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "description": "Per-rule configuration. Each key is a rule identifier.",
+      "additionalProperties": false,
+      "properties": {
+        "missing_doc_comment": {
+          "$ref": "#/definitions/baseRule",
+          "description": "Warns when a public declaration is missing a doc comment."
+        },
+        "missing_ending_punctuation": {
+          "description": "Warns when the summary paragraph of a doc comment does not end with terminal punctuation.",
+          "allOf": [{ "$ref": "#/definitions/baseRule" }],
+          "properties": {
+            "level": { "$ref": "#/definitions/level" },
+            "scope": {
+              "type": "string",
+              "description": "Whether to check only the first (summary) paragraph or every prose paragraph.",
+              "enum": ["summary", "all"],
+              "default": "summary"
+            },
+            "accepted_marks": {
+              "type": "array",
+              "description": "Set of accepted terminal punctuation characters.",
+              "items": { "type": "string", "maxLength": 1 },
+              "default": [".", "!", "?"]
+            }
+          },
+          "additionalProperties": false
+        },
+        "starts_with_module": {
+          "description": "Warns when a module entry-point doc comment does not start with a canonical module leading phrase.",
+          "allOf": [{ "$ref": "#/definitions/baseRule" }],
+          "properties": {
+            "level": { "$ref": "#/definitions/level" },
+            "allow_library_kind": {
+              "type": "boolean",
+              "description": "Allow 'Library' as an alternative kind for module entrypoints that expose no reserved entry points.",
+              "default": false
+            },
+            "require_backticks": {
+              "type": "boolean",
+              "description": "Require the module name to be wrapped in backticks when following an article.",
+              "default": false
+            },
+            "case_insensitive": {
+              "type": "boolean",
+              "description": "Allow the module name check to be case insensitive.",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "starts_with_identifier": {
+          "description": "Warns when a public declaration's doc comment does not start with the declaration's identifier.",
+          "allOf": [{ "$ref": "#/definitions/baseRule" }],
+          "properties": {
+            "level": { "$ref": "#/definitions/level" },
+            "mode": {
+              "type": "string",
+              "description": "How strictly the leading phrase is validated.",
+              "enum": ["relaxed", "canonical", "strict"],
+              "default": "canonical"
+            },
+            "require_article": {
+              "type": "boolean",
+              "description": "Require an English article (a, an, the) before the identifier.",
+              "default": false
+            },
+            "require_backticks": {
+              "type": "boolean",
+              "description": "Require the identifier to be wrapped in backticks.",
+              "default": false
+            },
+            "require_kind": {
+              "type": "boolean",
+              "description": "Require a kind word (function, struct, enum, etc.) in the leading phrase.",
+              "default": false
+            },
+            "allow_kind_before_identifier": {
+              "type": "boolean",
+              "description": "Allow the kind word to appear before the identifier.",
+              "default": true
+            },
+            "allow_kind_after_identifier": {
+              "type": "boolean",
+              "description": "Allow the kind word to appear after the identifier.",
+              "default": true
+            },
+            "allowed_articles": {
+              "type": "array",
+              "description": "Accepted English articles.",
+              "items": { "type": "string" },
+              "default": ["a", "an", "the"]
+            },
+            "allowed_decl_kinds": {
+              "type": "array",
+              "description": "Accepted identifier kind words for declarations.",
+              "items": { "type": "string" },
+              "default": [
+                "function",
+                "fn",
+                "struct",
+                "enum",
+                "union",
+                "type",
+                "constant",
+                "const",
+                "variable",
+                "var",
+                "error set"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "function_size": {
+          "description": "Warns when a function exceeds the configured true physical LoC threshold.",
+          "allOf": [{ "$ref": "#/definitions/baseRule" }],
+          "properties": {
+            "level": { "$ref": "#/definitions/level" },
+            "max_lines": {
+              "type": "integer",
+              "description": "Maximum number of physical true LoC (excluding comments, blank lines, braces, and the declaration line).",
+              "minimum": 1,
+              "default": 80
+            }
+          },
+          "additionalProperties": false
+        },
+        "cyclomatic_complexity": {
+          "description": "Warns when the cyclomatic complexity of a function exceeds the threshold.",
+          "allOf": [{ "$ref": "#/definitions/baseRule" }],
+          "properties": {
+            "level": { "$ref": "#/definitions/level" },
+            "max_complexity": {
+              "type": "integer",
+              "description": "Maximum allowed cyclomatic complexity per function.",
+              "minimum": 1,
+              "default": 10
+            }
+          },
+          "additionalProperties": false
+        },
+        "cognitive_complexity": {
+          "description": "Warns when the cognitive complexity of a function exceeds the threshold.",
+          "allOf": [{ "$ref": "#/definitions/baseRule" }],
+          "properties": {
+            "level": { "$ref": "#/definitions/level" },
+            "max_complexity": {
+              "type": "integer",
+              "description": "Maximum allowed cognitive complexity per function.",
+              "minimum": 1,
+              "default": 15
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "exclusions": {
+      "type": "array",
+      "description": "Path-based exclusion rules. Applied before analysis; diagnostic origin is used for file-level suppression.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Glob pattern relative to the project root."
+          },
+          "rules": {
+            "type": "array",
+            "description": "Specific rules to suppress for matching paths. If omitted alongside 'all: true', all rules are suppressed.",
+            "items": { "type": "string" }
+          },
+          "all": {
+            "type": "boolean",
+            "description": "Suppress all rules for matching paths.",
+            "default": false
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "level": {
+      "type": "string",
+      "description": "Severity level for a rule.",
+      "enum": ["allow", "warn", "deny"],
+      "default": "warn"
+    },
+    "baseRule": {
+      "type": "object",
+      "properties": {
+        "level": { "$ref": "#/definitions/level" }
+      }
+    }
+  }
+}
