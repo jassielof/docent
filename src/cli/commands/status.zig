@@ -110,13 +110,14 @@ fn run(ctx: *fangz.ParseContext) !void {
     };
     if (config_path) |path| {
         defer allocator.free(path);
-        try printStatusReport(io, plan, rule_set, path);
+        try printStatusReport(allocator, io, plan, rule_set, path);
     } else {
-        try printStatusReport(io, plan, rule_set, null);
+        try printStatusReport(allocator, io, plan, rule_set, null);
     }
 }
 
 pub fn printStatusReport(
+    allocator: std.mem.Allocator,
     io: std.Io,
     plan: docent.status_plan.Plan,
     rule_set: docent.RuleSet,
@@ -240,13 +241,7 @@ pub fn printStatusReport(
     }
 
     try sectionHeading(w, profile, "Effective rules");
-    inline for (@typeInfo(docent.RuleSet).@"struct".fields) |f| {
-        const level = @field(rule_set, f.name);
-        try w.print("  {s}", .{f.name});
-        var pad: usize = 0;
-        while (pad < 32 -| f.name.len) : (pad += 1) try w.print(" ", .{});
-        try w.print("{s}\n", .{@tagName(level)});
-    }
+    try printEffectiveRules(allocator, w, profile, rule_set);
     try w.print("\n", .{});
 
     try carnaval.Style.init().dimmed().renderWithProfile(
@@ -260,6 +255,33 @@ pub fn printStatusReport(
 fn sectionHeading(w: *std.Io.Writer, profile: carnaval.ColorProfile, title: []const u8) !void {
     try carnaval.Style.init().bolded().renderWithProfile(title, w, profile);
     try w.print("\n", .{});
+}
+
+fn printEffectiveRules(
+    allocator: std.mem.Allocator,
+    w: *std.Io.Writer,
+    profile: carnaval.ColorProfile,
+    rule_set: docent.RuleSet,
+) !void {
+    var items = std.ArrayList([]const u8).empty;
+    defer {
+        for (items.items) |line| allocator.free(line);
+        items.deinit(allocator);
+    }
+
+    inline for (@typeInfo(docent.RuleSet).@"struct".fields) |f| {
+        const level = @field(rule_set, f.name);
+        var buf: [512]u8 = undefined;
+        var line_writer = std.Io.Writer.fixed(&buf);
+        try docent.output.writeSeverityRuleTag(&line_writer, level, f.name, profile);
+        try items.append(allocator, try allocator.dupe(u8, line_writer.buffered()));
+    }
+
+    try carnaval.renderList(items.items, w, .{
+        .style = .bullet,
+        .indent = "  ",
+        .color_profile = profile,
+    });
 }
 
 fn printStderr(io: std.Io, comptime fmt: []const u8, args: anytype) !void {
