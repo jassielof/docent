@@ -16,6 +16,7 @@ const RulesJson = struct {
     missing_summary_terminal_punctuation: ?[]const u8 = null,
     trailing_blank_doc_comment: ?[]const u8 = null,
     doctest_naming_mismatch: ?[]const u8 = null,
+    missing_leading_phrase: ?[]const u8 = null,
 };
 
 const DocentConfigJson = struct {

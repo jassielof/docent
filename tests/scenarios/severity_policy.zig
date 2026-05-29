@@ -10,8 +10,11 @@ test "allow suppresses all diagnostics on multi_rule_doc_violations" {
     var result = try harness.lintScenarioFixture(&.{"multi_rule_doc_violations.zig"}, .{
         .missing_doc_comment = .allow,
         .blank_doc_comment = .allow,
+        .missing_summary_terminal_punctuation = .allow,
+        .trailing_blank_doc_comment = .allow,
         .private_doctest = .allow,
         .doctest_naming_mismatch = .allow,
+        .missing_leading_phrase = .allow,
     }, .{});
     defer result.deinit();
     try std.testing.expectEqual(@as(usize, 0), result.diagnostics.items.len);
