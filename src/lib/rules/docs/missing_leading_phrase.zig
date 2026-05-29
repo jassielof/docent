@@ -268,7 +268,8 @@ test "accepts enumerator identifier first" {
         \\    /// red is the warm primary.
         \\    red,
         \\};
-    ,);
+        ,
+    );
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }

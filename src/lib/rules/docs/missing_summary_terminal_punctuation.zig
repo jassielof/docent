@@ -140,7 +140,8 @@ test "accepts exclamation and question marks" {
         \\pub fn a() void {}
         \\/// Really?
         \\pub fn b() void {}
-    ,);
+        ,
+    );
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
@@ -151,7 +152,8 @@ test "only checks the first paragraph" {
         \\///
         \\/// Second paragraph without punctuation
         \\pub fn foo() void {}
-    ,);
+        ,
+    );
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
@@ -163,7 +165,8 @@ test "detects missing punctuation on last line of multiline summary" {
         \\pub fn add(a: i32, b: i32) i32 {
         \\    return a + b;
         \\}
-    ,);
+        ,
+    );
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(@as(usize, 2), r.items.items[0].line);
@@ -176,7 +179,8 @@ test "multiline summary with terminal punctuation is valid" {
         \\pub fn add(a: i32, b: i32) i32 {
         \\    return a + b;
         \\}
-    ,);
+        ,
+    );
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
@@ -200,7 +204,8 @@ test "detects missing punctuation on enum enumerator doc" {
         \\    /// Primary red
         \\    red,
         \\};
-    ,);
+        ,
+    );
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(.enumerator, r.items.items[0].subject.?.kind);
