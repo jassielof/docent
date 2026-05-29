@@ -2,12 +2,20 @@
 
 const Severity = @import("Severity.zig");
 
+/// Byte range within `message` for emphasized rendering in TTY output.
+pub const EmphasisSpan = struct {
+    offset: usize,
+    len: usize,
+};
+
 /// The identifier of the lint rule that triggered this diagnostic.
 rule: []const u8,
 /// The severity level of the diagnostic.
 severity: Severity.Level,
 /// A detailed message explaining the issue.
 message: []const u8,
+/// When set, TTY formatters render this byte range of `message` with emphasis (italic when supported).
+emphasis: ?EmphasisSpan = null,
 /// The path to the file where the diagnostic was found.
 file: []const u8,
 /// The 1-based line number in the source file where the diagnostic occurs.

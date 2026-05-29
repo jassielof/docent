@@ -18,23 +18,27 @@ pub fn check(
     severity: Severity.Level,
     file: []const u8,
     require_module_doc: bool,
+    module_name: ?[]const u8,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     if (!severity.isActive()) return;
-    try checkModuleDocComment(tree, severity, file, require_module_doc, allocator, msg_allocator, diagnostics);
+    try checkModuleDocComment(tree, severity, file, require_module_doc, module_name, allocator, msg_allocator, diagnostics);
     for (tree.rootDecls()) |decl| {
         try checkNode(tree, decl, severity, file, allocator, io, msg_allocator, diagnostics);
     }
 }
+
+const module_doc_prefix = "Missing module doc comment for ";
 
 fn checkModuleDocComment(
     tree: *const Ast,
     severity: Severity.Level,
     file: []const u8,
     require_module_doc: bool,
+    module_name: ?[]const u8,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
@@ -42,7 +46,8 @@ fn checkModuleDocComment(
     if (!require_module_doc) return;
     if (hasContainerDocComment(tree, 0)) return;
 
-    const basename = std.fs.path.basename(file);
+    const display_name = resolveModuleDisplayName(file, module_name);
+    const formatted = try formatModuleDocMessage(msg_allocator, display_name);
     const first_src = if (tree.tokens.len > 0)
         try utils.dupSourceLine(tree, 0, msg_allocator)
     else
@@ -50,13 +55,47 @@ fn checkModuleDocComment(
     try diagnostics.append(allocator, .{
         .rule = rule_name,
         .severity = severity,
-        .message = try std.fmt.allocPrint(msg_allocator, "missing module doc comment for '{s}'", .{basename}),
+        .message = formatted.message,
+        .emphasis = formatted.emphasis,
         .file = file,
         .line = 1,
         .column = 1,
         .source_line = first_src,
-        .symbol_len = basename.len,
+        .symbol_len = 1,
     });
+}
+
+fn resolveModuleDisplayName(file: []const u8, module_name: ?[]const u8) []const u8 {
+    if (module_name) |name| return name;
+
+    const base = std.fs.path.basename(file);
+    if (std.mem.eql(u8, base, "root.zig")) {
+        if (std.fs.path.dirname(file)) |dir| {
+            const parent = std.fs.path.basename(dir);
+            if (parent.len > 0 and !std.mem.eql(u8, parent, ".") and !std.mem.eql(u8, parent, "..")) {
+                return parent;
+            }
+        }
+    }
+
+    if (std.mem.endsWith(u8, base, ".zig")) return base[0 .. base.len - ".zig".len];
+    return base;
+}
+
+const FormattedMessage = struct {
+    message: []const u8,
+    emphasis: ?Diagnostic.EmphasisSpan,
+};
+
+fn formatModuleDocMessage(msg_allocator: std.mem.Allocator, module_display_name: []const u8) std.mem.Allocator.Error!FormattedMessage {
+    const message = try std.fmt.allocPrint(msg_allocator, "{s}{s}.", .{ module_doc_prefix, module_display_name });
+    return .{
+        .message = message,
+        .emphasis = .{
+            .offset = module_doc_prefix.len,
+            .len = module_display_name.len,
+        },
+    };
 }
 
 fn checkNode(
@@ -561,7 +600,7 @@ const TestResult = struct {
     }
 };
 
-fn runCheck(source: [:0]const u8, require_module_doc: bool) !TestResult {
+fn runCheck(source: [:0]const u8, require_module_doc: bool, module_name: ?[]const u8) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     errdefer msg_arena.deinit();
@@ -572,28 +611,30 @@ fn runCheck(source: [:0]const u8, require_module_doc: bool) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", require_module_doc, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", require_module_doc, module_name, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
 test "detects missing module doc comment on entry root" {
-    var r = try runCheck("pub fn foo() void {}", true);
+    var r = try runCheck("pub fn foo() void {}", true, "fixture");
     defer r.deinit();
     try std.testing.expectEqual(2, r.items.items.len);
-    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "missing module doc comment") != null);
-    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "<test>") != null);
+    try std.testing.expectEqualStrings("Missing module doc comment for fixture.", r.items.items[0].message);
+    try std.testing.expectEqual(module_doc_prefix.len, r.items.items[0].emphasis.?.offset);
+    const emph = r.items.items[0].emphasis.?;
+    try std.testing.expectEqualStrings("fixture", r.items.items[0].message[emph.offset..][0..emph.len]);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
 }
 
 test "no module doc diagnostic when //! present" {
-    var r = try runCheck("//! Module documentation.\npub fn foo() void {}", true);
+    var r = try runCheck("//! Module documentation.\npub fn foo() void {}", true, "fixture");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "missing doc comment for function") != null);
 }
 
 test "no module doc check when require_module_doc is false" {
-    var r = try runCheck("pub fn foo() void {}", false);
+    var r = try runCheck("pub fn foo() void {}", false, null);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "module doc comment") == null);
@@ -607,13 +648,13 @@ test "no extra module doc required inside pub const struct body" {
         \\    /// Documented field.
         \\    x: u32,
         \\};
-    , true);
+    , true, "mylib");
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "detects missing doc comment on pub fn, names the symbol" {
-    var r = try runCheck("pub fn foo() void {}", false);
+    var r = try runCheck("pub fn foo() void {}", false, null);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
@@ -625,19 +666,19 @@ test "no diagnostic for documented pub fn" {
     var r = try runCheck(
         \\/// Does something.
         \\pub fn foo() void {}
-    , false);
+    , false, null);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "no diagnostic for private fn" {
-    var r = try runCheck("fn foo() void {}", false);
+    var r = try runCheck("fn foo() void {}", false, null);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "detects missing doc comment on pub const, names the symbol" {
-    var r = try runCheck("pub const answer = 42;", false);
+    var r = try runCheck("pub const answer = 42;", false, null);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'answer'") != null);
@@ -650,7 +691,7 @@ test "detects missing doc comment on container fields, names the field" {
         \\    x: u32,
         \\    y: u32,
         \\};
-    , false);
+    , false, null);
     defer r.deinit();
     try std.testing.expectEqual(2, r.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'x'") != null);
@@ -664,20 +705,20 @@ test "no diagnostic for private const struct members and pub fn inside" {
         \\    color: []const u8,
         \\    pub fn world() void {}
         \\};
-    , false);
+    , false, null);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "location points to name token, not keyword" {
-    var r = try runCheck("pub fn myFunc() void {}", false);
+    var r = try runCheck("pub fn myFunc() void {}", false, null);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(@as(usize, 8), r.items.items[0].column);
 }
 
 test "source_line is populated" {
-    var r = try runCheck("pub fn foo() void {}", false);
+    var r = try runCheck("pub fn foo() void {}", false, null);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings("pub fn foo() void {}", r.items.items[0].source_line);
@@ -686,7 +727,7 @@ test "source_line is populated" {
 test "re-export with unresolvable import is silently skipped (no false positive)" {
     // When the imported file can't be resolved (fake path from <test> file),
     // the re-export must produce zero diagnostics.
-    var r = try runCheck("pub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;", false);
+    var r = try runCheck("pub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;", false, null);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
@@ -695,7 +736,7 @@ test "re-export through local import alias is recognized" {
     var r = try runCheck(
         \\const helpers = @import("helpers.zig");
         \\pub const greet = helpers.greet;
-    , false);
+    , false, null);
     defer r.deinit();
     // Unresolvable from <test> path — must not false-positive on the re-export line.
     try std.testing.expectEqual(0, r.items.items.len);

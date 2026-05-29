@@ -108,19 +108,34 @@ test "project reexport_undocumented points at definition not re-export line" {
 }
 
 test "invalid missing_module_doc reports missing module doc comment on root.zig" {
-    var result = try lint(&.{ "invalid", "missing_module_doc", "root.zig" }, .{
-        .missing_doc_comment = .warn,
-    });
+    const allocator = std.testing.allocator;
+    const path = try loc.fixturePath(allocator, &.{ "invalid", "missing_module_doc", "root.zig" });
+    defer allocator.free(path);
+    const source = try harness.readFixtureFile(allocator, std.testing.io, path);
+    defer allocator.free(source);
+    const display = try harness.relativeFixtureDisplay(allocator, path);
+    defer allocator.free(display);
+
+    var result = try docent.lintSource(
+        allocator,
+        std.testing.io,
+        source,
+        .{ .missing_doc_comment = .warn },
+        display,
+        .{ .module_name = "fixture" },
+        &.{},
+    );
     defer result.deinit();
     try utils.expectRuleCount(result, "missing_doc_comment", 3);
 
     var module_doc_count: usize = 0;
     for (result.diagnostics.items) |d| {
         if (std.mem.eql(u8, d.rule, "missing_doc_comment") and
-            std.mem.indexOf(u8, d.message, "missing module doc comment") != null)
+            std.mem.eql(u8, d.message, "Missing module doc comment for fixture."))
         {
             module_doc_count += 1;
-            try std.testing.expect(std.mem.indexOf(u8, d.message, "root.zig") != null);
+            const emph = d.emphasis orelse return error.TestExpectedEqual;
+            try std.testing.expectEqualStrings("fixture", d.message[emph.offset..][0..emph.len]);
         }
     }
     try std.testing.expectEqual(@as(usize, 1), module_doc_count);

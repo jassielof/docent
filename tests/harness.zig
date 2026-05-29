@@ -108,7 +108,7 @@ pub fn scenarioProjectPath(locator: ScenarioLocator, rel: []const u8) ![]const u
     return locator.fixturePath(allocator, &.{rel});
 }
 
-fn relativeFixtureDisplay(allocator: std.mem.Allocator, absolute: []const u8) ![]const u8 {
+pub fn relativeFixtureDisplay(allocator: std.mem.Allocator, absolute: []const u8) ![]const u8 {
     const tests_idx = std.mem.indexOf(u8, absolute, if (is_windows) "\\tests\\" else "/tests/") orelse
         std.mem.indexOf(u8, absolute, "tests/") orelse
         std.mem.indexOf(u8, absolute, "tests\\") orelse
