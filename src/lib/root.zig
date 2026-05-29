@@ -114,6 +114,15 @@ pub fn lintSource(
         msg,
         &result.diagnostics,
     );
+    try rules.docs.missing_summary_terminal_punctuation.check(
+        &tree,
+        rule_set.missing_summary_terminal_punctuation,
+        file_owned,
+        options.module_name,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
     try rules.docs.trailing_blank_doc_comment.check(
         &tree,
         rule_set.trailing_blank_doc_comment,
