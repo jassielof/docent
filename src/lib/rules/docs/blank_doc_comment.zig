@@ -44,7 +44,7 @@ pub fn check(
             const subject = if (tag == .container_doc_comment)
                 try utils.ownedSubject(msg_allocator, .module, utils.moduleDisplayName(file, module_name))
             else
-                try utils.ownedSubject(msg_allocator, .doc_comment, "");
+                try utils.resolveDocCommentSubject(tree, @intCast(i), file, module_name, msg_allocator);
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
@@ -101,8 +101,22 @@ test "detects blank /// comment" {
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
-    try std.testing.expectEqual(.doc_comment, r.items.items[0].subject.?.kind);
+    try std.testing.expectEqual(.function, r.items.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("foo", r.items.items[0].subject.?.name);
     try std.testing.expectEqual(@as(usize, 3), r.items.items[0].symbol_len);
+}
+
+test "detects blank /// on enum enumerator" {
+    var r = try runCheck(
+        \\pub const Color = enum {
+        \\    ///
+        \\    red,
+        \\};
+    ,);
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqual(.enumerator, r.items.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("red", r.items.items[0].subject.?.name);
 }
 
 test "detects blank /// with spaces" {

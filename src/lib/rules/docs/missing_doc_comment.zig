@@ -62,17 +62,11 @@ fn checkModuleDocComment(
     });
 }
 
-fn isEnumContainer(tree: *const Ast, container_node: Ast.Node.Index) bool {
-    var buf: [2]Ast.Node.Index = undefined;
-    const container = tree.fullContainerDecl(&buf, container_node) orelse return false;
-    return tree.tokenTag(container.ast.main_token) == .keyword_enum;
-}
-
 fn pubVarDeclSubjectKind(tree: *const Ast, var_decl: Ast.full.VarDecl) Diagnostic.SubjectKind {
     if (tree.tokenTag(var_decl.ast.mut_token) != .keyword_const) return .variable;
     const init_node = var_decl.ast.init_node.unwrap() orelse return .constant;
     if (tree.nodeTag(init_node) == .error_set_decl) return .error_set;
-    if (isEnumContainer(tree, init_node)) return .enumeration;
+    if (utils.isEnumContainer(tree, init_node)) return .enumeration;
     return .constant;
 }
 
@@ -158,7 +152,7 @@ fn checkNode(
     if (isContainerDecl(tag)) {
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
-            const child_member_kind: Diagnostic.SubjectKind = if (isEnumContainer(tree, node))
+            const child_member_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, node))
                 .enumerator
             else
                 member_field_kind;
@@ -206,7 +200,7 @@ fn checkVarDeclInit(
     if (isContainerDecl(tree.nodeTag(init_node))) {
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, init_node)) |container| {
-            const child_member_kind: Diagnostic.SubjectKind = if (isEnumContainer(tree, init_node))
+            const child_member_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, init_node))
                 .enumerator
             else
                 .field;
@@ -555,22 +549,7 @@ fn hasDocComment(tree: *const Ast, first_token: Ast.TokenIndex) bool {
 }
 
 fn isContainerDecl(tag: Ast.Node.Tag) bool {
-    return switch (tag) {
-        .container_decl,
-        .container_decl_trailing,
-        .container_decl_two,
-        .container_decl_two_trailing,
-        .container_decl_arg,
-        .container_decl_arg_trailing,
-        .tagged_union,
-        .tagged_union_trailing,
-        .tagged_union_two,
-        .tagged_union_two_trailing,
-        .tagged_union_enum_tag,
-        .tagged_union_enum_tag_trailing,
-        => true,
-        else => false,
-    };
+    return utils.isContainerDecl(tag);
 }
 
 const TestResult = struct {
