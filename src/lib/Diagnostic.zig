@@ -11,7 +11,9 @@ pub const SubjectKind = enum {
     constant,
     variable,
     error_set,
+    enumeration,
     field,
+    enumerator,
     doc_comment,
     doctest,
 
@@ -23,7 +25,9 @@ pub const SubjectKind = enum {
             .constant => "constant",
             .variable => "variable",
             .error_set => "error set",
+            .enumeration => "enumeration",
             .field => "field",
+            .enumerator => "enumerator",
             .doc_comment => "doc comment",
             .doctest => "doctest",
         };
