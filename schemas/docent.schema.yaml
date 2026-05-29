@@ -4,3 +4,21 @@ $schema: https://json-schema.org/draft-07/schema#
 # id:
 title: Docent configuration schema
 description: Schema for the configuration of the Docent linter.
+properties:
+  rules:
+    type: object
+    description: Per-rule configuration.
+    additionalProperties: false
+    properties:
+      missing_doc_comment:
+        type: object
+      blank_doc_comment:
+        type: object
+      trailing_blank_doc_comment:
+        type: object
+      missing_summary_terminal_punctuation:
+        type: object
+      missing_doctest:
+        type: object
+      invalid_leading_phrase:
+        type: object

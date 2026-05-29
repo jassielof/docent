@@ -24,6 +24,10 @@ trailing_blank_doc_comment: Severity.Level = .warn,
 doctest_naming_mismatch: Severity.Level = .warn,
 /// Requires the summary to begin with a valid leading phrase naming the documented identifier.
 invalid_leading_phrase: Severity.Level = .warn,
+/// Flags functions whose cognitive complexity exceeds the configured threshold (default 15).
+///
+/// Measured by the `docent complexity` sub-command following the Sonar specification; not part of the default lint run.
+cognitive_complexity: Severity.Level = .warn,
 
 /// Comptime-computed array of all rule field names in declaration order.
 const _field_names_buf = init: {

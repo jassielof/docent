@@ -82,6 +82,12 @@ pub const rules: []const RuleRow = &.{
         .summary = "Doc comment summaries should begin with a leading phrase naming the documented identifier.",
         .prose_title = "Invalid leading phrase",
     },
+    .{
+        .name = "cognitive_complexity",
+        .default_level = "warn",
+        .summary = "Functions should stay below the cognitive complexity threshold (default 15).",
+        .prose_title = "Cognitive complexity",
+    },
 };
 
 comptime {
