@@ -1,29 +1,10 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
+const vereda = @import("vereda");
 
-// TODO: This normalize path separator util should be delegated to my Vereda library.
 /// Normalizes `\` to `/` so diagnostic paths match Zig source import style on every platform.
 pub fn normalizePathSeparators(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
-    if (std.mem.indexOfScalar(u8, path, '\\') == null) return try allocator.dupe(u8, path);
-
-    var out: std.ArrayList(u8) = .empty;
-    errdefer out.deinit(allocator);
-    for (path) |c| {
-        try out.append(allocator, if (c == '\\') '/' else c);
-    }
-    return try out.toOwnedSlice(allocator);
-}
-
-test "normalizePathSeparators converts backslashes" {
-    const got = try normalizePathSeparators(std.testing.allocator, "src\\lib\\root.zig");
-    defer std.testing.allocator.free(got);
-    try std.testing.expectEqualStrings("src/lib/root.zig", got);
-}
-
-test "normalizePathSeparators leaves forward slashes unchanged" {
-    const got = try normalizePathSeparators(std.testing.allocator, "src/lib/root.zig");
-    defer std.testing.allocator.free(got);
-    try std.testing.expectEqualStrings("src/lib/root.zig", got);
+    return vereda.path.toPosixSeparators(allocator, path);
 }
 
 /// Extracts a copy of the source line containing `token`, trimmed of trailing
