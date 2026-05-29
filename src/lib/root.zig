@@ -23,13 +23,8 @@ pub const rules = @import("rules.zig");
 
 /// Returns whether the file-level `//!` check applies to `path`.
 ///
-/// Enabled when `options.require_module_doc` is set, when `path` is a library entry root from `collectLibraryEntryRoots`, or when the basename is `root.zig`.
-pub fn resolveRequireModuleDoc(
-    path: []const u8,
-    options: LintOptions,
-    library_entry_roots: []const []const u8,
-) bool {
-    if (options.require_module_doc) return true;
+/// Enabled when `path` is a known module entry root or the basename is `root.zig`.
+pub fn resolveRequireModuleDoc(path: []const u8, library_entry_roots: []const []const u8) bool {
     for (library_entry_roots) |root| {
         if (targeting.pathsEqual(path, root)) return true;
     }
@@ -96,7 +91,7 @@ pub fn lintSource(
     const msg = result.messageAllocator();
     const file_owned = try path_utils.normalizePathSeparators(msg, file);
 
-    const require_module_doc = resolveRequireModuleDoc(file_owned, options, library_entry_roots);
+    const require_module_doc = resolveRequireModuleDoc(file_owned, library_entry_roots);
 
     try rules.docs.missing_doc_comment.check(
         &tree,
@@ -104,6 +99,7 @@ pub fn lintSource(
         file_owned,
         require_module_doc,
         options.module_name,
+        options.public_api_only,
         allocator,
         io,
         msg,
@@ -118,9 +114,9 @@ pub fn lintSource(
         msg,
         &result.diagnostics,
     );
-    try rules.docs.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, allocator, msg, &result.diagnostics);
+    try rules.docs.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, options.public_api_only, allocator, msg, &result.diagnostics);
     try rules.docs.private_doctest.check(&tree, rule_set.private_doctest, file_owned, allocator, msg, &result.diagnostics);
-    try rules.docs.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, allocator, msg, &result.diagnostics);
+    try rules.docs.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, options.public_api_only, allocator, msg, &result.diagnostics);
 
     return result;
 }

@@ -55,10 +55,9 @@ pub fn main(init: std.process.Init) !void {
 
     const root = app.root();
 
-    // TODO: Refactor. Variadic paths are complex considering the main scanning method of Docent is by public API surface rather than recursive file discovery (similar to Zig fmt). So, to ease implementation, there are 3 cases, 1) no paths provided: use the `build.zig` or build script to find module roots, 2) single file provided: that file will be strictly assumed to be a module root, 3) multiple paths provided: here the public API surface will be off since there is no unambiguous module root to derive it from, so this will behave similar to Zig fmt and recursively discover all Zig files under the provided paths and lint all declarations regardless of visibility.
     try root.addPositional(.{
         .name = "paths",
-        .brief = "Files or directories to lint. If omitted, Docent uses package paths from build.zig.zon when available.",
+        .brief = "Files or directories to lint. Omitted: discover targets from build.zig. One path: module root (public API). Two or more: all .zig files recursively (every declaration).",
         .variadic = true,
     });
 
@@ -185,14 +184,29 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     var should_stop = false;
 
-    const library_entry_roots = docent.collectLibraryEntryRoots(allocator, io, plan.package.project_root) catch &.{};
-    defer {
-        for (library_entry_roots) |root| allocator.free(root);
-        allocator.free(library_entry_roots);
-    }
+    const library_entry_roots_owned = blk: {
+        if (plan.path_mode == .recursive) break :blk &.{};
+        if (plan.path_mode == .module_root) break :blk plan.module_entry_roots;
+        const roots = docent.collectLibraryEntryRoots(allocator, io, plan.package.project_root) catch &.{};
+        break :blk roots;
+    };
+    defer if (plan.path_mode == .project) {
+        for (library_entry_roots_owned) |root_path| allocator.free(root_path);
+        allocator.free(library_entry_roots_owned);
+    };
 
-    const lint_options: docent.LintOptions = .{
-        .module_name = plan.package.name,
+    const lint_options: docent.LintOptions = switch (plan.path_mode) {
+        .project => .{
+            .module_name = plan.package.name,
+            .public_api_only = true,
+        },
+        .module_root => .{
+            .module_name = plan.package.name,
+            .public_api_only = true,
+        },
+        .recursive => .{
+            .public_api_only = false,
+        },
     };
 
     const text_options = docent.output.stderrTextOptions(io, textFormat(args.format), .auto, path_display_root);
@@ -203,7 +217,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
                 const gptr = try linted_files.getOrPut(path);
                 if (gptr.found_existing) continue;
 
-                if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots, &all_diagnostics, &summary, args.fail_fast)) {
+                if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots_owned, &all_diagnostics, &summary, args.fail_fast)) {
                     should_stop = true;
                     break;
                 }
@@ -217,7 +231,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
 
-            if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots_owned, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
                 break;
             }

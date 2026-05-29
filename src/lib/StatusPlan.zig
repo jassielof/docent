@@ -33,6 +33,16 @@ pub const ResolvedTarget = struct {
     }
 };
 
+/// How explicit CLI paths select files to lint.
+pub const PathMode = enum {
+    /// No paths: discover library targets from `build.zig` and lint the public API surface.
+    project,
+    /// One path: treat a single `.zig` file or package directory as a module root (public API surface).
+    module_root,
+    /// Two or more paths: recursively lint every `.zig` file under the paths (all declarations).
+    recursive,
+};
+
 /// Inputs for `gather` (CLI flags and optional manifest override).
 pub const Options = struct {
     /// When true, include library targets from `build.zig`.
@@ -67,8 +77,10 @@ pub const Plan = struct {
     resolved_targets: []ResolvedTarget,
     /// Additional files to lint from explicit paths or manifest `.paths` fallback.
     extra_lint_files: []const []const u8,
-    /// True when the user passed positional paths instead of default project discovery.
-    explicit_paths: bool,
+    /// How positional paths were interpreted.
+    path_mode: PathMode,
+    /// Module entry roots for `module_root` mode (`//!` and public reachability); empty otherwise.
+    module_entry_roots: []const []const u8,
     /// Resolved targeting options used while building this plan.
     targeting: targeting.Options,
 
@@ -79,6 +91,8 @@ pub const Plan = struct {
         allocator.free(self.resolved_targets);
         for (self.extra_lint_files) |f| allocator.free(f);
         allocator.free(self.extra_lint_files);
+        for (self.module_entry_roots) |r| allocator.free(r);
+        allocator.free(self.module_entry_roots);
 
         for (self.targeting.bin_names) |name| allocator.free(name);
         allocator.free(self.targeting.bin_names);
@@ -91,7 +105,8 @@ pub const Plan = struct {
             .package = .{ .project_root = "" },
             .resolved_targets = &.{},
             .extra_lint_files = &.{},
-            .explicit_paths = false,
+            .path_mode = .project,
+            .module_entry_roots = &.{},
             .targeting = .{},
         };
     }
@@ -215,47 +230,40 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
         extra_lint_files.deinit(allocator);
     }
 
-    var explicit_paths = false;
+    var module_entry_roots_list: std.ArrayList([]const u8) = .empty;
+    errdefer targeting.deinitOwnedPaths(allocator, &module_entry_roots_list);
+
+    const path_mode: PathMode = if (options.positionals.len == 0)
+        .project
+    else if (options.positionals.len == 1)
+        .module_root
+    else
+        .recursive;
 
     if (options.positionals.len > 0) {
-        explicit_paths = true;
         for (options.positionals) |raw| {
-            const resolved = if (std.fs.path.isAbsolute(raw))
-                try allocator.dupe(u8, raw)
-            else
-                try std.fs.path.join(allocator, &.{ package.project_root, raw });
+            const resolved = try resolveUserPath(allocator, package.project_root, raw);
             errdefer allocator.free(resolved);
 
-            const stat = std.Io.Dir.cwd().statFile(io, resolved, .{}) catch |err| switch (err) {
-                error.IsDir => {
-                    var dir_files = try targeting.collectDirectoryLintTargets(allocator, io, resolved, targeting_options);
-                    defer targeting.deinitOwnedPaths(allocator, &dir_files);
-                    for (dir_files.items) |f| {
-                        try extra_lint_files.append(allocator, try allocator.dupe(u8, f));
-                    }
-                    allocator.free(resolved);
-                    continue;
-                },
-                else => {
-                    allocator.free(resolved);
-                    continue;
-                },
-            };
-
-            if (stat.kind == .directory) {
-                var dir_files = try targeting.collectDirectoryLintTargets(allocator, io, resolved, targeting_options);
-                defer targeting.deinitOwnedPaths(allocator, &dir_files);
-                for (dir_files.items) |f| {
-                    try extra_lint_files.append(allocator, try allocator.dupe(u8, f));
-                }
-                allocator.free(resolved);
-            } else {
-                if (!targeting.shouldSkipLintFile(resolved, targeting_options)) {
-                    try extra_lint_files.append(allocator, resolved);
-                } else {
-                    allocator.free(resolved);
-                }
+            switch (path_mode) {
+                .module_root => try collectModuleRootLintFiles(
+                    allocator,
+                    io,
+                    resolved,
+                    targeting_options,
+                    &extra_lint_files,
+                    &module_entry_roots_list,
+                ),
+                .recursive => try collectRecursiveLintFiles(
+                    allocator,
+                    io,
+                    resolved,
+                    targeting_options,
+                    &extra_lint_files,
+                ),
+                .project => unreachable,
             }
+            allocator.free(resolved);
         }
     } else {
         var scanned = try build_scan.scanProjectBuildScript(allocator, io, package.project_root);
@@ -410,7 +418,74 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
         .package = package,
         .resolved_targets = try resolved_targets.toOwnedSlice(allocator),
         .extra_lint_files = try extra_lint_files.toOwnedSlice(allocator),
-        .explicit_paths = explicit_paths,
+        .path_mode = path_mode,
+        .module_entry_roots = try module_entry_roots_list.toOwnedSlice(allocator),
         .targeting = targeting_options,
     };
+}
+
+fn resolveUserPath(allocator: std.mem.Allocator, project_root: []const u8, raw: []const u8) ![]const u8 {
+    if (std.fs.path.isAbsolute(raw)) return try allocator.dupe(u8, raw);
+    return try std.fs.path.join(allocator, &.{ project_root, raw });
+}
+
+fn collectModuleRootLintFiles(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    resolved: []const u8,
+    options: targeting.Options,
+    extra: *std.ArrayList([]const u8),
+    module_roots: *std.ArrayList([]const u8),
+) !void {
+    const stat = std.Io.Dir.cwd().statFile(io, resolved, .{}) catch return;
+
+    if (stat.kind == .directory) {
+        var entrypoints: std.ArrayList([]const u8) = .empty;
+        defer targeting.deinitOwnedPaths(allocator, &entrypoints);
+        try targeting.collectDirectoryEntrypoints(allocator, io, resolved, options, &entrypoints);
+        for (entrypoints.items) |entry| {
+            try module_roots.append(allocator, try allocator.dupe(u8, entry));
+        }
+
+        var files = try targeting.collectDirectoryLintTargets(allocator, io, resolved, options);
+        defer targeting.deinitOwnedPaths(allocator, &files);
+        for (files.items) |path| {
+            try extra.append(allocator, try allocator.dupe(u8, path));
+        }
+        return;
+    }
+
+    if (!std.mem.endsWith(u8, std.fs.path.basename(resolved), ".zig")) return;
+
+    const abs = realPathFileAlloc(allocator, io, resolved) catch try allocator.dupe(u8, resolved);
+    if (targeting.shouldSkipLintFile(abs, options)) {
+        allocator.free(abs);
+        return;
+    }
+    try module_roots.append(allocator, try allocator.dupe(u8, abs));
+    try extra.append(allocator, abs);
+}
+
+fn collectRecursiveLintFiles(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    resolved: []const u8,
+    options: targeting.Options,
+    extra: *std.ArrayList([]const u8),
+) !void {
+    const stat = std.Io.Dir.cwd().statFile(io, resolved, .{}) catch return;
+
+    if (stat.kind == .directory) {
+        try targeting.collectRecursiveZigFiles(allocator, io, resolved, options, extra);
+        return;
+    }
+
+    if (!std.mem.endsWith(u8, std.fs.path.basename(resolved), ".zig")) return;
+
+    const abs = realPathFileAlloc(allocator, io, resolved) catch try allocator.dupe(u8, resolved);
+    if (targeting.shouldSkipLintFile(abs, options)) {
+        allocator.free(abs);
+        return;
+    }
+    try extra.append(allocator, abs);
 }

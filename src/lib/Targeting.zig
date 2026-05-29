@@ -133,7 +133,8 @@ pub fn deinitOwnedPaths(allocator: std.mem.Allocator, paths: *std.ArrayList([]co
     paths.deinit(allocator);
 }
 
-fn collectDirectoryEntrypoints(
+/// Collects `root.zig` or every top-level `.zig` file in `dir_path`.
+pub fn collectDirectoryEntrypoints(
     allocator: std.mem.Allocator,
     io: std.Io,
     dir_path: []const u8,
@@ -173,7 +174,8 @@ fn collectDirectoryEntrypoints(
     }
 }
 
-fn collectRecursiveZigFiles(
+/// Recursively collects every `.zig` file under `dir_path` (zig fmt style).
+pub fn collectRecursiveZigFiles(
     allocator: std.mem.Allocator,
     io: std.Io,
     dir_path: []const u8,
