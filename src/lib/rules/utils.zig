@@ -158,6 +158,28 @@ fn varDeclSubjectKind(tree: *const Ast, var_decl: Ast.full.VarDecl) Diagnostic.S
     return .constant;
 }
 
+/// Text after the `///` or `//!` prefix, trimmed of leading horizontal whitespace.
+pub fn docCommentLineBody(slice: []const u8) []const u8 {
+    const prefix: []const u8 = if (std.mem.startsWith(u8, slice, "//!"))
+        "//!"
+    else if (std.mem.startsWith(u8, slice, "///"))
+        "///"
+    else
+        return slice;
+
+    return std.mem.trim(u8, slice[prefix.len..], " \t");
+}
+
+/// True when `text` ends with `.`, `!`, or `?` (after trimming trailing whitespace).
+pub fn endsWithTerminalPunctuation(text: []const u8) bool {
+    const trimmed = std.mem.trim(u8, text, " \t\r\n");
+    if (trimmed.len == 0) return true;
+    return switch (trimmed[trimmed.len - 1]) {
+        '.', '!', '?' => true,
+        else => false,
+    };
+}
+
 /// True when a `///` or `//!` token has no text after the doc-comment prefix.
 pub fn isEmptyDocCommentLine(slice: []const u8) bool {
     const prefix: []const u8 = if (std.mem.startsWith(u8, slice, "//!"))

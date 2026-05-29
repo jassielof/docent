@@ -16,6 +16,8 @@ missing_doctest: Severity.Level = .allow,
 private_doctest: Severity.Level = .warn,
 /// Requires non-blank text in doc comments.
 blank_doc_comment: Severity.Level = .warn,
+/// Requires the first doc-comment paragraph to end with `.`, `!`, or `?`.
+missing_summary_terminal_punctuation: Severity.Level = .warn,
 /// Requires doc comment blocks not to end with trailing blank lines.
 trailing_blank_doc_comment: Severity.Level = .warn,
 /// Requires doctest names to match the declaration they document.

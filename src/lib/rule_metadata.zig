@@ -59,6 +59,12 @@ pub const rules: []const RuleRow = &.{
         .prose_title = "Blank doc comment",
     },
     .{
+        .name = "missing_summary_terminal_punctuation",
+        .default_level = "warn",
+        .summary = "The first paragraph of a doc comment should end with `.`, `!`, or `?`.",
+        .prose_title = "Missing summary terminal punctuation",
+    },
+    .{
         .name = "trailing_blank_doc_comment",
         .default_level = "warn",
         .summary = "Doc comments should not end with blank lines.",
