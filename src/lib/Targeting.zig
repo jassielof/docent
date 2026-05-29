@@ -31,6 +31,8 @@ pub const Options = struct {
 
     /// Directory roots to skip (for example path-dependency trees).
     exclude_roots: []const []const u8 = &.{},
+    /// When false, `exclude_roots` are ignored (explicit CLI paths always lint).
+    apply_exclude_roots: bool = true,
 
     /// Returns whether library targets should be linted for the current filter set.
     pub fn effectiveLib(self: Options) bool {
@@ -84,7 +86,7 @@ fn pathSeparatorsEqual(a: u8, b: u8) bool {
 pub fn shouldSkipLintFile(path: []const u8, options: Options) bool {
     if (!options.build_script and isBuildScriptPath(path)) return true;
 
-    if (!options.deps) {
+    if (options.apply_exclude_roots and !options.deps) {
         for (options.exclude_roots) |root| {
             if (isUnderExcludedRoot(path, root)) return true;
         }
@@ -223,7 +225,7 @@ pub fn isBuildScriptPath(path: []const u8) bool {
     return false;
 }
 
-fn containsPath(items: []const []const u8, needle: []const u8) bool {
+pub fn containsPath(items: []const []const u8, needle: []const u8) bool {
     for (items) |it| {
         if (std.mem.eql(u8, it, needle)) return true;
     }
@@ -297,4 +299,13 @@ pub fn matchReason(kind: build_scan.TargetKind) []const u8 {
         .bin => "Selected by active filters (--bins / --bin).",
         .test_target => "Selected by active filters (--tests / --test).",
     };
+}
+
+test "apply_exclude_roots controls dependency path skipping" {
+    const path = "/project/modules/carnaval/src/lib/root.zig";
+    const roots = &.{"/project/modules/carnaval"};
+    const with_excludes: Options = .{ .exclude_roots = roots, .apply_exclude_roots = true };
+    const explicit: Options = .{ .exclude_roots = roots, .apply_exclude_roots = false };
+    try std.testing.expect(shouldSkipLintFile(path, with_excludes));
+    try std.testing.expect(!shouldSkipLintFile(path, explicit));
 }
