@@ -2,6 +2,7 @@
 
 pub const missing_doc_comment = @import("docs/missing_doc_comment.zig");
 pub const blank_doc_comment = @import("docs/blank_doc_comment.zig");
+pub const trailing_blank_doc_comment = @import("docs/trailing_blank_doc_comment.zig");
 pub const missing_doctest = @import("docs/missing_doctest.zig");
 pub const private_doctest = @import("docs/private_doctest.zig");
 pub const doctest_naming_mismatch = @import("docs/doctest_naming_mismatch.zig");

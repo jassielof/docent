@@ -34,7 +34,7 @@ pub fn check(
         while (i < tags.len and tags[i] == tag) : (i += 1) {
             const tok: Ast.TokenIndex = @intCast(i);
             const slice = tree.tokenSlice(tok);
-            if (!isEmptyDocCommentLine(slice)) all_empty = false;
+            if (!utils.isEmptyDocCommentLine(slice)) all_empty = false;
         }
 
         if (all_empty) {
@@ -57,18 +57,6 @@ pub fn check(
             });
         }
     }
-}
-
-fn isEmptyDocCommentLine(slice: []const u8) bool {
-    const prefix: []const u8 = if (std.mem.startsWith(u8, slice, "//!"))
-        "//!"
-    else if (std.mem.startsWith(u8, slice, "///"))
-        "///"
-    else
-        return false;
-
-    const rest = slice[prefix.len..];
-    return std.mem.trim(u8, rest, " \t\r\n").len == 0;
 }
 
 const TestResult = struct {
