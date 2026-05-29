@@ -38,7 +38,7 @@ pub fn check(
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
-                .message = try std.fmt.allocPrint(msg_allocator, "missing doctest for function '{s}'", .{name}),
+                .subject = try utils.ownedSubject(msg_allocator, .function, name),
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
@@ -112,7 +112,7 @@ test "detects missing doctest for pub fn, names the function" {
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
-    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'foo'") != null);
+    try std.testing.expectEqualStrings("foo", r.items.items[0].subject.?.name);
 }
 
 test "no diagnostic when doctest exists" {

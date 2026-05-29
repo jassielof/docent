@@ -13,6 +13,7 @@ pub fn check(
     tree: *const Ast,
     severity: Severity.Level,
     file: []const u8,
+    module_name: ?[]const u8,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
@@ -40,10 +41,14 @@ pub fn check(
             const tok: Ast.TokenIndex = @intCast(block_start);
             const slice = tree.tokenSlice(tok);
             const loc = tree.tokenLocation(0, tok);
+            const subject = if (tag == .container_doc_comment)
+                try utils.ownedSubject(msg_allocator, .module, utils.moduleDisplayName(file, module_name))
+            else
+                try utils.ownedSubject(msg_allocator, .doc_comment, "");
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
-                .message = "doc comment is blank",
+                .subject = subject,
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
@@ -87,7 +92,7 @@ fn runCheck(source: [:0]const u8) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", null, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
@@ -96,6 +101,7 @@ test "detects blank /// comment" {
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
+    try std.testing.expectEqual(.doc_comment, r.items.items[0].subject.?.kind);
     try std.testing.expectEqual(@as(usize, 3), r.items.items[0].symbol_len);
 }
 
@@ -115,6 +121,7 @@ test "detects blank //! comment" {
     var r = try runCheck("//!");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqual(.module, r.items.items[0].subject.?.kind);
 }
 
 test "detects fully blank multiline /// comment block once" {

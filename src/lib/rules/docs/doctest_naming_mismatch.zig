@@ -49,11 +49,8 @@ pub fn check(
                         try diagnostics.append(allocator, .{
                             .rule = rule_name,
                             .severity = severity,
-                            .message = try std.fmt.allocPrint(
-                                msg_allocator,
-                                "use `test {s}` instead of `test \"{s}\"` for the doctest",
-                                .{ unquoted, unquoted },
-                            ),
+                            .subject = try utils.ownedSubject(msg_allocator, .function, unquoted),
+                            .detail = "use identifier-style `test` instead of a string literal",
                             .file = file,
                             .line = loc.line + 1,
                             .column = loc.column + 1,
@@ -109,7 +106,7 @@ test "detects string test name matching pub fn, shows correction" {
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
-    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "test foo") != null);
+    try std.testing.expectEqualStrings("foo", r.items.items[0].subject.?.name);
 }
 
 test "no diagnostic for identifier test name" {

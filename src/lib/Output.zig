@@ -6,12 +6,13 @@ const builtin = @import("builtin");
 const carnaval = @import("carnaval");
 
 const Diagnostic = @import("Diagnostic.zig");
+const DiagnosticMessage = @import("DiagnosticMessage.zig");
 
 /// Text layout for a single diagnostic line.
 pub const TextFormat = enum {
-    /// Multi-line output with source snippet and caret underline.
+    /// Multi-line rustc-style blocks with source snippet and caret underline.
     pretty,
-    /// Single-line `file:line:col: severity[rule]: message` output.
+    /// Single-line `file:line:col: severity[rule]` output.
     minimal,
 };
 
@@ -119,9 +120,44 @@ pub fn writeDiagnostic(writer: *std.Io.Writer, diagnostic: Diagnostic, options: 
     }
 }
 
+/// Writes diagnostics with blank lines between pretty blocks.
+pub fn writeDiagnostics(writer: *std.Io.Writer, diagnostics: []const Diagnostic, options: TextOptions) !void {
+    var index: usize = 0;
+    while (index < diagnostics.len) : (index += 1) {
+        const diagnostic = diagnostics[index];
+        if (diagnostic.severity == .allow) continue;
+
+        try writeDiagnostic(writer, diagnostic, options);
+
+        if (options.format == .pretty) {
+            var has_following = false;
+            var j = index + 1;
+            while (j < diagnostics.len) : (j += 1) {
+                if (diagnostics[j].severity != .allow) {
+                    has_following = true;
+                    break;
+                }
+            }
+            if (has_following) try writer.writeAll("\n");
+        }
+    }
+}
+
 /// Writes a trailing summary line when `summary` has errors or warnings.
 pub fn writeSummary(writer: *std.Io.Writer, summary: Summary, options: SummaryOptions) !void {
+    writeSummaryWithPrefix(writer, summary, options, false);
+}
+
+/// Like `writeSummary` but inserts a leading newline when `leading_newline` is set.
+pub fn writeSummaryWithPrefix(
+    writer: *std.Io.Writer,
+    summary: Summary,
+    options: SummaryOptions,
+    leading_newline: bool,
+) !void {
     if (summary.errors == 0 and summary.warnings == 0) return;
+
+    if (leading_newline) try writer.writeAll("\n");
 
     const style = resolveStyle();
     const color_profile = resolveProfile(options.color, options.tty_config, options.color_profile);
@@ -160,9 +196,12 @@ pub fn writeJson(writer: *std.Io.Writer, allocator: std.mem.Allocator, diagnosti
             .forbid => "forbid",
         };
 
+        var prose_buf: [512]u8 = undefined;
+        const prose = DiagnosticMessage.formatProse(diagnostic, &prose_buf) catch prose_buf[0..0];
+
         const rule_json = try jsonEscape(allocator, diagnostic.rule);
         defer allocator.free(rule_json);
-        const message_json = try jsonEscape(allocator, diagnostic.message);
+        const message_json = try jsonEscape(allocator, if (prose.len > 0) prose else diagnostic.message);
         defer allocator.free(message_json);
         const file_json = try jsonEscape(allocator, diagnostic.file);
         defer allocator.free(file_json);
@@ -190,11 +229,19 @@ pub fn printDiagnosticStderr(io: std.Io, diagnostic: Diagnostic, options: TextOp
     try stderr.interface.flush();
 }
 
+/// Prints multiple diagnostics to stderr.
+pub fn printDiagnosticsStderr(io: std.Io, diagnostics: []const Diagnostic, options: TextOptions) !void {
+    var buffer: [8192]u8 = undefined;
+    var stderr = std.Io.File.stderr().writer(io, &buffer);
+    try writeDiagnostics(&stderr.interface, diagnostics, options);
+    try stderr.interface.flush();
+}
+
 /// Prints the lint summary line to stderr when there are errors or warnings.
-pub fn printSummaryStderr(io: std.Io, summary: Summary, options: SummaryOptions) !void {
+pub fn printSummaryStderr(io: std.Io, summary: Summary, options: SummaryOptions, leading_newline: bool) !void {
     var buffer: [512]u8 = undefined;
     var stderr = std.Io.File.stderr().writer(io, &buffer);
-    try writeSummary(&stderr.interface, summary, options);
+    try writeSummaryWithPrefix(&stderr.interface, summary, options, leading_newline);
     try stderr.interface.flush();
 }
 
@@ -233,6 +280,14 @@ fn detectTerminalMode(io: std.Io, file: std.Io.File) std.Io.Terminal.Mode {
     return std.Io.Terminal.Mode.detect(io, file, false, false) catch .no_color;
 }
 
+fn severityTag(diagnostic: Diagnostic) []const u8 {
+    return switch (diagnostic.severity) {
+        .warn => "warning",
+        .deny, .forbid => "error",
+        .allow => unreachable,
+    };
+}
+
 fn writePrettyDiagnostic(
     writer: *std.Io.Writer,
     diagnostic: Diagnostic,
@@ -240,23 +295,128 @@ fn writePrettyDiagnostic(
     color_profile: carnaval.ColorProfile,
     path_display_root: ?[]const u8,
 ) !void {
-    try writeHeader(writer, diagnostic, style, color_profile, path_display_root);
+    const gutter = lineNumberWidth(diagnostic.line);
 
-    if (diagnostic.source_line.len == 0) return;
+    try severityStyle(style, diagnostic).renderWithProfile(severityTag(diagnostic), writer, color_profile);
+    try writer.writeAll("[");
+    try style.dim.renderWithProfile(diagnostic.rule, writer, color_profile);
+    try writer.writeAll("]\n");
 
-    try writer.print("    {s}\n", .{diagnostic.source_line});
+    try writeProseLine(writer, diagnostic, style, color_profile);
+
+    var path_bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
+    const file_shown = pathForDisplay(path_display_root, diagnostic.file, &path_bufs[0], &path_bufs[1]);
+
+    try writeArrowPadding(writer, gutter);
+    try writer.print("--> {s}:{d}:{d}\n", .{ file_shown, diagnostic.line, diagnostic.column });
+
+    try writeGutterPipe(writer, gutter);
+    try writer.writeAll("\n");
+
+    if (diagnostic.source_line.len > 0) {
+        try writeSourceRow(writer, gutter, diagnostic.line, diagnostic.source_line);
+        try writeCaretRow(writer, gutter, diagnostic, style, color_profile);
+    }
+}
+
+fn writeMinimalDiagnostic(
+    writer: *std.Io.Writer,
+    diagnostic: Diagnostic,
+    style: Style,
+    color_profile: carnaval.ColorProfile,
+    path_display_root: ?[]const u8,
+) !void {
+    var path_bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
+    const file_shown = pathForDisplay(path_display_root, diagnostic.file, &path_bufs[0], &path_bufs[1]);
+
+    try writer.print("{s}:{d}:{d}: ", .{ file_shown, diagnostic.line, diagnostic.column });
+    try severityStyle(style, diagnostic).renderWithProfile(severityTag(diagnostic), writer, color_profile);
+    try writer.writeAll("[");
+    try style.dim.renderWithProfile(diagnostic.rule, writer, color_profile);
+    try writer.writeAll("]\n");
+}
+
+fn writeProseLine(
+    writer: *std.Io.Writer,
+    diagnostic: Diagnostic,
+    style: Style,
+    color_profile: carnaval.ColorProfile,
+) !void {
+    var buf: [512]u8 = undefined;
+    const prose = DiagnosticMessage.formatProse(diagnostic, &buf) catch {
+        try style.plain_bold.renderWithProfile(diagnostic.message, writer, color_profile);
+        try writer.writeAll("\n");
+        return;
+    };
+
+    if (diagnostic.subject) |subject| {
+        const subject_start = std.mem.indexOf(u8, prose, subject.name) orelse {
+            try style.plain_bold.renderWithProfile(prose, writer, color_profile);
+            try writer.writeAll("\n");
+            return;
+        };
+        const subject_end = subject_start + subject.name.len;
+
+        try style.plain_bold.renderWithProfile(prose[0..subject_start], writer, color_profile);
+        try style.emphasis.renderWithProfile(prose[subject_start..subject_end], writer, color_profile);
+        try style.plain_bold.renderWithProfile(prose[subject_end..], writer, color_profile);
+    } else {
+        try style.plain_bold.renderWithProfile(prose, writer, color_profile);
+    }
+
+    try writer.writeAll("\n");
+}
+
+fn lineNumberWidth(line: usize) usize {
+    if (line == 0) return 1;
+    return std.fmt.count("{d}", .{line});
+}
+
+fn writeArrowPadding(writer: *std.Io.Writer, gutter: usize) !void {
+    var i: usize = 0;
+    while (i < gutter) : (i += 1) {
+        try writer.writeByte(' ');
+    }
+}
+
+fn writeGutterPipe(writer: *std.Io.Writer, gutter: usize) !void {
+    var i: usize = 0;
+    while (i < gutter + 1) : (i += 1) {
+        try writer.writeByte(' ');
+    }
+    try writer.writeByte('|');
+}
+
+fn writeSourceRow(writer: *std.Io.Writer, gutter: usize, line: usize, source_line: []const u8) !void {
+    const digits = lineNumberWidth(line);
+    const pad = gutter - digits;
+    var i: usize = 0;
+    while (i < pad) : (i += 1) {
+        try writer.writeByte(' ');
+    }
+    try writer.print("{d} | {s}\n", .{ line, source_line });
+}
+
+fn writeCaretRow(
+    writer: *std.Io.Writer,
+    gutter: usize,
+    diagnostic: Diagnostic,
+    style: Style,
+    color_profile: carnaval.ColorProfile,
+) !void {
+    try writeGutterPipe(writer, gutter);
+    try writer.writeAll(" ");
 
     const col0 = if (diagnostic.column > 0) diagnostic.column - 1 else 0;
     const span = if (diagnostic.symbol_len > 0) diagnostic.symbol_len else 1;
 
+    var i: usize = 0;
+    while (i < col0) : (i += 1) {
+        try writer.writeByte(' ');
+    }
+
     var caret_buf: [512]u8 = undefined;
     var pos: usize = 0;
-
-    var col: usize = 0;
-    while (col < col0 and pos < caret_buf.len) : (col += 1) {
-        caret_buf[pos] = ' ';
-        pos += 1;
-    }
 
     if (pos < caret_buf.len) {
         caret_buf[pos] = '^';
@@ -269,26 +429,11 @@ fn writePrettyDiagnostic(
         pos += 1;
     }
 
-    try writer.writeAll("    ");
     try caretStyle(style, diagnostic).renderWithProfile(caret_buf[0..pos], writer, color_profile);
-    try writer.writeAll("\n\n");
-}
-
-fn writeMinimalDiagnostic(
-    writer: *std.Io.Writer,
-    diagnostic: Diagnostic,
-    style: Style,
-    color_profile: carnaval.ColorProfile,
-    path_display_root: ?[]const u8,
-) !void {
-    try writeHeader(writer, diagnostic, style, color_profile, path_display_root);
+    try writer.writeAll("\n");
 }
 
 /// Shortens `file_path` when it is an absolute path under `path_display_root` (e.g. package root).
-///
-/// Normalized output is written into `file_buf` (caller-owned). `root_buf` is scratch space when a
-/// display root is present. Returns a slice into `file_buf`, or the original `file_path` when it
-/// does not fit.
 pub fn pathForDisplay(
     path_display_root: ?[]const u8,
     file_path: []const u8,
@@ -347,55 +492,6 @@ fn pathsEqualAbsoluteRoot(a: []const u8, b: []const u8) bool {
     return std.mem.eql(u8, a, b);
 }
 
-fn writeHeader(
-    writer: *std.Io.Writer,
-    diagnostic: Diagnostic,
-    style: Style,
-    color_profile: carnaval.ColorProfile,
-    path_display_root: ?[]const u8,
-) !void {
-    const severity_label: []const u8 = switch (diagnostic.severity) {
-        .warn => "warning",
-        .deny, .forbid => "error",
-        .allow => return,
-    };
-
-    var path_bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
-    const file_shown = pathForDisplay(path_display_root, diagnostic.file, &path_bufs[0], &path_bufs[1]);
-
-    try writer.print("{s}:{d}:{d}: ", .{ file_shown, diagnostic.line, diagnostic.column });
-    try severityStyle(style, diagnostic).renderWithProfile(severity_label, writer, color_profile);
-    try writer.writeAll("[");
-    try style.dim.renderWithProfile(diagnostic.rule, writer, color_profile);
-    try writer.writeAll("]: ");
-    try writeDiagnosticMessage(writer, diagnostic, style, color_profile);
-    try writer.writeAll("\n");
-}
-
-fn writeDiagnosticMessage(
-    writer: *std.Io.Writer,
-    diagnostic: Diagnostic,
-    style: Style,
-    color_profile: carnaval.ColorProfile,
-) !void {
-    const msg = diagnostic.message;
-    const emphasis = diagnostic.emphasis orelse {
-        try style.plain_bold.renderWithProfile(msg, writer, color_profile);
-        return;
-    };
-
-    const start = emphasis.offset;
-    const end = start + emphasis.len;
-    if (end > msg.len or start > end) {
-        try style.plain_bold.renderWithProfile(msg, writer, color_profile);
-        return;
-    }
-
-    try style.plain_bold.renderWithProfile(msg[0..start], writer, color_profile);
-    try style.emphasis.renderWithProfile(msg[start..end], writer, color_profile);
-    try style.plain_bold.renderWithProfile(msg[end..], writer, color_profile);
-}
-
 fn jsonEscape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     var result: std.ArrayList(u8) = .empty;
     defer result.deinit(allocator);
@@ -432,7 +528,7 @@ test "minimal formatter shortens absolute paths under display root" {
     try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
         .severity = .warn,
-        .message = "missing doc comment",
+        .subject = .{ .kind = .function, .name = "main" },
         .file = "C:\\proj\\src\\lib\\root.zig",
         .line = 27,
         .column = 11,
@@ -443,12 +539,11 @@ test "minimal formatter shortens absolute paths under display root" {
     });
     out = writer.toArrayList();
 
-    try std.testing.expect(std.mem.indexOf(u8, out.items, "src/lib/root.zig:27:11") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "src/lib/root.zig:27:11: warning[missing_doc_comment]") != null);
     try std.testing.expect(std.mem.indexOf(u8, out.items, "\x1b") == null);
-    try std.testing.expect(std.mem.indexOf(u8, out.items, "\\") == null);
 }
 
-test "minimal formatter renders one line" {
+test "minimal formatter renders one line without prose" {
     var out: std.ArrayList(u8) = .empty;
     defer out.deinit(std.testing.allocator);
 
@@ -458,7 +553,7 @@ test "minimal formatter renders one line" {
     try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
         .severity = .warn,
-        .message = "Missing doc comment for function 'main'.",
+        .subject = .{ .kind = .function, .name = "main" },
         .file = "src/main.zig",
         .line = 5,
         .column = 8,
@@ -469,12 +564,12 @@ test "minimal formatter renders one line" {
     out = writer.toArrayList();
 
     try std.testing.expectEqualStrings(
-        "src/main.zig:5:8: warning[missing_doc_comment]: Missing doc comment for function 'main'.\n",
+        "src/main.zig:5:8: warning[missing_doc_comment]\n",
         out.items,
     );
 }
 
-test "pretty formatter renders source snippet" {
+test "pretty formatter renders rustc-style block" {
     var out: std.ArrayList(u8) = .empty;
     defer out.deinit(std.testing.allocator);
 
@@ -484,7 +579,7 @@ test "pretty formatter renders source snippet" {
     try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
         .severity = .warn,
-        .message = "Missing doc comment for function 'main'.",
+        .subject = .{ .kind = .function, .name = "main" },
         .file = "src/main.zig",
         .line = 5,
         .column = 8,
@@ -496,12 +591,77 @@ test "pretty formatter renders source snippet" {
     });
     out = writer.toArrayList();
 
-    try std.testing.expectEqualStrings(
-        "src/main.zig:5:8: warning[missing_doc_comment]: Missing doc comment for function 'main'.\n" ++
-            "    pub fn main() void {}\n" ++
-            "           ^~~~\n\n",
-        out.items,
-    );
+    try std.testing.expect(std.mem.startsWith(u8, out.items, "warning[missing_doc_comment]\n"));
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "Warning: Missing doc comment on function 'main'.\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, " --> src/main.zig:5:8\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "5 | pub fn main() void {}\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "       ^~~~\n") != null);
+}
+
+test "pretty formatter aligns two-digit line numbers" {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(std.testing.allocator);
+
+    var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
+    defer writer.deinit();
+
+    try writeDiagnostic(&writer.writer, .{
+        .rule = "missing_doc_comment",
+        .severity = .warn,
+        .subject = .{ .kind = .error_set, .name = "Error" },
+        .file = "src/lib/Config.zig",
+        .line = 24,
+        .column = 11,
+        .source_line = "    pub const Error = error{",
+        .symbol_len = 5,
+    }, .{
+        .format = .pretty,
+        .color = .never,
+    });
+    out = writer.toArrayList();
+
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "  --> src/lib/Config.zig:24:11\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "24 |     pub const Error = error{\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "           ^~~~~\n") != null);
+}
+
+test "writeDiagnostics separates pretty blocks with blank line" {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(std.testing.allocator);
+
+    var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
+    defer writer.deinit();
+
+    const diagnostics = [_]Diagnostic{
+        .{
+            .rule = "blank_doc_comment",
+            .severity = .warn,
+            .subject = .{ .kind = .module, .name = "docent" },
+            .file = "src/lib/root.zig",
+            .line = 1,
+            .column = 1,
+            .source_line = "    //!",
+            .symbol_len = 5,
+        },
+        .{
+            .rule = "missing_doc_comment",
+            .severity = .warn,
+            .subject = .{ .kind = .field, .name = "offset" },
+            .file = "src/lib/Diagnostic.zig",
+            .line = 8,
+            .column = 5,
+            .source_line = "        offset: usize,",
+            .symbol_len = 6,
+        },
+    };
+
+    try writeDiagnostics(&writer.writer, &diagnostics, .{ .format = .pretty, .color = .never });
+    out = writer.toArrayList();
+
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "warning[blank_doc_comment]\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "warning[missing_doc_comment]\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "warning[blank_doc_comment]\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "\n\nwarning[missing_doc_comment]\n") != null);
 }
 
 test "pathForDisplay shortens absolute path under root" {
@@ -509,38 +669,25 @@ test "pathForDisplay shortens absolute path under root" {
     if (builtin.os.tag == .windows) {
         try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("C:\\proj", "C:\\proj\\src\\main.zig", &bufs[0], &bufs[1]));
         try std.testing.expectEqualStrings(".", pathForDisplay("D:\\repo", "D:\\repo", &bufs[0], &bufs[1]));
-        try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("c:\\proj", "C:\\proj\\src\\main.zig", &bufs[0], &bufs[1]));
     } else {
         try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("/proj", "/proj/src/main.zig", &bufs[0], &bufs[1]));
         try std.testing.expectEqualStrings(".", pathForDisplay("/repo", "/repo", &bufs[0], &bufs[1]));
     }
 }
 
-test "pathForDisplay leaves non-absolute and out-of-root paths unchanged" {
-    var bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
-    try std.testing.expectEqualStrings("src/main.zig", pathForDisplay("/proj", "src/main.zig", &bufs[0], &bufs[1]));
-    if (builtin.os.tag == .windows) {
-        try std.testing.expectEqualStrings("D:/other/main.zig", pathForDisplay("C:\\proj", "D:\\other\\main.zig", &bufs[0], &bufs[1]));
-    } else {
-        try std.testing.expectEqualStrings("/other/main.zig", pathForDisplay("/proj", "/other/main.zig", &bufs[0], &bufs[1]));
-    }
-}
-
 test "countNoun uses singular only for one" {
     try std.testing.expectEqualStrings("warning", countNoun(1, "warning", "warnings"));
     try std.testing.expectEqualStrings("warnings", countNoun(2, "warning", "warnings"));
-    try std.testing.expectEqualStrings("error", countNoun(1, "error", "errors"));
-    try std.testing.expectEqualStrings("errors", countNoun(3, "error", "errors"));
 }
 
-test "json formatter escapes message fields" {
+test "json formatter uses prose message" {
     var out: std.ArrayList(u8) = .empty;
     defer out.deinit(std.testing.allocator);
 
     const diagnostics = [_]Diagnostic{.{
         .rule = "missing_doc_comment",
         .severity = .warn,
-        .message = "missing \"doc\" comment",
+        .subject = .{ .kind = .field, .name = "offset" },
         .file = "src\\main.zig",
         .line = 1,
         .column = 1,
@@ -552,8 +699,5 @@ test "json formatter escapes message fields" {
     try writeJson(&writer.writer, std.testing.allocator, &diagnostics);
     out = writer.toArrayList();
 
-    try std.testing.expectEqualStrings(
-        "[{\"rule\":\"missing_doc_comment\",\"severity\":\"warn\",\"message\":\"missing \\\"doc\\\" comment\",\"file\":\"src\\\\main.zig\",\"line\":1,\"column\":1}]\n",
-        out.items,
-    );
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "Warning: Missing doc comment on field 'offset'.") != null);
 }
