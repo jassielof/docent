@@ -16,6 +16,11 @@ pub const SubjectKind = enum {
     enumerator,
     doc_comment,
     doctest,
+    structure,
+    namespace,
+    @"union",
+    error_value,
+    type_alias,
 
     pub fn label(self: SubjectKind) []const u8 {
         return switch (self) {
@@ -30,6 +35,11 @@ pub const SubjectKind = enum {
             .enumerator => "enumerator",
             .doc_comment => "doc comment",
             .doctest => "doctest",
+            .structure => "struct",
+            .namespace => "namespace",
+            .@"union" => "union",
+            .error_value => "error value",
+            .type_alias => "type",
         };
     }
 };

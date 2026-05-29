@@ -19,6 +19,7 @@ const RulesJson = struct {
     doctest_naming_mismatch: ?[]const u8 = null,
     invalid_leading_phrase: ?[]const u8 = null,
     cognitive_complexity: ?[]const u8 = null,
+    identifier_case: ?[]const u8 = null,
 };
 
 const ComplexityJson = struct {
