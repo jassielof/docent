@@ -16,13 +16,15 @@ const rule_name = "invalid_leading_phrase";
 const article_words: []const []const u8 = &.{ "a", "an", "the" };
 
 const KindPhrase = []const []const u8;
-
+const root = @import("root");
+const aaaaa = root.rules.docs.invalid_leading_phrase.check;
 /// Walks `tree` and appends diagnostics for doc comment summaries with an invalid leading phrase.
 pub fn check(
     tree: *const Ast,
     severity: Severity.Level,
     file: []const u8,
     module_name: ?[]const u8,
+    public_api_only: bool,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
@@ -41,10 +43,16 @@ pub fn check(
         while (i < tags.len and tags[i] == tag) : (i += 1) {}
         const block_end = i;
 
+        const documented_first: Ast.TokenIndex = @intCast(block_end);
+
+        if (tag == .doc_comment and !utils.shouldCheckDocCommentTarget(tree, documented_first, public_api_only)) {
+            continue;
+        }
+
         const subject = if (tag == .container_doc_comment)
             try utils.ownedSubject(msg_allocator, .module, utils.moduleDisplayName(file, module_name))
         else
-            try utils.resolveDocCommentSubject(tree, @intCast(block_end), file, module_name, msg_allocator);
+            try utils.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator);
 
         // Unresolved declarations or those without a usable name can't be validated.
         if (subject.name.len == 0) continue;
@@ -179,10 +187,14 @@ const TestResult = struct {
 };
 
 fn runCheck(source: [:0]const u8) !TestResult {
-    return runCheckNamed(source, null);
+    return runCheckOpts(source, null, true);
 }
 
 fn runCheckNamed(source: [:0]const u8, module_name: ?[]const u8) !TestResult {
+    return runCheckOpts(source, module_name, true);
+}
+
+fn runCheckOpts(source: [:0]const u8, module_name: ?[]const u8, public_api_only: bool) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     errdefer msg_arena.deinit();
@@ -193,7 +205,7 @@ fn runCheckNamed(source: [:0]const u8, module_name: ?[]const u8) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", module_name, base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", module_name, public_api_only, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
@@ -268,8 +280,25 @@ test "accepts enumerator identifier first" {
         \\    /// red is the warm primary.
         \\    red,
         \\};
-        ,
-    );
+    ,);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
+}
+
+test "no diagnostic for private function doc comment" {
+    var r = try runCheck("/// Returns something.\nfn matchKindPhrase() void {}");
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
+}
+
+test "warns on public function when public_api_only" {
+    var r = try runCheck("/// Returns something.\npub fn add(a: i32, b: i32) i32 { return a + b; }");
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+}
+
+test "private function checked when public_api_only is false" {
+    var r = try runCheckOpts("/// Returns something.\nfn hidden() void {}", null, false);
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
 }
