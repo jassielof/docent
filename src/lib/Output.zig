@@ -105,7 +105,7 @@ pub fn stderrSummaryOptions(io: std.Io, tool_name: []const u8, color: ColorMode)
 }
 
 /// Writes one diagnostic to `writer` according to `options`. Skips `.allow` severities.
-pub fn writeDiagnostic(writer: anytype, diagnostic: Diagnostic, options: TextOptions) !void {
+pub fn writeDiagnostic(writer: *std.Io.Writer, diagnostic: Diagnostic, options: TextOptions) !void {
     switch (diagnostic.severity) {
         .allow => return,
         .warn, .deny, .forbid => {},
@@ -120,7 +120,7 @@ pub fn writeDiagnostic(writer: anytype, diagnostic: Diagnostic, options: TextOpt
 }
 
 /// Writes a trailing summary line when `summary` has errors or warnings.
-pub fn writeSummary(writer: anytype, summary: Summary, options: SummaryOptions) !void {
+pub fn writeSummary(writer: *std.Io.Writer, summary: Summary, options: SummaryOptions) !void {
     if (summary.errors == 0 and summary.warnings == 0) return;
 
     const style = resolveStyle();
@@ -148,7 +148,7 @@ fn countNoun(count: usize, singular: []const u8, plural: []const u8) []const u8 
 }
 
 /// Writes diagnostics as a JSON array to `writer`.
-pub fn writeJson(writer: anytype, allocator: std.mem.Allocator, diagnostics: []const Diagnostic) !void {
+pub fn writeJson(writer: *std.Io.Writer, allocator: std.mem.Allocator, diagnostics: []const Diagnostic) !void {
     try writer.writeAll("[");
     for (diagnostics, 0..) |diagnostic, i| {
         if (i > 0) try writer.writeAll(",");
@@ -234,7 +234,7 @@ fn detectTerminalMode(io: std.Io, file: std.Io.File) std.Io.Terminal.Mode {
 }
 
 fn writePrettyDiagnostic(
-    writer: anytype,
+    writer: *std.Io.Writer,
     diagnostic: Diagnostic,
     style: Style,
     color_profile: carnaval.ColorProfile,
@@ -275,7 +275,7 @@ fn writePrettyDiagnostic(
 }
 
 fn writeMinimalDiagnostic(
-    writer: anytype,
+    writer: *std.Io.Writer,
     diagnostic: Diagnostic,
     style: Style,
     color_profile: carnaval.ColorProfile,
@@ -348,7 +348,7 @@ fn pathsEqualAbsoluteRoot(a: []const u8, b: []const u8) bool {
 }
 
 fn writeHeader(
-    writer: anytype,
+    writer: *std.Io.Writer,
     diagnostic: Diagnostic,
     style: Style,
     color_profile: carnaval.ColorProfile,
@@ -373,7 +373,7 @@ fn writeHeader(
 }
 
 fn writeDiagnosticMessage(
-    writer: anytype,
+    writer: *std.Io.Writer,
     diagnostic: Diagnostic,
     style: Style,
     color_profile: carnaval.ColorProfile,
