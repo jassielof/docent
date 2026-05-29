@@ -1,25 +1,26 @@
 = Test suite
 
-Integration tests live under `tests/rules/` and `tests/scenarios/`. Fixture data lives under `tests/fixtures/` with the same shape.
+Integration tests live under `tests/rules/` and `tests/scenarios/`. Fixture data lives under `tests/fixtures/` in a flat layout.
 
 == Layout
 
 * `tests/suite.zig` — imports test modules only (no test logic).
-* `tests/harness.zig` — resolves fixture paths from rule/scenario ids.
+* `tests/harness.zig` — resolves fixture paths by namespace and case id.
 * `tests/utils.zig` — shared diagnostic assertions.
 * `tests/rules/{docs,complexity,style}/<rule_id>.zig` — one rule per file.
 * `tests/scenarios/<name>.zig` — multi-rule or integration scenarios.
-* `tests/fixtures/rules/{docs,complexity,style}/<rule_id>/{valid,invalid}/` — single-file cases.
-* `tests/fixtures/rules/.../<rule_id>/project/{valid,invalid}/<case>/` — project roots (`root.zig`).
-* `tests/fixtures/scenarios/<name>/` — scenario project trees.
+* `tests/fixtures/rules/{docs,complexity,style}/<case_id>.zig` — single-file rule cases.
+* `tests/fixtures/rules/{docs,complexity,style}/<case_id>/` — project fixtures (`root.zig` entry, optional extra sources).
+* `tests/fixtures/scenarios/<case_id>.zig` — single-file scenario cases.
+* `tests/fixtures/scenarios/<case_id>/` — scenario project trees.
+
+Case ids are descriptive (for example `undocumented_pub_declarations.zig`, `reexport_undocumented_points_at_definition/`). There is no `valid/` / `invalid/` split; pass vs fail is defined by the test logic.
 
 == Adding a rule test
 
-1. Add fixtures under `tests/fixtures/rules/docs/<rule_id>/valid|invalid/`.
-2. Add `tests/rules/docs/<rule_id>.zig` with a `RuleLocator` constant and tests.
-3. Import the file from `tests/suite.zig`.
-
-No central fixture registry is required.
+1. Add `tests/fixtures/rules/docs/<case_id>.zig` or a directory `tests/fixtures/rules/docs/<case_id>/` with `root.zig`.
+2. Add or extend `tests/rules/docs/<rule_id>.zig` and call `harness.lintRuleFixture("docs", &.{ ... }, rule_set, .{})`.
+3. Import the test file from `tests/rules/docs.zig` (or the matching namespace aggregator).
 
 == CLI UX
 

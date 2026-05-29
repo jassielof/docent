@@ -6,18 +6,18 @@ const docent = @import("docent");
 const harness = @import("../../harness.zig");
 const utils = @import("../../utils.zig");
 
-const loc: harness.RuleLocator = .{ .namespace = "docs", .rule_id = "missing_doc_comment" };
+const ns = "docs";
 
 fn lint(parts: []const []const u8, rule_set: docent.RuleSet) !docent.LintResult {
-    return harness.lintRuleFixture(loc, parts, rule_set);
+    return harness.lintRuleFixture(ns, parts, rule_set, .{});
 }
 
-fn projectRoot(kind: []const u8, case_name: []const u8) ![]const u8 {
-    return harness.ruleProjectRootPath(loc, kind, case_name);
+fn projectRoot(case_dir: []const u8) ![]const u8 {
+    return harness.ruleProjectRootPath(ns, case_dir);
 }
 
-test "valid compliant fixture has no violations" {
-    var result = try lint(&.{ "valid", "compliant", "main.zig" }, .{
+test "compliant_pub_declarations has no violations" {
+    var result = try lint(&.{"compliant_pub_declarations.zig"}, .{
         .missing_doc_comment = .deny,
     });
     defer result.deinit();
@@ -25,7 +25,7 @@ test "valid compliant fixture has no violations" {
 }
 
 test "deny severity causes hasErrors" {
-    var result = try lint(&.{ "invalid", "missing_comments", "main.zig" }, .{
+    var result = try lint(&.{"undocumented_pub_declarations.zig"}, .{
         .missing_doc_comment = .deny,
     });
     defer result.deinit();
@@ -33,33 +33,32 @@ test "deny severity causes hasErrors" {
     try testing.expect(result.errorCount() > 0);
 }
 
-// Undocumented `pub fn` and `pub const` in a single file.
-test "invalid missing_comments reports at least four diagnostics" {
-    var result = try lint(&.{ "invalid", "missing_comments", "main.zig" }, .{
+test "undocumented_pub_declarations reports at least four diagnostics" {
+    var result = try lint(&.{"undocumented_pub_declarations.zig"}, .{
         .missing_doc_comment = .deny,
     });
     defer result.deinit();
     try testing.expect(utils.countRule(result, "missing_doc_comment") >= 4);
 }
 
-test "valid private struct members are not required to document private fields" {
-    var result = try lint(&.{ "valid", "private_struct_private_members", "root.zig" }, .{
+test "private_struct_members_allowed does not require private field docs" {
+    var result = try lint(&.{ "private_struct_members_allowed", "root.zig" }, .{
         .missing_doc_comment = .deny,
     });
     defer result.deinit();
     try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
 
-test "invalid public struct reports undocumented public members" {
-    var result = try lint(&.{ "invalid", "public_struct_undocumented_members", "root.zig" }, .{
+test "pub_struct_undocumented_members reports undocumented public members" {
+    var result = try lint(&.{ "pub_struct_undocumented_members", "root.zig" }, .{
         .missing_doc_comment = .deny,
     });
     defer result.deinit();
     try utils.expectRuleCount(result, "missing_doc_comment", 3);
 }
 
-test "project reexport_local_binding follows alias to documented symbol" {
-    const path = try projectRoot("valid", "reexport_local_binding");
+test "reexport_local_binding_documented follows alias to documented symbol" {
+    const path = try projectRoot("reexport_local_binding_documented");
     defer std.testing.allocator.free(path);
 
     var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{});
@@ -67,8 +66,8 @@ test "project reexport_local_binding follows alias to documented symbol" {
     try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
 
-test "project reexport_documented suppresses diagnostic when definition is documented" {
-    const path = try projectRoot("valid", "reexport_documented");
+test "reexport_documented_transitive suppresses diagnostic when definition is documented" {
+    const path = try projectRoot("reexport_documented_transitive");
     defer std.testing.allocator.free(path);
 
     var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{});
@@ -76,8 +75,8 @@ test "project reexport_documented suppresses diagnostic when definition is docum
     try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
 
-test "project reexport_undocumented uses forward slashes in paths" {
-    const path = try projectRoot("invalid", "reexport_undocumented");
+test "reexport_undocumented_points_at_definition uses forward slashes in paths" {
+    const path = try projectRoot("reexport_undocumented_points_at_definition");
     defer std.testing.allocator.free(path);
 
     var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{});
@@ -85,14 +84,14 @@ test "project reexport_undocumented uses forward slashes in paths" {
 
     for (result.diagnostics.items) |d| {
         if (std.mem.eql(u8, d.rule, "missing_doc_comment")) {
-            try std.testing.expect(std.mem.indexOf(u8, d.file, "\\") == null);
-            try std.testing.expect(std.mem.endsWith(u8, d.file, "severity.zig"));
+            try testing.expect(std.mem.indexOf(u8, d.file, "\\") == null);
+            try testing.expect(std.mem.endsWith(u8, d.file, "severity.zig"));
         }
     }
 }
 
-test "project reexport_undocumented points at definition not re-export line" {
-    const path = try projectRoot("invalid", "reexport_undocumented");
+test "reexport_undocumented_points_at_definition points at definition not re-export line" {
+    const path = try projectRoot("reexport_undocumented_points_at_definition");
     defer std.testing.allocator.free(path);
 
     var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{});
@@ -101,15 +100,15 @@ test "project reexport_undocumented points at definition not re-export line" {
 
     for (result.diagnostics.items) |d| {
         if (std.mem.eql(u8, d.rule, "missing_doc_comment")) {
-            try std.testing.expect(!std.mem.endsWith(u8, d.file, "root.zig"));
-            try std.testing.expect(std.mem.endsWith(u8, d.file, "severity.zig"));
+            try testing.expect(!std.mem.endsWith(u8, d.file, "root.zig"));
+            try testing.expect(std.mem.endsWith(u8, d.file, "severity.zig"));
         }
     }
 }
 
-test "invalid missing_module_doc reports missing module doc comment on root.zig" {
+test "missing_module_doc_on_entry reports missing module doc comment" {
     const allocator = std.testing.allocator;
-    const path = try loc.fixturePath(allocator, &.{ "invalid", "missing_module_doc", "root.zig" });
+    const path = try harness.ruleFixturePath(allocator, ns, &.{ "missing_module_doc_on_entry", "root.zig" });
     defer allocator.free(path);
     const source = try harness.readFixtureFile(allocator, std.testing.io, path);
     defer allocator.free(source);
@@ -135,10 +134,10 @@ test "invalid missing_module_doc reports missing module doc comment on root.zig"
         {
             module_doc_count += 1;
             const emph = d.emphasis orelse return error.TestExpectedEqual;
-            try std.testing.expectEqualStrings("fixture", d.message[emph.offset..][0..emph.len]);
+            try testing.expectEqualStrings("fixture", d.message[emph.offset..][0..emph.len]);
         }
     }
-    try std.testing.expectEqual(@as(usize, 1), module_doc_count);
+    try testing.expectEqual(@as(usize, 1), module_doc_count);
 }
 
 test "unresolvable import produces no false positive in single-file mode" {
