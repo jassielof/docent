@@ -4,7 +4,9 @@ const Severity = @import("Severity.zig");
 
 /// Byte range within `message` for emphasized rendering in TTY output.
 pub const EmphasisSpan = struct {
+    ///// Start byte offset within `message`.
     offset: usize,
+    /// Length in bytes of the emphasized span.
     len: usize,
 };
 

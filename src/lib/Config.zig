@@ -20,6 +20,7 @@ const DocentConfigJson = struct {
     rules: ?RulesJson = null,
 };
 
+// /// Errors that can occur while loading or parsing configuration.
 pub const Error = error{
     ConfigNotFound,
     ConfigParseFailed,
@@ -151,10 +152,14 @@ fn readConfigText(allocator: std.mem.Allocator, io: std.Io, config_path: []const
     const file = std.Io.Dir.openFileAbsolute(io, config_path, .{}) catch return error.FileNotFound;
     defer file.close(io);
     var reader = file.reader(io, &.{});
+
     return reader.interface.allocRemaining(allocator, .limited(1 * 1024 * 1024));
 }
 
-pub fn formatError(err: Error) []const u8 {
+/// Returns a short human-readable description of `err`.
+pub fn formatError(
+    err: Error,
+) []const u8 {
     return switch (err) {
         error.ConfigNotFound => "config file not found",
         error.ConfigParseFailed => "failed to parse docent.json",
