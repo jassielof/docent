@@ -45,9 +45,9 @@ pub const rules: []const RuleRow = &.{
         .summary = "Library entry points should include a file-level //! doc comment.",
     },
     .{
-        .name = "empty_doc_comment",
+        .name = "blank_doc_comment",
         .default_level = "warn",
-        .summary = "Doc comments should contain useful text.",
+        .summary = "Doc comments should contain useful text (not blank or whitespace-only).",
     },
     .{
         .name = "doctest_naming_mismatch",

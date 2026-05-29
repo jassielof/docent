@@ -20,8 +20,8 @@ private_doctest: Severity.Level = .warn,
 ///
 /// Top-level doc comments (`//!`) are being considered for removal. The rule will be kept until they are removed. Relevant issue: <https://codeberg.org/ziglang/zig/issues/30132>
 missing_container_doc_comment: Severity.Level = .warn,
-/// Requires non-empty text in doc comments.
-empty_doc_comment: Severity.Level = .warn,
+/// Requires non-blank text in doc comments.
+blank_doc_comment: Severity.Level = .warn,
 /// Requires doctest names to match the declaration they document.
 doctest_naming_mismatch: Severity.Level = .warn,
 

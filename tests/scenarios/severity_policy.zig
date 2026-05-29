@@ -11,7 +11,7 @@ const mixed_loc: harness.ScenarioLocator = .{ .name = "multi_rule_violations" };
 test "allow suppresses all diagnostics on mixed fixture" {
     var result = try harness.lintScenarioFixture(mixed_loc, &.{ "invalid", "mixed", "main.zig" }, .{
         .missing_doc_comment = .allow,
-        .empty_doc_comment = .allow,
+        .blank_doc_comment = .allow,
         .private_doctest = .allow,
         .doctest_naming_mismatch = .allow,
         .missing_container_doc_comment = .allow,

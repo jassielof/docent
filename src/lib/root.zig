@@ -99,7 +99,7 @@ pub fn lintSource(
     const require_module_doc = resolveRequireModuleDoc(file_owned, options, library_entry_roots);
 
     try rules.docs.missing_doc_comment.check(&tree, rule_set.missing_doc_comment, file_owned, allocator, io, msg, &result.diagnostics);
-    try rules.docs.empty_doc_comment.check(&tree, rule_set.empty_doc_comment, file_owned, allocator, msg, &result.diagnostics);
+    try rules.docs.blank_doc_comment.check(&tree, rule_set.blank_doc_comment, file_owned, allocator, msg, &result.diagnostics);
     try rules.docs.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, allocator, msg, &result.diagnostics);
     try rules.docs.private_doctest.check(&tree, rule_set.private_doctest, file_owned, allocator, msg, &result.diagnostics);
     try rules.docs.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, allocator, msg, &result.diagnostics);

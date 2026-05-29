@@ -1,6 +1,4 @@
-// TODO: Rename from `empty_doc_comment` to `blank_doc_comment`
-//! The namespace blank_doc_comment 
-//! Flags doc comments that are empty or whitespace-only.
+//! The `blank_doc_comment` namespace flags doc comments that are blank or whitespace-only.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -8,7 +6,7 @@ const Diagnostic = @import("../../Diagnostic.zig");
 const Severity = @import("../../Severity.zig");
 const utils = @import("../utils.zig");
 
-const rule_name = "empty_doc_comment";
+const rule_name = "blank_doc_comment";
 
 /// Walks `tree` and appends diagnostics for vacuous doc comments.
 pub fn check(
@@ -45,7 +43,7 @@ pub fn check(
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
-                .message = "doc comment is empty",
+                .message = "doc comment is blank",
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
@@ -93,7 +91,7 @@ fn runCheck(source: [:0]const u8) !TestResult {
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
-test "detects empty /// comment" {
+test "detects blank /// comment" {
     var r = try runCheck("///\npub fn foo() void {}");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
@@ -101,7 +99,7 @@ test "detects empty /// comment" {
     try std.testing.expectEqual(@as(usize, 3), r.items.items[0].symbol_len);
 }
 
-test "detects empty /// with spaces" {
+test "detects blank /// with spaces" {
     var r = try runCheck("///   \npub fn foo() void {}");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
@@ -113,13 +111,13 @@ test "no diagnostic for non-empty doc comment" {
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
-test "detects empty //! comment" {
+test "detects blank //! comment" {
     var r = try runCheck("//!");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
 }
 
-test "detects fully empty multiline /// comment block once" {
+test "detects fully blank multiline /// comment block once" {
     var r = try runCheck("///\n///   \npub fn foo() void {}");
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
