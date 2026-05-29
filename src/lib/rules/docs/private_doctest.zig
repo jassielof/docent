@@ -35,7 +35,8 @@ pub fn check(
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity = severity,
-                .message = try std.fmt.allocPrint(msg_allocator, "doctest 'test {s}' references a non-public symbol", .{entry.name}),
+                .subject = try utils.ownedSubject(msg_allocator, .doctest, entry.name),
+                .detail = "references a non-public symbol",
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
@@ -122,7 +123,7 @@ test "detects doctest referencing private fn, names the symbol" {
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
-    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "foo") != null);
+    try std.testing.expectEqualStrings("foo", r.items.items[0].subject.?.name);
 }
 
 test "no diagnostic when doctest references pub fn" {

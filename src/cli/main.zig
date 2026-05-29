@@ -20,7 +20,6 @@ pub const app_examples: []const fangz.Command.CliExample = &.{
 
 pub const OutputMode = enum {
     pretty,
-    text,
     minimal,
     json,
 };
@@ -56,6 +55,7 @@ pub fn main(init: std.process.Init) !void {
 
     const root = app.root();
 
+    // TODO: Refactor. Variadic paths are complex considering the main scanning method of Docent is by public API surface rather than recursive file discovery (similar to Zig fmt). So, to ease implementation, there are 3 cases, 1) no paths provided: use the `build.zig` or build script to find module roots, 2) single file provided: that file will be strictly assumed to be a module root, 3) multiple paths provided: here the public API surface will be off since there is no unambiguous module root to derive it from, so this will behave similar to Zig fmt and recursively discover all Zig files under the provided paths and lint all declarations regardless of visibility.
     try root.addPositional(.{
         .name = "paths",
         .brief = "Files or directories to lint. If omitted, Docent uses package paths from build.zig.zon when available.",
@@ -175,7 +175,10 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
 
     var summary: docent.output.Summary = .{};
     var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;
-    defer all_diagnostics.deinit(allocator);
+    defer {
+        for (all_diagnostics.items) |d| docent.Diagnostic.deinitAlloc(d, allocator);
+        all_diagnostics.deinit(allocator);
+    }
 
     var linted_files = std.StringHashMap(void).init(allocator);
     defer linted_files.deinit();
@@ -192,13 +195,15 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         .module_name = plan.package.name,
     };
 
+    const text_options = docent.output.stderrTextOptions(io, textFormat(args.format), .auto, path_display_root);
+
     for (plan.resolved_targets) |rt| {
         if (rt.status == .linted) {
             for (rt.files) |path| {
                 const gptr = try linted_files.getOrPut(path);
                 if (gptr.found_existing) continue;
 
-                if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
+                if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots, &all_diagnostics, &summary, args.fail_fast)) {
                     should_stop = true;
                     break;
                 }
@@ -212,7 +217,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
 
-            if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots, &all_diagnostics, &summary, args.format, path_display_root, args.fail_fast)) {
+            if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
                 break;
             }
@@ -222,7 +227,9 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     if (args.format == .json) {
         try docent.output.printJsonStdout(io, allocator, all_diagnostics.items);
     } else {
-        try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, "docent", .auto));
+        try docent.output.printDiagnosticsStderr(io, all_diagnostics.items, text_options);
+        const had_diagnostics = summary.errors > 0 or summary.warnings > 0;
+        try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, "docent", .auto), had_diagnostics);
     }
 
     if (summary.hasErrors()) {
@@ -283,8 +290,6 @@ fn lintSingleFile(
     library_entry_roots: []const []const u8,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
-    output_mode: OutputMode,
-    path_display_root: []const u8,
     fail_fast: FailFast,
 ) !bool {
     var result = docent.lintFile(allocator, io, path, rule_set, lint_options, library_entry_roots) catch |err| {
@@ -295,12 +300,7 @@ fn lintSingleFile(
 
     for (result.diagnostics.items) |d| {
         summary.observe(d);
-
-        if (output_mode == .json) {
-            try all_diagnostics.append(allocator, d);
-        } else {
-            try docent.output.printDiagnosticStderr(io, d, docent.output.stderrTextOptions(io, textFormat(output_mode), .auto, path_display_root));
-        }
+        try all_diagnostics.append(allocator, try docent.Diagnostic.cloneAlloc(d, allocator));
 
         if (failFastMatches(fail_fast, d.severity)) return true;
     }
@@ -310,7 +310,7 @@ fn lintSingleFile(
 
 fn textFormat(mode: OutputMode) docent.output.TextFormat {
     return switch (mode) {
-        .pretty, .text => .pretty,
+        .pretty => .pretty,
         .minimal => .minimal,
         .json => unreachable,
     };

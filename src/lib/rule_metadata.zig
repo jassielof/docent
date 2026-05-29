@@ -10,9 +10,19 @@ pub const RuleRow = struct {
     default_level: []const u8,
     /// Short one-line description shown in help output.
     summary: []const u8,
+    /// Title used in diagnostic prose (`Warning: {prose_title} on …`).
+    prose_title: []const u8,
     /// Optional extended help; empty when unused.
     long: []const u8 = "",
 };
+
+/// Returns the prose title for `rule_name`, or null when unknown.
+pub fn proseTitle(rule_name: []const u8) ?[]const u8 {
+    for (rules) |row| {
+        if (std.mem.eql(u8, row.name, rule_name)) return row.prose_title;
+    }
+    return null;
+}
 
 /// Severity levels documented for project config (order matches public explanations).
 pub const levels: []const struct { name: []const u8, summary: []const u8 } = &.{
@@ -28,26 +38,31 @@ pub const rules: []const RuleRow = &.{
         .name = "missing_doc_comment",
         .default_level = "warn",
         .summary = "Public API items, module roots, and exposed source files should have doc comments.",
+        .prose_title = "Missing doc comment",
     },
     .{
         .name = "missing_doctest",
         .default_level = "allow",
         .summary = "Public functions may include runnable examples.",
+        .prose_title = "Missing doctest",
     },
     .{
         .name = "private_doctest",
         .default_level = "warn",
         .summary = "Private declarations should not carry identifier-style doctests.",
+        .prose_title = "Private doctest",
     },
     .{
         .name = "blank_doc_comment",
         .default_level = "warn",
         .summary = "Doc comments should contain useful text (not blank or whitespace-only).",
+        .prose_title = "Blank doc comment",
     },
     .{
         .name = "doctest_naming_mismatch",
         .default_level = "warn",
         .summary = "Doctest names should match the declaration they document.",
+        .prose_title = "Doctest naming mismatch",
     },
 };
 

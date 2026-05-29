@@ -130,11 +130,10 @@ test "missing_module_doc_on_entry reports missing module doc comment" {
     var module_doc_count: usize = 0;
     for (result.diagnostics.items) |d| {
         if (std.mem.eql(u8, d.rule, "missing_doc_comment") and
-            std.mem.eql(u8, d.message, "Missing module doc comment for fixture."))
+            d.subject != null and d.subject.?.kind == .module and
+            std.mem.eql(u8, d.subject.?.name, "fixture"))
         {
             module_doc_count += 1;
-            const emph = d.emphasis orelse return error.TestExpectedEqual;
-            try testing.expectEqualStrings("fixture", d.message[emph.offset..][0..emph.len]);
         }
     }
     try testing.expectEqual(@as(usize, 1), module_doc_count);

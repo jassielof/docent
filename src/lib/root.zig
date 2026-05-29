@@ -109,7 +109,15 @@ pub fn lintSource(
         msg,
         &result.diagnostics,
     );
-    try rules.docs.blank_doc_comment.check(&tree, rule_set.blank_doc_comment, file_owned, allocator, msg, &result.diagnostics);
+    try rules.docs.blank_doc_comment.check(
+        &tree,
+        rule_set.blank_doc_comment,
+        file_owned,
+        options.module_name,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
     try rules.docs.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, allocator, msg, &result.diagnostics);
     try rules.docs.private_doctest.check(&tree, rule_set.private_doctest, file_owned, allocator, msg, &result.diagnostics);
     try rules.docs.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, allocator, msg, &result.diagnostics);
