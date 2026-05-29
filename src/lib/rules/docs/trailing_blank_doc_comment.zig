@@ -152,7 +152,8 @@ test "detects trailing blank /// on enum enumerator" {
         \\    ///
         \\    red,
         \\};
-    ,);
+        ,
+    );
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(.enumerator, r.items.items[0].subject.?.kind);
