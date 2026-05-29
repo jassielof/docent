@@ -1,4 +1,4 @@
-//! The `missing_leading_phrase` namespace warns when a doc comment summary does not begin with a leading phrase naming the documented identifier.
+//! The `invalid_leading_phrase` namespace warns when a doc comment summary does not begin with a valid leading phrase naming the documented identifier.
 //!
 //! The leading phrase grammar is `[<article>] [<identifier kind>] <identifier> [<identifier kind>]...`.
 //! With the default options the article, identifier kind, and backticks are optional, while the
@@ -11,13 +11,13 @@ const Diagnostic = @import("../../Diagnostic.zig");
 const Severity = @import("../../Severity.zig");
 const utils = @import("../utils.zig");
 
-const rule_name = "missing_leading_phrase";
+const rule_name = "invalid_leading_phrase";
 
 const article_words: []const []const u8 = &.{ "a", "an", "the" };
 
 const KindPhrase = []const []const u8;
 
-/// Walks `tree` and appends diagnostics for doc comment summaries missing a leading phrase.
+/// Walks `tree` and appends diagnostics for doc comment summaries with an invalid leading phrase.
 pub fn check(
     tree: *const Ast,
     severity: Severity.Level,

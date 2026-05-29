@@ -14,7 +14,7 @@ test "allow suppresses all diagnostics on multi_rule_doc_violations" {
         .trailing_blank_doc_comment = .allow,
         .private_doctest = .allow,
         .doctest_naming_mismatch = .allow,
-        .missing_leading_phrase = .allow,
+        .invalid_leading_phrase = .allow,
     }, .{});
     defer result.deinit();
     try std.testing.expectEqual(@as(usize, 0), result.diagnostics.items.len);
