@@ -19,6 +19,7 @@ pub const targeting = @import("Targeting.zig");
 pub const status_plan = @import("StatusPlan.zig");
 pub const build_scan = @import("BuildScan.zig");
 pub const LintOptions = @import("LintOptions.zig");
+pub const ComplexityOptions = @import("ComplexityOptions.zig");
 pub const rules = @import("rules.zig");
 
 /// Returns whether the file-level `//!` check applies to `path`.
@@ -147,6 +148,62 @@ pub fn lintSource(
     );
 
     return result;
+}
+
+/// Runs the complexity rules over in-memory Zig source and returns their diagnostics.
+///
+/// Unlike `lintSource`, this is driven by the `docent complexity` sub-command rather than the default lint run.
+pub fn lintComplexitySource(
+    allocator: std.mem.Allocator,
+    source: [:0]const u8,
+    rule_set: RuleSet,
+    file: []const u8,
+    options: LintOptions,
+    complexity_options: ComplexityOptions,
+) !LintResult {
+    var tree = try std.zig.Ast.parse(allocator, source, .zig);
+    defer tree.deinit(allocator);
+
+    var result = LintResult.init(allocator);
+    errdefer result.deinit();
+
+    const msg = result.messageAllocator();
+    const file_owned = try path_utils.normalizePathSeparators(msg, file);
+
+    try rules.complexity.cognitive.check(
+        &tree,
+        rule_set.cognitive_complexity,
+        file_owned,
+        options.public_api_only,
+        complexity_options.cognitive_threshold,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
+
+    return result;
+}
+
+/// Reads `path` from the cwd and runs `lintComplexitySource` on its contents.
+pub fn lintComplexityFile(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+    rule_set: RuleSet,
+    options: LintOptions,
+    complexity_options: ComplexityOptions,
+) !LintResult {
+    const source = try std.Io.Dir.cwd().readFileAllocOptions(
+        io,
+        path,
+        allocator,
+        .limited(std.math.maxInt(u32)),
+        .of(u8),
+        0,
+    );
+    defer allocator.free(source);
+
+    return lintComplexitySource(allocator, source, rule_set, path, options, complexity_options);
 }
 
 /// Reads `path` from the cwd and runs `lintSource` on its contents.

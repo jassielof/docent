@@ -253,10 +253,28 @@ NOTE: Unlike tools like Lizard—which can be configured to treat an entire `swi
 
 === Cognitive Complexity
 
-Defaults to the Sonar-recommended threshold of 15. See <<sonar-reasoning>> and <<sonar-paper>>.
+Defaults to the Sonar-recommended threshold of 15. See <<sonar-reasoning>> and <<sonar-paper>>. A function is flagged when its score is *strictly greater* than the threshold. It is reported by the `docent complexity` sub-command rather than the default lint run.
+
+Unlike the doc-comment rules, complexity checks measure *every* function — both public and non-public. File discovery still starts from the project's module roots and follows the public API surface, but within each reached file no visibility filter is applied.
+
+Unlike <<_cyclomatic_complexity>>, the score is not a count of paths but an estimate of how hard the control flow is to *understand*. It accumulates three kinds of increments per function:
+
+Structural::
+Control-flow structures that also receive a nesting increment: `if`, `for`, `while`, `switch`, and `catch`. Each adds `1 + current_nesting`, so the same structure costs more the deeper it is nested.
+Hybrid::
+`else` and `else if` add `1` but never receive a nesting increment (the cost of reading the `if` has already been paid), yet they still raise the nesting level for their body.
+Fundamental::
+Breaks in linear flow that are independent of nesting: each new sequence of binary logical operators (`and` / `or`), a labeled loop `break`/`continue`, and direct recursion.
+
+.Zig-specific mappings:
+* `catch` is treated like an exception `catch` clause (structural). `orelse` is the optional counterpart of null-coalescing and is intentionally ignored.
+* A labeled `break`/`continue` only increments when the label targets a `for`/`while` loop. Labeled block breaks (`break :blk value`) are value expressions and are not penalized.
+* Only direct recursion (a function calling itself by name) is scored; indirect recursion is out of scope.
+* `switch` and all of its prongs combined incur a single structural increment, matching the Sonar treatment of `switch`.
 
 .Options
-* The threshold can be configured with whole numbers.
+* The threshold can be configured with whole numbers in project config under `complexity.cognitive_threshold`; it defaults to 15.
+* The severity (`cognitive_complexity`) follows the usual rule severities and can be set in project config.
 
 // Both depth and control structure are taken from how Lizard defines them, but Lizard defines them quite vague, it's mostly understandable once you read its source code, but basically the nested control structures metric is the one similar to the Linux guideline of maximum of 3 levels of indentation or depth. While the nesting depth metric, is similar to the control structure one, except it takes in consideration the logic/branches within the condition. So these 2 are low priority.
 // === Nesting depth
@@ -287,6 +305,9 @@ When no config file is found, or a rule is omitted, Docent uses the `RuleSet` de
     "missing_doc_comment": "deny",
     "missing_doctest": "allow",
     "private_doctest": "warn"
+  },
+  "complexity": {
+    "cognitive_threshold": 15
   }
 }
 ----
@@ -294,5 +315,7 @@ When no config file is found, or a rule is omitted, Docent uses the `RuleSet` de
 
 Severity values are `allow`, `warn`, `deny`, and `forbid`. A `forbid` level cannot be relaxed by a later entry in the same file.
 
+The `complexity` block holds the numeric options for the complexity sub-command rules (for example `cognitive_threshold`). Omitted options fall back to the library defaults.
+
 .Options:
-* You can specify a custom path for the configuration file with `--config-path PATH` on `docent` and `docent status`.
+* You can specify a custom path for the configuration file with `--config-path PATH` on `docent`, `docent status`, and `docent complexity`.

@@ -4,6 +4,7 @@ const std = @import("std");
 
 const RuleSet = @import("RuleSet.zig");
 const Severity = @import("Severity.zig");
+const ComplexityOptions = @import("ComplexityOptions.zig");
 
 /// Default config path relative to the project root.
 pub const default_relative_path = ".config/docent.json";
@@ -17,10 +18,16 @@ const RulesJson = struct {
     trailing_blank_doc_comment: ?[]const u8 = null,
     doctest_naming_mismatch: ?[]const u8 = null,
     invalid_leading_phrase: ?[]const u8 = null,
+    cognitive_complexity: ?[]const u8 = null,
+};
+
+const ComplexityJson = struct {
+    cognitive_threshold: ?u32 = null,
 };
 
 const DocentConfigJson = struct {
     rules: ?RulesJson = null,
+    complexity: ?ComplexityJson = null,
 };
 
 // /// Errors that can occur while loading or parsing configuration.
@@ -93,6 +100,47 @@ pub fn loadRuleSet(allocator: std.mem.Allocator, io: std.Io, config_path: []cons
 /// Nearest `.config/docent.json`, or `RuleSet` defaults when no config file exists.
 pub fn loadNearestRuleSet(allocator: std.mem.Allocator, io: std.Io) Error!RuleSet {
     return loadRuleSetFromCli(allocator, io, null);
+}
+
+/// Loads complexity thresholds from a `docent.json` file; a missing `complexity` section uses defaults.
+pub fn loadComplexityOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!ComplexityOptions {
+    const config_text = readConfigText(allocator, io, config_path) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.ConfigParseFailed,
+    };
+    defer allocator.free(config_text);
+
+    var parsed = std.json.parseFromSlice(
+        DocentConfigJson,
+        allocator,
+        config_text,
+        .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        },
+    ) catch return error.ConfigParseFailed;
+    defer parsed.deinit();
+
+    var options: ComplexityOptions = .{};
+    if (parsed.value.complexity) |complexity| {
+        if (complexity.cognitive_threshold) |threshold| options.cognitive_threshold = threshold;
+    }
+    return options;
+}
+
+/// Loads complexity options from an explicit `config_path`, or searches for the default file when null.
+pub fn loadComplexityOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!ComplexityOptions {
+    if (config_path) |explicit| {
+        const abs = try resolveExplicitConfigPath(allocator, io, explicit);
+        defer allocator.free(abs);
+        return loadComplexityOptions(allocator, io, abs);
+    }
+    const discovered = try findNearestConfigPath(allocator, io);
+    if (discovered) |path| {
+        defer allocator.free(path);
+        return loadComplexityOptions(allocator, io, path);
+    }
+    return .{};
 }
 
 /// Loads rules from an explicit `config_path`, or searches for the default file when null.
