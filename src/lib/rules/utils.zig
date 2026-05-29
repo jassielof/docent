@@ -59,6 +59,79 @@ pub fn isEnumContainer(tree: *const Ast, container_node: Ast.Node.Index) bool {
     return tree.tokenTag(container.ast.main_token) == .keyword_enum;
 }
 
+pub fn isPubVisibility(tree: *const Ast, visib_token: ?Ast.TokenIndex) bool {
+    const vt = visib_token orelse return false;
+    return tree.tokenTag(vt) == .keyword_pub;
+}
+
+/// When `public_api_only` is true, returns whether the declaration at `documented_first_token` is public API.
+pub fn shouldCheckDocCommentTarget(
+    tree: *const Ast,
+    documented_first_token: Ast.TokenIndex,
+    public_api_only: bool,
+) bool {
+    if (!public_api_only) return true;
+    for (tree.rootDecls()) |decl| {
+        if (findDocCommentVisibility(tree, documented_first_token, false, decl)) |visible| return visible;
+    }
+    return false;
+}
+
+fn findDocCommentVisibility(
+    tree: *const Ast,
+    documented_first_token: Ast.TokenIndex,
+    inside_public_container: bool,
+    node: Ast.Node.Index,
+) ?bool {
+    if (tree.firstToken(node) == documented_first_token) {
+        return visibilityAtNode(tree, node, inside_public_container);
+    }
+
+    if (tree.fullVarDecl(node)) |var_decl| {
+        const init_node = var_decl.ast.init_node.unwrap() orelse return null;
+        if (isContainerDecl(tree.nodeTag(init_node))) {
+            const child_inside = isPubVisibility(tree, var_decl.visib_token);
+            var buf: [2]Ast.Node.Index = undefined;
+            if (tree.fullContainerDecl(&buf, init_node)) |container| {
+                for (container.ast.members) |member| {
+                    if (findDocCommentVisibility(tree, documented_first_token, child_inside, member)) |visible| {
+                        return visible;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    const tag = tree.nodeTag(node);
+    if (isContainerDecl(tag)) {
+        var buf: [2]Ast.Node.Index = undefined;
+        if (tree.fullContainerDecl(&buf, node)) |container| {
+            for (container.ast.members) |member| {
+                if (findDocCommentVisibility(tree, documented_first_token, inside_public_container, member)) |visible| {
+                    return visible;
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+fn visibilityAtNode(tree: *const Ast, node: Ast.Node.Index, inside_public_container: bool) bool {
+    if (tree.fullContainerField(node) != null) return inside_public_container;
+
+    if (tree.nodeTag(node) == .fn_decl) {
+        var buf: [1]Ast.Node.Index = undefined;
+        if (tree.fullFnProto(&buf, node)) |proto| return isPubVisibility(tree, proto.visib_token);
+        return false;
+    }
+
+    if (tree.fullVarDecl(node)) |var_decl| return isPubVisibility(tree, var_decl.visib_token);
+
+    return inside_public_container;
+}
+
 /// Resolves the declaration a `///` doc comment block documents, for diagnostic subjects.
 pub fn resolveDocCommentSubject(
     tree: *const Ast,

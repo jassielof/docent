@@ -140,6 +140,7 @@ pub fn lintSource(
         rule_set.invalid_leading_phrase,
         file_owned,
         options.module_name,
+        options.public_api_only,
         allocator,
         msg,
         &result.diagnostics,
