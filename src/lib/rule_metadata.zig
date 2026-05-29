@@ -27,7 +27,7 @@ pub const rules: []const RuleRow = &.{
     .{
         .name = "missing_doc_comment",
         .default_level = "warn",
-        .summary = "Public declarations should have doc comments.",
+        .summary = "Public API items, module roots, and exposed source files should have doc comments.",
     },
     .{
         .name = "missing_doctest",
@@ -38,11 +38,6 @@ pub const rules: []const RuleRow = &.{
         .name = "private_doctest",
         .default_level = "warn",
         .summary = "Private declarations should not carry identifier-style doctests.",
-    },
-    .{
-        .name = "missing_container_doc_comment",
-        .default_level = "warn",
-        .summary = "Library entry points should include a file-level //! doc comment.",
     },
     .{
         .name = "blank_doc_comment",

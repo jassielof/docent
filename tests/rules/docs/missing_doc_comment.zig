@@ -107,6 +107,25 @@ test "project reexport_undocumented points at definition not re-export line" {
     }
 }
 
+test "invalid missing_module_doc reports missing module doc comment on root.zig" {
+    var result = try lint(&.{ "invalid", "missing_module_doc", "root.zig" }, .{
+        .missing_doc_comment = .warn,
+    });
+    defer result.deinit();
+    try utils.expectRuleCount(result, "missing_doc_comment", 3);
+
+    var module_doc_count: usize = 0;
+    for (result.diagnostics.items) |d| {
+        if (std.mem.eql(u8, d.rule, "missing_doc_comment") and
+            std.mem.indexOf(u8, d.message, "missing module doc comment") != null)
+        {
+            module_doc_count += 1;
+            try std.testing.expect(std.mem.indexOf(u8, d.message, "root.zig") != null);
+        }
+    }
+    try std.testing.expectEqual(@as(usize, 1), module_doc_count);
+}
+
 test "unresolvable import produces no false positive in single-file mode" {
     const source: [:0]const u8 =
         "//! Module.\npub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;";

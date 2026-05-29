@@ -12,7 +12,6 @@ test "invalid mixed fixture triggers multiple rule ids" {
         .blank_doc_comment = .warn,
         .private_doctest = .warn,
         .doctest_naming_mismatch = .warn,
-        .missing_container_doc_comment = .warn,
     });
     defer result.deinit();
     try utils.expectHasRules(result, &.{

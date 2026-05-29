@@ -4,7 +4,7 @@
 //! Override levels via project config; see `rule_metadata` for summaries.
 const Severity = @import("Severity.zig");
 
-/// Checks for public declarations without doc comments.
+/// Checks for missing doc comments on public API items, module roots (`//!`), and re-exported source files.
 ///
 /// ## Re-exports
 ///
@@ -14,12 +14,6 @@ missing_doc_comment: Severity.Level = .warn,
 missing_doctest: Severity.Level = .allow,
 /// Flags doc comments on private declarations that look like public doctests.
 private_doctest: Severity.Level = .warn,
-/// Checks library entry points for a file-level `//!` doc comment (the implicit module container only).
-///
-/// ## Possible removal
-///
-/// Top-level doc comments (`//!`) are being considered for removal. The rule will be kept until they are removed. Relevant issue: <https://codeberg.org/ziglang/zig/issues/30132>
-missing_container_doc_comment: Severity.Level = .warn,
 /// Requires non-blank text in doc comments.
 blank_doc_comment: Severity.Level = .warn,
 /// Requires doctest names to match the declaration they document.
