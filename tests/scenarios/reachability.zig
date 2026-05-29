@@ -5,10 +5,8 @@ const docent = @import("docent");
 const harness = @import("../harness.zig");
 const utils = @import("../utils.zig");
 
-const loc: harness.ScenarioLocator = .{ .name = "reachability" };
-
-test "collects only public reachable files from public_api root" {
-    const root = try harness.scenarioProjectPath(loc, "public_api/root.zig");
+test "collects only public reachable files from reachability_public_api" {
+    const root = try harness.scenarioProjectPath("reachability_public_api", "root.zig");
     defer std.testing.allocator.free(root);
 
     var files = try docent.reachability.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
@@ -19,7 +17,7 @@ test "collects only public reachable files from public_api root" {
     var has_utils = false;
 
     for (files.items) |path| {
-        if (std.mem.indexOf(u8, path, "public_api") == null) continue;
+        if (std.mem.indexOf(u8, path, "reachability_public_api") == null) continue;
         const base = std.fs.path.basename(path);
         if (std.mem.eql(u8, base, "root.zig")) has_root = true;
         if (std.mem.eql(u8, base, "Vision.zig")) has_vision = true;
@@ -31,8 +29,8 @@ test "collects only public reachable files from public_api root" {
     try std.testing.expect(!has_utils);
 }
 
-test "linting reachable public_api files emits no missing_doc_comment" {
-    const root = try harness.scenarioProjectPath(loc, "public_api/root.zig");
+test "linting reachability_public_api files emits no missing_doc_comment" {
+    const root = try harness.scenarioProjectPath("reachability_public_api", "root.zig");
     defer std.testing.allocator.free(root);
 
     var files = try docent.reachability.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
@@ -45,8 +43,8 @@ test "linting reachable public_api files emits no missing_doc_comment" {
     }
 }
 
-test "recursively follows multi-hop public imports in public_api_deep" {
-    const root = try harness.scenarioProjectPath(loc, "public_api_deep/root.zig");
+test "recursively follows multi-hop public imports in reachability_public_api_deep" {
+    const root = try harness.scenarioProjectPath("reachability_public_api_deep", "root.zig");
     defer std.testing.allocator.free(root);
 
     var files = try docent.reachability.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
@@ -59,7 +57,7 @@ test "recursively follows multi-hop public imports in public_api_deep" {
     var has_private_only = false;
 
     for (files.items) |path| {
-        if (std.mem.indexOf(u8, path, "public_api_deep") == null) continue;
+        if (std.mem.indexOf(u8, path, "reachability_public_api_deep") == null) continue;
         const base = std.fs.path.basename(path);
         if (std.mem.eql(u8, base, "root.zig")) has_root = true;
         if (std.mem.eql(u8, base, "api.zig")) has_api = true;
@@ -73,7 +71,7 @@ test "recursively follows multi-hop public imports in public_api_deep" {
 }
 
 test "private-only file is excluded from linted deep set" {
-    const root = try harness.scenarioProjectPath(loc, "public_api_deep/root.zig");
+    const root = try harness.scenarioProjectPath("reachability_public_api_deep", "root.zig");
     defer std.testing.allocator.free(root);
 
     var files = try docent.reachability.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);

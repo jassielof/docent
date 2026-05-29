@@ -6,15 +6,13 @@ const cli = @import("cli");
 const fangz = @import("fangz");
 const harness = @import("../harness.zig");
 
-const mixed_loc: harness.ScenarioLocator = .{ .name = "multi_rule_violations" };
-
-test "allow suppresses all diagnostics on mixed fixture" {
-    var result = try harness.lintScenarioFixture(mixed_loc, &.{ "invalid", "mixed", "main.zig" }, .{
+test "allow suppresses all diagnostics on multi_rule_doc_violations" {
+    var result = try harness.lintScenarioFixture(&.{"multi_rule_doc_violations.zig"}, .{
         .missing_doc_comment = .allow,
         .blank_doc_comment = .allow,
         .private_doctest = .allow,
         .doctest_naming_mismatch = .allow,
-    });
+    }, .{});
     defer result.deinit();
     try std.testing.expectEqual(@as(usize, 0), result.diagnostics.items.len);
 }

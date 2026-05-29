@@ -4,8 +4,6 @@ const std = @import("std");
 const docent = @import("docent");
 const harness = @import("../harness.zig");
 
-const loc: harness.ScenarioLocator = .{ .name = "targeting" };
-
 test "build scripts are skipped by default" {
     try std.testing.expect(docent.targeting.shouldSkipLintFile("build.zig", .{}));
     try std.testing.expect(docent.targeting.shouldSkipLintFile("build/helpers/steps.zig", .{}));
@@ -19,7 +17,7 @@ test "include_build_scripts overrides default skip" {
 }
 
 test "no-root directories use top-level modules as entrypoints" {
-    const dir = try harness.scenarioProjectPath(loc, "multi_module_no_root");
+    const dir = try harness.scenarioProjectDir("targeting_multi_module_no_root");
     defer std.testing.allocator.free(dir);
 
     var files = try docent.targeting.collectDirectoryLintTargets(std.testing.allocator, std.testing.io, dir, .{});
@@ -33,7 +31,7 @@ test "no-root directories use top-level modules as entrypoints" {
     var has_build = false;
 
     for (files.items) |path| {
-        if (std.mem.indexOf(u8, path, "multi_module_no_root") == null) continue;
+        if (std.mem.indexOf(u8, path, "targeting_multi_module_no_root") == null) continue;
         const base = std.fs.path.basename(path);
         if (std.mem.eql(u8, base, "re2.zig")) has_re2 = true;
         if (std.mem.eql(u8, base, "pcre2.zig")) has_pcre2 = true;
@@ -48,7 +46,7 @@ test "no-root directories use top-level modules as entrypoints" {
 }
 
 test "no-root directories include build scripts when enabled" {
-    const dir = try harness.scenarioProjectPath(loc, "multi_module_no_root");
+    const dir = try harness.scenarioProjectDir("targeting_multi_module_no_root");
     defer std.testing.allocator.free(dir);
 
     var files = try docent.targeting.collectDirectoryLintTargets(std.testing.allocator, std.testing.io, dir, .{ .build_script = true });
@@ -56,7 +54,7 @@ test "no-root directories include build scripts when enabled" {
 
     var has_build = false;
     for (files.items) |path| {
-        if (std.mem.indexOf(u8, path, "multi_module_no_root") == null) continue;
+        if (std.mem.indexOf(u8, path, "targeting_multi_module_no_root") == null) continue;
         if (std.mem.eql(u8, std.fs.path.basename(path), "build.zig")) has_build = true;
     }
     try std.testing.expect(has_build);
