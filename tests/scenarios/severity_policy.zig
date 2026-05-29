@@ -14,7 +14,6 @@ test "allow suppresses all diagnostics on mixed fixture" {
         .blank_doc_comment = .allow,
         .private_doctest = .allow,
         .doctest_naming_mismatch = .allow,
-        .missing_container_doc_comment = .allow,
     });
     defer result.deinit();
     try std.testing.expectEqual(@as(usize, 0), result.diagnostics.items.len);

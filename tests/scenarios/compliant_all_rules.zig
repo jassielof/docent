@@ -11,7 +11,6 @@ test "valid compliant fixture passes with all doc rules enabled" {
         .missing_doc_comment = .deny,
         .blank_doc_comment = .deny,
         .missing_doctest = .warn,
-        .missing_container_doc_comment = .deny,
     });
     defer result.deinit();
     try std.testing.expect(!result.hasErrors());

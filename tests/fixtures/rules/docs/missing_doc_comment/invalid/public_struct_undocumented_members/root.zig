@@ -1,3 +1,5 @@
+//! Fixture module.
+
 /// Documented
 pub const hello = "world";
 

@@ -1,37 +1,4 @@
 //! The `missing_doc_comment` namespace warns for missing doc comments.
-//!
-//! This includes:
-//!
-//! - Functions and its parameters
-//! - Global variables and constants
-//! - Enumerations and its enumerators
-//! - Structures and its fields
-//! - Unions and its fields
-//! - Error sets, its values (or tags) aren't checked.
-//!
-//! ## Re-exported declarations
-//!
-//! Public re-exports are resolved transitively.
-//!
-//! For example, for `pub const Bar = @import("Foo.zig").Bar`, the rule follows the re-export chain and checks the documentation on the final resolved declaration.
-//!
-//! - If the resolved declaration is documented, no diagnostic is emitted.
-//! - If it is undocumented, the diagnostic points to the resolved declaration.
-//! - If resolution fails, the re-export is skipped to avoid false positives.
-//!
-//! ## Specializations
-//!
-//! To help with clarification and context, the following cases are reported with special diagnostic messages.
-//!
-//! ### Missing module doc comment
-//!
-//! Warns when a module root source file is missing a doc comment.
-//!
-//! ### Missing source file doc comment
-//!
-//! Warns when a source file is missing a doc comment.
-//!
-//! This will produce the respective message depending on the source file type, either a namespace or an implicit structure, that are publicly re-exported and exposed to the API surface (reached from the module root).
 
 const missing_doc_comment = @This();
 
@@ -44,19 +11,52 @@ const utils = @import("../utils.zig");
 const rule_name = "missing_doc_comment";
 
 /// Walks `tree` and appends diagnostics for undocumented public items.
+///
+/// When `require_module_doc` is set, also requires a file-level `//!` on module entry roots.
 pub fn check(
     tree: *const Ast,
     severity: Severity.Level,
     file: []const u8,
+    require_module_doc: bool,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     if (!severity.isActive()) return;
+    try checkModuleDocComment(tree, severity, file, require_module_doc, allocator, msg_allocator, diagnostics);
     for (tree.rootDecls()) |decl| {
         try checkNode(tree, decl, severity, file, allocator, io, msg_allocator, diagnostics);
     }
+}
+
+fn checkModuleDocComment(
+    tree: *const Ast,
+    severity: Severity.Level,
+    file: []const u8,
+    require_module_doc: bool,
+    allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
+    diagnostics: *std.ArrayList(Diagnostic),
+) std.mem.Allocator.Error!void {
+    if (!require_module_doc) return;
+    if (hasContainerDocComment(tree, 0)) return;
+
+    const basename = std.fs.path.basename(file);
+    const first_src = if (tree.tokens.len > 0)
+        try utils.dupSourceLine(tree, 0, msg_allocator)
+    else
+        "";
+    try diagnostics.append(allocator, .{
+        .rule = rule_name,
+        .severity = severity,
+        .message = try std.fmt.allocPrint(msg_allocator, "missing module doc comment for '{s}'", .{basename}),
+        .file = file,
+        .line = 1,
+        .column = 1,
+        .source_line = first_src,
+        .symbol_len = basename.len,
+    });
 }
 
 fn checkNode(
@@ -426,7 +426,6 @@ fn resolveDocForSymbolInFile(
 
         try emitUndocumentedReexportDiagnosticForFile(
             &imported_tree,
-            display_symbol,
             file_path,
             severity,
             allocator,
@@ -445,13 +444,13 @@ fn hasContainerDocComment(tree: *const Ast, start_token: Ast.TokenIndex) bool {
 
 fn emitUndocumentedReexportDiagnosticForFile(
     tree: *const Ast,
-    display_symbol: []const u8,
     file_path: []const u8,
     severity: Severity.Level,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
+    const source_basename = std.fs.path.basename(file_path);
     var line: usize = 0;
     var column: usize = 0;
     if (tree.tokens.len > 0) {
@@ -464,15 +463,14 @@ fn emitUndocumentedReexportDiagnosticForFile(
         .severity = severity,
         .message = try std.fmt.allocPrint(
             msg_allocator,
-            "missing doc comment for '{s}' (re-exported without documentation)",
-            .{display_symbol},
+            "missing source file doc comment for '{s}'",
+            .{source_basename},
         ),
-        // Store an owned copy of the path so it outlives the allocator.
         .file = try utils.normalizePathSeparators(msg_allocator, file_path),
         .line = line + 1,
         .column = column + 1,
         .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(tree, 0, msg_allocator) else "",
-        .symbol_len = display_symbol.len,
+        .symbol_len = source_basename.len,
     });
 }
 
@@ -563,7 +561,7 @@ const TestResult = struct {
     }
 };
 
-fn runCheck(source: [:0]const u8) !TestResult {
+fn runCheck(source: [:0]const u8, require_module_doc: bool) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     errdefer msg_arena.deinit();
@@ -574,12 +572,48 @@ fn runCheck(source: [:0]const u8) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", require_module_doc, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
+test "detects missing module doc comment on entry root" {
+    var r = try runCheck("pub fn foo() void {}", true);
+    defer r.deinit();
+    try std.testing.expectEqual(2, r.items.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "missing module doc comment") != null);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "<test>") != null);
+    try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
+}
+
+test "no module doc diagnostic when //! present" {
+    var r = try runCheck("//! Module documentation.\npub fn foo() void {}", true);
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "missing doc comment for function") != null);
+}
+
+test "no module doc check when require_module_doc is false" {
+    var r = try runCheck("pub fn foo() void {}", false);
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "module doc comment") == null);
+}
+
+test "no extra module doc required inside pub const struct body" {
+    var r = try runCheck(
+        \\//! Module doc.
+        \\/// Documented struct.
+        \\pub const MyStruct = struct {
+        \\    /// Documented field.
+        \\    x: u32,
+        \\};
+    , true);
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
+}
+
 test "detects missing doc comment on pub fn, names the symbol" {
-    var r = try runCheck("pub fn foo() void {}");
+    var r = try runCheck("pub fn foo() void {}", false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
@@ -591,19 +625,19 @@ test "no diagnostic for documented pub fn" {
     var r = try runCheck(
         \\/// Does something.
         \\pub fn foo() void {}
-    );
+    , false);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "no diagnostic for private fn" {
-    var r = try runCheck("fn foo() void {}");
+    var r = try runCheck("fn foo() void {}", false);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "detects missing doc comment on pub const, names the symbol" {
-    var r = try runCheck("pub const answer = 42;");
+    var r = try runCheck("pub const answer = 42;", false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'answer'") != null);
@@ -616,7 +650,7 @@ test "detects missing doc comment on container fields, names the field" {
         \\    x: u32,
         \\    y: u32,
         \\};
-    );
+    , false);
     defer r.deinit();
     try std.testing.expectEqual(2, r.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].message, "'x'") != null);
@@ -630,20 +664,20 @@ test "no diagnostic for private const struct members and pub fn inside" {
         \\    color: []const u8,
         \\    pub fn world() void {}
         \\};
-    );
+    , false);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "location points to name token, not keyword" {
-    var r = try runCheck("pub fn myFunc() void {}");
+    var r = try runCheck("pub fn myFunc() void {}", false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(@as(usize, 8), r.items.items[0].column);
 }
 
 test "source_line is populated" {
-    var r = try runCheck("pub fn foo() void {}");
+    var r = try runCheck("pub fn foo() void {}", false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings("pub fn foo() void {}", r.items.items[0].source_line);
@@ -652,7 +686,7 @@ test "source_line is populated" {
 test "re-export with unresolvable import is silently skipped (no false positive)" {
     // When the imported file can't be resolved (fake path from <test> file),
     // the re-export must produce zero diagnostics.
-    var r = try runCheck("pub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;");
+    var r = try runCheck("pub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;", false);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
@@ -661,7 +695,7 @@ test "re-export through local import alias is recognized" {
     var r = try runCheck(
         \\const helpers = @import("helpers.zig");
         \\pub const greet = helpers.greet;
-    );
+    , false);
     defer r.deinit();
     // Unresolvable from <test> path — must not false-positive on the re-export line.
     try std.testing.expectEqual(0, r.items.items.len);

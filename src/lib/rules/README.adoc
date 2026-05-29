@@ -48,7 +48,7 @@ Missing module doc comment::
 Warns on missing doc comments on the module root source file.
 
 Missing source file doc comment::
-Warns on missing doc comments on source files, this is mainly applied to implicit struct files and namespaces that are re-exported and exposed to the API surface, or reached from the module root.
+Warns on missing doc comments on source files, this is mainly applied to implicit struct files and namespaces that are re-exported and exposed to the API surface, or reached from the module root. It should properly say that it's missing the doc comment for the namespace or the struct (file) respectively. This should only be thrown when it's clear that the source file is being exposed and not just a single part of it.
 
 === Blank doc comment
 
