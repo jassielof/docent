@@ -74,26 +74,23 @@ Doctests::: See <<doctests>>. As well, there’s an https://github.com/ziglang/z
 
 == Scanning strategy
 
+.Scanning modes:
+Public API surface:: Depends on a module root, and all exposed public declarations reaachable from it. Similar to how one would use a module as a dependency.
+Reachability traversal:: Similar to public API surface, but it includes non-public declarations, so the surface area is larger.
+Syntactic traversal:: This doesn't depend on a module root, it just traverses all the syntax of the files being scanned. This is similar to how formatters work, which might include orphan files that are not reachable from any module.
+
 === Default scanning without path arguments
 
-Whenever the CLI is run without any path arguments, the current working directory is scanned. The scanning strategy will attempt to find both build system script and related files to resolve the project structure and dependencies.
+Whenever the program is run without any path arguments, the current working directory is scanned and it's expected to be a project. The scanning strategy will attempt to find both build system script and manifest to determine the project structure.
 
-==== Build system script scanning
+==== Project discovery
 
-It expects a manifest file to be present in your current working directory, then scans the configured `.paths` entries.
+Project discovery is performed by looking at both script and manifest files, considering. It'll attempt find the nearest script either in the current working directory or any of its parent directories, and then look for a manifest to determine for complementary information, such as: local dependencies and their paths, bundled paths, project name, etc.
 
-Path dependencies listed in `build.zig.zon` under `.dependencies` (each entry with a `.path`) are *excluded from linting by default*, similar to how Rust tooling skips crates.io dependencies while linting your workspace crate. A `.paths` entry may still list `modules` for packaging; Docent uses dependency metadata to avoid linting vendored trees under those paths.
+* If there are local dependencies, they can be linted optionally by passing `--deps`.
+* Paths listed are entirely for supporting information, as sometimes paths or even the manifest isn't present, or there are no paths listed, so the project discovery is still valid and strictly focused on the build script first.
 
-* CLI: pass `--lint-dependencies` to include dependency directories (including when you pass an explicit path under a dependency root).
-* Library: `docent.targeting.Options{ .lint_dependencies = true, .exclude_roots = ... }`.
-* Build step: `docent.addLintStep(b, .{ .lint_dependencies = true, ... })`.
-
-Dependency roots are resolved from the nearest `build.zig.zon` and passed as `exclude_roots` automatically when you run the CLI with no path arguments.
-
-.Directory behavior:
-* If a directory contains `root.zig`, Docent treats it as an entrypoint and lints files that are publicly reachable from that root via `pub const ... = @import("...")` chains.
-* If a directory has no `root.zig`, Docent treats each top-level `.zig` file as a module root and lints the union of their publicly reachable files.
-* If no top-level `.zig` files exist, Docent falls back to linting all `.zig` files in that directory tree.
+Based on the build script discovery, the behavior defaults to only public modules being scanned. Executables and test modules are discovered but excluded by default.
 
 .Reachability notes:
 * Traversal is recursive across imported files, so multi-hop public chains are included.
@@ -103,12 +100,6 @@ Dependency roots are resolved from the nearest `build.zig.zon` and passed as `ex
 ** Instead of files within the build directory, it’s mostly all of those files that are used/imported by the main build script (`build.zig`).
 * This avoids false-positive API checks from build tooling paths that are commonly present in `build.zig.zon` `.paths`.
 * CLI users can opt in with `--include-build-scripts`.
-* Library users can opt in via `docent.targeting.Options{ .include_build_scripts = true }`.
-* Build integration users can opt in via `docent.addLintStep(..., .{ .include_build_scripts = true, ... })`.
-
-.Dependency exclusion:
-* Files under `.dependencies.*.path` roots are skipped unless `lint_dependencies` is enabled (see above).
-* Pass extra directory roots via `docent.targeting.Options.exclude_roots` when you need additional ignores beyond manifest dependencies.
 
 ==== Scanning with arguments
 

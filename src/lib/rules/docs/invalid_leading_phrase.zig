@@ -159,6 +159,11 @@ fn kindPhrases(kind: Diagnostic.SubjectKind) []const KindPhrase {
         .variable => &.{&.{"variable"}},
         .field => &.{&.{"field"}},
         .enumerator => &.{ &.{"enumerator"}, &.{"value"}, &.{"variant"}, &.{"tag"}, &.{"member"} },
+        .structure => &.{ &.{"struct"}, &.{"structure"} },
+        .namespace => &.{&.{"namespace"}},
+        .@"union" => &.{&.{"union"}},
+        .error_value => &.{ &.{ "error", "value" }, &.{ "error", "tag" }, &.{ "error", "member" }, &.{"value"} },
+        .type_alias => &.{ &.{"type"}, &.{"alias"} },
         .doc_comment, .doctest => &.{},
     };
 }
@@ -280,7 +285,8 @@ test "accepts enumerator identifier first" {
         \\    /// red is the warm primary.
         \\    red,
         \\};
-    ,);
+        ,
+    );
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }

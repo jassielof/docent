@@ -28,6 +28,10 @@ invalid_leading_phrase: Severity.Level = .warn,
 ///
 /// Measured by the `docent complexity` sub-command following the Sonar specification; not part of the default lint run.
 cognitive_complexity: Severity.Level = .warn,
+/// Flags identifiers that don't follow the Zig naming-case conventions.
+///
+/// Reported by the `docent style` sub-command rather than the default lint run.
+identifier_case: Severity.Level = .warn,
 
 /// Comptime-computed array of all rule field names in declaration order.
 const _field_names_buf = init: {

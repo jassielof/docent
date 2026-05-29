@@ -88,6 +88,12 @@ pub const rules: []const RuleRow = &.{
         .summary = "Functions should stay below the cognitive complexity threshold (default 15).",
         .prose_title = "Cognitive complexity",
     },
+    .{
+        .name = "identifier_case",
+        .default_level = "warn",
+        .summary = "Identifiers should follow the Zig naming-case conventions (snake_case, camelCase, PascalCase).",
+        .prose_title = "Identifier case",
+    },
 };
 
 comptime {

@@ -6,6 +6,7 @@ const fangz = @import("fangz");
 
 const status_command = @import("commands/status.zig");
 const complexity_command = @import("commands/complexity.zig");
+const style_command = @import("commands/style.zig");
 const cli_flags = @import("flags.zig");
 pub const rule_config = @import("rule_config.zig");
 
@@ -15,7 +16,8 @@ pub const registerConfigPathFlag = @import("flags.zig").registerConfigPath;
 pub const app_examples: []const fangz.Command.CliExample = &.{
     .{ .description = "", .command = "docent src" },
     .{ .description = "", .command = "docent status" },
-    .{ .description = "", .command = "docent complexity --threshold 15" },
+    .{ .description = "", .command = "docent complexity" },
+    .{ .description = "", .command = "docent style" },
     .{ .description = "", .command = "docent docs --output-dir docs" },
     .{ .description = "", .command = "docent completion nu" },
 };
@@ -126,6 +128,7 @@ pub fn main(init: std.process.Init) !void {
 
     try status_command.register(root);
     try complexity_command.register(root);
+    try style_command.register(root);
 
     root.hooks.run = &runLint;
 

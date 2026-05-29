@@ -22,6 +22,8 @@ pub const LintOptions = @import("LintOptions.zig");
 pub const ComplexityOptions = @import("ComplexityOptions.zig");
 pub const rules = @import("rules.zig");
 
+pub const myError = error{ hola_bola, Mambo };
+
 /// Returns whether the file-level `//!` check applies to `path`.
 ///
 /// Enabled when `path` is a known module entry root or the basename is `root.zig`.
@@ -182,6 +184,59 @@ pub fn lintComplexitySource(
     );
 
     return result;
+}
+
+/// Runs the style rules over in-memory Zig source and returns their diagnostics.
+///
+/// Unlike `lintSource`, this is driven by the `docent style` sub-command rather than the default lint run.
+pub fn lintStyleSource(
+    allocator: std.mem.Allocator,
+    source: [:0]const u8,
+    rule_set: RuleSet,
+    file: []const u8,
+    options: LintOptions,
+) !LintResult {
+    var tree = try std.zig.Ast.parse(allocator, source, .zig);
+    defer tree.deinit(allocator);
+
+    var result = LintResult.init(allocator);
+    errdefer result.deinit();
+
+    const msg = result.messageAllocator();
+    const file_owned = try path_utils.normalizePathSeparators(msg, file);
+
+    try rules.style.identifier_case.check(
+        &tree,
+        rule_set.identifier_case,
+        file_owned,
+        options.public_api_only,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
+
+    return result;
+}
+
+/// Reads `path` from the cwd and runs `lintStyleSource` on its contents.
+pub fn lintStyleFile(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+    rule_set: RuleSet,
+    options: LintOptions,
+) !LintResult {
+    const source = try std.Io.Dir.cwd().readFileAllocOptions(
+        io,
+        path,
+        allocator,
+        .limited(std.math.maxInt(u32)),
+        .of(u8),
+        0,
+    );
+    defer allocator.free(source);
+
+    return lintStyleSource(allocator, source, rule_set, path, options);
 }
 
 /// Reads `path` from the cwd and runs `lintComplexitySource` on its contents.
