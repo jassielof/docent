@@ -7,6 +7,7 @@ const carnaval = @import("carnaval");
 
 const Diagnostic = @import("Diagnostic.zig");
 const DiagnosticMessage = @import("DiagnosticMessage.zig");
+const Severity = @import("Severity.zig");
 
 /// Text layout for a single diagnostic line.
 pub const TextFormat = enum {
@@ -79,7 +80,8 @@ const Style = struct {
     emphasis: carnaval.Style,
     warning_style: carnaval.Style,
     error_style: carnaval.Style,
-    dim: carnaval.Style,
+    allow_style: carnaval.Style,
+    rule_style: carnaval.Style,
     caret_warning: carnaval.Style,
     caret_error: carnaval.Style,
 };
@@ -116,7 +118,7 @@ pub fn writeDiagnostic(writer: *std.Io.Writer, diagnostic: Diagnostic, options: 
     const color_profile = resolveProfile(options.color, options.tty_config, options.color_profile);
     switch (options.format) {
         .pretty => try writePrettyDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root),
-        .minimal => try writeMinimalDiagnostic(writer, diagnostic, style, color_profile, options.path_display_root),
+        .minimal => try writeMinimalDiagnostic(writer, diagnostic, color_profile, options.path_display_root),
     }
 }
 
@@ -259,7 +261,8 @@ fn resolveStyle() Style {
         .emphasis = carnaval.Style.init().italicized(),
         .warning_style = carnaval.Style.init().fg(.{ .ansi16 = .yellow }).bolded(),
         .error_style = carnaval.Style.init().fg(.{ .ansi16 = .red }).bolded(),
-        .dim = carnaval.Style.init().dimmed(),
+        .allow_style = carnaval.Style.init().dimmed(),
+        .rule_style = carnaval.Style.init().fg(.{ .ansi16 = .cyan }).bolded(),
         .caret_warning = carnaval.Style.init().fg(.{ .ansi16 = .yellow }),
         .caret_error = carnaval.Style.init().fg(.{ .ansi16 = .red }),
     };
@@ -280,12 +283,27 @@ fn detectTerminalMode(io: std.Io, file: std.Io.File) std.Io.Terminal.Mode {
     return std.Io.Terminal.Mode.detect(io, file, false, false) catch .no_color;
 }
 
-fn severityTag(diagnostic: Diagnostic) []const u8 {
-    return switch (diagnostic.severity) {
+/// Tag text for a severity level (`warning`, `error`, or `allow`).
+pub fn severityDisplayTag(level: Severity.Level) []const u8 {
+    return switch (level) {
+        .allow => "allow",
         .warn => "warning",
         .deny, .forbid => "error",
-        .allow => unreachable,
     };
+}
+
+/// Writes `warning[rule_id]` with diagnostic-style coloring.
+pub fn writeSeverityRuleTag(
+    writer: *std.Io.Writer,
+    level: Severity.Level,
+    rule: []const u8,
+    color_profile: carnaval.ColorProfile,
+) !void {
+    const style = resolveStyle();
+    try severityLevelStyle(style, level).renderWithProfile(severityDisplayTag(level), writer, color_profile);
+    try writer.writeAll("[");
+    try style.rule_style.renderWithProfile(rule, writer, color_profile);
+    try writer.writeAll("]");
 }
 
 fn writePrettyDiagnostic(
@@ -297,10 +315,8 @@ fn writePrettyDiagnostic(
 ) !void {
     const gutter = lineNumberWidth(diagnostic.line);
 
-    try severityStyle(style, diagnostic).renderWithProfile(severityTag(diagnostic), writer, color_profile);
-    try writer.writeAll("[");
-    try style.dim.renderWithProfile(diagnostic.rule, writer, color_profile);
-    try writer.writeAll("]\n");
+    try writeSeverityRuleTag(writer, diagnostic.severity, diagnostic.rule, color_profile);
+    try writer.writeAll("\n");
 
     try writeProseLine(writer, diagnostic, style, color_profile);
 
@@ -322,7 +338,6 @@ fn writePrettyDiagnostic(
 fn writeMinimalDiagnostic(
     writer: *std.Io.Writer,
     diagnostic: Diagnostic,
-    style: Style,
     color_profile: carnaval.ColorProfile,
     path_display_root: ?[]const u8,
 ) !void {
@@ -330,10 +345,8 @@ fn writeMinimalDiagnostic(
     const file_shown = pathForDisplay(path_display_root, diagnostic.file, &path_bufs[0], &path_bufs[1]);
 
     try writer.print("{s}:{d}:{d}: ", .{ file_shown, diagnostic.line, diagnostic.column });
-    try severityStyle(style, diagnostic).renderWithProfile(severityTag(diagnostic), writer, color_profile);
-    try writer.writeAll("[");
-    try style.dim.renderWithProfile(diagnostic.rule, writer, color_profile);
-    try writer.writeAll("]\n");
+    try writeSeverityRuleTag(writer, diagnostic.severity, diagnostic.rule, color_profile);
+    try writer.writeAll("\n");
 }
 
 fn writeProseLine(
@@ -510,12 +523,30 @@ fn jsonEscape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     return try result.toOwnedSlice(allocator);
 }
 
-fn severityStyle(style: Style, diagnostic: Diagnostic) carnaval.Style {
-    return if (diagnostic.severity.isError()) style.error_style else style.warning_style;
+fn severityLevelStyle(style: Style, level: Severity.Level) carnaval.Style {
+    return switch (level) {
+        .warn => style.warning_style,
+        .deny, .forbid => style.error_style,
+        .allow => style.allow_style,
+    };
 }
 
 fn caretStyle(style: Style, diagnostic: Diagnostic) carnaval.Style {
     return if (diagnostic.severity.isError()) style.caret_error else style.caret_warning;
+}
+
+test "severity rule tag matches minimal diagnostic prefix" {
+    var buf: [128]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+    try writeSeverityRuleTag(&writer, .warn, "missing_doc_comment", .none);
+    try std.testing.expectEqualStrings("warning[missing_doc_comment]", writer.buffered());
+}
+
+test "severity rule tag uses cyan styling when color is enabled" {
+    var buf: [128]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+    try writeSeverityRuleTag(&writer, .warn, "missing_doc_comment", .ansi16);
+    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "\x1b[36m") != null);
 }
 
 test "minimal formatter shortens absolute paths under display root" {
