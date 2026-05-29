@@ -77,10 +77,10 @@ pub const rules: []const RuleRow = &.{
         .prose_title = "Doctest naming mismatch",
     },
     .{
-        .name = "missing_leading_phrase",
+        .name = "invalid_leading_phrase",
         .default_level = "warn",
         .summary = "Doc comment summaries should begin with a leading phrase naming the documented identifier.",
-        .prose_title = "Missing leading phrase",
+        .prose_title = "Invalid leading phrase",
     },
 };
 
