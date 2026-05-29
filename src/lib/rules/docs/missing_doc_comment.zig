@@ -19,6 +19,7 @@ pub fn check(
     file: []const u8,
     require_module_doc: bool,
     module_name: ?[]const u8,
+    public_api_only: bool,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
@@ -27,7 +28,7 @@ pub fn check(
     if (!severity.isActive()) return;
     try checkModuleDocComment(tree, severity, file, require_module_doc, module_name, allocator, msg_allocator, diagnostics);
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity, file, allocator, io, msg_allocator, diagnostics);
+        try checkNode(tree, decl, severity, file, public_api_only, allocator, io, msg_allocator, diagnostics);
     }
 }
 
@@ -68,11 +69,22 @@ fn pubVarDeclSubjectKind(tree: *const Ast, var_decl: Ast.full.VarDecl) Diagnosti
     return .constant;
 }
 
+fn isPubVisibility(tree: *const Ast, visib_token: ?Ast.TokenIndex) bool {
+    const vt = visib_token orelse return false;
+    return tree.tokenTag(vt) == .keyword_pub;
+}
+
+fn shouldCheckDecl(tree: *const Ast, visib_token: ?Ast.TokenIndex, public_api_only: bool) bool {
+    if (!public_api_only) return true;
+    return isPubVisibility(tree, visib_token);
+}
+
 fn checkNode(
     tree: *const Ast,
     node: Ast.Node.Index,
     severity: Severity.Level,
     file: []const u8,
+    public_api_only: bool,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
@@ -83,48 +95,15 @@ fn checkNode(
     if (tag == .fn_decl) {
         var buf: [1]Ast.Node.Index = undefined;
         if (tree.fullFnProto(&buf, node)) |proto| {
-            if (proto.visib_token) |vt| {
-                if (tree.tokenTag(vt) == .keyword_pub) {
-                    if (!hasDocComment(tree, proto.firstToken())) {
-                        const name_tok = proto.name_token orelse proto.ast.fn_token;
-                        const name = tree.tokenSlice(name_tok);
-                        const loc = tree.tokenLocation(0, name_tok);
-                        try diagnostics.append(allocator, .{
-                            .rule = rule_name,
-                            .severity = severity,
-                            .subject = try utils.ownedSubject(msg_allocator, .function, name),
-                            .file = file,
-                            .line = loc.line + 1,
-                            .column = loc.column + 1,
-                            .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
-                            .symbol_len = name.len,
-                        });
-                    }
-                }
-            }
-        }
-        return;
-    }
-
-    if (tree.fullVarDecl(node)) |var_decl| {
-        if (var_decl.visib_token) |vt| {
-            if (tree.tokenTag(vt) == .keyword_pub and !hasDocComment(tree, var_decl.firstToken())) {
-                // Check whether this is a re-export: `pub const Foo = @import("…").Bar` or `pub const Foo = @import("…")`. If so, delegate to the cross-file resolver rather than emitting a false positive on the re-export line itself.
-                const name_tok = var_decl.ast.mut_token + 1;
-                const name = tree.tokenSlice(name_tok);
-                const is_reexport: bool = blk: {
-                    const init_node = var_decl.ast.init_node.unwrap() orelse break :blk false;
-                    const info = getReexportInfo(tree, init_node) orelse break :blk false;
-                    try tryResolveReexport(info, name, file, severity, allocator, io, msg_allocator, diagnostics);
-                    break :blk true;
-                };
-
-                if (!is_reexport) {
+            if (shouldCheckDecl(tree, proto.visib_token, public_api_only)) {
+                if (!hasDocComment(tree, proto.firstToken())) {
+                    const name_tok = proto.name_token orelse proto.ast.fn_token;
+                    const name = tree.tokenSlice(name_tok);
                     const loc = tree.tokenLocation(0, name_tok);
                     try diagnostics.append(allocator, .{
                         .rule = rule_name,
                         .severity = severity,
-                        .subject = try utils.ownedSubject(msg_allocator, pubVarDeclSubjectKind(tree, var_decl), name),
+                        .subject = try utils.ownedSubject(msg_allocator, .function, name),
                         .file = file,
                         .line = loc.line + 1,
                         .column = loc.column + 1,
@@ -134,7 +113,37 @@ fn checkNode(
                 }
             }
         }
-        try checkVarDeclInit(tree, var_decl, severity, file, allocator, io, msg_allocator, diagnostics);
+        return;
+    }
+
+    if (tree.fullVarDecl(node)) |var_decl| {
+        if (shouldCheckDecl(tree, var_decl.visib_token, public_api_only) and
+            !hasDocComment(tree, var_decl.firstToken()))
+        {
+            const name_tok = var_decl.ast.mut_token + 1;
+            const name = tree.tokenSlice(name_tok);
+            const is_reexport: bool = if (public_api_only) blk: {
+                const init_node = var_decl.ast.init_node.unwrap() orelse break :blk false;
+                const info = getReexportInfo(tree, init_node) orelse break :blk false;
+                try tryResolveReexport(info, name, file, severity, allocator, io, msg_allocator, diagnostics);
+                break :blk true;
+            } else false;
+
+            if (!is_reexport) {
+                const loc = tree.tokenLocation(0, name_tok);
+                try diagnostics.append(allocator, .{
+                    .rule = rule_name,
+                    .severity = severity,
+                    .subject = try utils.ownedSubject(msg_allocator, pubVarDeclSubjectKind(tree, var_decl), name),
+                    .file = file,
+                    .line = loc.line + 1,
+                    .column = loc.column + 1,
+                    .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+                    .symbol_len = name.len,
+                });
+            }
+        }
+        try checkVarDeclInit(tree, var_decl, severity, file, public_api_only, allocator, io, msg_allocator, diagnostics);
         return;
     }
 
@@ -142,7 +151,7 @@ fn checkNode(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, allocator, io, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity, file, public_api_only, allocator, io, msg_allocator, diagnostics);
             }
         }
         return;
@@ -173,24 +182,20 @@ fn checkVarDeclInit(
     var_decl: Ast.full.VarDecl,
     severity: Severity.Level,
     file: []const u8,
+    public_api_only: bool,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    // Fields and `pub fn` inside `const S = struct { ... }` are not public API; only walk container members when the declaration itself is `pub`.
-    const decl_is_pub: bool = blk: {
-        const vt = var_decl.visib_token orelse break :blk false;
-        break :blk tree.tokenTag(vt) == .keyword_pub;
-    };
-    if (!decl_is_pub) return;
+    if (public_api_only and !shouldCheckDecl(tree, var_decl.visib_token, true)) return;
 
     const init_node = var_decl.ast.init_node.unwrap() orelse return;
     if (isContainerDecl(tree.nodeTag(init_node))) {
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, init_node)) |container| {
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, allocator, io, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity, file, public_api_only, allocator, io, msg_allocator, diagnostics);
             }
         }
     }
@@ -573,7 +578,7 @@ fn runCheck(source: [:0]const u8, require_module_doc: bool, module_name: ?[]cons
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", require_module_doc, module_name, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", require_module_doc, module_name, true, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 

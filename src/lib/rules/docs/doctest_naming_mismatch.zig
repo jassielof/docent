@@ -13,6 +13,7 @@ pub fn check(
     tree: *const Ast,
     severity: Severity.Level,
     file: []const u8,
+    public_api_only: bool,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
@@ -26,11 +27,13 @@ pub fn check(
         if (tree.nodeTag(decl) == .fn_decl) {
             var buf: [1]Ast.Node.Index = undefined;
             if (tree.fullFnProto(&buf, decl)) |proto| {
-                if (proto.visib_token) |vt| {
-                    if (tree.tokenTag(vt) == .keyword_pub) {
-                        if (proto.name_token) |nt| {
-                            try pub_fn_names.put(tree.tokenSlice(nt), {});
-                        }
+                const include = if (public_api_only) blk: {
+                    const vt = proto.visib_token orelse break :blk false;
+                    break :blk tree.tokenTag(vt) == .keyword_pub;
+                } else true;
+                if (include) {
+                    if (proto.name_token) |nt| {
+                        try pub_fn_names.put(tree.tokenSlice(nt), {});
                     }
                 }
             }
@@ -93,7 +96,7 @@ fn runCheck(source: [:0]const u8) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", true, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 

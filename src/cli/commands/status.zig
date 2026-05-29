@@ -145,8 +145,13 @@ pub fn printStatusReport(
     try w.print("  root:      {s}\n\n", .{plan.package.project_root});
 
     try sectionHeading(w, profile, "Target Selection Report");
-    if (plan.explicit_paths) {
-        try w.print("  Bypassed build.zig analysis due to explicit path override.\n", .{});
+    if (plan.path_mode != .project) {
+        const mode_label: []const u8 = switch (plan.path_mode) {
+            .module_root => "module root",
+            .recursive => "recursive",
+            .project => unreachable,
+        };
+        try w.print("  Path mode: {s} (build.zig target discovery skipped).\n", .{mode_label});
         try w.print("  Target files:\n", .{});
         for (plan.extra_lint_files) |path| {
             try w.print("    - {s}\n", .{path});
