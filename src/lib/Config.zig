@@ -13,6 +13,7 @@ const RulesJson = struct {
     missing_doctest: ?[]const u8 = null,
     private_doctest: ?[]const u8 = null,
     blank_doc_comment: ?[]const u8 = null,
+    trailing_blank_doc_comment: ?[]const u8 = null,
     doctest_naming_mismatch: ?[]const u8 = null,
 };
 

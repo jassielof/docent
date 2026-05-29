@@ -59,6 +59,12 @@ pub const rules: []const RuleRow = &.{
         .prose_title = "Blank doc comment",
     },
     .{
+        .name = "trailing_blank_doc_comment",
+        .default_level = "warn",
+        .summary = "Doc comments should not end with blank lines.",
+        .prose_title = "Trailing blank doc comment",
+    },
+    .{
         .name = "doctest_naming_mismatch",
         .default_level = "warn",
         .summary = "Doctest names should match the declaration they document.",

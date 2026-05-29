@@ -158,6 +158,19 @@ fn varDeclSubjectKind(tree: *const Ast, var_decl: Ast.full.VarDecl) Diagnostic.S
     return .constant;
 }
 
+/// True when a `///` or `//!` token has no text after the doc-comment prefix.
+pub fn isEmptyDocCommentLine(slice: []const u8) bool {
+    const prefix: []const u8 = if (std.mem.startsWith(u8, slice, "//!"))
+        "//!"
+    else if (std.mem.startsWith(u8, slice, "///"))
+        "///"
+    else
+        return false;
+
+    const rest = slice[prefix.len..];
+    return std.mem.trim(u8, rest, " \t\r\n").len == 0;
+}
+
 pub fn dupSourceLine(
     tree: *const Ast,
     token: Ast.TokenIndex,
