@@ -2,7 +2,7 @@
 
 const std = @import("std");
 const Diagnostic = @import("Diagnostic.zig");
-const Severity = @import("Severity.zig");
+const Severity = @import("severity.zig");
 
 /// Allocator used for the diagnostics list. Not used for message strings.
 allocator: std.mem.Allocator,

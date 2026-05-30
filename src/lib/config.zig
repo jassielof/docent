@@ -3,7 +3,7 @@
 const std = @import("std");
 
 const RuleSet = @import("RuleSet.zig");
-const Severity = @import("Severity.zig");
+const Severity = @import("severity.zig");
 const ComplexityOptions = @import("ComplexityOptions.zig");
 
 /// Default config path relative to the project root.

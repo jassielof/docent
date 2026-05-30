@@ -1,7 +1,7 @@
 //! Represents a diagnostic issue or warning generated during static analysis.
 
 const std = @import("std");
-const Severity = @import("Severity.zig");
+const Severity = @import("severity.zig");
 
 /// What the diagnostic refers to, for consistent prose output across rules.
 pub const SubjectKind = enum {

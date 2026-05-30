@@ -7,7 +7,7 @@ const carnaval = @import("carnaval");
 
 const Diagnostic = @import("Diagnostic.zig");
 const DiagnosticMessage = @import("DiagnosticMessage.zig");
-const Severity = @import("Severity.zig");
+const Severity = @import("severity.zig");
 
 /// Text layout for a single diagnostic line.
 pub const TextFormat = enum {

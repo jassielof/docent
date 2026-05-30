@@ -37,7 +37,7 @@ pub fn writeProse(writer: *std.Io.Writer, diagnostic: Diagnostic) !void {
     try writer.writeAll(".");
 }
 
-fn proseSeverityLabel(severity: @import("Severity.zig").Level) []const u8 {
+fn proseSeverityLabel(severity: @import("severity.zig").Level) []const u8 {
     return switch (severity) {
         .warn => "Warning",
         .deny, .forbid => "Error",
