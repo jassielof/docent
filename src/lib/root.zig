@@ -13,16 +13,16 @@ pub const rule_metadata = @import("rule_metadata.zig");
 pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
 pub const SeverityLevel = @import("severity.zig").Level;
-pub const manifest = @import("Manifest.zig");
-pub const config = @import("Config.zig");
-pub const targeting = @import("Targeting.zig");
-pub const status_plan = @import("StatusPlan.zig");
+pub const manifest = @import("manifest.zig");
+pub const config = @import("config.zig");
+pub const targeting = @import("targeting.zig");
+pub const status_plan = @import("status_plan.zig");
 pub const build_scan = @import("build_scan.zig");
 pub const LintOptions = @import("LintOptions.zig");
 pub const ComplexityOptions = @import("ComplexityOptions.zig");
 pub const rules = @import("rules.zig");
 
-pub const myError = error{ hola_bola, Mambo };
+// pub const myError = error{ hola_bola, Mambo };
 
 /// Returns whether the file-level `//!` check applies to `path`.
 ///

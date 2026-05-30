@@ -28,6 +28,8 @@ const Diagnostic = @import("../../Diagnostic.zig");
 const Severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
+// TODO: Suggested fixes need to be more careful so they aren't prone to false positives or badly formatter ones, for example `Warning: Identifier case on source file 'DiagnosticMessage.zig' (namespace file should use snake_case filename; expected "diagnosticmessage.zig").` it's just providing a fix to lowercase, not snake_case
+
 const rule_name = "identifier_case";
 
 /// A naming convention an identifier is expected to follow.
