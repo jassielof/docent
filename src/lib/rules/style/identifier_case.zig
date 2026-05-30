@@ -15,6 +15,10 @@
 //! * Declarations whose initializer is an alias/re-export (a plain identifier, field access, call, or
 //!   `@import(...)`) are skipped: their real kind lives elsewhere, so checking the local binding would
 //!   produce false positives (for instance a `camelCase` constant that just re-exports a function).
+//! * For `@import("path.zig")`, when the resolved file is a *namespace* (no structure fields at file
+//!   scope — the usual `fn`/`const` module layout), the `.zig` basename must be `snake_case` (e.g.
+//!   `reachability.zig`, not `Reachability.zig`). Struct files that declare fields on the file type
+//!   itself (e.g. `LintResult.zig`) keep `PascalCase` basenames.
 //! * Quoted identifiers (`@"foo bar"`) are exempt from case checks.
 
 const std = @import("std");
@@ -66,12 +70,21 @@ pub fn check(
     file: []const u8,
     public_api_only: bool,
     allocator: std.mem.Allocator,
+    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     if (!severity.isActive()) return;
+
+    var namespace_cache = std.StringHashMap(bool).init(allocator);
+    defer {
+        var it = namespace_cache.keyIterator();
+        while (it.next()) |key| allocator.free(key.*);
+        namespace_cache.deinit();
+    }
+
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity, file, public_api_only, .field, allocator, msg_allocator, diagnostics);
+        try checkNode(tree, decl, severity, file, public_api_only, .field, allocator, io, &namespace_cache, msg_allocator, diagnostics);
     }
 }
 
@@ -83,6 +96,8 @@ fn checkNode(
     public_api_only: bool,
     member_field_kind: Diagnostic.SubjectKind,
     allocator: std.mem.Allocator,
+    io: std.Io,
+    namespace_cache: *std.StringHashMap(bool),
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
@@ -102,6 +117,9 @@ fn checkNode(
     }
 
     if (tree.fullVarDecl(node)) |var_decl| {
+        if (var_decl.ast.init_node.unwrap()) |init_node| {
+            try checkImportFilenameExpr(tree, init_node, severity, file, allocator, io, namespace_cache, msg_allocator, diagnostics);
+        }
         if (utils.isPubVisibility(tree, var_decl.visib_token) or !public_api_only) {
             const name_tok = var_decl.ast.mut_token + 1;
             if (classifyVarDecl(tree, var_decl)) |c| {
@@ -113,7 +131,7 @@ fn checkNode(
                 }
             }
         }
-        try checkVarDeclInit(tree, var_decl, severity, file, public_api_only, allocator, msg_allocator, diagnostics);
+        try checkVarDeclInit(tree, var_decl, severity, file, public_api_only, allocator, io, namespace_cache, msg_allocator, diagnostics);
         return;
     }
 
@@ -122,7 +140,7 @@ fn checkNode(
         if (tree.fullContainerDecl(&buf, node)) |container| {
             const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, node)) .enumerator else member_field_kind;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, public_api_only, child_kind, allocator, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity, file, public_api_only, child_kind, allocator, io, namespace_cache, msg_allocator, diagnostics);
             }
         }
         return;
@@ -142,6 +160,8 @@ fn checkVarDeclInit(
     file: []const u8,
     public_api_only: bool,
     allocator: std.mem.Allocator,
+    io: std.Io,
+    namespace_cache: *std.StringHashMap(bool),
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
@@ -154,9 +174,153 @@ fn checkVarDeclInit(
     if (tree.fullContainerDecl(&buf, init_node)) |container| {
         const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, init_node)) .enumerator else .field;
         for (container.ast.members) |member| {
-            try checkNode(tree, member, severity, file, public_api_only, child_kind, allocator, msg_allocator, diagnostics);
+            try checkNode(tree, member, severity, file, public_api_only, child_kind, allocator, io, namespace_cache, msg_allocator, diagnostics);
         }
     }
+}
+
+const ImportLiteral = struct {
+    path: []const u8,
+    str_tok: Ast.TokenIndex,
+};
+
+/// When `node` is `@import("path.zig")` or `@import("path.zig").Field`, returns the path and string token.
+fn getImportLiteral(tree: *const Ast, node: Ast.Node.Index) ?ImportLiteral {
+    const tag = tree.nodeTag(node);
+    if (tag == .field_access) {
+        const fa = tree.nodeData(node).node_and_token;
+        return getImportLiteral(tree, fa[0]);
+    }
+
+    if (tag != .builtin_call_two and tag != .builtin_call_two_comma) return null;
+
+    const builtin_tok = tree.nodeMainToken(node);
+    if (tree.tokenTag(builtin_tok) != .builtin) return null;
+    if (!std.mem.eql(u8, tree.tokenSlice(builtin_tok), "@import")) return null;
+
+    const args = tree.nodeData(node).opt_node_and_opt_node;
+    const arg_node = args[0].unwrap() orelse return null;
+    if (tree.nodeTag(arg_node) != .string_literal) return null;
+
+    const str_tok = tree.nodeMainToken(arg_node);
+    const raw = tree.tokenSlice(str_tok);
+    if (raw.len < 2 or raw[0] != '"' or raw[raw.len - 1] != '"') return null;
+    return .{
+        .path = raw[1 .. raw.len - 1],
+        .str_tok = str_tok,
+    };
+}
+
+fn checkImportFilenameExpr(
+    tree: *const Ast,
+    node: Ast.Node.Index,
+    severity: Severity.Level,
+    file: []const u8,
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    namespace_cache: *std.StringHashMap(bool),
+    msg_allocator: std.mem.Allocator,
+    diagnostics: *std.ArrayList(Diagnostic),
+) std.mem.Allocator.Error!void {
+    const lit = getImportLiteral(tree, node) orelse return;
+    try checkImportFilename(tree, lit, severity, file, allocator, io, namespace_cache, msg_allocator, diagnostics);
+}
+
+fn checkImportFilename(
+    tree: *const Ast,
+    lit: ImportLiteral,
+    severity: Severity.Level,
+    file: []const u8,
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    namespace_cache: *std.StringHashMap(bool),
+    msg_allocator: std.mem.Allocator,
+    diagnostics: *std.ArrayList(Diagnostic),
+) std.mem.Allocator.Error!void {
+    if (!std.mem.endsWith(u8, lit.path, ".zig")) return;
+    if (std.fs.path.isAbsolute(lit.path)) return;
+
+    const basename = std.fs.path.basename(lit.path);
+    if (basename.len <= ".zig".len) return;
+
+    const stem = basename[0 .. basename.len - ".zig".len];
+    if (isSnakeCase(stem)) return;
+
+    const is_namespace = try resolveImportedFileIsNamespace(lit.path, file, allocator, io, namespace_cache);
+    if (!is_namespace) return;
+
+    const loc = tree.tokenLocation(0, lit.str_tok);
+    const snake_stem = try toSnakeFilenameStem(msg_allocator, stem);
+    defer msg_allocator.free(snake_stem);
+    const expected = try std.fmt.allocPrint(msg_allocator, "{s}.zig", .{snake_stem});
+
+    try diagnostics.append(allocator, .{
+        .rule = rule_name,
+        .severity = severity,
+        .subject = try utils.ownedSubject(msg_allocator, .source_file, basename),
+        .detail = try std.fmt.allocPrint(msg_allocator, "namespace file should use snake_case filename; expected \"{s}\"", .{expected}),
+        .file = file,
+        .line = loc.line + 1,
+        .column = loc.column + 1,
+        .source_line = try utils.dupSourceLine(tree, lit.str_tok, msg_allocator),
+        .symbol_len = lit.path.len,
+    });
+}
+
+/// Lowercases ASCII letters in `stem` for a suggested `snake_case` filename stem.
+fn toSnakeFilenameStem(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
+    const out = try allocator.alloc(u8, stem.len);
+    for (stem, 0..) |c, i| {
+        out[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+    }
+    return out;
+}
+
+/// Returns whether a resolved `.zig` file is a namespace (no structure fields at file scope).
+fn resolveImportedFileIsNamespace(
+    import_path: []const u8,
+    current_file: []const u8,
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    cache: *std.StringHashMap(bool),
+) std.mem.Allocator.Error!bool {
+    const base_dir = std.fs.path.dirname(current_file) orelse ".";
+    const joined = try std.fs.path.join(allocator, &.{ base_dir, import_path });
+    defer allocator.free(joined);
+
+    const abs = utils.normalizePathSeparators(allocator, joined) catch return false;
+    defer allocator.free(abs);
+
+    if (cache.get(abs)) |cached| return cached;
+
+    const is_namespace = blk: {
+        const source = std.Io.Dir.cwd().readFileAllocOptions(
+            io,
+            abs,
+            allocator,
+            .limited(std.math.maxInt(u32)),
+            .of(u8),
+            0,
+        ) catch break :blk false;
+        defer allocator.free(source);
+
+        var imported = std.zig.Ast.parse(allocator, source, .zig) catch break :blk false;
+        defer imported.deinit(allocator);
+
+        break :blk fileIsNamespace(&imported);
+    };
+
+    const cache_key = try allocator.dupe(u8, abs);
+    try cache.put(cache_key, is_namespace);
+    return is_namespace;
+}
+
+/// True when the file has no structure fields at file scope (only `fn`, `const`, nested types, etc.).
+fn fileIsNamespace(tree: *const Ast) bool {
+    for (tree.rootDecls()) |decl| {
+        if (tree.fullContainerField(decl) != null) return false;
+    }
+    return true;
 }
 
 /// Determines the expected case for the *name* of a `var`/`const`, or null when it should be skipped.
@@ -352,7 +516,7 @@ fn runCheck(source: [:0]const u8, public_api_only: bool) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", public_api_only, base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", public_api_only, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
@@ -488,6 +652,63 @@ test "idiomatic error set is clean" {
     try std.testing.expectEqual(@as(usize, 0), r.count());
 }
 
+test "PascalCase basename on namespace import is flagged" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\const ns = @import("BadNamespace.zig");
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "tests/fixtures/style/import_site.zig",
+        false,
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.source_file, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("BadNamespace.zig", diagnostics.items[0].subject.?.name);
+    try std.testing.expect(std.mem.indexOf(u8, diagnostics.items[0].detail.?, "snake_case filename") != null);
+}
+
+test "PascalCase basename on struct-at-file-scope import is not flagged" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\const opts = @import("StructFile.zig");
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "tests/fixtures/style/import_site.zig",
+        false,
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
 test "function alias re-export is skipped" {
     var r = try runCheck(
         \\const helpers = @import("helpers.zig");
@@ -528,6 +749,6 @@ test "inactive severity yields no diagnostics" {
     defer tree.deinit(base);
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
-    try check(&tree, .allow, "<test>", false, base, base, &diagnostics);
+    try check(&tree, .allow, "<test>", false, base, std.testing.io, base, &diagnostics);
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

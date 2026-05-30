@@ -8,6 +8,7 @@ const utils = @import("../../utils.zig");
 fn lint(source: [:0]const u8, public_api_only: bool) !docent.LintResult {
     return docent.lintStyleSource(
         std.testing.allocator,
+        std.testing.io,
         source,
         .{},
         "<test>",
@@ -59,6 +60,31 @@ test "private declarations checked in recursive mode" {
     var result = try lint("fn DoThing() void {}", false);
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 1);
+}
+
+test "warns on PascalCase namespace import filenames in root.zig" {
+    var result = try docent.lintStyleFile(
+        std.testing.allocator,
+        std.testing.io,
+        "src/lib/root.zig",
+        .{},
+        .{ .public_api_only = false },
+    );
+    defer result.deinit();
+
+    var reachability = false;
+    var manifest = false;
+    var config = false;
+    for (result.diagnostics.items) |d| {
+        if (!std.mem.eql(u8, d.rule, "identifier_case")) continue;
+        const name = d.subject.?.name;
+        if (std.mem.eql(u8, name, "Reachability.zig")) reachability = true;
+        if (std.mem.eql(u8, name, "Manifest.zig")) manifest = true;
+        if (std.mem.eql(u8, name, "Config.zig")) config = true;
+    }
+    try std.testing.expect(reachability);
+    try std.testing.expect(manifest);
+    try std.testing.expect(config);
 }
 
 test "function alias re-export does not false positive" {
