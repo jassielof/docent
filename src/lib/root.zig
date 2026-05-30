@@ -191,6 +191,7 @@ pub fn lintComplexitySource(
 /// Unlike `lintSource`, this is driven by the `docent style` sub-command rather than the default lint run.
 pub fn lintStyleSource(
     allocator: std.mem.Allocator,
+    io: std.Io,
     source: [:0]const u8,
     rule_set: RuleSet,
     file: []const u8,
@@ -211,6 +212,7 @@ pub fn lintStyleSource(
         file_owned,
         options.public_api_only,
         allocator,
+        io,
         msg,
         &result.diagnostics,
     );
@@ -236,7 +238,7 @@ pub fn lintStyleFile(
     );
     defer allocator.free(source);
 
-    return lintStyleSource(allocator, source, rule_set, path, options);
+    return lintStyleSource(allocator, io, source, rule_set, path, options);
 }
 
 /// Reads `path` from the cwd and runs `lintComplexitySource` on its contents.

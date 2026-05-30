@@ -199,6 +199,7 @@ Checks are:
 * It must be careful on re-exported declarations that work as aliases, for example a function that is re-exported in the module root, but lives in a different place, it's a global constant, but internally, it's a function being aliased to that constant. Mostly to avoid false positives, this causes `camelCase` global constants that are in fact just aliases to functions. Declarations whose initializer is a plain identifier, field access, call, or `@import(...)` are therefore skipped.
 * Generic functions are detected as those returning `type`.
 * Quoted identifiers (`@"foo bar"`) are exempt.
+* `@import("…zig")` paths: when the resolved file is a namespace (no structure fields at file scope), the basename must be `snake_case` (e.g. `reachability.zig`). Struct-at-file-scope modules (e.g. `Diagnostic.zig`, `LintResult.zig`) keep `PascalCase` basenames.
 ====
 
 ==== Tiger Beetle's Tiger Style
