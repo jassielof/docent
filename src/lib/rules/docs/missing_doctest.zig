@@ -3,7 +3,7 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
-const Severity = @import("../../Severity.zig");
+const Severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
 const rule_name = "missing_doctest";

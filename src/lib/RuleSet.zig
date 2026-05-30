@@ -2,7 +2,7 @@
 //!
 //! Each field names a rule and holds its effective level (`allow`, `warn`, `deny`, or `forbid`).
 //! Override levels via project config; see `rule_metadata` for summaries.
-const Severity = @import("Severity.zig");
+const Severity = @import("severity.zig");
 
 /// Checks for missing doc comments on public API items, module roots (`//!`), and re-exported source files.
 ///
