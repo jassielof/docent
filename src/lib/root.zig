@@ -22,8 +22,6 @@ pub const LintOptions = @import("LintOptions.zig");
 pub const ComplexityOptions = @import("ComplexityOptions.zig");
 pub const rules = @import("rules.zig");
 
-// pub const myError = error{ hola_bola, Mambo };
-
 /// Returns whether the file-level `//!` check applies to `path`.
 ///
 /// Enabled when `path` is a known module entry root or the basename is `root.zig`.

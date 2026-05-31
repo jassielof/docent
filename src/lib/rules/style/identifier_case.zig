@@ -15,6 +15,8 @@
 //! * Declarations whose initializer is an alias/re-export (a plain identifier, field access, or call)
 //!   are skipped: their real kind lives elsewhere. `@import("path.zig")` bindings are checked against
 //!   the imported file kind (namespace → `snake_case` name, struct-at-file-scope → `PascalCase`).
+//!   Member re-exports (`@import("path.zig").Level`) are skipped — the binding names the imported
+//!   declaration, not the module.
 //! * For `@import("path.zig")`, when the resolved file is a *namespace* (no structure fields at file
 //!   scope — the usual `fn`/`const` module layout), the `.zig` basename must be `snake_case` (e.g.
 //!   `reachability.zig`, not `Reachability.zig`). Struct files that declare fields on the file type
@@ -212,6 +214,13 @@ fn getImportLiteral(tree: *const Ast, node: Ast.Node.Index) ?ImportLiteral {
     };
 }
 
+/// True when `node` is `@import("path.zig").Member` — a re-export of one declaration, not the module.
+fn isImportMemberReexport(tree: *const Ast, node: Ast.Node.Index) bool {
+    if (tree.nodeTag(node) != .field_access) return false;
+    const fa = tree.nodeData(node).node_and_token;
+    return getImportLiteral(tree, fa[0]) != null;
+}
+
 fn checkImportBinding(
     tree: *const Ast,
     var_decl: Ast.full.VarDecl,
@@ -224,6 +233,8 @@ fn checkImportBinding(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
+    if (isImportMemberReexport(tree, init_node)) return;
+
     const lit = getImportLiteral(tree, init_node) orelse return;
     if (!std.mem.endsWith(u8, lit.path, ".zig")) return;
 
@@ -579,6 +590,33 @@ test "pascalCaseStemToSnake inserts word boundaries" {
     const reach = try pascalCaseStemToSnake(std.testing.allocator, "Reachability");
     defer std.testing.allocator.free(reach);
     try std.testing.expectEqualStrings("reachability", reach);
+}
+
+test "import member re-export does not flag PascalCase binding" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\pub const SeverityLevel = @import("severity.zig").Level;
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "src/lib/root.zig",
+        false,
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
 
 test "PascalCase binding on namespace import is flagged" {

@@ -82,24 +82,22 @@ test "snake_case namespace imports in root.zig are not flagged" {
     }
 }
 
-test "warns on PascalCase binding for private namespace import" {
+test "import member re-export in root.zig is not flagged" {
     var result = try docent.lintStyleFile(
         std.testing.allocator,
         std.testing.io,
-        "src/lib/rules/docs/blank_doc_comment.zig",
+        "src/lib/root.zig",
         .{},
         .{ .public_api_only = false },
     );
     defer result.deinit();
 
-    var found_binding = false;
     for (result.diagnostics.items) |d| {
         if (!std.mem.eql(u8, d.rule, "identifier_case")) continue;
         if (d.subject) |s| {
-            if (s.kind == .namespace and std.mem.eql(u8, s.name, "Severity")) found_binding = true;
+            if (std.mem.eql(u8, s.name, "SeverityLevel")) return error.UnexpectedDiagnostic;
         }
     }
-    try std.testing.expect(found_binding);
 }
 
 test "function alias re-export does not false positive" {
