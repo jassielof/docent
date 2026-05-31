@@ -176,7 +176,7 @@ Warns if doc comments have trailing blank lines.
 
 === Identifier case
 
-Checks for consistent identifier naming case conventions, by default it follows the {zig-docs}#Names[Zig documentation style]. It is reported by the `docent style` sub-command rather than the default lint run. Like the complexity checks, it measures *every* identifier — both public and non-public: file discovery starts from the project's module roots and follows the public API surface, but within each reached file no visibility filter is applied.
+Checks for consistent identifier naming case conventions, by default it follows the {zig-docs}#Names[Zig documentation style]. It is reported by the `docent style` sub-command rather than the default lint run. Like the complexity checks, it measures *every* identifier — both public and non-public. File discovery starts from the project's module roots on the public API surface, then follows a *reachability traversal* that includes every local `@import("…zig")` (including private imports such as `const Severity = @import("../../severity.zig");`); within each reached file no visibility filter is applied.
 
 Checks are:
 `snake_case`::
@@ -199,7 +199,7 @@ Checks are:
 * It must be careful on re-exported declarations that work as aliases, for example a function that is re-exported in the module root, but lives in a different place, it's a global constant, but internally, it's a function being aliased to that constant. Mostly to avoid false positives, this causes `camelCase` global constants that are in fact just aliases to functions. Declarations whose initializer is a plain identifier, field access, call, or `@import(...)` are therefore skipped.
 * Generic functions are detected as those returning `type`.
 * Quoted identifiers (`@"foo bar"`) are exempt.
-* `@import("…zig")` paths: when the resolved file is a namespace (no structure fields at file scope), the basename must be `snake_case` (e.g. `reachability.zig`). Struct-at-file-scope modules (e.g. `Diagnostic.zig`, `LintResult.zig`) keep `PascalCase` basenames.
+* `@import("…zig")` paths: when the resolved file is a namespace (no structure fields at file scope), the basename must be `snake_case` (e.g. `reachability.zig`, suggested as `diagnostic_message.zig` from `DiagnosticMessage.zig`). The import binding must also be `snake_case` for namespaces (e.g. `const severity = @import("severity.zig");`, not `const Severity = …`). Struct-at-file-scope modules (e.g. `Diagnostic.zig`, `LintResult.zig`) keep `PascalCase` basenames and bindings.
 ====
 
 ==== Tiger Beetle's Tiger Style

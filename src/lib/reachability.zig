@@ -59,6 +59,59 @@ pub fn collectReachablePublicFiles(allocator: std.mem.Allocator, io: std.Io, roo
     return files;
 }
 
+/// Collects local Zig files reachable from `root_path` by following every file-scope `@import("…zig")`.
+///
+/// Starts from the same entry roots as `collectReachablePublicFiles`, but also follows private imports.
+/// Used by `docent style` and `docent complexity` so checks run on the full import closure while still
+/// beginning from the public API surface.
+pub fn collectReachableFiles(allocator: std.mem.Allocator, io: std.Io, root_path: []const u8) !std.ArrayList([]const u8) {
+    var files: std.ArrayList([]const u8) = .empty;
+    errdefer deinitOwnedPaths(allocator, &files);
+
+    var queue: std.ArrayList(usize) = .empty;
+    defer queue.deinit(allocator);
+
+    var seen = std.StringHashMap(void).init(allocator);
+    defer seen.deinit();
+
+    const root_abs = realPathFileAlloc(allocator, io, root_path) catch {
+        return files;
+    };
+
+    try files.append(allocator, root_abs);
+    try seen.put(files.items[0], {});
+    try queue.append(allocator, 0);
+
+    var i: usize = 0;
+    while (i < queue.items.len) : (i += 1) {
+        const file_idx = queue.items[i];
+        const current_path = files.items[file_idx];
+
+        var imports: std.ArrayList([]const u8) = .empty;
+        defer {
+            for (imports.items) |p| allocator.free(p);
+            imports.deinit(allocator);
+        }
+
+        try collectAllImportsFromFile(allocator, io, current_path, &imports);
+
+        for (imports.items) |candidate| {
+            if (seen.contains(candidate)) {
+                allocator.free(candidate);
+                continue;
+            }
+
+            try files.append(allocator, candidate);
+            try seen.put(files.items[files.items.len - 1], {});
+            try queue.append(allocator, files.items.len - 1);
+        }
+
+        imports.clearRetainingCapacity();
+    }
+
+    return files;
+}
+
 /// Frees every owned path in `paths` and then deinits the list.
 pub fn deinitOwnedPaths(allocator: std.mem.Allocator, paths: *std.ArrayList([]const u8)) void {
     for (paths.items) |path| allocator.free(path);
@@ -83,6 +136,68 @@ pub fn isContainerDecl(tag: std.zig.Ast.Node.Tag) bool {
         => true,
         else => false,
     };
+}
+
+fn collectAllImportsFromFile(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    file_path: []const u8,
+    out: *std.ArrayList([]const u8),
+) !void {
+    const source = std.Io.Dir.openFileAbsolute(io, file_path, .{}) catch return;
+    defer source.close(io);
+
+    var reader = source.reader(io, &.{});
+    const source_text = reader.interface.allocRemainingAlignedSentinel(allocator, .limited(std.math.maxInt(u32)), .of(u8), 0) catch return;
+    defer allocator.free(source_text);
+
+    var tree = std.zig.Ast.parse(allocator, source_text, .zig) catch return;
+    defer tree.deinit(allocator);
+
+    for (tree.rootDecls()) |decl| {
+        try collectAllImportsFromNode(allocator, io, &tree, decl, file_path, out);
+    }
+}
+
+fn collectAllImportsFromNode(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    tree: *const std.zig.Ast,
+    node: std.zig.Ast.Node.Index,
+    current_file: []const u8,
+    out: *std.ArrayList([]const u8),
+) !void {
+    if (tree.fullVarDecl(node)) |var_decl| {
+        if (var_decl.ast.init_node.unwrap()) |init_node| {
+            if (getImportPathFromExpr(tree, init_node)) |import_path| {
+                if (try resolveLocalZigImport(allocator, io, current_file, import_path)) |abs| {
+                    try out.append(allocator, abs);
+                }
+            }
+        }
+
+        if (var_decl.ast.init_node.unwrap()) |init_node| {
+            if (isContainerDecl(tree.nodeTag(init_node))) {
+                var buf: [2]std.zig.Ast.Node.Index = undefined;
+                if (tree.fullContainerDecl(&buf, init_node)) |container| {
+                    for (container.ast.members) |member| {
+                        try collectAllImportsFromNode(allocator, io, tree, member, current_file, out);
+                    }
+                }
+            }
+        }
+
+        return;
+    }
+
+    if (isContainerDecl(tree.nodeTag(node))) {
+        var buf: [2]std.zig.Ast.Node.Index = undefined;
+        if (tree.fullContainerDecl(&buf, node)) |container| {
+            for (container.ast.members) |member| {
+                try collectAllImportsFromNode(allocator, io, tree, member, current_file, out);
+            }
+        }
+    }
 }
 
 fn collectPublicImportsFromFile(

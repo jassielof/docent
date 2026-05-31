@@ -62,7 +62,7 @@ test "private declarations checked in recursive mode" {
     try utils.expectRuleCount(result, "identifier_case", 1);
 }
 
-test "warns on PascalCase namespace import filenames in root.zig" {
+test "snake_case namespace imports in root.zig are not flagged" {
     var result = try docent.lintStyleFile(
         std.testing.allocator,
         std.testing.io,
@@ -72,19 +72,34 @@ test "warns on PascalCase namespace import filenames in root.zig" {
     );
     defer result.deinit();
 
-    var reachability = false;
-    var manifest = false;
-    var config = false;
     for (result.diagnostics.items) |d| {
         if (!std.mem.eql(u8, d.rule, "identifier_case")) continue;
-        const name = d.subject.?.name;
-        if (std.mem.eql(u8, name, "Reachability.zig")) reachability = true;
-        if (std.mem.eql(u8, name, "Manifest.zig")) manifest = true;
-        if (std.mem.eql(u8, name, "Config.zig")) config = true;
+        if (d.subject) |s| {
+            if (s.kind == .source_file and std.mem.eql(u8, s.name, "reachability.zig")) {
+                return error.UnexpectedDiagnostic;
+            }
+        }
     }
-    try std.testing.expect(reachability);
-    try std.testing.expect(manifest);
-    try std.testing.expect(config);
+}
+
+test "warns on PascalCase binding for private namespace import" {
+    var result = try docent.lintStyleFile(
+        std.testing.allocator,
+        std.testing.io,
+        "src/lib/rules/docs/blank_doc_comment.zig",
+        .{},
+        .{ .public_api_only = false },
+    );
+    defer result.deinit();
+
+    var found_binding = false;
+    for (result.diagnostics.items) |d| {
+        if (!std.mem.eql(u8, d.rule, "identifier_case")) continue;
+        if (d.subject) |s| {
+            if (s.kind == .namespace and std.mem.eql(u8, s.name, "Severity")) found_binding = true;
+        }
+    }
+    try std.testing.expect(found_binding);
 }
 
 test "function alias re-export does not false positive" {
