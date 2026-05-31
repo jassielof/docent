@@ -28,6 +28,10 @@ invalid_leading_phrase: severity.Level = .warn,
 ///
 /// Measured by the `docent complexity` sub-command following the Sonar specification; not part of the default lint run.
 cognitive_complexity: severity.Level = .warn,
+/// Flags functions with more parameters than the configured limit (default 7).
+///
+/// Measured by the `docent complexity` sub-command; not part of the default lint run.
+max_fun_params: severity.Level = .warn,
 /// Flags identifiers that don't follow the Zig naming-case conventions.
 ///
 /// Reported by the `docent style` sub-command rather than the default lint run.

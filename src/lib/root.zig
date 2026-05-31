@@ -180,6 +180,16 @@ pub fn lintComplexitySource(
         msg,
         &result.diagnostics,
     );
+    try rules.complexity.max_fun_params.check(
+        &tree,
+        rule_set.max_fun_params,
+        file_owned,
+        options.public_api_only,
+        complexity_options.max_fun_params_threshold,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
 
     return result;
 }
