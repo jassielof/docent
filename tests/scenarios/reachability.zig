@@ -70,6 +70,22 @@ test "recursively follows multi-hop public imports in reachability_public_api_de
     try std.testing.expect(!has_private_only);
 }
 
+test "collectReachableFiles follows private imports from the public API surface" {
+    const root = try harness.scenarioProjectPath("reachability_public_api_deep", "root.zig");
+    defer std.testing.allocator.free(root);
+
+    var files = try docent.reachability.collectReachableFiles(std.testing.allocator, std.testing.io, root);
+    defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
+
+    var has_private_only = false;
+    for (files.items) |path| {
+        if (std.mem.indexOf(u8, path, "reachability_public_api_deep") == null) continue;
+        if (std.mem.eql(u8, std.fs.path.basename(path), "private_only.zig")) has_private_only = true;
+    }
+
+    try std.testing.expect(has_private_only);
+}
+
 test "private-only file is excluded from linted deep set" {
     const root = try harness.scenarioProjectPath("reachability_public_api_deep", "root.zig");
     defer std.testing.allocator.free(root);

@@ -128,7 +128,20 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     for (plan.resolved_targets) |rt| {
         if (rt.status != .linted) continue;
-        for (rt.files) |path| {
+
+        const abs_root = if (std.fs.path.isAbsolute(rt.root_source_file))
+            try allocator.dupe(u8, rt.root_source_file)
+        else
+            try std.fs.path.join(allocator, &.{ plan.package.project_root, rt.root_source_file });
+        defer allocator.free(abs_root);
+
+        var reachable = docent.reachability.collectReachableFiles(allocator, io, abs_root) catch |err| {
+            try printStderr(io, "error: failed to resolve reachable files for '{s}': {}\n", .{ rt.root_source_file, err });
+            continue;
+        };
+        defer docent.reachability.deinitOwnedPaths(allocator, &reachable);
+
+        for (reachable.items) |path| {
             const gptr = try analyzed_files.getOrPut(path);
             if (gptr.found_existing) continue;
             try analyzeFile(allocator, io, path, rule_set, lint_options, complexity_options, &all_diagnostics, &summary);

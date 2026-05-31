@@ -6,7 +6,7 @@ const path_utils = @import("rules/utils.zig");
 
 pub const Diagnostic = @import("Diagnostic.zig");
 pub const LintResult = @import("LintResult.zig");
-pub const output = @import("Output.zig");
+pub const output = @import("output.zig");
 pub const reachability = @import("reachability.zig");
 pub const RuleSet = @import("RuleSet.zig");
 pub const rule_metadata = @import("rule_metadata.zig");

@@ -12,9 +12,9 @@
 //!
 //! * Error-set values are checked as `PascalCase`, following the standard-library convention
 //!   (`error.OutOfMemory`), even though they technically belong to the "value" category.
-//! * Declarations whose initializer is an alias/re-export (a plain identifier, field access, call, or
-//!   `@import(...)`) are skipped: their real kind lives elsewhere, so checking the local binding would
-//!   produce false positives (for instance a `camelCase` constant that just re-exports a function).
+//! * Declarations whose initializer is an alias/re-export (a plain identifier, field access, or call)
+//!   are skipped: their real kind lives elsewhere. `@import("path.zig")` bindings are checked against
+//!   the imported file kind (namespace → `snake_case` name, struct-at-file-scope → `PascalCase`).
 //! * For `@import("path.zig")`, when the resolved file is a *namespace* (no structure fields at file
 //!   scope — the usual `fn`/`const` module layout), the `.zig` basename must be `snake_case` (e.g.
 //!   `reachability.zig`, not `Reachability.zig`). Struct files that declare fields on the file type
@@ -27,8 +27,6 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const Severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
-
-// TODO: Suggested fixes need to be more careful so they aren't prone to false positives or badly formatter ones, for example `Warning: Identifier case on source file 'DiagnosticMessage.zig' (namespace file should use snake_case filename; expected "diagnosticmessage.zig").` it's just providing a fix to lowercase, not snake_case
 
 const rule_name = "identifier_case";
 
@@ -121,6 +119,7 @@ fn checkNode(
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.ast.init_node.unwrap()) |init_node| {
             try checkImportFilenameExpr(tree, init_node, severity, file, allocator, io, namespace_cache, msg_allocator, diagnostics);
+            try checkImportBinding(tree, var_decl, init_node, severity, file, allocator, io, namespace_cache, msg_allocator, diagnostics);
         }
         if (utils.isPubVisibility(tree, var_decl.visib_token) or !public_api_only) {
             const name_tok = var_decl.ast.mut_token + 1;
@@ -213,6 +212,29 @@ fn getImportLiteral(tree: *const Ast, node: Ast.Node.Index) ?ImportLiteral {
     };
 }
 
+fn checkImportBinding(
+    tree: *const Ast,
+    var_decl: Ast.full.VarDecl,
+    init_node: Ast.Node.Index,
+    severity: Severity.Level,
+    file: []const u8,
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    namespace_cache: *std.StringHashMap(bool),
+    msg_allocator: std.mem.Allocator,
+    diagnostics: *std.ArrayList(Diagnostic),
+) std.mem.Allocator.Error!void {
+    const lit = getImportLiteral(tree, init_node) orelse return;
+    if (!std.mem.endsWith(u8, lit.path, ".zig")) return;
+
+    const file_kind = try resolveImportedFileKind(lit.path, file, allocator, io, namespace_cache) orelse return;
+    const expected: Case = if (file_kind == .namespace) .snake else .pascal;
+    const kind: Diagnostic.SubjectKind = if (file_kind == .namespace) .namespace else .structure;
+
+    const name_tok = var_decl.ast.mut_token + 1;
+    try checkName(tree, name_tok, expected, kind, severity, file, allocator, msg_allocator, diagnostics);
+}
+
 fn checkImportFilenameExpr(
     tree: *const Ast,
     node: Ast.Node.Index,
@@ -248,11 +270,11 @@ fn checkImportFilename(
     const stem = basename[0 .. basename.len - ".zig".len];
     if (isSnakeCase(stem)) return;
 
-    const is_namespace = try resolveImportedFileIsNamespace(lit.path, file, allocator, io, namespace_cache);
-    if (!is_namespace) return;
+    const file_kind = try resolveImportedFileKind(lit.path, file, allocator, io, namespace_cache) orelse return;
+    if (file_kind != .namespace) return;
 
     const loc = tree.tokenLocation(0, lit.str_tok);
-    const snake_stem = try toSnakeFilenameStem(msg_allocator, stem);
+    const snake_stem = try pascalCaseStemToSnake(msg_allocator, stem);
     defer msg_allocator.free(snake_stem);
     const expected = try std.fmt.allocPrint(msg_allocator, "{s}.zig", .{snake_stem});
 
@@ -269,31 +291,56 @@ fn checkImportFilename(
     });
 }
 
-/// Lowercases ASCII letters in `stem` for a suggested `snake_case` filename stem.
-fn toSnakeFilenameStem(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
-    const out = try allocator.alloc(u8, stem.len);
+/// Converts a PascalCase or mixed-case stem to `snake_case` for filename suggestions.
+fn pascalCaseStemToSnake(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
+    if (stem.len == 0) return try allocator.dupe(u8, "");
+
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+
     for (stem, 0..) |c, i| {
-        out[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+        const is_upper = c >= 'A' and c <= 'Z';
+        if (is_upper) {
+            if (i > 0) {
+                const prev = stem[i - 1];
+                const next: u8 = if (i + 1 < stem.len) stem[i + 1] else 0;
+                const prev_lower = prev >= 'a' and prev <= 'z';
+                const next_lower = next >= 'a' and next <= 'z';
+                const prev_upper = prev >= 'A' and prev <= 'Z';
+                if (prev_lower or (prev_upper and next_lower)) {
+                    try out.append(allocator, '_');
+                }
+            }
+            try out.append(allocator, c + 32);
+        } else {
+            try out.append(allocator, c);
+        }
     }
-    return out;
+
+    return try out.toOwnedSlice(allocator);
 }
 
-/// Returns whether a resolved `.zig` file is a namespace (no structure fields at file scope).
-fn resolveImportedFileIsNamespace(
+const ImportedFileKind = enum {
+    namespace,
+    structure,
+};
+
+/// Classifies a resolved `.zig` import target, or returns null when the file cannot be read or parsed.
+fn resolveImportedFileKind(
     import_path: []const u8,
     current_file: []const u8,
     allocator: std.mem.Allocator,
     io: std.Io,
     cache: *std.StringHashMap(bool),
-) std.mem.Allocator.Error!bool {
+) std.mem.Allocator.Error!?ImportedFileKind {
     const base_dir = std.fs.path.dirname(current_file) orelse ".";
     const joined = try std.fs.path.join(allocator, &.{ base_dir, import_path });
     defer allocator.free(joined);
 
-    const abs = utils.normalizePathSeparators(allocator, joined) catch return false;
+    const abs = utils.normalizePathSeparators(allocator, joined) catch return null;
     defer allocator.free(abs);
 
-    if (cache.get(abs)) |cached| return cached;
+    if (cache.get(abs)) |cached| return if (cached) .namespace else .structure;
 
     const is_namespace = blk: {
         const source = std.Io.Dir.cwd().readFileAllocOptions(
@@ -303,18 +350,20 @@ fn resolveImportedFileIsNamespace(
             .limited(std.math.maxInt(u32)),
             .of(u8),
             0,
-        ) catch break :blk false;
+        ) catch break :blk null;
         defer allocator.free(source);
 
-        var imported = std.zig.Ast.parse(allocator, source, .zig) catch break :blk false;
+        var imported = std.zig.Ast.parse(allocator, source, .zig) catch break :blk null;
         defer imported.deinit(allocator);
 
         break :blk fileIsNamespace(&imported);
     };
 
+    const is_namespace_val = is_namespace orelse return null;
+
     const cache_key = try allocator.dupe(u8, abs);
-    try cache.put(cache_key, is_namespace);
-    return is_namespace;
+    try cache.put(cache_key, is_namespace_val);
+    return if (is_namespace_val) .namespace else .structure;
 }
 
 /// True when the file has no structure fields at file scope (only `fn`, `const`, nested types, etc.).
@@ -522,6 +571,57 @@ fn runCheck(source: [:0]const u8, public_api_only: bool) !TestResult {
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
+test "pascalCaseStemToSnake inserts word boundaries" {
+    const stem = try pascalCaseStemToSnake(std.testing.allocator, "DiagnosticMessage");
+    defer std.testing.allocator.free(stem);
+    try std.testing.expectEqualStrings("diagnostic_message", stem);
+
+    const reach = try pascalCaseStemToSnake(std.testing.allocator, "Reachability");
+    defer std.testing.allocator.free(reach);
+    try std.testing.expectEqualStrings("reachability", reach);
+}
+
+test "PascalCase binding on namespace import is flagged" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\const Severity = @import("BadNamespace.zig");
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "tests/fixtures/style/import_site.zig",
+        false,
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 2), diagnostics.items.len);
+
+    var found_binding = false;
+    var found_filename = false;
+    for (diagnostics.items) |d| {
+        if (d.subject) |s| {
+            if (s.kind == .namespace and std.mem.eql(u8, s.name, "Severity")) found_binding = true;
+            if (s.kind == .source_file and std.mem.eql(u8, s.name, "BadNamespace.zig")) found_filename = true;
+        }
+        if (d.detail) |detail| {
+            if (std.mem.indexOf(u8, detail, "bad_namespace.zig") != null) found_filename = true;
+        }
+    }
+    try std.testing.expect(found_binding);
+    try std.testing.expect(found_filename);
+}
+
 test "snake_case predicates" {
     try std.testing.expect(isSnakeCase("foo_bar"));
     try std.testing.expect(isSnakeCase("pi"));
@@ -690,7 +790,7 @@ test "PascalCase basename on struct-at-file-scope import is not flagged" {
     defer msg_arena.deinit();
 
     const source =
-        \\const opts = @import("StructFile.zig");
+        \\const StructFile = @import("StructFile.zig");
     ++ "\x00";
     var tree = try std.zig.Ast.parse(base, source, .zig);
     defer tree.deinit(base);

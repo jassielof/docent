@@ -12,7 +12,7 @@ pub fn register(root: *fangz.Command) !void {
     const style_cmd = try root.addSubcommand(.{
         .name = "style",
         .brief = "Report identifiers that don't follow the naming-case conventions",
-        .description = "Check that every identifier (public and private) reachable from the project's module roots follows the Zig naming-case conventions (snake_case, camelCase, PascalCase). File discovery follows the public API surface, but within each file no visibility filter is applied. Severities are set in project config (.config/docent.json). Exits non-zero when a denied rule reports a finding.",
+        .description = "Check that every identifier (public and private) in the import-closure reachable from the project's module roots follows the Zig naming-case conventions (snake_case, camelCase, PascalCase). Discovery starts at the public API surface and follows every local @import, including private ones; within each file no visibility filter is applied. Severities are set in project config (.config/docent.json). Exits non-zero when a denied rule reports a finding.",
     });
 
     try style_cmd.addPositional(.{
@@ -122,7 +122,20 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     for (plan.resolved_targets) |rt| {
         if (rt.status != .linted) continue;
-        for (rt.files) |path| {
+
+        const abs_root = if (std.fs.path.isAbsolute(rt.root_source_file))
+            try allocator.dupe(u8, rt.root_source_file)
+        else
+            try std.fs.path.join(allocator, &.{ plan.package.project_root, rt.root_source_file });
+        defer allocator.free(abs_root);
+
+        var reachable = docent.reachability.collectReachableFiles(allocator, io, abs_root) catch |err| {
+            try printStderr(io, "error: failed to resolve reachable files for '{s}': {}\n", .{ rt.root_source_file, err });
+            continue;
+        };
+        defer docent.reachability.deinitOwnedPaths(allocator, &reachable);
+
+        for (reachable.items) |path| {
             const gptr = try analyzed_files.getOrPut(path);
             if (gptr.found_existing) continue;
             try analyzeFile(allocator, io, path, rule_set, lint_options, &all_diagnostics, &summary);
