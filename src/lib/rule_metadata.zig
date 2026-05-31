@@ -89,6 +89,12 @@ pub const rules: []const RuleRow = &.{
         .prose_title = "Cognitive complexity",
     },
     .{
+        .name = "max_fun_params",
+        .default_level = "warn",
+        .summary = "Functions should stay within the maximum parameter count (default 7).",
+        .prose_title = "Maximum function parameters",
+    },
+    .{
         .name = "identifier_case",
         .default_level = "warn",
         .summary = "Identifiers should follow the Zig naming-case conventions (snake_case, camelCase, PascalCase).",

@@ -19,11 +19,13 @@ const RulesJson = struct {
     doctest_naming_mismatch: ?[]const u8 = null,
     invalid_leading_phrase: ?[]const u8 = null,
     cognitive_complexity: ?[]const u8 = null,
+    max_fun_params: ?[]const u8 = null,
     identifier_case: ?[]const u8 = null,
 };
 
 const ComplexityJson = struct {
     cognitive_threshold: ?u32 = null,
+    max_fun_params_threshold: ?u32 = null,
 };
 
 const DocentConfigJson = struct {
@@ -125,6 +127,7 @@ pub fn loadComplexityOptions(allocator: std.mem.Allocator, io: std.Io, config_pa
     var options: ComplexityOptions = .{};
     if (parsed.value.complexity) |complexity| {
         if (complexity.cognitive_threshold) |threshold| options.cognitive_threshold = threshold;
+        if (complexity.max_fun_params_threshold) |threshold| options.max_fun_params_threshold = threshold;
     }
     return options;
 }

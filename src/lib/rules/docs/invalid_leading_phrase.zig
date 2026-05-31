@@ -16,8 +16,7 @@ const rule_name = "invalid_leading_phrase";
 const article_words: []const []const u8 = &.{ "a", "an", "the" };
 
 const KindPhrase = []const []const u8;
-const root = @import("root");
-const aaaaa = root.rules.docs.invalid_leading_phrase.check;
+
 /// Walks `tree` and appends diagnostics for doc comment summaries with an invalid leading phrase.
 pub fn check(
     tree: *const Ast,

@@ -284,13 +284,15 @@ Breaks in linear flow that are independent of nesting: each new sequence of bina
 
 // === Nested control structures
 
-// TODO: Function parameter count seems the easiest to implement.
 === Maximum function parameter
 
-The maximum number of parameters in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, Writergate and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
+The maximum number of parameters in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, writers, and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
+
+A function is flagged when its parameter count is *strictly greater* than the threshold. It is reported by the `docent complexity` sub-command rather than the default lint run. Like the other complexity checks, it measures *every* function in the import-closure reachable from the module roots.
 
 .Options
-* The threshold can be configured with whole numbers.
+* The threshold can be configured with whole numbers in project config under `complexity.max_fun_params_threshold`; it defaults to 7.
+* The severity (`max_fun_params`) follows the usual rule severities and can be set in project config.
 
 == Configuration of rule options
 
@@ -310,7 +312,8 @@ When no config file is found, or a rule is omitted, Docent uses the `RuleSet` de
     "private_doctest": "warn"
   },
   "complexity": {
-    "cognitive_threshold": 15
+    "cognitive_threshold": 15,
+    "max_fun_params_threshold": 7
   }
 }
 ----
@@ -318,7 +321,7 @@ When no config file is found, or a rule is omitted, Docent uses the `RuleSet` de
 
 Severity values are `allow`, `warn`, `deny`, and `forbid`. A `forbid` level cannot be relaxed by a later entry in the same file.
 
-The `complexity` block holds the numeric options for the complexity sub-command rules (for example `cognitive_threshold`). Omitted options fall back to the library defaults.
+The `complexity` block holds the numeric options for the complexity sub-command rules (for example `cognitive_threshold`, `max_fun_params_threshold`). Omitted options fall back to the library defaults.
 
 .Options:
 * You can specify a custom path for the configuration file with `--config-path PATH` on `docent`, `docent status`, `docent complexity`, and `docent style`.
