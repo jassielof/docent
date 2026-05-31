@@ -17,7 +17,7 @@ pub fn formatProse(
 
 /// Writes the human-readable prose sentence for a diagnostic (no trailing newline).
 pub fn writeProse(writer: *std.Io.Writer, diagnostic: Diagnostic) !void {
-    const severity_label = proseSeverityLabel(diagnostic.severity);
+    const severity_label = proseSeverityLabel(diagnostic.severity_level);
     const rule_title = rule_metadata.proseTitle(diagnostic.rule) orelse diagnostic.rule;
 
     try writer.print("{s}: {s}", .{ severity_label, rule_title });
@@ -49,7 +49,7 @@ test "prose with subject" {
     var buf: [128]u8 = undefined;
     const msg = try formatProse(.{
         .rule = "missing_doc_comment",
-        .severity = .warn,
+        .severity_level = .warn,
         .message = "",
         .subject = .{ .kind = .field, .name = "offset" },
         .file = "x.zig",
@@ -63,7 +63,7 @@ test "prose with detail" {
     var buf: [256]u8 = undefined;
     const msg = try formatProse(.{
         .rule = "missing_doc_comment",
-        .severity = .warn,
+        .severity_level = .warn,
         .message = "",
         .subject = .{ .kind = .function, .name = "foo" },
         .detail = "re-exported without documentation",

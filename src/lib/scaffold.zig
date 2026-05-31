@@ -184,7 +184,7 @@ fn lintSingleFile(
     var file_has_errors = false;
     for (result.diagnostics.items) |d| {
         summary.observe(d);
-        switch (d.severity) {
+        switch (d.severity_level) {
             .allow => continue,
             .warn => {
                 try docent.output.printDiagnosticStderr(io, d, docent.output.stderrTextOptions(io, output.format, output.color, path_display_root));

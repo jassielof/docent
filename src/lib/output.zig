@@ -6,8 +6,8 @@ const builtin = @import("builtin");
 const carnaval = @import("carnaval");
 
 const Diagnostic = @import("Diagnostic.zig");
-const DiagnosticMessage = @import("diagnostic_message.zig");
-const Severity = @import("severity.zig");
+const diagnostic_message = @import("diagnostic_message.zig");
+const severity = @import("severity.zig");
 
 /// Text layout for a single diagnostic line.
 pub const TextFormat = enum {
@@ -62,9 +62,9 @@ pub const Summary = struct {
 
     /// Updates counts from a single diagnostic.
     pub fn observe(self: *Summary, diagnostic: Diagnostic) void {
-        if (diagnostic.severity.isError()) {
+        if (diagnostic.severity_level.isError()) {
             self.errors += 1;
-        } else if (diagnostic.severity == .warn) {
+        } else if (diagnostic.severity_level == .warn) {
             self.warnings += 1;
         }
     }
@@ -109,7 +109,7 @@ pub fn stderrSummaryOptions(io: std.Io, tool_name: []const u8, color: ColorMode)
 
 /// Writes one diagnostic to `writer` according to `options`. Skips `.allow` severities.
 pub fn writeDiagnostic(writer: *std.Io.Writer, diagnostic: Diagnostic, options: TextOptions) !void {
-    switch (diagnostic.severity) {
+    switch (diagnostic.severity_level) {
         .allow => return,
         .warn, .deny, .forbid => {},
     }
@@ -127,7 +127,7 @@ pub fn writeDiagnostics(writer: *std.Io.Writer, diagnostics: []const Diagnostic,
     var index: usize = 0;
     while (index < diagnostics.len) : (index += 1) {
         const diagnostic = diagnostics[index];
-        if (diagnostic.severity == .allow) continue;
+        if (diagnostic.severity_level == .allow) continue;
 
         try writeDiagnostic(writer, diagnostic, options);
 
@@ -135,7 +135,7 @@ pub fn writeDiagnostics(writer: *std.Io.Writer, diagnostics: []const Diagnostic,
             var has_following = false;
             var j = index + 1;
             while (j < diagnostics.len) : (j += 1) {
-                if (diagnostics[j].severity != .allow) {
+                if (diagnostics[j].severity_level != .allow) {
                     has_following = true;
                     break;
                 }
@@ -191,7 +191,7 @@ pub fn writeJson(writer: *std.Io.Writer, allocator: std.mem.Allocator, diagnosti
     for (diagnostics, 0..) |diagnostic, i| {
         if (i > 0) try writer.writeAll(",");
 
-        const severity_str: []const u8 = switch (diagnostic.severity) {
+        const severity_str: []const u8 = switch (diagnostic.severity_level) {
             .allow => "allow",
             .warn => "warn",
             .deny => "deny",
@@ -199,7 +199,7 @@ pub fn writeJson(writer: *std.Io.Writer, allocator: std.mem.Allocator, diagnosti
         };
 
         var prose_buf: [512]u8 = undefined;
-        const prose = DiagnosticMessage.formatProse(diagnostic, &prose_buf) catch prose_buf[0..0];
+        const prose = diagnostic_message.formatProse(diagnostic, &prose_buf) catch prose_buf[0..0];
 
         const rule_json = try jsonEscape(allocator, diagnostic.rule);
         defer allocator.free(rule_json);
@@ -284,7 +284,7 @@ fn detectTerminalMode(io: std.Io, file: std.Io.File) std.Io.Terminal.Mode {
 }
 
 /// Tag text for a severity level (`warning`, `error`, or `allow`).
-pub fn severityDisplayTag(level: Severity.Level) []const u8 {
+pub fn severityDisplayTag(level: severity.Level) []const u8 {
     return switch (level) {
         .allow => "allow",
         .warn => "warning",
@@ -295,7 +295,7 @@ pub fn severityDisplayTag(level: Severity.Level) []const u8 {
 /// Writes `warning[rule_id]` with diagnostic-style coloring.
 pub fn writeSeverityRuleTag(
     writer: *std.Io.Writer,
-    level: Severity.Level,
+    level: severity.Level,
     rule: []const u8,
     color_profile: carnaval.ColorProfile,
 ) !void {
@@ -315,7 +315,7 @@ fn writePrettyDiagnostic(
 ) !void {
     const gutter = lineNumberWidth(diagnostic.line);
 
-    try writeSeverityRuleTag(writer, diagnostic.severity, diagnostic.rule, color_profile);
+    try writeSeverityRuleTag(writer, diagnostic.severity_level, diagnostic.rule, color_profile);
     try writer.writeAll("\n");
 
     try writeProseLine(writer, diagnostic, style, color_profile);
@@ -345,7 +345,7 @@ fn writeMinimalDiagnostic(
     const file_shown = pathForDisplay(path_display_root, diagnostic.file, &path_bufs[0], &path_bufs[1]);
 
     try writer.print("{s}:{d}:{d}: ", .{ file_shown, diagnostic.line, diagnostic.column });
-    try writeSeverityRuleTag(writer, diagnostic.severity, diagnostic.rule, color_profile);
+    try writeSeverityRuleTag(writer, diagnostic.severity_level, diagnostic.rule, color_profile);
     try writer.writeAll("\n");
 }
 
@@ -356,7 +356,7 @@ fn writeProseLine(
     color_profile: carnaval.ColorProfile,
 ) !void {
     var buf: [512]u8 = undefined;
-    const prose = DiagnosticMessage.formatProse(diagnostic, &buf) catch {
+    const prose = diagnostic_message.formatProse(diagnostic, &buf) catch {
         try style.plain_bold.renderWithProfile(diagnostic.message, writer, color_profile);
         try writer.writeAll("\n");
         return;
@@ -523,7 +523,7 @@ fn jsonEscape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     return try result.toOwnedSlice(allocator);
 }
 
-fn severityLevelStyle(style: Style, level: Severity.Level) carnaval.Style {
+fn severityLevelStyle(style: Style, level: severity.Level) carnaval.Style {
     return switch (level) {
         .warn => style.warning_style,
         .deny, .forbid => style.error_style,
@@ -532,7 +532,7 @@ fn severityLevelStyle(style: Style, level: Severity.Level) carnaval.Style {
 }
 
 fn caretStyle(style: Style, diagnostic: Diagnostic) carnaval.Style {
-    return if (diagnostic.severity.isError()) style.caret_error else style.caret_warning;
+    return if (diagnostic.severity_level.isError()) style.caret_error else style.caret_warning;
 }
 
 test "severity rule tag matches minimal diagnostic prefix" {
@@ -558,7 +558,7 @@ test "minimal formatter shortens absolute paths under display root" {
 
     try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
-        .severity = .warn,
+        .severity_level = .warn,
         .subject = .{ .kind = .function, .name = "main" },
         .file = "C:\\proj\\src\\lib\\root.zig",
         .line = 27,
@@ -583,7 +583,7 @@ test "minimal formatter renders one line without prose" {
 
     try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
-        .severity = .warn,
+        .severity_level = .warn,
         .subject = .{ .kind = .function, .name = "main" },
         .file = "src/main.zig",
         .line = 5,
@@ -609,7 +609,7 @@ test "pretty formatter renders rustc-style block" {
 
     try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
-        .severity = .warn,
+        .severity_level = .warn,
         .subject = .{ .kind = .function, .name = "main" },
         .file = "src/main.zig",
         .line = 5,
@@ -638,7 +638,7 @@ test "pretty formatter aligns two-digit line numbers" {
 
     try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
-        .severity = .warn,
+        .severity_level = .warn,
         .subject = .{ .kind = .error_set, .name = "Error" },
         .file = "src/lib/Config.zig",
         .line = 24,
@@ -666,7 +666,7 @@ test "writeDiagnostics separates pretty blocks with blank line" {
     const diagnostics = [_]Diagnostic{
         .{
             .rule = "blank_doc_comment",
-            .severity = .warn,
+            .severity_level = .warn,
             .subject = .{ .kind = .module, .name = "docent" },
             .file = "src/lib/root.zig",
             .line = 1,
@@ -676,7 +676,7 @@ test "writeDiagnostics separates pretty blocks with blank line" {
         },
         .{
             .rule = "missing_doc_comment",
-            .severity = .warn,
+            .severity_level = .warn,
             .subject = .{ .kind = .field, .name = "offset" },
             .file = "src/lib/Diagnostic.zig",
             .line = 8,
@@ -717,7 +717,7 @@ test "json formatter uses prose message" {
 
     const diagnostics = [_]Diagnostic{.{
         .rule = "missing_doc_comment",
-        .severity = .warn,
+        .severity_level = .warn,
         .subject = .{ .kind = .field, .name = "offset" },
         .file = "src\\main.zig",
         .line = 1,

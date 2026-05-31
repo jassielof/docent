@@ -3,7 +3,7 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
-const Severity = @import("../../severity.zig");
+const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
 const rule_name = "doctest_naming_mismatch";
@@ -11,14 +11,14 @@ const rule_name = "doctest_naming_mismatch";
 /// Walks `tree` and appends diagnostics when doctest names disagree with declarations.
 pub fn check(
     tree: *const Ast,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     file: []const u8,
     public_api_only: bool,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
-    if (!severity.isActive()) return;
+    if (!severity_level.isActive()) return;
 
     var pub_fn_names = std.StringHashMap(void).init(allocator);
     defer pub_fn_names.deinit();
@@ -51,7 +51,7 @@ pub fn check(
                         const loc = tree.tokenLocation(0, name_token);
                         try diagnostics.append(allocator, .{
                             .rule = rule_name,
-                            .severity = severity,
+                            .severity_level = severity_level,
                             .subject = try utils.ownedSubject(msg_allocator, .function, unquoted),
                             .detail = "use identifier-style `test` instead of a string literal",
                             .file = file,

@@ -23,7 +23,7 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 
 const Diagnostic = @import("../../Diagnostic.zig");
-const Severity = @import("../../severity.zig");
+const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
 const rule_name = "cognitive_complexity";
@@ -38,7 +38,7 @@ pub const default_threshold: u32 = 15;
 /// own — they contribute to their enclosing function with a nesting increment, per the specification.
 pub fn check(
     tree: *const Ast,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     file: []const u8,
     public_api_only: bool,
     threshold: u32,
@@ -46,7 +46,7 @@ pub fn check(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
-    if (!severity.isActive()) return;
+    if (!severity_level.isActive()) return;
 
     var fns: std.ArrayList(Ast.Node.Index) = .empty;
     defer fns.deinit(allocator);
@@ -67,7 +67,7 @@ pub fn check(
 
         try diagnostics.append(allocator, .{
             .rule = rule_name,
-            .severity = severity,
+            .severity_level = severity_level,
             .subject = try utils.ownedSubject(msg_allocator, .function, name),
             .detail = try std.fmt.allocPrint(
                 msg_allocator,

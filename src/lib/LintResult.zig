@@ -2,7 +2,7 @@
 
 const std = @import("std");
 const Diagnostic = @import("Diagnostic.zig");
-const Severity = @import("severity.zig");
+const severity = @import("severity.zig");
 
 /// Allocator used for the diagnostics list. Not used for message strings.
 allocator: std.mem.Allocator,
@@ -35,7 +35,7 @@ pub fn messageAllocator(self: *LintResult) std.mem.Allocator {
 /// Returns whether any diagnostic has error severity.
 pub fn hasErrors(self: *const LintResult) bool {
     for (self.diagnostics.items) |d| {
-        if (d.severity.isError()) return true;
+        if (d.severity_level.isError()) return true;
     }
 
     return false;
@@ -45,7 +45,7 @@ pub fn hasErrors(self: *const LintResult) bool {
 pub fn errorCount(self: *const LintResult) usize {
     var count: usize = 0;
     for (self.diagnostics.items) |d| {
-        if (d.severity.isError()) count += 1;
+        if (d.severity_level.isError()) count += 1;
     }
 
     return count;
@@ -55,7 +55,7 @@ pub fn errorCount(self: *const LintResult) usize {
 pub fn warningCount(self: *const LintResult) usize {
     var count: usize = 0;
     for (self.diagnostics.items) |d| {
-        if (d.severity == .warn) count += 1;
+        if (d.severity_level == .warn) count += 1;
     }
 
     return count;

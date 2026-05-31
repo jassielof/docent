@@ -3,7 +3,7 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
-const Severity = @import("../../severity.zig");
+const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
 const rule_name = "trailing_blank_doc_comment";
@@ -11,14 +11,14 @@ const rule_name = "trailing_blank_doc_comment";
 /// Walks `tree` and appends diagnostics for doc comments with trailing blank lines.
 pub fn check(
     tree: *const Ast,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     file: []const u8,
     module_name: ?[]const u8,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
-    if (!severity.isActive()) return;
+    if (!severity_level.isActive()) return;
     const tags = tree.tokens.items(.tag);
     var i: usize = 0;
     while (i < tags.len) {
@@ -43,7 +43,7 @@ pub fn check(
                 try utils.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator);
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
-                .severity = severity,
+                .severity_level = severity_level,
                 .subject = subject,
                 .file = file,
                 .line = loc.line + 1,

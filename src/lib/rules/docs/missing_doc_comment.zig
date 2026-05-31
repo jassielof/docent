@@ -5,7 +5,7 @@ const missing_doc_comment = @This();
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
-const Severity = @import("../../severity.zig");
+const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
 const rule_name = "missing_doc_comment";
@@ -15,7 +15,7 @@ const rule_name = "missing_doc_comment";
 /// When `require_module_doc` is set, also requires a file-level `//!` on module entry roots.
 pub fn check(
     tree: *const Ast,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     file: []const u8,
     require_module_doc: bool,
     module_name: ?[]const u8,
@@ -25,16 +25,16 @@ pub fn check(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    if (!severity.isActive()) return;
-    try checkModuleDocComment(tree, severity, file, require_module_doc, module_name, allocator, msg_allocator, diagnostics);
+    if (!severity_level.isActive()) return;
+    try checkModuleDocComment(tree, severity_level, file, require_module_doc, module_name, allocator, msg_allocator, diagnostics);
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity, file, public_api_only, .field, allocator, io, msg_allocator, diagnostics);
+        try checkNode(tree, decl, severity_level, file, public_api_only, .field, allocator, io, msg_allocator, diagnostics);
     }
 }
 
 fn checkModuleDocComment(
     tree: *const Ast,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     file: []const u8,
     require_module_doc: bool,
     module_name: ?[]const u8,
@@ -52,7 +52,7 @@ fn checkModuleDocComment(
         "";
     try diagnostics.append(allocator, .{
         .rule = rule_name,
-        .severity = severity,
+        .severity_level = severity_level,
         .subject = try utils.ownedSubject(msg_allocator, .module, display_name),
         .file = file,
         .line = 1,
@@ -83,7 +83,7 @@ fn shouldCheckDecl(tree: *const Ast, visib_token: ?Ast.TokenIndex, public_api_on
 fn checkNode(
     tree: *const Ast,
     node: Ast.Node.Index,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     file: []const u8,
     public_api_only: bool,
     member_field_kind: Diagnostic.SubjectKind,
@@ -104,7 +104,7 @@ fn checkNode(
                     const loc = tree.tokenLocation(0, name_tok);
                     try diagnostics.append(allocator, .{
                         .rule = rule_name,
-                        .severity = severity,
+                        .severity_level = severity_level,
                         .subject = try utils.ownedSubject(msg_allocator, .function, name),
                         .file = file,
                         .line = loc.line + 1,
@@ -127,7 +127,7 @@ fn checkNode(
             const is_reexport: bool = if (public_api_only) blk: {
                 const init_node = var_decl.ast.init_node.unwrap() orelse break :blk false;
                 const info = getReexportInfo(tree, init_node) orelse break :blk false;
-                try tryResolveReexport(info, name, file, severity, allocator, io, msg_allocator, diagnostics);
+                try tryResolveReexport(info, name, file, severity_level, allocator, io, msg_allocator, diagnostics);
                 break :blk true;
             } else false;
 
@@ -135,7 +135,7 @@ fn checkNode(
                 const loc = tree.tokenLocation(0, name_tok);
                 try diagnostics.append(allocator, .{
                     .rule = rule_name,
-                    .severity = severity,
+                    .severity_level = severity_level,
                     .subject = try utils.ownedSubject(msg_allocator, pubVarDeclSubjectKind(tree, var_decl), name),
                     .file = file,
                     .line = loc.line + 1,
@@ -145,7 +145,7 @@ fn checkNode(
                 });
             }
         }
-        try checkVarDeclInit(tree, var_decl, severity, file, public_api_only, allocator, io, msg_allocator, diagnostics);
+        try checkVarDeclInit(tree, var_decl, severity_level, file, public_api_only, allocator, io, msg_allocator, diagnostics);
         return;
     }
 
@@ -157,7 +157,7 @@ fn checkNode(
             else
                 member_field_kind;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, public_api_only, child_member_kind, allocator, io, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity_level, file, public_api_only, child_member_kind, allocator, io, msg_allocator, diagnostics);
             }
         }
         return;
@@ -170,7 +170,7 @@ fn checkNode(
             const loc = tree.tokenLocation(0, name_tok);
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
-                .severity = severity,
+                .severity_level = severity_level,
                 .subject = try utils.ownedSubject(msg_allocator, member_field_kind, name),
                 .file = file,
                 .line = loc.line + 1,
@@ -186,7 +186,7 @@ fn checkNode(
 fn checkVarDeclInit(
     tree: *const Ast,
     var_decl: Ast.full.VarDecl,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     file: []const u8,
     public_api_only: bool,
     allocator: std.mem.Allocator,
@@ -205,7 +205,7 @@ fn checkVarDeclInit(
             else
                 .field;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity, file, public_api_only, child_member_kind, allocator, io, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity_level, file, public_api_only, child_member_kind, allocator, io, msg_allocator, diagnostics);
             }
         }
     }
@@ -304,13 +304,13 @@ fn tryResolveReexport(
     info: ReexportInfo,
     decl_name: []const u8,
     current_file: []const u8,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    tryResolveReexportImpl(info, decl_name, current_file, severity, allocator, io, msg_allocator, diagnostics) catch |e| switch (e) {
+    tryResolveReexportImpl(info, decl_name, current_file, severity_level, allocator, io, msg_allocator, diagnostics) catch |e| switch (e) {
         error.OutOfMemory => return error.OutOfMemory,
         else => {}, // silently skip: file not found, parse error, symbol not found, etc.
     };
@@ -320,7 +320,7 @@ fn tryResolveReexportImpl(
     info: ReexportInfo,
     decl_name: []const u8,
     current_file: []const u8,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
@@ -337,7 +337,7 @@ fn tryResolveReexportImpl(
         imported_path,
         info.field_name,
         info.field_name orelse decl_name,
-        severity,
+        severity_level,
         allocator,
         io,
         msg_allocator,
@@ -356,7 +356,7 @@ fn resolveDocForSymbolInFile(
     file_path: []const u8,
     symbol_name: ?[]const u8,
     display_symbol: []const u8,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
@@ -395,7 +395,7 @@ fn resolveDocForSymbolInFile(
                         found.name_tok,
                         display_symbol,
                         file_path,
-                        severity,
+                        severity_level,
                         allocator,
                         msg_allocator,
                         diagnostics,
@@ -414,7 +414,7 @@ fn resolveDocForSymbolInFile(
                         nested_imported_path,
                         nested.field_name,
                         display_symbol,
-                        severity,
+                        severity_level,
                         allocator,
                         io,
                         msg_allocator,
@@ -431,7 +431,7 @@ fn resolveDocForSymbolInFile(
                 found.name_tok,
                 display_symbol,
                 file_path,
-                severity,
+                severity_level,
                 allocator,
                 msg_allocator,
                 diagnostics,
@@ -450,7 +450,7 @@ fn resolveDocForSymbolInFile(
         try emitUndocumentedReexportDiagnosticForFile(
             &imported_tree,
             file_path,
-            severity,
+            severity_level,
             allocator,
             msg_allocator,
             diagnostics,
@@ -468,7 +468,7 @@ fn hasContainerDocComment(tree: *const Ast, start_token: Ast.TokenIndex) bool {
 fn emitUndocumentedReexportDiagnosticForFile(
     tree: *const Ast,
     file_path: []const u8,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
@@ -483,7 +483,7 @@ fn emitUndocumentedReexportDiagnosticForFile(
     }
     try diagnostics.append(allocator, .{
         .rule = rule_name,
-        .severity = severity,
+        .severity_level = severity_level,
         .subject = .{ .kind = .source_file, .name = source_basename },
         .file = try utils.normalizePathSeparators(msg_allocator, file_path),
         .line = line + 1,
@@ -498,7 +498,7 @@ fn emitUndocumentedReexportDiagnostic(
     name_tok: Ast.TokenIndex,
     display_symbol: []const u8,
     file_path: []const u8,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
@@ -506,7 +506,7 @@ fn emitUndocumentedReexportDiagnostic(
     const loc = tree.tokenLocation(0, name_tok);
     try diagnostics.append(allocator, .{
         .rule = rule_name,
-        .severity = severity,
+        .severity_level = severity_level,
         .subject = try utils.ownedSubject(msg_allocator, .function, display_symbol),
         .detail = "re-exported without documentation",
         // Store an owned copy of the path so it outlives the allocator.

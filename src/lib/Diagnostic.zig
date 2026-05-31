@@ -1,7 +1,7 @@
 //! Represents a diagnostic issue or warning generated during static analysis.
 
 const std = @import("std");
-const Severity = @import("severity.zig");
+const severity = @import("severity.zig");
 
 /// What the diagnostic refers to, for consistent prose output across rules.
 pub const SubjectKind = enum {
@@ -53,7 +53,7 @@ pub const Subject = struct {
 /// The identifier of the lint rule that triggered this diagnostic.
 rule: []const u8,
 /// The severity level of the diagnostic.
-severity: Severity.Level,
+severity_level: severity.Level,
 /// Optional legacy or rule-specific text; prose formatters prefer `subject` and `detail`.
 message: []const u8 = "",
 /// Primary subject for prose output (`Warning: … on kind 'name'.`).
@@ -90,7 +90,7 @@ pub fn cloneAlloc(diagnostic: @This(), allocator: std.mem.Allocator) std.mem.All
 
     return .{
         .rule = try allocator.dupe(u8, diagnostic.rule),
-        .severity = diagnostic.severity,
+        .severity_level = diagnostic.severity_level,
         .message = try allocator.dupe(u8, diagnostic.message),
         .subject = subject,
         .detail = if (diagnostic.detail) |d| try allocator.dupe(u8, d) else null,

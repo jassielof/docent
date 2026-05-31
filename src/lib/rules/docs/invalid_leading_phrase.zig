@@ -8,7 +8,7 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
-const Severity = @import("../../severity.zig");
+const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
 const rule_name = "invalid_leading_phrase";
@@ -21,7 +21,7 @@ const aaaaa = root.rules.docs.invalid_leading_phrase.check;
 /// Walks `tree` and appends diagnostics for doc comment summaries with an invalid leading phrase.
 pub fn check(
     tree: *const Ast,
-    severity: Severity.Level,
+    severity_level: severity.Level,
     file: []const u8,
     module_name: ?[]const u8,
     public_api_only: bool,
@@ -29,7 +29,7 @@ pub fn check(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
-    if (!severity.isActive()) return;
+    if (!severity_level.isActive()) return;
     const tags = tree.tokens.items(.tag);
     var i: usize = 0;
     while (i < tags.len) {
@@ -71,7 +71,7 @@ pub fn check(
         const detail = try std.fmt.allocPrint(msg_allocator, "expected the summary to begin with '{s}'", .{subject.name});
         try diagnostics.append(allocator, .{
             .rule = rule_name,
-            .severity = severity,
+            .severity_level = severity_level,
             .subject = subject,
             .detail = detail,
             .file = file,

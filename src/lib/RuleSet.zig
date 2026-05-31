@@ -2,36 +2,36 @@
 //!
 //! Each field names a rule and holds its effective level (`allow`, `warn`, `deny`, or `forbid`).
 //! Override levels via project config; see `rule_metadata` for summaries.
-const Severity = @import("severity.zig");
+const severity = @import("severity.zig");
 
 /// Checks for missing doc comments on public API items, module roots (`//!`), and re-exported source files.
 ///
 /// ## Re-exports
 ///
 /// Check the `reexport` fixture for how this is applied, the resolution needs to perform a full project or API reachability analysis (traversal).
-missing_doc_comment: Severity.Level = .warn,
+missing_doc_comment: severity.Level = .warn,
 /// Suggests runnable `///` examples on public functions when enabled.
-missing_doctest: Severity.Level = .allow,
+missing_doctest: severity.Level = .allow,
 /// Flags doc comments on private declarations that look like public doctests.
-private_doctest: Severity.Level = .warn,
+private_doctest: severity.Level = .warn,
 /// Requires non-blank text in doc comments.
-blank_doc_comment: Severity.Level = .warn,
+blank_doc_comment: severity.Level = .warn,
 /// Requires the first doc-comment paragraph to end with `.`, `!`, or `?`.
-missing_summary_terminal_punctuation: Severity.Level = .warn,
+missing_summary_terminal_punctuation: severity.Level = .warn,
 /// Requires doc comment blocks not to end with trailing blank lines.
-trailing_blank_doc_comment: Severity.Level = .warn,
+trailing_blank_doc_comment: severity.Level = .warn,
 /// Requires doctest names to match the declaration they document.
-doctest_naming_mismatch: Severity.Level = .warn,
+doctest_naming_mismatch: severity.Level = .warn,
 /// Requires the summary to begin with a valid leading phrase naming the documented identifier.
-invalid_leading_phrase: Severity.Level = .warn,
+invalid_leading_phrase: severity.Level = .warn,
 /// Flags functions whose cognitive complexity exceeds the configured threshold (default 15).
 ///
 /// Measured by the `docent complexity` sub-command following the Sonar specification; not part of the default lint run.
-cognitive_complexity: Severity.Level = .warn,
+cognitive_complexity: severity.Level = .warn,
 /// Flags identifiers that don't follow the Zig naming-case conventions.
 ///
 /// Reported by the `docent style` sub-command rather than the default lint run.
-identifier_case: Severity.Level = .warn,
+identifier_case: severity.Level = .warn,
 
 /// Comptime-computed array of all rule field names in declaration order.
 const _field_names_buf = init: {

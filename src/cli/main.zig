@@ -322,7 +322,7 @@ fn lintSingleFile(
         summary.observe(d);
         try all_diagnostics.append(allocator, try docent.Diagnostic.cloneAlloc(d, allocator));
 
-        if (failFastMatches(fail_fast, d.severity)) return true;
+        if (failFastMatches(fail_fast, d.severity_level)) return true;
     }
 
     return false;

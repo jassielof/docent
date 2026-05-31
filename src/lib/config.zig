@@ -3,7 +3,7 @@
 const std = @import("std");
 
 const RuleSet = @import("RuleSet.zig");
-const Severity = @import("severity.zig");
+const severity = @import("severity.zig");
 const ComplexityOptions = @import("ComplexityOptions.zig");
 
 /// Default config path relative to the project root.
@@ -175,14 +175,14 @@ fn mergeRulesJson(base: RuleSet, overrides: RulesJson) Error!RuleSet {
     var rs = base;
     inline for (@typeInfo(RulesJson).@"struct".fields) |f| {
         if (@field(overrides, f.name)) |level_name| {
-            const level = std.meta.stringToEnum(Severity.Level, level_name) orelse return error.InvalidSeverity;
+            const level = std.meta.stringToEnum(severity.Level, level_name) orelse return error.InvalidSeverity;
             setRuleLevel(&rs, f.name, level);
         }
     }
     return rs;
 }
 
-fn setRuleLevel(rs: *RuleSet, comptime field: []const u8, level: Severity.Level) void {
+fn setRuleLevel(rs: *RuleSet, comptime field: []const u8, level: severity.Level) void {
     const current = @field(rs.*, field);
     if (current == .forbid and level != .forbid) return;
     @field(rs.*, field) = level;
