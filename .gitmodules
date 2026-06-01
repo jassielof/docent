@@ -7,3 +7,6 @@
 [submodule "modules/carnaval"]
 	path = modules/carnaval
 	url = https://github.com/jassielof/carnaval
+[submodule "modules/toml"]
+	path = modules/toml
+	url = https://github.com/jassielof/toml-zig
