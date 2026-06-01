@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=https://json-schema.org/draft-07/schema#
 $schema: "https://json-schema.org/draft-07/schema#"
-$id: "https://jassielof.github.io/docent/schema/config.json"
-title: "Docent Configuration Schema"
-description: "Configuration schema for the Docent Zig documentation linter."
-type: "object"
+$id: "https://jassielof.github.io/docent/schemas/docent.schema.json"
+title: Docent Configuration Schema
+description: Configuration schema for Docent, a code-quality linter for Zig.
+type: object
 additionalProperties: false
 properties:
   rules:
@@ -46,18 +46,37 @@ properties:
     description: "Threshold configurations for complexity sub-command rules."
     additionalProperties: false
     properties:
-      cognitive_threshold:
+      cyclomatic_threshold:
         type: "integer"
         minimum: 1
+        default: 10
+        description: "Maximum allowed cyclomatic complexity score per function before flagging. (Default: 10)"
+      cognitive_threshold:
+        type: "integer"
+        minimum: 0
         default: 15
         description: "Maximum allowed cognitive complexity score per function before flagging. (Default: 15)"
+      max_fun_params_threshold:
+        type: "integer"
+        minimum: 1
+        default: 7
+        description: "Maximum allowed function parameter count before flagging. (Default: 7)"
+  docs:
+    type: "object"
+    description: "Options for documentation rules."
+    additionalProperties: false
+    properties:
+      require_function_param_docs:
+        type: "boolean"
+        default: false
+        description: "When true, missing_doc_comment also requires doc comments on named function parameters. (Default: false)"
 
 definitions:
   severity:
     type: "string"
     enum:
-      - "allow"
-      - "warn"
-      - "deny"
-      - "forbid"
+      - allow
+      - warn
+      - deny
+      - forbid
     description: "Effective severity level of a rule. Later overrides win unless already set to forbid."

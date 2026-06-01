@@ -13,6 +13,7 @@ const rule_name = "missing_doc_comment";
 /// Walks `tree` and appends diagnostics for undocumented public items.
 ///
 /// When `require_module_doc` is set, also requires a file-level `//!` on module entry roots.
+/// When `require_function_param_docs` is set, also requires `///` on each named function parameter.
 pub fn check(
     tree: *const Ast,
     severity_level: severity.Level,
@@ -20,6 +21,7 @@ pub fn check(
     require_module_doc: bool,
     module_name: ?[]const u8,
     public_api_only: bool,
+    require_function_param_docs: bool,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
@@ -28,7 +30,7 @@ pub fn check(
     if (!severity_level.isActive()) return;
     try checkModuleDocComment(tree, severity_level, file, require_module_doc, module_name, allocator, msg_allocator, diagnostics);
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity_level, file, public_api_only, .field, allocator, io, msg_allocator, diagnostics);
+        try checkNode(tree, decl, severity_level, file, public_api_only, require_function_param_docs, .field, allocator, io, msg_allocator, diagnostics);
     }
 }
 
@@ -86,6 +88,7 @@ fn checkNode(
     severity_level: severity.Level,
     file: []const u8,
     public_api_only: bool,
+    require_function_param_docs: bool,
     member_field_kind: Diagnostic.SubjectKind,
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -112,6 +115,9 @@ fn checkNode(
                         .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
                         .symbol_len = name.len,
                     });
+                }
+                if (require_function_param_docs) {
+                    try checkFunctionParams(tree, proto, severity_level, file, allocator, msg_allocator, diagnostics);
                 }
             }
         }
@@ -145,7 +151,7 @@ fn checkNode(
                 });
             }
         }
-        try checkVarDeclInit(tree, var_decl, severity_level, file, public_api_only, allocator, io, msg_allocator, diagnostics);
+        try checkVarDeclInit(tree, var_decl, severity_level, file, public_api_only, require_function_param_docs, allocator, io, msg_allocator, diagnostics);
         return;
     }
 
@@ -157,7 +163,7 @@ fn checkNode(
             else
                 member_field_kind;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity_level, file, public_api_only, child_member_kind, allocator, io, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity_level, file, public_api_only, require_function_param_docs, child_member_kind, allocator, io, msg_allocator, diagnostics);
             }
         }
         return;
@@ -183,12 +189,43 @@ fn checkNode(
     }
 }
 
+fn checkFunctionParams(
+    tree: *const Ast,
+    proto: Ast.full.FnProto,
+    severity_level: severity.Level,
+    file: []const u8,
+    allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
+    diagnostics: *std.ArrayList(Diagnostic),
+) std.mem.Allocator.Error!void {
+    var it = proto.iterate(tree);
+    while (it.next()) |param| {
+        const name_tok = param.name_token orelse continue;
+        if (param.first_doc_comment != null) continue;
+
+        const name = tree.tokenSlice(name_tok);
+        if (std.mem.eql(u8, name, "_")) continue;
+        const loc = tree.tokenLocation(0, name_tok);
+        try diagnostics.append(allocator, .{
+            .rule = rule_name,
+            .severity_level = severity_level,
+            .subject = try utils.ownedSubject(msg_allocator, .parameter, name),
+            .file = file,
+            .line = loc.line + 1,
+            .column = loc.column + 1,
+            .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+            .symbol_len = name.len,
+        });
+    }
+}
+
 fn checkVarDeclInit(
     tree: *const Ast,
     var_decl: Ast.full.VarDecl,
     severity_level: severity.Level,
     file: []const u8,
     public_api_only: bool,
+    require_function_param_docs: bool,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
@@ -205,7 +242,7 @@ fn checkVarDeclInit(
             else
                 .field;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity_level, file, public_api_only, child_member_kind, allocator, io, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity_level, file, public_api_only, require_function_param_docs, child_member_kind, allocator, io, msg_allocator, diagnostics);
             }
         }
     }
@@ -562,7 +599,7 @@ const TestResult = struct {
     }
 };
 
-fn runCheck(source: [:0]const u8, require_module_doc: bool, module_name: ?[]const u8) !TestResult {
+fn runCheck(source: [:0]const u8, require_module_doc: bool, module_name: ?[]const u8, require_function_param_docs: bool) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     errdefer msg_arena.deinit();
@@ -573,12 +610,12 @@ fn runCheck(source: [:0]const u8, require_module_doc: bool, module_name: ?[]cons
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", require_module_doc, module_name, true, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", require_module_doc, module_name, true, require_function_param_docs, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
 test "detects missing module doc comment on entry root" {
-    var r = try runCheck("pub fn foo() void {}", true, "fixture");
+    var r = try runCheck("pub fn foo() void {}", true, "fixture", false);
     defer r.deinit();
     try std.testing.expectEqual(2, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
@@ -587,14 +624,14 @@ test "detects missing module doc comment on entry root" {
 }
 
 test "no module doc diagnostic when //! present" {
-    var r = try runCheck("//! Module documentation.\npub fn foo() void {}", true, "fixture");
+    var r = try runCheck("//! Module documentation.\npub fn foo() void {}", true, "fixture", false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(.function, r.items.items[0].subject.?.kind);
 }
 
 test "no module doc check when require_module_doc is false" {
-    var r = try runCheck("pub fn foo() void {}", false, null);
+    var r = try runCheck("pub fn foo() void {}", false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expect(r.items.items[0].subject.?.kind != .module);
@@ -608,13 +645,13 @@ test "no extra module doc required inside pub const struct body" {
         \\    /// Documented field.
         \\    x: u32,
         \\};
-    , true, "mylib");
+    , true, "mylib", false);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "detects missing doc comment on pub fn, names the symbol" {
-    var r = try runCheck("pub fn foo() void {}", false, null);
+    var r = try runCheck("pub fn foo() void {}", false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
@@ -626,19 +663,19 @@ test "no diagnostic for documented pub fn" {
     var r = try runCheck(
         \\/// Does something.
         \\pub fn foo() void {}
-    , false, null);
+    , false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "no diagnostic for private fn" {
-    var r = try runCheck("fn foo() void {}", false, null);
+    var r = try runCheck("fn foo() void {}", false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "detects missing doc comment on pub const, names the symbol" {
-    var r = try runCheck("pub const answer = 42;", false, null);
+    var r = try runCheck("pub const answer = 42;", false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings("answer", r.items.items[0].subject.?.name);
@@ -646,7 +683,7 @@ test "detects missing doc comment on pub const, names the symbol" {
 }
 
 test "detects missing doc comment on pub const error set" {
-    var r = try runCheck("pub const MyErr = error{ OutOfMemory };", false, null);
+    var r = try runCheck("pub const MyErr = error{ OutOfMemory };", false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(.error_set, r.items.items[0].subject.?.kind);
@@ -660,7 +697,7 @@ test "detects missing doc comment on container fields, names the field" {
         \\    x: u32,
         \\    y: u32,
         \\};
-    , false, null);
+    , false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(2, r.items.items.len);
     try std.testing.expectEqualStrings("x", r.items.items[0].subject.?.name);
@@ -675,7 +712,7 @@ test "detects missing doc comment on pub enum and enumerators" {
         \\    red,
         \\    green,
         \\};
-    , false, null);
+    , false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(3, r.items.items.len);
     try std.testing.expectEqual(.enumeration, r.items.items[0].subject.?.kind);
@@ -693,20 +730,20 @@ test "no diagnostic for private const struct members and pub fn inside" {
         \\    color: []const u8,
         \\    pub fn world() void {}
         \\};
-    , false, null);
+    , false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "location points to name token, not keyword" {
-    var r = try runCheck("pub fn myFunc() void {}", false, null);
+    var r = try runCheck("pub fn myFunc() void {}", false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(@as(usize, 8), r.items.items[0].column);
 }
 
 test "source_line is populated" {
-    var r = try runCheck("pub fn foo() void {}", false, null);
+    var r = try runCheck("pub fn foo() void {}", false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings("pub fn foo() void {}", r.items.items[0].source_line);
@@ -715,7 +752,7 @@ test "source_line is populated" {
 test "re-export with unresolvable import is silently skipped (no false positive)" {
     // When the imported file can't be resolved (fake path from <test> file),
     // the re-export must produce zero diagnostics.
-    var r = try runCheck("pub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;", false, null);
+    var r = try runCheck("pub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;", false, null, false);
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
@@ -724,8 +761,88 @@ test "re-export through local import alias is recognized" {
     var r = try runCheck(
         \\const helpers = @import("helpers.zig");
         \\pub const greet = helpers.greet;
-    , false, null);
+    , false, null, false);
     defer r.deinit();
     // Unresolvable from <test> path — must not false-positive on the re-export line.
     try std.testing.expectEqual(0, r.items.items.len);
+}
+
+test "function parameters are not checked by default" {
+    var r = try runCheck(
+        \\/// Does something.
+        \\pub fn foo(allocator: std.mem.Allocator, value: u32) void {
+        \\    _ = allocator;
+        \\    _ = value;
+        \\}
+    , false, null, false);
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
+}
+
+test "undocumented function parameters are reported when enabled" {
+    var r = try runCheck(
+        \\/// Does something.
+        \\pub fn foo(
+        \\    /// The allocator.
+        \\    allocator: std.mem.Allocator,
+        \\    value: u32,
+        \\) void {
+        \\    _ = allocator;
+        \\    _ = value;
+        \\}
+    , false, null, true);
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqual(.parameter, r.items.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("value", r.items.items[0].subject.?.name);
+}
+
+test "all documented function parameters are accepted when enabled" {
+    var r = try runCheck(
+        \\/// Does something.
+        \\pub fn foo(
+        \\    /// The allocator.
+        \\    allocator: std.mem.Allocator,
+        \\    /// The value.
+        \\    value: u32,
+        \\) void {
+        \\    _ = allocator;
+        \\    _ = value;
+        \\}
+    , false, null, true);
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
+}
+
+test "unnamed and varargs parameters are skipped when enabled" {
+    var r = try runCheck(
+        \\/// Does something.
+        \\pub fn foo(_: u32, args: anytype, ...) void {
+        \\    _ = args;
+        \\}
+    , false, null, true);
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqualStrings("args", r.items.items[0].subject.?.name);
+}
+
+test "private function parameters are not checked under public_api_only" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\/// Does something.
+        \\fn hidden(allocator: std.mem.Allocator) void {
+        \\    _ = allocator;
+        \\}
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(&tree, .warn, "<test>", false, null, true, true, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

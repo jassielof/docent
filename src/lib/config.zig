@@ -5,6 +5,7 @@ const std = @import("std");
 const RuleSet = @import("RuleSet.zig");
 const severity = @import("severity.zig");
 const ComplexityOptions = @import("ComplexityOptions.zig");
+const DocsOptions = @import("DocsOptions.zig");
 
 /// Default config path relative to the project root.
 pub const default_relative_path = ".config/docent.json";
@@ -28,9 +29,14 @@ const ComplexityJson = struct {
     max_fun_params_threshold: ?u32 = null,
 };
 
+const DocsJson = struct {
+    require_function_param_docs: ?bool = null,
+};
+
 const DocentConfigJson = struct {
     rules: ?RulesJson = null,
     complexity: ?ComplexityJson = null,
+    docs: ?DocsJson = null,
 };
 
 /// Errors that can occur while loading or parsing configuration.
@@ -103,6 +109,47 @@ pub fn loadRuleSet(allocator: std.mem.Allocator, io: std.Io, config_path: []cons
 /// Nearest `.config/docent.json`, or `RuleSet` defaults when no config file exists.
 pub fn loadNearestRuleSet(allocator: std.mem.Allocator, io: std.Io) Error!RuleSet {
     return loadRuleSetFromCli(allocator, io, null);
+}
+
+/// Loads documentation rule options from a `docent.json` file; a missing `docs` section uses defaults.
+pub fn loadDocsOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!DocsOptions {
+    const config_text = readConfigText(allocator, io, config_path) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.ConfigParseFailed,
+    };
+    defer allocator.free(config_text);
+
+    var parsed = std.json.parseFromSlice(
+        DocentConfigJson,
+        allocator,
+        config_text,
+        .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        },
+    ) catch return error.ConfigParseFailed;
+    defer parsed.deinit();
+
+    var options: DocsOptions = .{};
+    if (parsed.value.docs) |docs| {
+        if (docs.require_function_param_docs) |enabled| options.require_function_param_docs = enabled;
+    }
+    return options;
+}
+
+/// Loads documentation options from an explicit `config_path`, or searches for the default file when null.
+pub fn loadDocsOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!DocsOptions {
+    if (config_path) |explicit| {
+        const abs = try resolveExplicitConfigPath(allocator, io, explicit);
+        defer allocator.free(abs);
+        return loadDocsOptions(allocator, io, abs);
+    }
+    const discovered = try findNearestConfigPath(allocator, io);
+    if (discovered) |path| {
+        defer allocator.free(path);
+        return loadDocsOptions(allocator, io, path);
+    }
+    return .{};
 }
 
 /// Loads complexity thresholds from a `docent.json` file; a missing `complexity` section uses defaults.

@@ -61,7 +61,7 @@ test "reexport_local_binding_documented follows alias to documented symbol" {
     const path = try projectRoot("reexport_local_binding_documented");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{});
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{}, .{});
     defer result.deinit();
     try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
@@ -70,7 +70,7 @@ test "reexport_documented_transitive suppresses diagnostic when definition is do
     const path = try projectRoot("reexport_documented_transitive");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{});
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{}, .{});
     defer result.deinit();
     try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
@@ -79,7 +79,7 @@ test "reexport_undocumented_points_at_definition uses forward slashes in paths" 
     const path = try projectRoot("reexport_undocumented_points_at_definition");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{});
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{}, .{});
     defer result.deinit();
 
     for (result.diagnostics.items) |d| {
@@ -94,7 +94,7 @@ test "reexport_undocumented_points_at_definition points at definition not re-exp
     const path = try projectRoot("reexport_undocumented_points_at_definition");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{});
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{}, .{});
     defer result.deinit();
     try utils.expectRuleCount(result, "missing_doc_comment", 1);
 
@@ -123,6 +123,7 @@ test "missing_module_doc_on_entry reports missing module doc comment" {
         display,
         .{ .module_name = "fixture" },
         &.{},
+        .{},
     );
     defer result.deinit();
     try utils.expectRuleCount(result, "missing_doc_comment", 3);
@@ -139,6 +140,29 @@ test "missing_module_doc_on_entry reports missing module doc comment" {
     try testing.expectEqual(@as(usize, 1), module_doc_count);
 }
 
+test "lintSource honors require_function_param_docs option" {
+    const source: [:0]const u8 =
+        \\/// Does something.
+        \\pub fn foo(allocator: std.mem.Allocator) void {
+        \\    _ = allocator;
+        \\}
+    ;
+    var result = try docent.lintSource(
+        std.testing.allocator,
+        std.testing.io,
+        source,
+        .{ .missing_doc_comment = .deny },
+        "<test>",
+        .{},
+        &.{},
+        .{ .require_function_param_docs = true },
+    );
+    defer result.deinit();
+    try utils.expectRuleCount(result, "missing_doc_comment", 1);
+    try testing.expectEqual(.parameter, result.diagnostics.items[0].subject.?.kind);
+    try testing.expectEqualStrings("allocator", result.diagnostics.items[0].subject.?.name);
+}
+
 test "unresolvable import produces no false positive in single-file mode" {
     const source: [:0]const u8 =
         "//! Module.\npub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;";
@@ -150,6 +174,7 @@ test "unresolvable import produces no false positive in single-file mode" {
         "<fake-file.zig>",
         .{},
         &.{},
+        .{},
     );
     defer result.deinit();
     try utils.expectRuleAbsent(result, "missing_doc_comment");
