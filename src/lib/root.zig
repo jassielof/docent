@@ -114,7 +114,10 @@ pub fn lintSource(
         rule_set.blank_doc_comment,
         file_owned,
         options.module_name,
+        require_module_doc,
+        options.public_api_only,
         allocator,
+        io,
         msg,
         &result.diagnostics,
     );

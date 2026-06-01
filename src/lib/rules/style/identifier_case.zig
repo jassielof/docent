@@ -367,7 +367,7 @@ fn resolveImportedFileKind(
         var imported = std.zig.Ast.parse(allocator, source, .zig) catch break :blk null;
         defer imported.deinit(allocator);
 
-        break :blk fileIsNamespace(&imported);
+        break :blk utils.fileIsNamespace(&imported);
     };
 
     const is_namespace_val = is_namespace orelse return null;
@@ -375,14 +375,6 @@ fn resolveImportedFileKind(
     const cache_key = try allocator.dupe(u8, abs);
     try cache.put(cache_key, is_namespace_val);
     return if (is_namespace_val) .namespace else .structure;
-}
-
-/// True when the file has no structure fields at file scope (only `fn`, `const`, nested types, etc.).
-fn fileIsNamespace(tree: *const Ast) bool {
-    for (tree.rootDecls()) |decl| {
-        if (tree.fullContainerField(decl) != null) return false;
-    }
-    return true;
 }
 
 /// Determines the expected case for the *name* of a `var`/`const`, or null when it should be skipped.
