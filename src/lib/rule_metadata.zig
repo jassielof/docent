@@ -89,6 +89,12 @@ pub const rules: []const RuleRow = &.{
         .prose_title = "Cognitive complexity",
     },
     .{
+        .name = "cyclomatic_complexity",
+        .default_level = "allow",
+        .summary = "Functions should stay below the cyclomatic complexity threshold (default 10).",
+        .prose_title = "Cyclomatic complexity",
+    },
+    .{
         .name = "max_fun_params",
         .default_level = "warn",
         .summary = "Functions should stay within the maximum parameter count (default 7).",

@@ -186,6 +186,16 @@ pub fn lintComplexitySource(
         msg,
         &result.diagnostics,
     );
+    try rules.complexity.cyclomatic.check(
+        &tree,
+        rule_set.cyclomatic_complexity,
+        file_owned,
+        options.public_api_only,
+        complexity_options.cyclomatic_threshold,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
     try rules.complexity.max_fun_params.check(
         &tree,
         rule_set.max_fun_params,

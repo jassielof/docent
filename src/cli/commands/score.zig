@@ -1,3 +1,4 @@
+// TODO: implement score
 //! The score sub-command provides similar functionality to [Go Report Card](https://goreportcard.com/).
 //!
 //! Among the extra things to be evaluated are (without considering what Docent provides):
