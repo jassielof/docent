@@ -28,6 +28,10 @@ invalid_leading_phrase: severity.Level = .warn,
 ///
 /// Measured by the `docent complexity` sub-command following the Sonar specification; not part of the default lint run.
 cognitive_complexity: severity.Level = .warn,
+/// Flags functions whose cyclomatic complexity exceeds the configured threshold (default 10).
+///
+/// Measured by the `docent complexity` sub-command following the McCabe definition; not part of the default lint run.
+cyclomatic_complexity: severity.Level = .allow,
 /// Flags functions with more parameters than the configured limit (default 7).
 ///
 /// Measured by the `docent complexity` sub-command; not part of the default lint run.
