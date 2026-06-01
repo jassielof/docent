@@ -33,7 +33,7 @@ const DocentConfigJson = struct {
     complexity: ?ComplexityJson = null,
 };
 
-// /// Errors that can occur while loading or parsing configuration.
+/// Errors that can occur while loading or parsing configuration.
 pub const Error = error{
     ConfigNotFound,
     ConfigParseFailed,

@@ -79,6 +79,10 @@ jobs:
           asciidoctor-pdf docent.adoc
       - name: Convert README
         run: asciidoctor README.adoc --out-file zig-out/docs/index.html
+      - name: Convert YAML Schema
+        run: |
+          mkdir -p zig-out/docs/schemas
+          yq --output-format json schemas/docent.schema.yaml > zig-out/docs/schemas/docent.schema.json
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v5
         with:

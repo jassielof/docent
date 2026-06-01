@@ -1,24 +1,63 @@
 # yaml-language-server: $schema=https://json-schema.org/draft-07/schema#
-# This is always to be converted to JSON and deployed along the pages.
-$schema: https://json-schema.org/draft-07/schema#
-# id:
-title: Docent configuration schema
-description: Schema for the configuration of the Docent linter.
+$schema: "https://json-schema.org/draft-07/schema#"
+$id: "https://jassielof.github.io/docent/schema/config.json"
+title: "Docent Configuration Schema"
+description: "Configuration schema for the Docent Zig documentation linter."
+type: "object"
+additionalProperties: false
 properties:
   rules:
-    type: object
-    description: Per-rule configuration.
+    type: "object"
+    description: "Per-rule severity configuration. Overrides default levels."
     additionalProperties: false
     properties:
       missing_doc_comment:
-        type: object
-      blank_doc_comment:
-        type: object
-      trailing_blank_doc_comment:
-        type: object
-      missing_summary_terminal_punctuation:
-        type: object
+        $ref: "#/definitions/severity"
+        description: "Public API items, module roots, and exposed source files should have doc comments. (Default: warn)"
       missing_doctest:
-        type: object
+        $ref: "#/definitions/severity"
+        description: "Public functions may include runnable examples. (Default: allow)"
+      private_doctest:
+        $ref: "#/definitions/severity"
+        description: "Private declarations should not carry identifier-style doctests. (Default: warn)"
+      blank_doc_comment:
+        $ref: "#/definitions/severity"
+        description: "Doc comments should contain useful text (not blank or whitespace-only). (Default: warn)"
+      missing_summary_terminal_punctuation:
+        $ref: "#/definitions/severity"
+        description: "The first paragraph of a doc comment should end with '.', '!', or '?'. (Default: warn)"
+      trailing_blank_doc_comment:
+        $ref: "#/definitions/severity"
+        description: "Doc comments should not end with blank lines. (Default: warn)"
+      doctest_naming_mismatch:
+        $ref: "#/definitions/severity"
+        description: "Doctest names should match the declaration they document. (Default: warn)"
       invalid_leading_phrase:
-        type: object
+        $ref: "#/definitions/severity"
+        description: "Doc comment summaries should begin with a leading phrase naming the documented identifier. (Default: warn)"
+      cognitive_complexity:
+        $ref: "#/definitions/severity"
+        description: "Functions should stay below the cognitive complexity threshold. Checked by the 'docent complexity' sub-command. (Default: warn)"
+      identifier_case:
+        $ref: "#/definitions/severity"
+        description: "Identifiers should follow the Zig naming-case conventions. Checked by the 'docent style' sub-command. (Default: warn)"
+  complexity:
+    type: "object"
+    description: "Threshold configurations for complexity sub-command rules."
+    additionalProperties: false
+    properties:
+      cognitive_threshold:
+        type: "integer"
+        minimum: 1
+        default: 15
+        description: "Maximum allowed cognitive complexity score per function before flagging. (Default: 15)"
+
+definitions:
+  severity:
+    type: "string"
+    enum:
+      - "allow"
+      - "warn"
+      - "deny"
+      - "forbid"
+    description: "Effective severity level of a rule. Later overrides win unless already set to forbid."

@@ -4,3 +4,4 @@ zig-pkg
 *.pdf
 *.html
 references
+schemas/*.json
