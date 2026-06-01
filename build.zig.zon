@@ -7,6 +7,7 @@
         .fangz = .{ .path = "modules/fangz" },
         .carnaval = .{ .path = "modules/carnaval" },
         .vereda = .{ .path = "modules/vereda" },
+        .toml = .{ .path = "modules/toml" },
     },
     .minimum_zig_version = "0.16.0",
     .paths = .{
