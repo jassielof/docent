@@ -106,6 +106,17 @@ test "reexport_undocumented_points_at_definition points at definition not re-exp
     }
 }
 
+test "whole-module re-export reports missing namespace doc on imported file" {
+    const path = try projectRoot("reexport_missing_whole_namespace");
+    defer std.testing.allocator.free(path);
+
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .deny }, .{}, &.{}, .{});
+    defer result.deinit();
+    try utils.expectRuleCount(result, "missing_doc_comment", 1);
+    try testing.expectEqual(.namespace, result.diagnostics.items[0].subject.?.kind);
+    try testing.expect(std.mem.endsWith(u8, result.diagnostics.items[0].file, "enums.zig"));
+}
+
 test "missing_module_doc_on_entry reports missing module doc comment" {
     const allocator = std.testing.allocator;
     const path = try harness.ruleFixturePath(allocator, ns, &.{ "missing_module_doc_on_entry", "root.zig" });

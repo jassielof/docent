@@ -67,9 +67,8 @@ To help with clarifications and context, the following cases are reported with a
 Blank module doc comment::
 Warns on blank doc comments on the module root source file.
 
-// TODO: This is a bit complex, for example, if the module root, re-exports as an alias an implicit struct module or a namespace module, and that imported module doesn't have a doc comment, it should throw the warning of a missing doc comment, but it should explain that it is a missing module doc comment. For example, if I have a namespace called "enums.zig", that aggregates a lot of enums, and I only re-export a single enum from there, while the rest being private from the library, the missing module doc warning shouldn't be emitted, as the module isn't being exposed as a public API, but rather its selected content.
 Blank source file doc comment::
-Warns on blank doc comments on source files, this is mainly applied to implicit struct files and namespaces.
+Warns on blank doc comments on source files, this is mainly applied to implicit struct files and namespaces that are re-exported and exposed to the API surface. Whole-module re-exports (`pub const ns = @import("enums.zig")`) resolve blank `//!` on the imported file; member re-exports (`pub const Color = @import("enums.zig").Color`) do not.
 
 === Missing doctest
 
