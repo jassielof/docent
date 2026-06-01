@@ -158,7 +158,7 @@ Declarations::
 
 The rationale on this rule comes from <<godoc-comments>>.
 
-// TODO: Add another rule that checks the summary to not be a heading, or just to be normal text, because heading is already used for the doc gen, the declaration is rendered as a heading, so the summary would end up as a followup heading, and quotation or something else doesn't make sense. If feasible, to implement, otherwise, just forget about it.
+// TODO: Add another rule that checks the summary to not be a heading, or just to be normal text, because heading is already used for the doc gen, the declaration is rendered as a heading, so the summary would end up as a followup heading, and quotation or something else doesn't make sense. If feasible, to implement, otherwise, just forget about it. Or maybe it's already checked as the doc comment should start with just text? IDK
 // ===
 
 === Missing summary terminal punctuation
