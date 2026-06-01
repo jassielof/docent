@@ -11,6 +11,7 @@ pub fn build(b: *std.Build) void {
     const fangz_mod = b.dependency("fangz", .{}).module("fangz");
     const vereda_mod = b.dependency("vereda", .{}).module("vereda");
     const carnaval_mod = b.dependency("carnaval", .{}).module("carnaval");
+    const toml_mod = b.dependency("toml", .{}).module("toml");
 
     const mod = b.addModule(
         mod_name,
@@ -19,14 +20,9 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{
-                    .name = "carnaval",
-                    .module = carnaval_mod,
-                },
-                .{
-                    .name = "vereda",
-                    .module = vereda_mod,
-                },
+                .{ .name = "carnaval", .module = carnaval_mod },
+                .{ .name = "vereda", .module = vereda_mod },
+                .{ .name = "toml", .module = toml_mod },
             },
         },
     );
@@ -46,6 +42,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = mod_name, .module = mod },
             .{ .name = "fangz", .module = fangz_mod },
             .{ .name = "carnaval", .module = carnaval_mod },
+            .{ .name = "toml", .module = toml_mod },
         },
     });
 
