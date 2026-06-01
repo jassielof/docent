@@ -1,82 +1,220 @@
 # yaml-language-server: $schema=https://json-schema.org/draft-07/schema#
-$schema: "https://json-schema.org/draft-07/schema#"
+$schema: "http://json-schema.org/draft-07/schema#"
 $id: "https://jassielof.github.io/docent/schemas/docent.schema.json"
-title: Docent Configuration Schema
-description: Configuration schema for Docent, a code-quality linter for Zig.
-type: object
+title: "Docent Configuration Schema"
+description: "Categorized configuration schema for the Docent Zig documentation linter."
+type: "object"
 additionalProperties: false
 properties:
-  rules:
-    type: "object"
-    description: "Per-rule severity configuration. Overrides default levels."
-    additionalProperties: false
-    properties:
-      missing_doc_comment:
-        $ref: "#/definitions/severity"
-        description: "Public API items, module roots, and exposed source files should have doc comments. (Default: warn)"
-      missing_doctest:
-        $ref: "#/definitions/severity"
-        description: "Public functions may include runnable examples. (Default: allow)"
-      private_doctest:
-        $ref: "#/definitions/severity"
-        description: "Private declarations should not carry identifier-style doctests. (Default: warn)"
-      blank_doc_comment:
-        $ref: "#/definitions/severity"
-        description: "Doc comments should contain useful text (not blank or whitespace-only). (Default: warn)"
-      missing_summary_terminal_punctuation:
-        $ref: "#/definitions/severity"
-        description: "The first paragraph of a doc comment should end with '.', '!', or '?'. (Default: warn)"
-      trailing_blank_doc_comment:
-        $ref: "#/definitions/severity"
-        description: "Doc comments should not end with blank lines. (Default: warn)"
-      doctest_naming_mismatch:
-        $ref: "#/definitions/severity"
-        description: "Doctest names should match the declaration they document. (Default: warn)"
-      invalid_leading_phrase:
-        $ref: "#/definitions/severity"
-        description: "Doc comment summaries should begin with a leading phrase naming the documented identifier. (Default: warn)"
-      cognitive_complexity:
-        $ref: "#/definitions/severity"
-        description: "Functions should stay below the cognitive complexity threshold. Checked by the 'docent complexity' sub-command. (Default: warn)"
-      identifier_case:
-        $ref: "#/definitions/severity"
-        description: "Identifiers should follow the Zig naming-case conventions. Checked by the 'docent style' sub-command. (Default: warn)"
-  complexity:
-    type: "object"
-    description: "Threshold configurations for complexity sub-command rules."
-    additionalProperties: false
-    properties:
-      cyclomatic_threshold:
-        type: "integer"
-        minimum: 1
-        default: 10
-        description: "Maximum allowed cyclomatic complexity score per function before flagging. (Default: 10)"
-      cognitive_threshold:
-        type: "integer"
-        minimum: 0
-        default: 15
-        description: "Maximum allowed cognitive complexity score per function before flagging. (Default: 15)"
-      max_fun_params_threshold:
-        type: "integer"
-        minimum: 1
-        default: 7
-        description: "Maximum allowed function parameter count before flagging. (Default: 7)"
   docs:
     type: "object"
-    description: "Options for documentation rules."
+    description: "Documentation comment validation rules."
     additionalProperties: false
     properties:
-      require_function_param_docs:
-        type: "boolean"
-        default: false
-        description: "When true, missing_doc_comment also requires doc comments on named function parameters. (Default: false)"
+      scan_mode:
+        $ref: "#/definitions/scan_mode"
+        description: "Whether to enforce doc rules on public declarations only, or all declarations. Default: public."
+        default: "public"
+      missing_doc_comment:
+        $ref: "#/definitions/rule_missing_doc_comment"
+        description: "API items, module roots, and exposed source files should have doc comments."
+      blank_doc_comment:
+        $ref: "#/definitions/rule_simple"
+        description: "Doc comments should contain useful text, not be blank or whitespace-only."
+      trailing_blank_doc_comment:
+        $ref: "#/definitions/rule_simple"
+        description: "Doc comments should not end with trailing blank lines."
+      missing_summary_terminal_punctuation:
+        $ref: "#/definitions/rule_missing_summary_terminal_punctuation"
+        description: "The first paragraph of a doc comment should end with terminal punctuation."
+      missing_doctest:
+        $ref: "#/definitions/rule_simple"
+        description: "Functions may include runnable doc examples."
+      private_doctest:
+        $ref: "#/definitions/rule_simple"
+        description: "Private declarations should not carry identifier-style doctests."
+      doctest_naming_mismatch:
+        $ref: "#/definitions/rule_simple"
+        description: "Doctest names should match the declaration they document."
+      invalid_leading_phrase:
+        $ref: "#/definitions/rule_invalid_leading_phrase"
+        description: "Doc comment summaries should begin with a phrase naming the documented identifier."
+
+  style:
+    type: "object"
+    description: "Naming conventions and file layout rules."
+    additionalProperties: false
+    properties:
+      scan_mode:
+        $ref: "#/definitions/scan_mode"
+        description: "Whether to enforce style rules on all declarations or public only. Default: all."
+        default: "all"
+      identifier_case:
+        $ref: "#/definitions/rule_identifier_case"
+        description: "Identifiers should follow casing conventions."
+      loc_column_length:
+        $ref: "#/definitions/rule_loc_column_length"
+        description: "Physical line columns must stay within length limits."
+
+  complexity:
+    type: "object"
+    description: "Threshold-based complexity rules."
+    additionalProperties: false
+    properties:
+      scan_mode:
+        $ref: "#/definitions/scan_mode"
+        description: "Whether to enforce complexity rules on all declarations or public only. Default: all."
+        default: "all"
+      cognitive_complexity:
+        $ref: "#/definitions/rule_threshold"
+        description: "Functions should stay below the cognitive complexity threshold."
+      cyclomatic_complexity:
+        $ref: "#/definitions/rule_threshold"
+        description: "Functions should stay below the cyclomatic complexity threshold."
+      max_function_parameters:
+        $ref: "#/definitions/rule_threshold"
+        description: "Functions should not exceed the parameter count threshold."
 
 definitions:
   severity:
     type: "string"
-    enum:
-      - allow
-      - warn
-      - deny
-      - forbid
-    description: "Effective severity level of a rule. Later overrides win unless already set to forbid."
+    enum: ["allow", "warn", "deny", "forbid"]
+    description: "Effective severity level of a rule."
+
+  scan_mode:
+    type: "string"
+    enum: ["public", "all"]
+    description: "public = only publicly visible declarations; all = includes private and internal declarations."
+
+  # --- Rule base shapes ---
+
+  rule_simple:
+    description: "A rule with no options beyond severity."
+    oneOf:
+      - $ref: "#/definitions/severity"
+      - type: "object"
+        additionalProperties: false
+        required: ["level"]
+        properties:
+          level:
+            $ref: "#/definitions/severity"
+
+  rule_threshold:
+    description: "A rule with a single numeric threshold option. Shared by cognitive_complexity, cyclomatic_complexity, and max_function_parameters."
+    oneOf:
+      - $ref: "#/definitions/severity"
+      - type: "object"
+        additionalProperties: false
+        required: ["level"]
+        properties:
+          level:
+            $ref: "#/definitions/severity"
+          threshold:
+            type: "integer"
+            minimum: 1
+            description: "Maximum value before the rule triggers."
+
+  # --- Rule-specific shapes ---
+
+  rule_missing_doc_comment:
+    oneOf:
+      - $ref: "#/definitions/severity"
+      - type: "object"
+        additionalProperties: false
+        required: ["level"]
+        properties:
+          level:
+            $ref: "#/definitions/severity"
+          check_parameters:
+            type: "boolean"
+            default: false
+            description: "Also enforce documentation on function parameters."
+
+  rule_missing_summary_terminal_punctuation:
+    oneOf:
+      - $ref: "#/definitions/severity"
+      - type: "object"
+        additionalProperties: false
+        required: ["level"]
+        properties:
+          level:
+            $ref: "#/definitions/severity"
+          scope:
+            type: "string"
+            enum: ["summary", "all"]
+            default: "summary"
+            description: "Check only the first paragraph (summary) or all paragraphs."
+          accepted_marks:
+            type: "array"
+            items:
+              type: "string"
+              maxLength: 1
+            default: [".", "!", "?"]
+            description: "Punctuation characters accepted as terminal marks."
+
+  rule_invalid_leading_phrase:
+    oneOf:
+      - $ref: "#/definitions/severity"
+      - type: "object"
+        additionalProperties: false
+        required: ["level"]
+        properties:
+          level:
+            $ref: "#/definitions/severity"
+          mode:
+            type: "string"
+            enum: ["relaxed", "canonical", "strict"]
+            default: "canonical"
+            description: "Strictness of leading phrase validation."
+          require_article:
+            type: "boolean"
+            default: false
+            description: "Require an English article (a, an, the) before the identifier name."
+          require_backticks:
+            type: "boolean"
+            default: false
+            description: "Require the identifier to be wrapped in backticks."
+
+  rule_identifier_case:
+    oneOf:
+      - $ref: "#/definitions/severity"
+      - type: "object"
+        additionalProperties: false
+        required: ["level"]
+        # TODO: add the rest of declaration types, as well as define the enum set to avoid duplication
+        properties:
+          level:
+            $ref: "#/definitions/severity"
+          namespaces:
+            type: "string"
+            enum: ["snake_case", "camelCase", "PascalCase"]
+            default: "snake_case"
+          functions:
+            type: "string"
+            enum: ["snake_case", "camelCase", "PascalCase"]
+            default: "camelCase"
+          types:
+            type: "string"
+            enum: ["snake_case", "camelCase", "PascalCase"]
+            default: "PascalCase"
+            description: "Structs, enums, unions, error sets."
+          constants:
+            type: "string"
+            enum: ["snake_case", "camelCase", "PascalCase"]
+            default: "snake_case"
+            description: "Global constants and comptime values."
+
+  rule_loc_column_length:
+    oneOf:
+      - $ref: "#/definitions/severity"
+      - type: "object"
+        additionalProperties: false
+        required: ["level"]
+        properties:
+          level:
+            $ref: "#/definitions/severity"
+          max_length:
+            type: "integer"
+            minimum: 1
+            default: 100
+            description: "Maximum character column width per line."
