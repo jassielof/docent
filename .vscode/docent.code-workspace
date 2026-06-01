@@ -16,6 +16,10 @@
       "name": "Carnaval",
       "path": "../modules/carnaval",
     },
+    {
+      "path": "../modules/toml",
+      "name": "TOML",
+    },
   ],
   "settings": {
     "git.repositoryScanIgnoredFolders": ["references"],

@@ -152,6 +152,7 @@ fn kindPhrases(kind: Diagnostic.SubjectKind) []const KindPhrase {
         .module => &.{ &.{"module"}, &.{"library"} },
         .source_file => &.{ &.{"module"}, &.{"namespace"}, &.{"file"} },
         .function => &.{&.{"function"}},
+        .parameter => &.{ &.{"parameter"}, &.{"argument"} },
         .error_set => &.{ &.{ "error", "set" }, &.{"set"} },
         .enumeration => &.{ &.{"enum"}, &.{"enumeration"} },
         .constant => &.{ &.{"constant"}, &.{"struct"}, &.{"structure"}, &.{"union"}, &.{"type"} },

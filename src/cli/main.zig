@@ -160,6 +160,11 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
         std.process.exit(1);
     };
 
+    const docs_options = docent.config.loadDocsOptionsFromCli(allocator, io, args.config_path) catch |err| {
+        try printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+        std.process.exit(1);
+    };
+
     var plan = docent.status_plan.gather(allocator, io, .{
         .lib = args.lib,
         .bins = args.bins,
@@ -223,7 +228,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
                 const gptr = try linted_files.getOrPut(path);
                 if (gptr.found_existing) continue;
 
-                if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots_owned, &all_diagnostics, &summary, args.fail_fast)) {
+                if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, args.fail_fast)) {
                     should_stop = true;
                     break;
                 }
@@ -237,7 +242,7 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
 
-            if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots_owned, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try lintSingleFile(allocator, io, path, rule_set, lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
                 break;
             }
@@ -308,11 +313,12 @@ fn lintSingleFile(
     rule_set: docent.RuleSet,
     lint_options: docent.LintOptions,
     library_entry_roots: []const []const u8,
+    docs_options: docent.DocsOptions,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     fail_fast: FailFast,
 ) !bool {
-    var result = docent.lintFile(allocator, io, path, rule_set, lint_options, library_entry_roots) catch |err| {
+    var result = docent.lintFile(allocator, io, path, rule_set, lint_options, library_entry_roots, docs_options) catch |err| {
         try printStderr(io, "error: failed to lint '{s}': {}\n", .{ path, err });
         return false;
     };

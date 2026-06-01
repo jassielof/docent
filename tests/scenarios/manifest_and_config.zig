@@ -52,6 +52,17 @@ test "manifest loadPackageMeta reads name and version" {
     try std.testing.expect(std.mem.indexOf(u8, meta.project_root, "manifest_with_deps") != null);
 }
 
+test "config loadDocsOptions reads docs block from docent.json" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    const config_path = try fixtureConfigPath(allocator, io);
+    defer allocator.free(config_path);
+
+    const docs_options = try docent.config.loadDocsOptions(allocator, io, config_path);
+    try std.testing.expect(!docs_options.require_function_param_docs);
+}
+
 test "config loadRuleSet reads rules from docent.json" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;

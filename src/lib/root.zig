@@ -20,6 +20,7 @@ pub const status_plan = @import("status_plan.zig");
 pub const build_scan = @import("build_scan.zig");
 pub const LintOptions = @import("LintOptions.zig");
 pub const ComplexityOptions = @import("ComplexityOptions.zig");
+pub const DocsOptions = @import("DocsOptions.zig");
 pub const rules = @import("rules.zig");
 
 /// Returns whether the file-level `//!` check applies to `path`.
@@ -82,6 +83,7 @@ pub fn lintSource(
     file: []const u8,
     options: LintOptions,
     library_entry_roots: []const []const u8,
+    docs_options: DocsOptions,
 ) !LintResult {
     var tree = try std.zig.Ast.parse(allocator, source, .zig);
     defer tree.deinit(allocator);
@@ -101,6 +103,7 @@ pub fn lintSource(
         require_module_doc,
         options.module_name,
         options.public_api_only,
+        docs_options.require_function_param_docs,
         allocator,
         io,
         msg,
@@ -279,6 +282,7 @@ pub fn lintFile(
     rule_set: RuleSet,
     options: LintOptions,
     library_entry_roots: []const []const u8,
+    docs_options: DocsOptions,
 ) !LintResult {
     const source = try std.Io.Dir.cwd().readFileAllocOptions(
         io,
@@ -290,7 +294,7 @@ pub fn lintFile(
     );
     defer allocator.free(source);
 
-    return lintSource(allocator, io, source, rule_set, path, options, library_entry_roots);
+    return lintSource(allocator, io, source, rule_set, path, options, library_entry_roots, docs_options);
 }
 
 comptime {

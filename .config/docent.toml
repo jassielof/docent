@@ -1,3 +1,18 @@
 #:schema ../schemas/docent.schema.json
 
+[rules]
+missing_doc_comment = "warn"
+missing_doctest = "allow"
+private_doctest = "warn"
+blank_doc_comment = "warn"
+missing_summary_terminal_punctuation = "warn"
+trailing_blank_doc_comment = "warn"
+doctest_naming_mismatch = "warn"
+invalid_leading_phrase = "warn"
+cognitive_complexity = "warn"
+identifier_case = "warn"
 
+[complexity]
+cognitive_threshold = 15
+cyclomatic_threshold = 10
+max_fun_params_threshold = 7

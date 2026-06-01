@@ -23,14 +23,16 @@ By default, these rules will be enforced across the public API surface. One can 
 Warns on missing doc comments on public declarations. Including, but not limited to:
 
 * {zig-docs}#Functions[Functions and its parameters]
-// TODO: Add a check for function parameters being undocumented, this case should be disabled by default (or "allowed"), since it's usually bothersome to document, and parameters should mostly be self-explanatory, but some users might want to enforce it, in that case, the missing doc comment rule should allow for this option to be enabled, and when enabled, it should check for parameters without doc comments.
-** Parameters aren't checked,
+** Parameters are not checked by default. Enable `docs.require_function_param_docs` in project config to require `///` on each named parameter of checked functions.
 * {zig-docs}#Variables[Global variables]
 * {zig-docs}#enum[Enumerations and its fields]
 * {zig-docs}#struct[Structures and its fields]
 * {zig-docs}#union[Unions and its fields]
 * {zig-docs}#Errors[Error sets]
 ** Error set fields aren’t checked since Zig documentation generator doesn’t support them.
+
+.Options
+* Function parameters are optional to document by default. Set `docs.require_function_param_docs` to `true` in project config to require `///` on each named parameter of functions that are already checked by this rule.
 
 ==== Re-exported declarations
 
@@ -314,6 +316,9 @@ When no config file is found, or a rule is omitted, Docent uses the `RuleSet` de
   "complexity": {
     "cognitive_threshold": 15,
     "max_fun_params_threshold": 7
+  },
+  "docs": {
+    "require_function_param_docs": false
   }
 }
 ----
@@ -322,6 +327,8 @@ When no config file is found, or a rule is omitted, Docent uses the `RuleSet` de
 Severity values are `allow`, `warn`, `deny`, and `forbid`. A `forbid` level cannot be relaxed by a later entry in the same file.
 
 The `complexity` block holds the numeric options for the complexity sub-command rules (for example `cognitive_threshold`, `max_fun_params_threshold`). Omitted options fall back to the library defaults.
+
+The `docs` block holds options for documentation rules. Set `require_function_param_docs` to `true` to make `missing_doc_comment` also require `///` on each named function parameter (disabled by default).
 
 .Options:
 * You can specify a custom path for the configuration file with `--config-path PATH` on `docent`, `docent status`, `docent complexity`, and `docent style`.

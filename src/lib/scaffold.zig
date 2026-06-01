@@ -56,6 +56,8 @@ pub const LintStep = struct {
         else
             try docent.config.loadNearestRuleSet(allocator, io);
 
+        const docs_options = docent.config.loadDocsOptionsFromCli(allocator, io, null) catch return error.MakeFailed;
+
         var manifest_sources: std.ArrayList([]const u8) = .empty;
         defer if (manifest_sources.items.len > 0) docent.manifest.deinitOwnedPaths(allocator, &manifest_sources);
 
@@ -99,7 +101,7 @@ pub const LintStep = struct {
         for (sources) |source_path| {
             const stat = std.Io.Dir.cwd().statFile(io, source_path, .{}) catch |err| {
                 if (err == error.IsDir) {
-                    try lintDirectory(rule_set, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
+                    try lintDirectory(rule_set, docs_options, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
                     continue;
                 }
                 step.result_error_msgs.append(
@@ -110,10 +112,10 @@ pub const LintStep = struct {
             };
 
             if (stat.kind == .directory) {
-                try lintDirectory(rule_set, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
+                try lintDirectory(rule_set, docs_options, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
             } else {
                 if (docent.targeting.shouldSkipLintFile(source_path, targeting)) continue;
-                try lintSingleFile(rule_set, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
+                try lintSingleFile(rule_set, docs_options, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
             }
         }
 
@@ -129,6 +131,7 @@ pub const LintStep = struct {
 
 fn lintDirectory(
     rule_set: docent.RuleSet,
+    docs_options: docent.DocsOptions,
     targeting: docent.targeting.Options,
     output: OutputOptions,
     allocator: std.mem.Allocator,
@@ -155,12 +158,13 @@ fn lintDirectory(
     defer docent.targeting.deinitOwnedPaths(allocator, &targets);
 
     for (targets.items) |full_path| {
-        try lintSingleFile(rule_set, output, allocator, io, full_path, step, summary, total_files, path_display_root, library_entry_roots);
+        try lintSingleFile(rule_set, docs_options, output, allocator, io, full_path, step, summary, total_files, path_display_root, library_entry_roots);
     }
 }
 
 fn lintSingleFile(
     rule_set: docent.RuleSet,
+    docs_options: docent.DocsOptions,
     output: OutputOptions,
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -171,7 +175,7 @@ fn lintSingleFile(
     path_display_root: ?[]const u8,
     library_entry_roots: []const []const u8,
 ) !void {
-    var result = docent.lintFile(allocator, io, path, rule_set, .{}, library_entry_roots) catch |err| {
+    var result = docent.lintFile(allocator, io, path, rule_set, .{}, library_entry_roots, docs_options) catch |err| {
         step.result_error_msgs.append(
             allocator,
             std.fmt.allocPrint(allocator, "failed to lint '{s}': {}", .{ path, err }) catch @panic("OOM"),
