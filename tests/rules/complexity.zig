@@ -1,5 +1,3 @@
-// TODO: tests/rules/complexity/<rule_id>.zig — cyclomatic, cognitive, max_fun_params, …
-
 const std = @import("std");
 const refAllDecls = std.testing.refAllDecls;
 
