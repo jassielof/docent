@@ -12,7 +12,7 @@ pub fn register(root: *fangz.Command) !void {
     const style_cmd = try root.addSubcommand(.{
         .name = "style",
         .brief = "Report identifiers that don't follow the naming-case conventions",
-        .description = "Check that every identifier (public and private) in the import-closure reachable from the project's module roots follows the Zig naming-case conventions (snake_case, camelCase, PascalCase). Discovery starts at the public API surface and follows every local @import, including private ones; within each file no visibility filter is applied. Severities are set in project config (.config/docent.json). Exits non-zero when a denied rule reports a finding.",
+        .description = "Check that every identifier (public and private) in the import-closure reachable from the project's module roots follows the Zig naming-case conventions (snake_case, camelCase, PascalCase). Discovery starts at the public API surface and follows every local @import, including private ones; within each file no visibility filter is applied. Severities are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
     });
 
     try style_cmd.addPositional(.{
@@ -89,6 +89,11 @@ fn run(ctx: *fangz.ParseContext) !void {
         std.process.exit(1);
     };
 
+    const style_public_api_only = docent.config.loadStylePublicApiOnlyFromCli(allocator, io, args.config_path) catch |err| {
+        try printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+        std.process.exit(1);
+    };
+
     var plan = docent.status_plan.gather(allocator, io, .{
         .lib = args.lib,
         .bins = args.bins,
@@ -108,7 +113,10 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     // Style checks every declaration (public and private). File reachability still starts from the
     // module roots and follows the public API surface, but within each file no visibility filter is applied.
-    const lint_options: docent.LintOptions = .{ .module_name = plan.package.name, .public_api_only = false };
+    const lint_options: docent.LintOptions = .{
+        .module_name = plan.package.name,
+        .public_api_only = style_public_api_only,
+    };
 
     var summary: docent.output.Summary = .{};
     var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;

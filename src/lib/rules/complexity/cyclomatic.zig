@@ -149,8 +149,6 @@ fn nodeIncrement(tree: *const Ast, node: Ast.Node.Index) u32 {
     }
 }
 
-// --- Tests ---
-
 fn complexityOfFirstFn(source: [:0]const u8) !u32 {
     const allocator = std.testing.allocator;
     var tree = try std.zig.Ast.parse(allocator, source, .zig);

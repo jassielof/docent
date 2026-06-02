@@ -9,7 +9,7 @@ pub const LintStep = struct {
     step: std.Build.Step,
     /// Explicit sources; empty means load `.paths` from the nearest manifest at run time.
     sources: []const []const u8,
-    /// When set, overrides `.config/docent.json` and defaults.
+    /// When set, overrides `.config/docent.toml` and defaults.
     rules_override: ?docent.RuleSet,
     /// Target filters (library vs binaries vs tests, dependency roots, etc.).
     targeting: docent.targeting.Options,
@@ -206,7 +206,7 @@ fn lintSingleFile(
 pub const Options = struct {
     /// Lint roots; when null, uses `.paths` from the nearest `build.zig.zon`.
     sources: ?[]const []const u8 = null,
-    /// When null, uses `.config/docent.json` or `RuleSet` defaults.
+    /// When null, uses `.config/docent.toml` or `RuleSet` defaults.
     rules: ?docent.RuleSet = null,
     /// Full targeting options; when null, the other options are used.
     targeting: ?docent.targeting.Options = null,

@@ -4,8 +4,8 @@ const fangz = @import("fangz");
 pub fn registerConfigPath(cmd: *fangz.Command) !void {
     try cmd.addFlag(?[]const u8, .{
         .name = "config-path",
-        .brief = "Path to docent.json",
-        .description = "When omitted, Docent searches upward from the working directory for `.config/docent.json`.",
+        .brief = "Path to docent.toml",
+        .description = "When omitted, Docent searches upward from the working directory for `.config/docent.toml`.",
         .value_hint = "PATH",
     });
 }

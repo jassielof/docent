@@ -5,6 +5,7 @@ const docent = @import("docent");
 const fangz = @import("fangz");
 
 const status_command = @import("commands/status.zig");
+const init_command = @import("commands/init.zig");
 const complexity_command = @import("commands/complexity.zig");
 const style_command = @import("commands/style.zig");
 const cli_flags = @import("flags.zig");
@@ -15,6 +16,7 @@ pub const registerConfigPathFlag = @import("flags.zig").registerConfigPath;
 
 pub const app_examples: []const fangz.Command.CliExample = &.{
     .{ .description = "", .command = "docent src" },
+    .{ .description = "", .command = "docent init" },
     .{ .description = "", .command = "docent status" },
     .{ .description = "", .command = "docent complexity" },
     .{ .description = "", .command = "docent style" },
@@ -127,6 +129,7 @@ pub fn main(init: std.process.Init) !void {
     root.examples = app_examples;
 
     try status_command.register(root);
+    try init_command.register(root);
     try complexity_command.register(root);
     try style_command.register(root);
 
@@ -161,6 +164,11 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     };
 
     const docs_options = docent.config.loadDocsOptionsFromCli(allocator, io, args.config_path) catch |err| {
+        try printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+        std.process.exit(1);
+    };
+
+    const docs_public_api_only = docent.config.loadDocsPublicApiOnlyFromCli(allocator, io, args.config_path) catch |err| {
         try printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -209,11 +217,11 @@ fn runLint(ctx: *fangz.ParseContext) anyerror!void {
     const lint_options: docent.LintOptions = switch (plan.path_mode) {
         .project => .{
             .module_name = plan.package.name,
-            .public_api_only = true,
+            .public_api_only = docs_public_api_only,
         },
         .module_root => .{
             .module_name = plan.package.name,
-            .public_api_only = true,
+            .public_api_only = docs_public_api_only,
         },
         .recursive => .{
             .public_api_only = false,
