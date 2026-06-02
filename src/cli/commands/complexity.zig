@@ -12,7 +12,7 @@ pub fn register(root: *fangz.Command) !void {
     const complexity_cmd = try root.addSubcommand(.{
         .name = "complexity",
         .brief = "Report functions that exceed complexity thresholds",
-        .description = "Measure the cognitive complexity of every function (public and private) reachable from the project's module roots and report those that exceed the configured threshold. Thresholds are set in project config (.config/docent.json). Exits non-zero when a denied rule reports a finding.",
+        .description = "Measure the cognitive complexity of every function (public and private) reachable from the project's module roots and report those that exceed the configured threshold. Thresholds are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
     });
 
     try complexity_cmd.addPositional(.{
@@ -94,6 +94,11 @@ fn run(ctx: *fangz.ParseContext) !void {
         std.process.exit(1);
     };
 
+    const complexity_public_api_only = docent.config.loadComplexityPublicApiOnlyFromCli(allocator, io, args.config_path) catch |err| {
+        try printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+        std.process.exit(1);
+    };
+
     var plan = docent.status_plan.gather(allocator, io, .{
         .lib = args.lib,
         .bins = args.bins,
@@ -114,7 +119,10 @@ fn run(ctx: *fangz.ParseContext) !void {
     // Complexity checks measure every declaration (public and private). File reachability still starts
     // from the module roots and follows the public API surface, but within each file no visibility
     // filter is applied.
-    const lint_options: docent.LintOptions = .{ .module_name = plan.package.name, .public_api_only = false };
+    const lint_options: docent.LintOptions = .{
+        .module_name = plan.package.name,
+        .public_api_only = complexity_public_api_only,
+    };
 
     var summary: docent.output.Summary = .{};
     var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;

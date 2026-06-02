@@ -1,4 +1,4 @@
-//! Scenario: build.zig.zon integration, docent.json config, status plan, and build script scan.
+//! Scenario: build.zig.zon integration, docent.toml config, status plan, and build script scan.
 
 const std = @import("std");
 const docent = @import("docent");
@@ -14,7 +14,7 @@ fn fixtureManifestPath(allocator: std.mem.Allocator, io: std.Io) ![]const u8 {
 
 fn fixtureConfigPath(allocator: std.mem.Allocator, io: std.Io) ![]const u8 {
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const rel = "tests/fixtures/scenarios/manifest_with_deps/.config/docent.json";
+    const rel = "tests/fixtures/scenarios/manifest_with_deps/.config/docent.toml";
     const len = try std.Io.Dir.cwd().realPathFile(io, rel, &buf);
     return allocator.dupe(u8, buf[0..len]);
 }
@@ -52,7 +52,7 @@ test "manifest loadPackageMeta reads name and version" {
     try std.testing.expect(std.mem.indexOf(u8, meta.project_root, "manifest_with_deps") != null);
 }
 
-test "config loadDocsOptions reads docs block from docent.json" {
+test "config loadDocsOptions reads docs block from docent.toml" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
@@ -63,7 +63,7 @@ test "config loadDocsOptions reads docs block from docent.json" {
     try std.testing.expect(!docs_options.require_function_param_docs);
 }
 
-test "config loadRuleSet reads rules from docent.json" {
+test "config loadRuleSet reads rules from docent.toml" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
@@ -90,16 +90,16 @@ test "config explicit config-path loads rules" {
 test "config explicit config-path errors when file is missing" {
     try std.testing.expectError(
         error.ConfigNotFound,
-        docent.config.loadRuleSetFromCli(std.testing.allocator, std.testing.io, "tests/fixtures/no_such_docent.json"),
+        docent.config.loadRuleSetFromCli(std.testing.allocator, std.testing.io, "tests/fixtures/no_such_docent.toml"),
     );
 }
 
-test "config empty rules object uses RuleSet defaults" {
+test "config empty file uses RuleSet defaults" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const rel = "tests/fixtures/scenarios/config_defaults/.config/docent.json";
+    const rel = "tests/fixtures/scenarios/config_defaults/.config/docent.toml";
     const len = try std.Io.Dir.cwd().realPathFile(io, rel, &buf);
     const config_path = try allocator.dupe(u8, buf[0..len]);
     defer allocator.free(config_path);
