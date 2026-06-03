@@ -147,7 +147,6 @@ endif::env-github[]
 [bibliography]
 == References
 
-// TODO: Zig docs seem to support intra links by only wrapping on backticks (e.g. `/// This is a doc comment with an intra link to the `foo` function`), as it's linked in the generated docs, but I can't find a reference of it anywhere. So, this gives the possibility to index every single declaration to later do a broken intra links lint rule, which would be hard. But at the same time useful for checks like unused code. The only reference to doc syntax is by looking at the source code of the parser at https://codeberg.org/ziglang/zig/src/commit/b86841244421da7001a070e9515e57223f695674/lib/docs/wasm/markdown.zig, and there's an open issue on documenting its syntax https://github.com/ziglang/zig/issues/19866.
 * [[[doctests]]] Doctests in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Doctests
 * [[[mccabe-guidance]]] NIST/McCabe guidance (_Structured Testing: A Testing Methodology Using the Cyclomatic Complexity Metric_):
 ** Section 2.5: _Limiting cyclomatic complexity to 10_.

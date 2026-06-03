@@ -26,19 +26,19 @@ doctest_naming_mismatch: severity.Level = .warn,
 invalid_leading_phrase: severity.Level = .warn,
 /// Flags functions whose cognitive complexity exceeds the configured threshold (default 15).
 ///
-/// Measured by the `docent complexity` sub-command following the Sonar specification; not part of the default lint run.
+/// Measured by `docent check complexity` following the Sonar specification.
 cognitive_complexity: severity.Level = .warn,
 /// Flags functions whose cyclomatic complexity exceeds the configured threshold (default 10).
 ///
-/// Measured by the `docent complexity` sub-command following the McCabe definition; not part of the default lint run.
+/// Measured by `docent check complexity` following the McCabe definition.
 cyclomatic_complexity: severity.Level = .allow,
 /// Flags functions with more parameters than the configured limit (default 7).
 ///
-/// Measured by the `docent complexity` sub-command; not part of the default lint run.
+/// Measured by `docent check complexity`.
 max_fun_params: severity.Level = .warn,
 /// Flags identifiers that don't follow the Zig naming-case conventions.
 ///
-/// Reported by the `docent style` sub-command rather than the default lint run.
+/// Reported by `docent check style`.
 identifier_case: severity.Level = .warn,
 
 /// Comptime-computed array of all rule field names in declaration order.
