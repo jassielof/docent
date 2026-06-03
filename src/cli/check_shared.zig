@@ -2,6 +2,7 @@
 
 const std = @import("std");
 
+const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
@@ -164,32 +165,73 @@ pub fn appendDiagnosticCounts(
     }
 }
 
-pub fn printCategorizedSummary(io: std.Io, rows: []const RuleCountRow) !void {
+fn stderrColorProfile(io: std.Io) carnaval.ColorProfile {
+    const tty_config = std.Io.Terminal.Mode.detect(io, std.Io.File.stderr(), false, false) catch .no_color;
+    const detected = carnaval.colorProfileForHandle(std.Io.File.stderr().handle);
+    if (tty_config == .no_color) return .none;
+    return if (detected == .none) .ansi16 else detected;
+}
+
+fn formatSummaryLine(
+    allocator: std.mem.Allocator,
+    row: RuleCountRow,
+    profile: carnaval.ColorProfile,
+) ![]const u8 {
+    var aw = std.Io.Writer.Allocating.init(allocator);
+    errdefer aw.deinit();
+
+    var count_buf: [32]u8 = undefined;
+    const count_text = try std.fmt.bufPrint(&count_buf, "{d}", .{row.count});
+    try carnaval.Style.init().bolded().renderWithProfile(count_text, &aw.writer, profile);
+    try aw.writer.writeAll(" ");
+    try docent.output.writeSeverityRuleTag(&aw.writer, row.severity, row.rule, profile);
+
+    return aw.toOwnedSlice();
+}
+
+fn printCategoryHeading(writer: *std.Io.Writer, profile: carnaval.ColorProfile, title: []const u8) !void {
+    try carnaval.Style.init().bolded().renderWithProfile(title, writer, profile);
+    try writer.writeAll("\n");
+}
+
+pub fn printCategorizedSummary(allocator: std.mem.Allocator, io: std.Io, rows: []const RuleCountRow) !void {
+    const profile = stderrColorProfile(io);
     const categories = [_]RuleCategory{ .docs, .style, .complexity };
+
+    var buf: [8192]u8 = undefined;
+    var stderr = std.Io.File.stderr().writer(io, &buf);
+    const writer = &stderr.interface;
+
     var any_category = false;
 
     for (categories) |category| {
-        var category_has_rows = false;
-        var buf: [4096]u8 = undefined;
-        var stderr = std.Io.File.stderr().writer(io, &buf);
+        var lines: std.ArrayList([]const u8) = .empty;
+        defer {
+            for (lines.items) |line| allocator.free(line);
+            lines.deinit(allocator);
+        }
 
         for (rows) |row| {
             if (row.category != category) continue;
-            if (!category_has_rows) {
-                if (any_category) try stderr.interface.print("\n", .{});
-                try stderr.interface.print("{s}:\n", .{category.heading()});
-                category_has_rows = true;
-                any_category = true;
-            }
-            try stderr.interface.print(
-                "- {d} {s} [{s}]\n",
-                .{ row.count, @tagName(row.severity), row.rule },
-            );
+            try lines.append(allocator, try formatSummaryLine(allocator, row, profile));
         }
-        try stderr.interface.flush();
+
+        if (lines.items.len == 0) continue;
+
+        if (any_category) try writer.writeAll("\n");
+        try printCategoryHeading(writer, profile, category.heading());
+        try carnaval.renderList(lines.items, writer, .{
+            .style = .bullet,
+            .indent = "  ",
+            .color_profile = profile,
+        });
+        try writer.writeAll("\n");
+        any_category = true;
     }
 
     if (!any_category) {
-        try printStderr(io, "No issues found.\n", .{});
+        try carnaval.Style.init().dimmed().renderWithProfile("No issues found.\n", writer, profile);
     }
+
+    try writer.flush();
 }
