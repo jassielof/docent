@@ -127,6 +127,8 @@ pub fn build(b: *std.Build) void {
 
     const docs_lint = b.addRunArtifact(cli);
     docs_lint.addArgs(&.{
+        "check",
+        "docs",
         "--format",
         "minimal",
         "--fail-fast",

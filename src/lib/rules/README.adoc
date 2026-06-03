@@ -4,7 +4,7 @@ Several rules are inspired by established Go documentation conventions, particul
 
 Rust's Rustdoc and Clippy also informed specific rules here, though their documentation linting tends to focus narrower: missing docs and broken intra-links, etc.. Both ecosystems influenced Docent's rule design.
 
-While default rules focus on documentation comments, style and complexity rules are also available as explicit sub-commands. The reasoning is mostly separation of concerns, as well as keeping consistency with other ecosystem's tooling.
+Documentation, style, and complexity rules are run through `docent check` and its category subcommands (`docent check docs`, `docent check style`, `docent check complexity`). The reasoning is mostly separation of concerns, as well as keeping consistency with other ecosystem tooling.
 
 [NOTE]
 .Severity and examples
@@ -172,12 +172,17 @@ Last character:: Checks if the last character is a punctuation mark (e.g., perio
 
 Warns if doc comments have trailing blank lines.
 
-// Both style and complexity are yet in low priority, I'll want to first find a stable point with the doc linting to then pass to these style/complexity checks. Defaults should be defined here.
+=== Broken intra-doc links
+
+Warns on broken intra-doc links.
+
+NOTE: Given that Zig's doc comment support for Markdown is ambiguous and its specification is yet to be fully defined, this rule won't be implemented until it's clearer. While intra-doc links work by using backticks to reference items, this behavior isn't documented yet. See https://github.com/ziglang/zig/issues/19866.
+
 == Style
 
 === Identifier case
 
-Checks for consistent identifier naming case conventions, by default it follows the {zig-docs}#Names[Zig documentation style]. It is reported by the `docent style` sub-command rather than the default lint run. Like the complexity checks, it measures *every* identifier — both public and non-public. File discovery starts from the project's module roots on the public API surface, then follows a *reachability traversal* that includes every local `@import("…zig")` (including private imports such as `const Severity = @import("../../severity.zig");`); within each reached file no visibility filter is applied.
+Checks for consistent identifier naming case conventions, by default it follows the {zig-docs}#Names[Zig documentation style]. It is reported by `docent check style`. Like the complexity checks, it measures *every* identifier — both public and non-public. File discovery starts from the project's module roots on the public API surface, then follows a *reachability traversal* that includes every local `@import("…zig")` (including private imports such as `const Severity = @import("../../severity.zig");`); within each reached file no visibility filter is applied.
 
 Checks are:
 `snake_case`::
@@ -257,7 +262,7 @@ NOTE: Unlike tools like Lizard—which can be configured to treat an entire `swi
 
 === Cognitive Complexity
 
-Defaults to the Sonar-recommended threshold of 15. See <<sonar-reasoning>> and <<sonar-paper>>. A function is flagged when its score is *strictly greater* than the threshold. It is reported by the `docent complexity` sub-command rather than the default lint run.
+Defaults to the Sonar-recommended threshold of 15. See <<sonar-reasoning>> and <<sonar-paper>>. A function is flagged when its score is *strictly greater* than the threshold. It is reported by `docent check complexity`.
 
 Unlike the doc-comment rules, complexity checks measure *every* function — both public and non-public. File discovery still starts from the project's module roots and follows the public API surface, but within each reached file no visibility filter is applied.
 
@@ -289,7 +294,7 @@ Breaks in linear flow that are independent of nesting: each new sequence of bina
 
 The maximum number of parameters in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, writers, and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
 
-A function is flagged when its parameter count is *strictly greater* than the threshold. It is reported by the `docent complexity` sub-command rather than the default lint run. Like the other complexity checks, it measures *every* function in the import-closure reachable from the module roots.
+A function is flagged when its parameter count is *strictly greater* than the threshold. It is reported by `docent check complexity`. Like the other complexity checks, it measures *every* function in the import-closure reachable from the module roots.
 
 .Options
 * The threshold can be configured with whole numbers in project config under `complexity.max_fun_params_threshold`; it defaults to 7.
@@ -330,4 +335,4 @@ The `complexity` block holds the numeric options for the complexity sub-command 
 The `docs` block holds options for documentation rules. Set `require_function_param_docs` to `true` to make `missing_doc_comment` also require `///` on each named function parameter (disabled by default).
 
 .Options:
-* You can specify a custom path for the configuration file with `--config-path PATH` on `docent`, `docent status`, `docent complexity`, and `docent style`.
+* You can specify a custom path for the configuration file with `--config-path PATH` on `docent check`, `docent status`, and related commands.

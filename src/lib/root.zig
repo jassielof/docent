@@ -158,7 +158,7 @@ pub fn lintSource(
 
 /// Runs the complexity rules over in-memory Zig source and returns their diagnostics.
 ///
-/// Unlike `lintSource`, this is driven by the `docent complexity` sub-command rather than the default lint run.
+/// Unlike `lintSource`, this is driven by `docent check complexity` (and related check commands).
 pub fn lintComplexitySource(
     allocator: std.mem.Allocator,
     source: [:0]const u8,
@@ -212,7 +212,7 @@ pub fn lintComplexitySource(
 
 /// Runs the style rules over in-memory Zig source and returns their diagnostics.
 ///
-/// Unlike `lintSource`, this is driven by the `docent style` sub-command rather than the default lint run.
+/// Unlike `lintSource`, this is driven by `docent check style` (and related check commands).
 pub fn lintStyleSource(
     allocator: std.mem.Allocator,
     io: std.Io,

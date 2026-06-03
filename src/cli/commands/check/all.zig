@@ -1,33 +1,27 @@
-//! `docent check` — run lint rules by category or print a combined summary.
+//! `docent check all` — run docs, style, and complexity checks with full diagnostics.
 
 const std = @import("std");
 
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-const all_check = @import("check/all.zig");
-const complexity_check = @import("check/complexity.zig");
-const docs_check = @import("check/docs.zig");
-const check_shared = @import("../check_shared.zig");
-const style_check = @import("check/style.zig");
+const complexity_check = @import("complexity.zig");
+const docs_check = @import("docs.zig");
+const check_shared = @import("../../check_shared.zig");
+const style_check = @import("style.zig");
 
-/// Registers the `check` command and its category subcommands on `root`.
-pub fn register(root: *fangz.Command) !void {
-    const check_cmd = try root.addSubcommand(.{
-        .name = "check",
-        .brief = "Run Docent lint checks",
-        .description = "Run documentation, style, or complexity checks. Use a category subcommand for full diagnostics, or run `docent check` alone for a compact summary across every category.",
+pub fn register(check: *fangz.Command) !void {
+    const all_cmd = try check.addSubcommand(.{
+        .name = "all",
+        .brief = "Run every check category",
+        .description = "Run documentation, style, and complexity checks in one pass and print all diagnostics. Exits non-zero when a denied rule reports a finding.",
     });
 
-    check_cmd.setHooks(.{ .run = &runSummary });
-
-    try docs_check.register(check_cmd);
-    try style_check.register(check_cmd);
-    try complexity_check.register(check_cmd);
-    try all_check.register(check_cmd);
+    try check_shared.registerTargetFlags(all_cmd);
+    all_cmd.setHooks(.{ .run = &run });
 }
 
-fn runSummary(ctx: *fangz.ParseContext) !void {
+fn run(ctx: *fangz.ParseContext) !void {
     const allocator = ctx.allocator;
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
@@ -68,13 +62,12 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
     };
     defer plan.deinit(allocator);
 
+    var summary: docent.output.Summary = .{};
     var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;
     defer {
         for (all_diagnostics.items) |d| docent.Diagnostic.deinitAlloc(d, allocator);
         all_diagnostics.deinit(allocator);
     }
-
-    var summary: docent.output.Summary = .{};
 
     const library_entry_roots_owned = blk: {
         if (plan.path_mode == .recursive) break :blk &.{};
@@ -97,7 +90,7 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         },
     };
 
-    const style_lint_options: docent.LintOptions = .{
+    const reachability_lint_options: docent.LintOptions = .{
         .module_name = plan.package.name,
         .public_api_only = style_public_api_only,
     };
@@ -128,17 +121,15 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
     var analyzed_files = std.StringHashMap(void).init(allocator);
     defer analyzed_files.deinit();
 
-    try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, style_lint_options, &all_diagnostics, &summary);
+    try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, reachability_lint_options, &all_diagnostics, &summary);
+
     analyzed_files.clearRetainingCapacity();
     try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_lint_options, complexity_options, &all_diagnostics, &summary);
 
-    var count_rows: std.ArrayList(check_shared.RuleCountRow) = .empty;
-    defer count_rows.deinit(allocator);
+    const text_options = docent.output.stderrTextOptions(io, .pretty, .auto, plan.package.project_root);
+    try docent.output.printDiagnosticsStderr(io, all_diagnostics.items, text_options);
+    const had_diagnostics = summary.errors > 0 or summary.warnings > 0;
+    try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, "docent check all", .auto), had_diagnostics);
 
-    try check_shared.appendDiagnosticCounts(allocator, all_diagnostics.items, &count_rows);
-    try check_shared.printCategorizedSummary(io, count_rows.items);
-
-    if (summary.errors > 0 or summary.warnings > 0) {
-        std.process.exit(1);
-    }
+    if (summary.hasErrors()) std.process.exit(1);
 }
