@@ -136,7 +136,7 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
     defer count_rows.deinit(allocator);
 
     try check_shared.appendDiagnosticCounts(allocator, all_diagnostics.items, &count_rows);
-    try check_shared.printCategorizedSummary(io, count_rows.items);
+    try check_shared.printCategorizedSummary(allocator, io, count_rows.items);
 
     if (summary.errors > 0 or summary.warnings > 0) {
         std.process.exit(1);
