@@ -23,7 +23,7 @@ By default, these rules will be enforced across the public API surface. One can 
 Warns on missing doc comments on public declarations. Including, but not limited to:
 
 * {zig-docs}#Functions[Functions and its parameters]
-** Parameters are not checked by default. Enable `docs.require_function_param_docs` in project config to require `///` on each named parameter of checked functions.
+** Parameters are not checked by default. Set `check_parameters = true` under `[docs.missing_doc_comment]` in project config to require `///` on each named parameter of checked functions.
 * {zig-docs}#Variables[Global variables]
 * {zig-docs}#enum[Enumerations and its fields]
 * {zig-docs}#struct[Structures and its fields]
@@ -32,7 +32,7 @@ Warns on missing doc comments on public declarations. Including, but not limited
 ** Error set fields aren’t checked since Zig documentation generator doesn’t support them.
 
 .Options
-* Function parameters are optional to document by default. Set `docs.require_function_param_docs` to `true` in project config to require `///` on each named parameter of functions that are already checked by this rule.
+* Function parameters are optional to document by default. Set `check_parameters = true` under `[docs.missing_doc_comment]` in project config to require `///` on each named parameter of functions that are already checked by this rule.
 
 ==== Re-exported declarations
 
@@ -302,37 +302,37 @@ A function is flagged when its parameter count is *strictly greater* than the th
 
 == Configuration of rule options
 
-// TODO: JSON is mainly for initial development, the format will be later changed to either TOML or YAML, as I look around the configuration model, if it ends up being too nested, then YAML, otherwise, if quite flat, then TOML. I have my own libraries for it, but JSON is part of the standard library, so that for now. Ideally it should be TOML for simplicity.
-Configuration options for the rules are defined in the project root, under the `.config` directory, in the file `docent.json`. It wont be Zig's own notation (ZON) due to lack of JSON schema support.
+Configuration options for the rules are defined in the project root, under the `.config` directory, in the file `docent.toml`. Run `docent init` to write a starter file with the published JSON Schema URL for editor validation. Docent does not use Zig's ZON notation for project config.
 
 When no config file is found, or a rule is omitted, Docent uses the `RuleSet` defaults from the library.
 
-.`docent.json`:
+.`docent.toml`:
 ====
-[source,json]
+[source,toml]
 ----
-{
-  "rules": {
-    "missing_doc_comment": "deny",
-    "missing_doctest": "allow",
-    "private_doctest": "warn"
-  },
-  "complexity": {
-    "cognitive_threshold": 15,
-    "max_fun_params_threshold": 7
-  },
-  "docs": {
-    "require_function_param_docs": false
-  }
-}
+[docs.missing_doc_comment]
+level = "deny"
+check_parameters = false
+
+[docs]
+missing_doctest = "allow"
+private_doctest = "warn"
+
+[complexity.cognitive_complexity]
+level = "warn"
+threshold = 15
+
+[complexity.max_function_parameters]
+level = "allow"
+threshold = 7
 ----
 ====
 
-Severity values are `allow`, `warn`, `deny`, and `forbid`. A `forbid` level cannot be relaxed by a later entry in the same file.
+Rule severities can be set as a string shorthand in a section table (for example `missing_doctest = "allow"` under `[docs]`) or as a nested table with `level = "warn"`. Severity values are `allow`, `warn`, `deny`, and `forbid`. A `forbid` level cannot be relaxed by a later entry in the same file.
 
-The `complexity` block holds the numeric options for the complexity sub-command rules (for example `cognitive_threshold`, `max_fun_params_threshold`). Omitted options fall back to the library defaults.
+Nested rule tables hold per-rule options. Under `[docs.missing_doc_comment]`, set `check_parameters = true` to make `missing_doc_comment` also require `///` on each named function parameter (disabled by default).
 
-The `docs` block holds options for documentation rules. Set `require_function_param_docs` to `true` to make `missing_doc_comment` also require `///` on each named function parameter (disabled by default).
+Under `[complexity]`, rules such as `cognitive_complexity` and `max_function_parameters` accept a `threshold` alongside `level`. Omitted options fall back to the library defaults.
 
 .Options:
 * You can specify a custom path for the configuration file with `--config-path PATH` on `docent check`, `docent status`, and related commands.
