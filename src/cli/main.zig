@@ -14,17 +14,6 @@ pub const OutputMode = @import("types.zig").OutputMode;
 pub const FailFast = @import("types.zig").FailFast;
 pub const default_fail_fast = @import("types.zig").default_fail_fast;
 
-pub const app_examples: []const fangz.Command.CliExample = &.{
-    .{ .description = "Show available commands", .command = "docent" },
-    .{ .description = "Compact summary of every check category", .command = "docent check" },
-    .{ .description = "Documentation comment rules", .command = "docent check docs" },
-    .{ .description = "Every check with full diagnostics", .command = "docent check all" },
-    .{ .description = "Initialize project config", .command = "docent init" },
-    .{ .description = "Show lint plan and effective rules", .command = "docent status" },
-    .{ .description = "Generate CLI AsciiDoc", .command = "docent docs --output-dir docs" },
-    .{ .description = "Shell completion script", .command = "docent completion nu" },
-};
-
 pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;
     const io = init.io;
@@ -40,7 +29,6 @@ pub fn main(init: std.process.Init) !void {
 
     const root = app.root();
     root.setHelpOnEmptyArgs(true);
-    root.examples = app_examples;
 
     try status_command.register(root);
     try init_command.register(root);
