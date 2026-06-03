@@ -150,6 +150,7 @@ endif::env-github[]
 * [[[doctests]]] Doctests in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Doctests
 * [[[mccabe-guidance]]] NIST/McCabe guidance (_Structured Testing: A Testing Methodology Using the Cyclomatic Complexity Metric_):
 ** Section 2.5: _Limiting cyclomatic complexity to 10_.
+* [[[sonar-cyclomatic]]] Discussing Cyclomatic Complexity — https://www.sonarsource.com/blog/discussing-cyclomatic-complexity/
 * [[[sonar-paper]]] Cognitive Complexity, a Sonar exclusive metric formulated to more accurately measure the relative understandability of methods — https://www.sonarsource.com/resources/cognitive-complexity/
 * [[[sonar-reasoning]]] Sonar's reasoning for defaulting cognitive complexity to 15 — https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103
 * [[[doc-comments]]] Doc comments in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Doc-Comments
