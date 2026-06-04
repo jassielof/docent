@@ -17,8 +17,8 @@
       "path": "../modules/carnaval",
     },
     {
-      "path": "../modules/toml",
       "name": "TOML",
+      "path": "../modules/toml",
     },
   ],
   "settings": {

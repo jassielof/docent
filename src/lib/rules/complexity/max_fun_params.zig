@@ -1,7 +1,6 @@
 //! The `max_fun_params` namespace flags functions with more parameters than the configured limit.
 //!
-//! Zig code often passes allocators, writers, and I/O handles explicitly; the default limit is 7 rather
-//! than the more common 5 used in other ecosystems.
+//! Zig code often passes allocators, writers, and I/O handles explicitly; the default limit is 7 rather than the more common 5 used in other ecosystems.
 
 const std = @import("std");
 const Ast = std.zig.Ast;

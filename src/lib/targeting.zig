@@ -156,10 +156,17 @@ pub fn collectDirectoryEntrypoints(
         return;
     }
 
-    var dir = std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return;
+    var dir = std.Io.Dir.cwd().openDir(
+        io,
+        dir_path,
+        .{
+            .iterate = true,
+        },
+    ) catch return;
     defer dir.close(io);
 
     var it = dir.iterate();
+
     while (try it.next(io)) |entry| {
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.name, ".zig")) continue;
