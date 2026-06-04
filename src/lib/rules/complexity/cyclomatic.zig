@@ -129,6 +129,13 @@ fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
     return score;
 }
 
+// TODO: There should be a `formula` function that reflects the actual cyclomatic complexity formula, and its respective measure unit, even if it's mostly unitless, something like "number of linearly independent paths".
+// const CyclomaticComplexityUnit = u32;
+
+// fn formula(edges: u32, nodes: u32, connected_components: u32) CyclomaticComplexityUnit {
+//   return edges - nodes + 2 * connected_components;
+// }
+
 fn nodeIncrement(tree: *const Ast, node: Ast.Node.Index) u32 {
     switch (tree.nodeTag(node)) {
         .if_simple, .@"if" => return 1,

@@ -217,6 +217,9 @@ Tiger Beetle has its own style convention called https://tigerstyle.dev/[Tiger S
 
 It centers on three pillars: _Safety_, _Performance_, and _Experience_.
 
+You can check for a Tiger Style configuration in `/.config/docent.tiger.toml`.
+
+// TODO: This should be for raw column length, not just code, otherwise it becomes a statement complexity measure,
 === LoC column length
 
 Warns if the true LoC, from the first and up to the last valid code character, surpasses the threshold of 100 characters, as recommended by {zig-docs}#Whitespace[Zig documentation style].
