@@ -7,6 +7,7 @@ const docent = @import("docent");
 const fangz = @import("fangz");
 
 const cli_flags = @import("flags.zig");
+const cli_types = @import("types.zig");
 
 pub const TargetArgs = struct {
     positionals: []const []const u8 = &.{},
@@ -18,6 +19,8 @@ pub const TargetArgs = struct {
     @"test": []const []const u8 = &.{},
     deps: bool = false,
     build_script: bool = false,
+    format: cli_types.OutputMode = .pretty,
+    fail_fast: cli_types.FailFast = cli_types.default_fail_fast,
 };
 
 pub fn registerTargetFlags(cmd: *fangz.Command) !void {
@@ -68,6 +71,78 @@ pub fn registerTargetFlags(cmd: *fangz.Command) !void {
         .brief = "Include build.zig and build/*.zig files in targets",
         .default = false,
     });
+}
+
+pub fn registerOutputFlags(cmd: *fangz.Command) !void {
+    try cmd.addFlag(cli_types.OutputMode, .{
+        .name = "format",
+        .short = 'f',
+        .brief = "Output format",
+        .value_hint = "FORMAT",
+        .default = .pretty,
+        .allowed_values_style = .comma,
+    });
+
+    try cmd.addFlag(cli_types.FailFast, .{
+        .name = "fail-fast",
+        .short = 'F',
+        .brief = "Stop after the first matching severity",
+        .value_hint = "WHEN",
+        .default = cli_types.default_fail_fast,
+    });
+}
+
+pub fn failFastMatches(ff: cli_types.FailFast, severity_level: docent.SeverityLevel) bool {
+    return switch (ff) {
+        .none => false,
+        .@"error" => severity_level.isError(),
+        .warn => severity_level == .warn,
+        .any => severity_level == .warn or severity_level.isError(),
+    };
+}
+
+pub fn textFormat(mode: cli_types.OutputMode) docent.output.TextFormat {
+    return switch (mode) {
+        .pretty => .pretty,
+        .minimal => .minimal,
+        .json => unreachable,
+    };
+}
+
+pub fn allocPathDisplayRoot(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
+    const manifest = docent.manifest.findNearestManifestPath(allocator, io) catch |err| switch (err) {
+        error.OutOfMemory => return err,
+        else => return realPathFileAlloc(allocator, io, "."),
+    };
+    defer allocator.free(manifest);
+    const dir = std.fs.path.dirname(manifest) orelse return realPathFileAlloc(allocator, io, ".");
+    return realPathFileAlloc(allocator, io, dir);
+}
+
+fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
+    var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+    return allocator.dupe(u8, buffer[0..len]);
+}
+
+pub fn printCheckResults(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    args: TargetArgs,
+    summary_label: []const u8,
+    diagnostics: []const docent.Diagnostic,
+    summary: docent.output.Summary,
+    path_display_root: ?[]const u8,
+) !void {
+    if (args.format == .json) {
+        try docent.output.printJsonStdout(io, allocator, diagnostics);
+        return;
+    }
+
+    const text_options = docent.output.stderrTextOptions(io, textFormat(args.format), .auto, path_display_root);
+    try docent.output.printDiagnosticsStderr(io, diagnostics, text_options);
+    const had_diagnostics = summary.errors > 0 or summary.warnings > 0;
+    try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, summary_label, .auto), had_diagnostics);
 }
 
 pub fn gatherPlan(allocator: std.mem.Allocator, io: std.Io, args: TargetArgs) !docent.status_plan.Plan {

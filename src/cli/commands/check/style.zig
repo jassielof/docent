@@ -5,6 +5,7 @@ const std = @import("std");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
+const cli_types = @import("../../types.zig");
 const check_shared = @import("../../check_shared.zig");
 
 pub fn register(check: *fangz.Command) !void {
@@ -15,6 +16,7 @@ pub fn register(check: *fangz.Command) !void {
     });
 
     try check_shared.registerTargetFlags(style_cmd);
+    try check_shared.registerOutputFlags(style_cmd);
     style_cmd.setHooks(.{ .run = &run });
 }
 
@@ -39,6 +41,9 @@ fn run(ctx: *fangz.ParseContext) !void {
     };
     defer plan.deinit(allocator);
 
+    const path_display_root = try check_shared.allocPathDisplayRoot(allocator, io);
+    defer allocator.free(path_display_root);
+
     const lint_options: docent.LintOptions = .{
         .module_name = plan.package.name,
         .public_api_only = style_public_api_only,
@@ -54,12 +59,9 @@ fn run(ctx: *fangz.ParseContext) !void {
     var analyzed_files = std.StringHashMap(void).init(allocator);
     defer analyzed_files.deinit();
 
-    try analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, lint_options, &all_diagnostics, &summary);
+    _ = try analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, lint_options, &all_diagnostics, &summary, args.fail_fast);
 
-    const text_options = docent.output.stderrTextOptions(io, .pretty, .auto, plan.package.project_root);
-    try docent.output.printDiagnosticsStderr(io, all_diagnostics.items, text_options);
-    const had_diagnostics = summary.errors > 0 or summary.warnings > 0;
-    try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, "docent check style", .auto), had_diagnostics);
+    try check_shared.printCheckResults(io, allocator, args, "docent check style", all_diagnostics.items, summary, path_display_root);
 
     if (summary.hasErrors()) std.process.exit(1);
 }
@@ -73,7 +75,8 @@ pub fn analyzeReachableTargets(
     lint_options: docent.LintOptions,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
-) !void {
+    fail_fast: cli_types.FailFast,
+) !bool {
     for (plan.resolved_targets) |rt| {
         if (rt.status != .linted) continue;
 
@@ -92,15 +95,17 @@ pub fn analyzeReachableTargets(
         for (reachable.items) |path| {
             const gptr = try analyzed_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            try analyzeFile(allocator, io, path, rule_set, lint_options, all_diagnostics, summary);
+            if (try analyzeFile(allocator, io, path, rule_set, lint_options, all_diagnostics, summary, fail_fast)) return true;
         }
     }
 
     for (plan.extra_lint_files) |path| {
         const gptr = try analyzed_files.getOrPut(path);
         if (gptr.found_existing) continue;
-        try analyzeFile(allocator, io, path, rule_set, lint_options, all_diagnostics, summary);
+        if (try analyzeFile(allocator, io, path, rule_set, lint_options, all_diagnostics, summary, fail_fast)) return true;
     }
+
+    return false;
 }
 
 fn analyzeFile(
@@ -111,15 +116,20 @@ fn analyzeFile(
     lint_options: docent.LintOptions,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
-) !void {
+    fail_fast: cli_types.FailFast,
+) !bool {
     var result = docent.lintStyleFile(allocator, io, path, rule_set, lint_options) catch |err| {
         try check_shared.printStderr(io, "error: failed to analyze '{s}': {}\n", .{ path, err });
-        return;
+        return false;
     };
     defer result.deinit();
 
     for (result.diagnostics.items) |d| {
         summary.observe(d);
         try all_diagnostics.append(allocator, try docent.Diagnostic.cloneAlloc(d, allocator));
+
+        if (check_shared.failFastMatches(fail_fast, d.severity_level)) return true;
     }
+
+    return false;
 }
