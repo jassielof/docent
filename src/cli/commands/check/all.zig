@@ -18,6 +18,7 @@ pub fn register(check: *fangz.Command) !void {
     });
 
     try check_shared.registerTargetFlags(all_cmd);
+    try check_shared.registerOutputFlags(all_cmd);
     all_cmd.setHooks(.{ .run = &run });
 }
 
@@ -62,6 +63,9 @@ fn run(ctx: *fangz.ParseContext) !void {
     };
     defer plan.deinit(allocator);
 
+    const path_display_root = try check_shared.allocPathDisplayRoot(allocator, io);
+    defer allocator.free(path_display_root);
+
     var summary: docent.output.Summary = .{};
     var all_diagnostics: std.ArrayList(docent.Diagnostic) = .empty;
     defer {
@@ -103,33 +107,47 @@ fn run(ctx: *fangz.ParseContext) !void {
     var linted_files = std.StringHashMap(void).init(allocator);
     defer linted_files.deinit();
 
+    var should_stop = false;
+
     for (plan.resolved_targets) |rt| {
+        if (should_stop) break;
         if (rt.status != .linted) continue;
         for (rt.files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary);
+            if (try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, args.fail_fast)) {
+                should_stop = true;
+                break;
+            }
         }
     }
 
-    for (plan.extra_lint_files) |path| {
-        const gptr = try linted_files.getOrPut(path);
-        if (gptr.found_existing) continue;
-        try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary);
+    if (!should_stop) {
+        for (plan.extra_lint_files) |path| {
+            const gptr = try linted_files.getOrPut(path);
+            if (gptr.found_existing) continue;
+            if (try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, args.fail_fast)) {
+                should_stop = true;
+                break;
+            }
+        }
     }
 
-    var analyzed_files = std.StringHashMap(void).init(allocator);
-    defer analyzed_files.deinit();
+    if (!should_stop) {
+        var analyzed_files = std.StringHashMap(void).init(allocator);
+        defer analyzed_files.deinit();
 
-    try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, reachability_lint_options, &all_diagnostics, &summary);
+        if (try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, reachability_lint_options, &all_diagnostics, &summary, args.fail_fast)) {
+            should_stop = true;
+        } else {
+            analyzed_files.clearRetainingCapacity();
+            if (try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_lint_options, complexity_options, &all_diagnostics, &summary, args.fail_fast)) {
+                should_stop = true;
+            }
+        }
+    }
 
-    analyzed_files.clearRetainingCapacity();
-    try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_lint_options, complexity_options, &all_diagnostics, &summary);
-
-    const text_options = docent.output.stderrTextOptions(io, .pretty, .auto, plan.package.project_root);
-    try docent.output.printDiagnosticsStderr(io, all_diagnostics.items, text_options);
-    const had_diagnostics = summary.errors > 0 or summary.warnings > 0;
-    try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, "docent check all", .auto), had_diagnostics);
+    try check_shared.printCheckResults(io, allocator, args, "docent check all", all_diagnostics.items, summary, path_display_root);
 
     if (summary.hasErrors()) std.process.exit(1);
 }

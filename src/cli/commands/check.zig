@@ -115,22 +115,22 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         for (rt.files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary);
+            _ = try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, .none);
         }
     }
 
     for (plan.extra_lint_files) |path| {
         const gptr = try linted_files.getOrPut(path);
         if (gptr.found_existing) continue;
-        try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary);
+        _ = try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, .none);
     }
 
     var analyzed_files = std.StringHashMap(void).init(allocator);
     defer analyzed_files.deinit();
 
-    try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, style_lint_options, &all_diagnostics, &summary);
+    _ = try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, style_lint_options, &all_diagnostics, &summary, .none);
     analyzed_files.clearRetainingCapacity();
-    try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_lint_options, complexity_options, &all_diagnostics, &summary);
+    _ = try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_lint_options, complexity_options, &all_diagnostics, &summary, .none);
 
     var count_rows: std.ArrayList(check_shared.RuleCountRow) = .empty;
     defer count_rows.deinit(allocator);
