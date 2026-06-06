@@ -1,4 +1,4 @@
-//! The `trailing_blank_doc_comment` namespace flags doc comment blocks that end with blank lines.
+//! The `trailing_blank_doc_comment` namespace checks for doc comment blocks that end with blank lines.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -11,6 +11,9 @@ inline fn srcLoc() std.builtin.SourceLocation {
 }
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
+
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .warn;
 
 /// Walks `tree` and appends diagnostics for doc comments with trailing blank lines.
 pub fn check(

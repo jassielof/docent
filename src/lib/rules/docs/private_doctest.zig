@@ -1,4 +1,6 @@
-//! Disallows identifier-style doctests on private declarations.
+//! The `private_doctest` namespace collects checks related to private documentation tests (doctests).
+//!
+//! Given that doctests serve partially as documentation examples, it's expected for them to reference public declarations.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -11,6 +13,9 @@ inline fn srcLoc() std.builtin.SourceLocation {
 }
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
+
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .allow;
 
 /// Walks `tree` and appends diagnostics when private items use public-style doctests.
 pub fn check(

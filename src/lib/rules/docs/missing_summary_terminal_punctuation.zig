@@ -1,4 +1,6 @@
 //! The `missing_summary_terminal_punctuation` namespace flags doc comment summaries without terminal punctuation.
+//!
+//! It'll check if the last character is a punctuation mark (e.g. period, exclamation/question mark).
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -11,6 +13,9 @@ inline fn srcLoc() std.builtin.SourceLocation {
 }
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
+
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .warn;
 
 /// Walks `tree` and appends diagnostics when the first doc-comment paragraph lacks `.`, `!`, or `?`.
 pub fn check(

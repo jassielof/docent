@@ -1,4 +1,6 @@
-//! The `blank_doc_comment` namespace flags doc comments that are blank or whitespace-only.
+//! The `blank_doc_comment` namespace checks for doc comments that are blank or empty.
+//!
+//! For guidance on how to write good documentation comments, see <https://ziglang.org/documentation/0.16.0/#Doc-Comment-Guidance>.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -12,6 +14,9 @@ inline fn srcLoc() std.builtin.SourceLocation {
 }
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
+
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .warn;
 
 /// Walks `tree` and appends diagnostics for vacuous doc comments.
 ///

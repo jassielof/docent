@@ -1,7 +1,6 @@
 //! The `cognitive` namespace provides the implementation of the cognitive complexity rule.
 //!
-//! Cognitive Complexity follows the Sonar specification (G. Ann Campbell, 2023): instead of counting
-//! linearly independent paths, it scores how hard a function's control flow is to *understand*. Three
+//! Cognitive Complexity follows the Sonar specification (G. Ann Campbell, 2023): instead of counting linearly independent paths, it scores how hard a function's control flow is to *understand*. Three
 //! kinds of increments are accumulated per function body:
 //!
 //! * Structural — control-flow structures that also receive a nesting increment (`if`, `for`, `while`,
@@ -28,7 +27,7 @@ const utils = @import("../utils.zig");
 
 const rule_name = utils.ruleIdWithName("cognitive_complexity");
 
-/// Default Sonar-recommended threshold above which a function is flagged.
+/// The default_threshold is the one recommended by Sonar Source. See <https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103/3>.
 pub const default_threshold: u32 = 15;
 
 /// Walks `tree` and appends a diagnostic for each scanned function whose cognitive complexity exceeds `threshold`.
