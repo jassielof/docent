@@ -6,7 +6,11 @@ const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
-const rule_name = "missing_summary_terminal_punctuation";
+inline fn srcLoc() std.builtin.SourceLocation {
+    return @src();
+}
+
+const rule_name = utils.ruleIdFromSrc(srcLoc());
 
 /// Walks `tree` and appends diagnostics when the first doc-comment paragraph lacks `.`, `!`, or `?`.
 pub fn check(

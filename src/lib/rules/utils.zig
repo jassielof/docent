@@ -18,5 +18,5 @@ pub const exposedSourceFileSubjectKind = helpers.exposedSourceFileSubjectKind;
 pub const hasContainerDocComment = helpers.hasContainerDocComment;
 pub const containerDocBlockIsFullyBlank = helpers.containerDocBlockIsFullyBlank;
 pub const dupSourceLine = helpers.dupSourceLine;
-
-pub const import_reexport = @import("utils/import_reexport.zig");
+pub const ruleIdFromSrc = helpers.ruleIdFromSrc;
+pub const ruleIdWithName = helpers.ruleIdWithName;

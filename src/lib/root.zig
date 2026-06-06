@@ -8,6 +8,7 @@ pub const Diagnostic = @import("Diagnostic.zig");
 pub const LintResult = @import("LintResult.zig");
 pub const output = @import("output.zig");
 pub const reachability = @import("reachability.zig");
+pub const reexport = @import("reexport.zig");
 pub const RuleSet = @import("RuleSet.zig");
 pub const rule_metadata = @import("rule_metadata.zig");
 pub const scaffold = @import("scaffold.zig");

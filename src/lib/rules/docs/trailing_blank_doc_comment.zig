@@ -6,7 +6,11 @@ const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
-const rule_name = "trailing_blank_doc_comment";
+inline fn srcLoc() std.builtin.SourceLocation {
+    return @src();
+}
+
+const rule_name = utils.ruleIdFromSrc(srcLoc());
 
 /// Walks `tree` and appends diagnostics for doc comments with trailing blank lines.
 pub fn check(
