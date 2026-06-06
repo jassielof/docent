@@ -1,3 +1,4 @@
+//! Test suite aggregator for documentation rules.
 const std = @import("std");
 const refAllDecls = std.testing.refAllDecls;
 
