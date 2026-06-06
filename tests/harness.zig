@@ -1,4 +1,4 @@
-//! Fixture path helpers for flat rule and scenario layouts under `tests/fixtures/`.
+//! Harness helps with fixture path utilities for flat rule and scenario layouts under `tests/fixtures/`.
 
 const std = @import("std");
 const builtin = @import("builtin");

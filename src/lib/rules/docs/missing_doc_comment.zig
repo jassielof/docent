@@ -1,6 +1,19 @@
-//! The `missing_doc_comment` namespace warns for missing doc comments.
-
-const missing_doc_comment = @This();
+//! The `missing_doc_comment` namespace checks for missing doc comments.
+//!
+//! This will _warn_ on declarations that are missing doc comments. Including, but not limited to:
+//!
+//! - [Functions and its parameters](https://ziglang.org/documentation/0.16.0/#Functions).
+//!   - Parameters are allowed to be undocumented by default.
+//! - [Container level variables and constants](https://ziglang.org/documentation/0.16.0/#Container-Level-Variables).
+//! - [Enumerations and enumerators](https://ziglang.org/documentation/0.16.0/#enum).
+//! - [Structures and their fields](https://ziglang.org/documentation/0.16.0/#struct).
+//! - [Unions and their members](https://ziglang.org/documentation/0.16.0/#union).
+//! - [Errors](https://ziglang.org/documentation/0.16.0/#Errors).
+//!   - Its values aren't checked since Zig documentation generator doesn't support them.
+//!
+//! ## Re-exported declarations
+//!
+//! Public re-exports
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -11,10 +24,13 @@ const import_reexport = utils.import_reexport;
 
 const rule_name = "missing_doc_comment";
 
+// TODO: The rule should have its options in this Options struct, instead of receiving them as separate parameters in the check function.
+pub const Options = struct {};
+
 /// Walks `tree` and appends diagnostics for undocumented public items.
 ///
-/// When `require_module_doc` is set, also requires a file-level `//!` on module entry roots.
-/// When `require_function_param_docs` is set, also requires `///` on each named function parameter.
+/// - When `require_module_doc` is set, also requires a file-level `//!` on module entry roots.
+/// -  When `require_function_param_docs` is set, also requires `///` on each named function parameter.
 pub fn check(
     tree: *const Ast,
     severity_level: severity.Level,
@@ -504,7 +520,12 @@ const TestResult = struct {
     }
 };
 
-fn runCheck(source: [:0]const u8, require_module_doc: bool, module_name: ?[]const u8, require_function_param_docs: bool) !TestResult {
+fn runCheck(
+    source: [:0]const u8,
+    require_module_doc: bool,
+    module_name: ?[]const u8,
+    require_function_param_docs: bool,
+) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     errdefer msg_arena.deinit();

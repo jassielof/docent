@@ -1,22 +1,6 @@
 = Linting Rules
 
-Several rules are inspired by established Go documentation conventions, particularly those enforced by <<godoc-comments>> and <<godoc-lint>>. Go's standard library is notable for its strict, consistent documentation guidelines, and its tooling ecosystem — especially <<golangci-lint>>'s aggregation approach — reflects a culture of broad, opinionated quality checks across style, complexity, and documentation simultaneously.
-
-Rust's Rustdoc and Clippy also informed specific rules here, though their documentation linting tends to focus narrower: missing docs and broken intra-links, etc.. Both ecosystems influenced Docent's rule design.
-
-Documentation, style, and complexity rules are run through `docent check` and its category subcommands (`docent check docs`, `docent check style`, `docent check complexity`). The reasoning is mostly separation of concerns, as well as keeping consistency with other ecosystem tooling.
-
-[NOTE]
-.Severity and examples
-====
-* For severity levels, see the link:{website}lib/#docent.SeverityLevel[library documentation].
-* Each rule description starts with the verb of the severity level, for example, _"Warns on...", "Allows..."_, etc...
-* For examples, see <<_test_suite>>.
-====
-
 == Doc comments
-
-By default, these rules will be enforced across the public API surface. One can also configure the rules selectively or completely if desired to consider private declarations as well.
 
 === Missing doc comment
 

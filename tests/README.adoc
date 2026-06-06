@@ -1,5 +1,7 @@
 = Test suite
 
+The main entry point of
+
 Integration tests live under `tests/rules/` and `tests/scenarios/`. Fixture data lives under `tests/fixtures/` in a flat layout.
 
 == Layout
@@ -16,12 +18,18 @@ Integration tests live under `tests/rules/` and `tests/scenarios/`. Fixture data
 
 Case ids are descriptive (for example `undocumented_pub_declarations.zig`, `reexport_undocumented_points_at_definition/`). There is no `valid/` / `invalid/` split; pass vs fail is defined by the test logic.
 
+== Scenarios
+
+Scenarios are integration tests that don't focus strictly on a single rule, but rather to cover _scenarios_, as in cases to complement rule tests, cases where multiple rules interact.
+
 == Adding a rule test
 
 1. Add `tests/fixtures/rules/docs/<case_id>.zig` or a directory `tests/fixtures/rules/docs/<case_id>/` with `root.zig`.
 2. Add or extend `tests/rules/docs/<rule_id>.zig` and call `harness.lintRuleFixture("docs", &.{ ... }, rule_set, .{})`.
 3. Import the test file from `tests/rules/docs.zig` (or the matching namespace aggregator).
 
+
+// TODO: Fangz is independent of Docent, so this shouldn't be mentioned. While both are my libraries, I'll end up just building a generic E2E test for Fangz for UX, etc.
 == CLI UX
 
 Help rendering, unknown-flag parsing, and AsciiDoc docgen for the CLI are covered in the Fangz test suite (`modules/fangz/tests/cli_ux.zig`).

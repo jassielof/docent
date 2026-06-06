@@ -1,4 +1,6 @@
-//! The docs namespace gathers documentation comment related rules.
+//! The docs namespace gathers related rules to the doc comments and doctests.
+//!
+//! By default, these rules are enforced across the public API surface, it is configurable to selectively or completely include non-public declarations too.
 
 pub const missing_doc_comment = @import("docs/missing_doc_comment.zig");
 pub const blank_doc_comment = @import("docs/blank_doc_comment.zig");
