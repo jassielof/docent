@@ -4,10 +4,6 @@
 //!
 //! Rust on the other hand, has both its own toolchain, the compiler lints plus Clippy, which expands on the compiler's capabilities with a wide range of lints covering style, complexity, and documentation. Although their documentation linting rules tend to focus on narrower aspects and syntax issues rather than style (like Go), they are still valuable for ensuring that documentation is present and correctly formatted and influence this project's design.
 //!
-//! ## Severities
-//!
-//! To facilitate the readability on the rules and its default severity, each rule description proses its default severity level, e.g. _Warns on..._, _Allows..._, etc.
-//!
 //! ## Examples
 //!
 //! For examples, check the test suite.

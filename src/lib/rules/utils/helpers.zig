@@ -244,6 +244,7 @@ pub fn docCommentLineBody(slice: []const u8) []const u8 {
     return std.mem.trim(u8, slice[prefix.len..], " \t");
 }
 
+// TODO: This should be moved to the terminal punctuation mark rule, as it's specific to that rule.
 /// True when `text` ends with `.`, `!`, or `?` (after trimming trailing whitespace).
 pub fn endsWithTerminalPunctuation(text: []const u8) bool {
     const trimmed = std.mem.trim(u8, text, " \t\r\n");
@@ -315,8 +316,7 @@ pub fn dupSourceLine(
 
 /// Returns the canonical rule identifier from the basename of `src.file` (without `.zig`).
 ///
-/// Call from each rule module via a file-local `srcLoc()` that returns `@src()` — `@src()` cannot
-/// be used directly at module scope.
+/// Call from each rule module via a file-local `srcLoc()` that returns `@src()` — `@src()` cannot be used directly at module scope.
 pub fn ruleIdFromSrc(comptime src: std.builtin.SourceLocation) []const u8 {
     const base = comptime std.fs.path.basename(src.file);
     if (!std.mem.endsWith(u8, base, ".zig"))

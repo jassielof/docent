@@ -1,5 +1,13 @@
-//! Requires doctest names to match the function they document.
-
+//! The `doctest_naming_mismatch` namespace collects checks related to mismatches between doctest names and its associated declaration identifiers.
+//!
+//! This helps to ensure that doctests intended to reference specific declarations are properly recognized and associated, by enforcing that test names match the identifiers of the declarations they are meant to test.
+//!
+//! It should be noted that this rule only checks declarations within the same source file. As cross-file cases are out of scope (due to complexity and very prone to false-positives), mismatched imports are compile errors, and cross-file ambiguity makes reliable suggestions infeasible.
+//!
+//! ## Checks
+//!
+//! - **String literal match:** A test that matches an existing public declaration by identifier — suggests rewriting it as a doctest.
+//! - **Casing mismatch:** A doctest identifier that has no matching public declaration but a case-variant of it does — suggests the correct casing. Currently limited to capitalization differences; snake_case normalization may be added later.
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
@@ -11,6 +19,9 @@ inline fn srcLoc() std.builtin.SourceLocation {
 }
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
+
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .warn;
 
 /// Walks `tree` and appends diagnostics when doctest names disagree with declarations.
 pub fn check(

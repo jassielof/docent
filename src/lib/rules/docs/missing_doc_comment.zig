@@ -1,6 +1,6 @@
 //! The `missing_doc_comment` namespace checks for missing doc comments.
 //!
-//! This will _warn_ on declarations that are missing doc comments. Including, but not limited to:
+//! This checks declarations that are missing doc comments. Including, but not limited to:
 //!
 //! - [Functions and its parameters](https://ziglang.org/documentation/0.16.0/#Functions).
 //!   - Parameters are allowed to be undocumented by default.
@@ -11,11 +11,13 @@
 //! - [Errors](https://ziglang.org/documentation/0.16.0/#Errors).
 //!   - Its values aren't checked since Zig documentation generator doesn't support them.
 //!
-//! Re-exported declarations follow the shared resolution policy in `reexport`.
+//! ## Specializations
 //!
-//! See `docent.reexport` for member and whole-module chains, diagnostic attribution, and
-//! unresolvable-import behavior.
-
+//! To help with clarification and context, the following cases are handled specially:
+//!
+//! - Missing module doc comment: Checks for the module root.
+//! - Missing source file (or container-level) doc comment: Checks for implicit structure files and namespaces.
+// TODO: The section of "specialization" in this rule's doc comment seems that it's quite related to just scanning and diagnostics, as it can also be applied to blank doc comments, invalid doc comments, and missing summary terminal punctuation. So that description should be moved to somewhere where it's really related, but not here tied with the rule, otherwise I'd have to rewrite the rule on all those rule desriptions.
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
@@ -28,6 +30,9 @@ inline fn srcLoc() std.builtin.SourceLocation {
 }
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
+
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .warn;
 
 // TODO: The rule should have its options in this Options struct, instead of receiving them as separate parameters in the check function.
 pub const Options = struct {};

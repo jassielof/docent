@@ -1,9 +1,60 @@
-//! The `invalid_leading_phrase` namespace warns when a doc comment summary does not begin with a valid leading phrase naming the documented identifier.
+//! The `invalid_leading_phrase` namespace offers implementations and utilities for invalid leading phrases on doc comment summaries.
 //!
-//! The leading phrase grammar is `[<article>] [<identifier kind>] <identifier> [<identifier kind>]...`.
-//! With the default options the article, identifier kind, and backticks are optional, while the
-//! identifier itself is always required and must match the declaration's casing (modules and source
-//! files are compared case-insensitively).
+//! This rule is inspired by [Go's documentation style guidelines](https://go.dev/doc/comment).
+//!
+//! ## Grammar
+//!
+//! The leading phrase grammar is:
+//!
+//! ```txt
+//! [<article>] [<identifier kind>] <identifier> [<identifier kind>]...
+//! ```
+//!
+//! Where:
+//!
+//! - `<article>` is an optional item from `article_words`.
+//! - `<identifier kind>` is an optional item from `kindPhrases`, that is checked for validity with the declaration type, and can appear before or after the identifier for flexibility.
+//! - `<identifier>` is the always required identifier of the documented declaration, that must match its name and casing (except for modules), and can be optionally enclosed in backticks.
+//!
+//! ## Examples
+//!
+//! ### Modules
+//!
+//! > Module Foo provides...
+//!
+//! The module name check is case-insensitive, so _"Module foo provides..."_ is also valid.
+//!
+//! > The `foo` module...
+//! >
+//! > Library Foo offers...
+//!
+//! Aside "Module", "Library" can be used, only when the module is truly a library, meaning it's not recognized as an executable, test, or build script module.
+//!
+//! ### Namespaces
+//!
+//! Namespaces can be categorized as a special case of modules, something like sub-modules, so they inherit (almost) the same checks and options.
+//!
+//! > Namespace JSON offers...
+//! >
+//! > The `json` namespace...
+//!
+//! Namespaces are restricted to only be called as "namespace". And to help differentiate them from modules, the kind here is always expected.
+//!
+//! ### Declarations
+//!
+//! > Function `foo` does...
+//! >
+//! > InitOptions represents...
+//! >
+//! > The ParseError error set lists...
+//!
+//! Whenever possible, for errors, specially sets (and possibly unions), the _"error set"_ part could be trimmed to just "set" or "union" to avoid redundancy, but it's still accepted when present.
+//!
+//! As a note on error values, if support for them to become rendered is added in the future, they can be expected to be referred as "tag", "value" or "member".
+//!
+//! > pi represents the mathematical constant...
+//!
+//! Where `pi` is a global constant.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -15,9 +66,24 @@ inline fn srcLoc() std.builtin.SourceLocation {
     return @src();
 }
 
+const sel = @This();
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
-const article_words: []const []const u8 = &.{ "a", "an", "the" };
+// TODO: Add the ability for this rule to be configurable. As follows:
+// - Whether to require always an article or keep it optional (default).
+// - Whether to always require backticks, optional (default) or never allow them.
+// - Whether to require the identifier kind to be present or not.
+//   - If required, the position can also be configured, whether to enforce it always before or after, or just allow both (default).
+// - Identifier presence isn't configurable, it's always expected to be present and match the identifier case.
+//   - Edge cases for false positives and errors should be considered with literal identifiers (e.g. `const @"foo bar" = 1;`).
+
+pub const Options = struct {};
+
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .warn;
+
+/// The article_words set contains the words considered as articles for leading phrases.
+pub const article_words: []const []const u8 = &.{ "a", "an", "the" };
 
 const KindPhrase = []const []const u8;
 

@@ -1,4 +1,8 @@
-//! Suggests runnable doctests on public functions that lack examples.
+//! The `missing_doctest` namespace collects checks related to missing documentation tests (doctests).
+//!
+//! This helps to ensure that declarations have corresponding doctests, that serve as both documentation example and unit tests.
+//!
+//! See: <https://ziglang.org/documentation/0.16.0/#Doctests>.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -11,6 +15,9 @@ inline fn srcLoc() std.builtin.SourceLocation {
 }
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
+
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .allow;
 
 /// Walks `tree` and appends diagnostics for public functions without matching doctests.
 pub fn check(
