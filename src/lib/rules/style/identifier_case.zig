@@ -30,7 +30,11 @@ const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
-const rule_name = "identifier_case";
+inline fn srcLoc() std.builtin.SourceLocation {
+    return @src();
+}
+
+const rule_name = utils.ruleIdFromSrc(srcLoc());
 
 /// A naming convention an identifier is expected to follow.
 const Case = enum {

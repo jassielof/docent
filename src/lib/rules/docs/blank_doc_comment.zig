@@ -4,15 +4,20 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
+const reexport = @import("../../reexport.zig");
 const utils = @import("../utils.zig");
-const import_reexport = utils.import_reexport;
 
-const rule_name = "blank_doc_comment";
+inline fn srcLoc() std.builtin.SourceLocation {
+    return @src();
+}
+
+const rule_name = utils.ruleIdFromSrc(srcLoc());
 
 /// Walks `tree` and appends diagnostics for vacuous doc comments.
 ///
 /// When `is_module_entry` is set, blank `//!` blocks on the file are reported as module doc comments.
 /// Whole-module re-exports without a line doc comment also resolve blank `//!` on the imported file.
+/// See `docent.reexport` for resolution behavior.
 pub fn check(
     tree: *const Ast,
     severity_level: severity.Level,
@@ -119,9 +124,23 @@ fn checkReexportedWholeModules(
             !hasDocComment(tree, var_decl.firstToken()))
         {
             if (var_decl.ast.init_node.unwrap()) |init_node| {
-                if (import_reexport.getInfo(tree, init_node)) |info| {
+                if (reexport.getInfo(tree, init_node)) |info| {
                     if (info.field_name == null) {
-                        try tryResolveBlankWholeModuleReexport(info, file, severity_level, allocator, io, msg_allocator, diagnostics);
+                        var emit_ctx = BlankWholeModuleContext{
+                            .severity_level = severity_level,
+                            .allocator = allocator,
+                            .msg_allocator = msg_allocator,
+                            .diagnostics = diagnostics,
+                        };
+                        try reexport.resolveWholeModuleReexport(
+                            info,
+                            file,
+                            allocator,
+                            io,
+                            &emit_ctx,
+                            containerDocBlockIsFullyBlank,
+                            onBlankWholeModuleReexport,
+                        );
                     }
                 }
             }
@@ -150,57 +169,38 @@ fn checkReexportedWholeModules(
     }
 }
 
-fn tryResolveBlankWholeModuleReexport(
-    info: import_reexport.Info,
-    current_file: []const u8,
+const BlankWholeModuleContext = struct {
     severity_level: severity.Level,
     allocator: std.mem.Allocator,
-    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
-) std.mem.Allocator.Error!void {
-    tryResolveBlankWholeModuleReexportImpl(info, current_file, severity_level, allocator, io, msg_allocator, diagnostics) catch |err| switch (err) {
-        error.OutOfMemory => return error.OutOfMemory,
-    };
+};
+
+fn containerDocBlockIsFullyBlank(tree: *const Ast) bool {
+    return utils.containerDocBlockIsFullyBlank(tree);
 }
 
-fn tryResolveBlankWholeModuleReexportImpl(
-    info: import_reexport.Info,
-    current_file: []const u8,
-    severity_level: severity.Level,
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    msg_allocator: std.mem.Allocator,
-    diagnostics: *std.ArrayList(Diagnostic),
-) !void {
-    const imported_path = try import_reexport.resolveImportedPath(allocator, current_file, info.import_path);
-    defer allocator.free(imported_path);
-
-    var parsed = import_reexport.readParsedFile(allocator, io, imported_path) catch return;
-    defer allocator.free(parsed.source);
-    defer parsed.tree.deinit(allocator);
-
-    if (!utils.containerDocBlockIsFullyBlank(&parsed.tree)) return;
-
-    const source_basename = std.fs.path.basename(imported_path);
-    const subject_kind = utils.exposedSourceFileSubjectKind(&parsed.tree);
+fn onBlankWholeModuleReexport(ctx_ptr: *anyopaque, tree: *const Ast, file_path: []const u8) !void {
+    const ctx: *BlankWholeModuleContext = @ptrCast(@alignCast(ctx_ptr));
+    const source_basename = std.fs.path.basename(file_path);
+    const subject_kind = utils.exposedSourceFileSubjectKind(tree);
     var line: usize = 0;
     var column: usize = 0;
-    if (parsed.tree.tokens.len > 0) {
-        const loc = parsed.tree.tokenLocation(0, 0);
+    if (tree.tokens.len > 0) {
+        const loc = tree.tokenLocation(0, 0);
         line = loc.line;
         column = loc.column;
     }
 
-    try diagnostics.append(allocator, .{
+    try ctx.diagnostics.append(ctx.allocator, .{
         .rule = rule_name,
-        .severity_level = severity_level,
-        .subject = try utils.ownedSubject(msg_allocator, subject_kind, source_basename),
-        .file = try utils.normalizePathSeparators(msg_allocator, imported_path),
+        .severity_level = ctx.severity_level,
+        .subject = try utils.ownedSubject(ctx.msg_allocator, subject_kind, source_basename),
+        .file = try utils.normalizePathSeparators(ctx.msg_allocator, file_path),
         .line = line + 1,
         .column = column + 1,
-        .source_line = if (parsed.tree.tokens.len > 0) try utils.dupSourceLine(&parsed.tree, 0, msg_allocator) else "",
-        .symbol_len = if (parsed.tree.tokens.len > 0) parsed.tree.tokenSlice(0).len else source_basename.len,
+        .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(tree, 0, ctx.msg_allocator) else "",
+        .symbol_len = if (tree.tokens.len > 0) tree.tokenSlice(0).len else source_basename.len,
     });
 }
 

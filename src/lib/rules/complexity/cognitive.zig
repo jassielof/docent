@@ -26,7 +26,7 @@ const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
-const rule_name = "cognitive_complexity";
+const rule_name = utils.ruleIdWithName("cognitive_complexity");
 
 /// Default Sonar-recommended threshold above which a function is flagged.
 pub const default_threshold: u32 = 15;

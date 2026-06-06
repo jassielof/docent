@@ -9,7 +9,11 @@ const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
-const rule_name = "max_fun_params";
+inline fn srcLoc() std.builtin.SourceLocation {
+    return @src();
+}
+
+const rule_name = utils.ruleIdFromSrc(srcLoc());
 
 /// Default maximum parameter count (functions with more parameters are flagged).
 pub const default_threshold: u32 = 7;

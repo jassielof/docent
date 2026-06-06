@@ -12,7 +12,7 @@ const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const utils = @import("../utils.zig");
 
-const rule_name = "cyclomatic_complexity";
+const rule_name = utils.ruleIdWithName("cyclomatic_complexity");
 
 /// Default McCabe-recommended limit on linearly independent paths.
 pub const default_threshold: u32 = 10;

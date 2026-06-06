@@ -3,6 +3,7 @@ const Ast = std.zig.Ast;
 const vereda = @import("vereda");
 
 const Diagnostic = @import("../../Diagnostic.zig");
+const RuleSet = @import("../../RuleSet.zig");
 
 /// Normalizes `\` to `/` so diagnostic paths match Zig source import style on every platform.
 pub fn normalizePathSeparators(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
@@ -310,4 +311,30 @@ pub fn dupSourceLine(
     const raw = tree.source[loc.line_start..end];
     const trimmed = std.mem.trimEnd(u8, raw, "\r");
     return allocator.dupe(u8, trimmed);
+}
+
+/// Returns the canonical rule identifier from the basename of `src.file` (without `.zig`).
+///
+/// Call from each rule module via a file-local `srcLoc()` that returns `@src()` — `@src()` cannot
+/// be used directly at module scope.
+pub fn ruleIdFromSrc(comptime src: std.builtin.SourceLocation) []const u8 {
+    const base = comptime std.fs.path.basename(src.file);
+    if (!std.mem.endsWith(u8, base, ".zig"))
+        @compileError("rule module path must end with .zig: " ++ src.file);
+    const id = base[0 .. base.len - ".zig".len];
+    comptime assertIsRuleSetField(id);
+    return id;
+}
+
+/// Returns a canonical rule identifier when the file stem differs from the `RuleSet` field name.
+pub fn ruleIdWithName(comptime id: []const u8) []const u8 {
+    comptime assertIsRuleSetField(id);
+    return id;
+}
+
+fn assertIsRuleSetField(comptime name: []const u8) void {
+    for (RuleSet.fieldNames()) |field| {
+        if (std.mem.eql(u8, field, name)) return;
+    }
+    @compileError("unknown rule id '" ++ name ++ "' (no matching RuleSet field)");
 }

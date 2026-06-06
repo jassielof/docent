@@ -11,18 +11,23 @@
 //! - [Errors](https://ziglang.org/documentation/0.16.0/#Errors).
 //!   - Its values aren't checked since Zig documentation generator doesn't support them.
 //!
-//! ## Re-exported declarations
+//! Re-exported declarations follow the shared resolution policy in `reexport`.
 //!
-//! Public re-exports
+//! See `docent.reexport` for member and whole-module chains, diagnostic attribution, and
+//! unresolvable-import behavior.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
+const reexport = @import("../../reexport.zig");
 const utils = @import("../utils.zig");
-const import_reexport = utils.import_reexport;
 
-const rule_name = "missing_doc_comment";
+inline fn srcLoc() std.builtin.SourceLocation {
+    return @src();
+}
+
+const rule_name = utils.ruleIdFromSrc(srcLoc());
 
 // TODO: The rule should have its options in this Options struct, instead of receiving them as separate parameters in the check function.
 pub const Options = struct {};
@@ -149,9 +154,25 @@ fn checkNode(
             const name = tree.tokenSlice(name_tok);
             const is_reexport: bool = if (public_api_only) blk: {
                 const init_node = var_decl.ast.init_node.unwrap() orelse break :blk false;
-                const info = import_reexport.getInfo(tree, init_node) orelse break :blk false;
-                try tryResolveReexport(info, name, file, severity_level, allocator, io, msg_allocator, diagnostics);
-                break :blk true;
+                const info = reexport.getInfo(tree, init_node) orelse break :blk false;
+                var emit_ctx = ReexportEmitContext{
+                    .severity_level = severity_level,
+                    .allocator = allocator,
+                    .msg_allocator = msg_allocator,
+                    .diagnostics = diagnostics,
+                };
+                break :blk try reexport.resolveMissingDocReexport(
+                    info,
+                    name,
+                    file,
+                    allocator,
+                    io,
+                    &emit_ctx,
+                    .{
+                        .on_undocumented_member = onUndocumentedReexportMember,
+                        .on_undocumented_whole_module = onUndocumentedReexportWholeModule,
+                    },
+                );
             } else false;
 
             if (!is_reexport) {
@@ -265,171 +286,41 @@ fn checkVarDeclInit(
     }
 }
 
-// When we see `pub const Foo = @import("other.zig").Bar` with no doc comment, we follow the import and check whether `Bar` in `other.zig` has a doc comment there.  If it does, no diagnostic is emitted.  If it doesn't, the diagnostic is pointed at the definition in the imported file, not at the re-export line.
-//
-// If the import cannot be resolved (missing file, package import, parse error, etc.) the re-export is silently skipped — no false positive.
-
-/// Attempts to resolve the re-export and check whether the original declaration has a doc comment.  Only `OutOfMemory` is propagated; all other errors (missing file, parse failure, …) are swallowed silently so that unresolvable imports never produce false positives.
-fn tryResolveReexport(
-    info: import_reexport.Info,
-    decl_name: []const u8,
-    current_file: []const u8,
+const ReexportEmitContext = struct {
     severity_level: severity.Level,
     allocator: std.mem.Allocator,
-    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
-) std.mem.Allocator.Error!void {
-    tryResolveReexportImpl(info, decl_name, current_file, severity_level, allocator, io, msg_allocator, diagnostics) catch |e| switch (e) {
-        error.OutOfMemory => return error.OutOfMemory,
-        else => {}, // silently skip: file not found, parse error, symbol not found, etc.
-    };
-}
-
-fn tryResolveReexportImpl(
-    info: import_reexport.Info,
-    decl_name: []const u8,
-    current_file: []const u8,
-    severity_level: severity.Level,
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    msg_allocator: std.mem.Allocator,
-    diagnostics: *std.ArrayList(Diagnostic),
-) !void {
-    const imported_path = try import_reexport.resolveImportedPath(allocator, current_file, info.import_path);
-    defer allocator.free(imported_path);
-
-    _ = try resolveDocForSymbolInFile(
-        imported_path,
-        info.field_name,
-        info.field_name orelse decl_name,
-        severity_level,
-        allocator,
-        io,
-        msg_allocator,
-        diagnostics,
-        0,
-    );
-}
-
-const ResolveOutcome = enum {
-    documented,
-    undocumented,
-    unresolved,
 };
 
-fn resolveDocForSymbolInFile(
-    file_path: []const u8,
-    symbol_name: ?[]const u8,
+fn onUndocumentedReexportMember(
+    ctx_ptr: *anyopaque,
+    tree: *const Ast,
+    name_tok: Ast.TokenIndex,
     display_symbol: []const u8,
-    severity_level: severity.Level,
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    msg_allocator: std.mem.Allocator,
-    diagnostics: *std.ArrayList(Diagnostic),
-    depth: usize,
-) !ResolveOutcome {
-    // Guard against pathological import cycles.
-    if (depth > 32) return .unresolved;
-
-    const source = try std.Io.Dir.cwd().readFileAllocOptions(
-        io,
-        file_path,
-        allocator,
-        .limited(std.math.maxInt(u32)),
-        .of(u8),
-        0,
-    );
-    defer allocator.free(source);
-
-    var imported_tree = try std.zig.Ast.parse(allocator, source, .zig);
-    defer imported_tree.deinit(allocator);
-
-    if (symbol_name) |sym_name| {
-        // Search the top-level declarations of the imported file.
-        for (imported_tree.rootDecls()) |decl| {
-            const found = findNamedDecl(&imported_tree, decl, sym_name) orelse continue;
-            if (hasDocComment(&imported_tree, found.first_tok)) {
-                return .documented;
-            }
-
-            // Undocumented declaration found: recurse if it's itself a re-export.
-            if (imported_tree.fullVarDecl(found.node)) |vd| {
-                const init_node = vd.ast.init_node.unwrap() orelse {
-                    try emitUndocumentedReexportDiagnostic(
-                        &imported_tree,
-                        found.name_tok,
-                        display_symbol,
-                        file_path,
-                        severity_level,
-                        allocator,
-                        msg_allocator,
-                        diagnostics,
-                    );
-                    return .undocumented;
-                };
-
-                if (import_reexport.getInfo(&imported_tree, init_node)) |nested| {
-                    const nested_imported_path = try import_reexport.resolveImportedPath(allocator, file_path, nested.import_path);
-                    defer allocator.free(nested_imported_path);
-
-                    const nested_outcome = try resolveDocForSymbolInFile(
-                        nested_imported_path,
-                        nested.field_name,
-                        display_symbol,
-                        severity_level,
-                        allocator,
-                        io,
-                        msg_allocator,
-                        diagnostics,
-                        depth + 1,
-                    );
-
-                    return nested_outcome;
-                }
-            }
-
-            try emitUndocumentedReexportDiagnostic(
-                &imported_tree,
-                found.name_tok,
-                display_symbol,
-                file_path,
-                severity_level,
-                allocator,
-                msg_allocator,
-                diagnostics,
-            );
-            return .undocumented;
-        }
-
-        // Symbol not found in the imported file — silently skip.
-        return .unresolved;
-    } else {
-        // We are importing the entire file/module, so we check if it has a file-level (container) doc comment
-        if (utils.hasContainerDocComment(&imported_tree, 0)) {
-            return .documented;
-        }
-
-        try emitUndocumentedReexportDiagnosticForFile(
-            &imported_tree,
-            file_path,
-            severity_level,
-            allocator,
-            msg_allocator,
-            diagnostics,
-        );
-        return .undocumented;
-    }
+    file_path: []const u8,
+) !void {
+    const ctx: *ReexportEmitContext = @ptrCast(@alignCast(ctx_ptr));
+    const loc = tree.tokenLocation(0, name_tok);
+    try ctx.diagnostics.append(ctx.allocator, .{
+        .rule = rule_name,
+        .severity_level = ctx.severity_level,
+        .subject = try utils.ownedSubject(ctx.msg_allocator, .function, display_symbol),
+        .detail = "re-exported without documentation",
+        .file = try utils.normalizePathSeparators(ctx.msg_allocator, file_path),
+        .line = loc.line + 1,
+        .column = loc.column + 1,
+        .source_line = try utils.dupSourceLine(tree, name_tok, ctx.msg_allocator),
+        .symbol_len = display_symbol.len,
+    });
 }
 
-fn emitUndocumentedReexportDiagnosticForFile(
+fn onUndocumentedReexportWholeModule(
+    ctx_ptr: *anyopaque,
     tree: *const Ast,
     file_path: []const u8,
-    severity_level: severity.Level,
-    allocator: std.mem.Allocator,
-    msg_allocator: std.mem.Allocator,
-    diagnostics: *std.ArrayList(Diagnostic),
-) std.mem.Allocator.Error!void {
+) !void {
+    const ctx: *ReexportEmitContext = @ptrCast(@alignCast(ctx_ptr));
     const source_basename = std.fs.path.basename(file_path);
     const subject_kind = utils.exposedSourceFileSubjectKind(tree);
     var line: usize = 0;
@@ -439,66 +330,16 @@ fn emitUndocumentedReexportDiagnosticForFile(
         line = loc.line;
         column = loc.column;
     }
-    try diagnostics.append(allocator, .{
+    try ctx.diagnostics.append(ctx.allocator, .{
         .rule = rule_name,
-        .severity_level = severity_level,
-        .subject = try utils.ownedSubject(msg_allocator, subject_kind, source_basename),
-        .file = try utils.normalizePathSeparators(msg_allocator, file_path),
+        .severity_level = ctx.severity_level,
+        .subject = try utils.ownedSubject(ctx.msg_allocator, subject_kind, source_basename),
+        .file = try utils.normalizePathSeparators(ctx.msg_allocator, file_path),
         .line = line + 1,
         .column = column + 1,
-        .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(tree, 0, msg_allocator) else "",
+        .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(tree, 0, ctx.msg_allocator) else "",
         .symbol_len = source_basename.len,
     });
-}
-
-fn emitUndocumentedReexportDiagnostic(
-    tree: *const Ast,
-    name_tok: Ast.TokenIndex,
-    display_symbol: []const u8,
-    file_path: []const u8,
-    severity_level: severity.Level,
-    allocator: std.mem.Allocator,
-    msg_allocator: std.mem.Allocator,
-    diagnostics: *std.ArrayList(Diagnostic),
-) std.mem.Allocator.Error!void {
-    const loc = tree.tokenLocation(0, name_tok);
-    try diagnostics.append(allocator, .{
-        .rule = rule_name,
-        .severity_level = severity_level,
-        .subject = try utils.ownedSubject(msg_allocator, .function, display_symbol),
-        .detail = "re-exported without documentation",
-        // Store an owned copy of the path so it outlives the allocator.
-        .file = try utils.normalizePathSeparators(msg_allocator, file_path),
-        .line = loc.line + 1,
-        .column = loc.column + 1,
-        .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
-        .symbol_len = display_symbol.len,
-    });
-}
-
-const FoundDecl = struct {
-    node: Ast.Node.Index,
-    first_tok: Ast.TokenIndex,
-    name_tok: Ast.TokenIndex,
-};
-
-/// Searches `decl` (a root-level node) for a declaration named `name` and returns the first/name tokens needed for doc-comment checking.
-fn findNamedDecl(tree: *const Ast, decl: Ast.Node.Index, name: []const u8) ?FoundDecl {
-    if (tree.fullVarDecl(decl)) |vd| {
-        const nt = vd.ast.mut_token + 1;
-        if (std.mem.eql(u8, tree.tokenSlice(nt), name))
-            return .{ .node = decl, .first_tok = vd.firstToken(), .name_tok = nt };
-    }
-    if (tree.nodeTag(decl) == .fn_decl) {
-        var buf: [1]Ast.Node.Index = undefined;
-        if (tree.fullFnProto(&buf, decl)) |proto| {
-            if (proto.name_token) |nt| {
-                if (std.mem.eql(u8, tree.tokenSlice(nt), name))
-                    return .{ .node = decl, .first_tok = proto.firstToken(), .name_tok = nt };
-            }
-        }
-    }
-    return null;
 }
 
 fn hasDocComment(tree: *const Ast, first_token: Ast.TokenIndex) bool {
