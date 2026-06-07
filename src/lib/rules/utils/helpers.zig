@@ -244,17 +244,6 @@ pub fn docCommentLineBody(slice: []const u8) []const u8 {
     return std.mem.trim(u8, slice[prefix.len..], " \t");
 }
 
-// TODO: This should be moved to the terminal punctuation mark rule, as it's specific to that rule.
-/// True when `text` ends with `.`, `!`, or `?` (after trimming trailing whitespace).
-pub fn endsWithTerminalPunctuation(text: []const u8) bool {
-    const trimmed = std.mem.trim(u8, text, " \t\r\n");
-    if (trimmed.len == 0) return true;
-    return switch (trimmed[trimmed.len - 1]) {
-        '.', '!', '?' => true,
-        else => false,
-    };
-}
-
 /// True when a `///` or `//!` token has no text after the doc-comment prefix.
 pub fn isEmptyDocCommentLine(slice: []const u8) bool {
     const prefix: []const u8 = if (std.mem.startsWith(u8, slice, "//!"))

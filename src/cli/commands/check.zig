@@ -47,17 +47,7 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         std.process.exit(1);
     };
 
-    const docs_scan_mode = docent.config.loadDocsScanModeFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
-        std.process.exit(1);
-    };
-
-    const style_scan_mode = docent.config.loadStyleScanModeFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
-        std.process.exit(1);
-    };
-
-    const complexity_scan_mode = docent.config.loadComplexityScanModeFromCli(allocator, io, args.config_path) catch |err| {
+    const style_options = docent.config.loadStyleOptionsFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -87,24 +77,18 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         allocator.free(library_entry_roots_owned);
     };
 
+    var docs_opts = docs_options;
+    var style_opts = style_options;
+    var complexity_opts = complexity_options;
+    if (plan.path_mode == .recursive) {
+        docs_opts.applyRunScanMode(.reachability_traversal);
+        style_opts.applyRunScanMode(.reachability_traversal);
+        complexity_opts.applyRunScanMode(.reachability_traversal);
+    }
+
     const docs_lint_options: docent.LintOptions = switch (plan.path_mode) {
-        .project, .module_root => .{
-            .module_name = plan.package.name,
-            .scan_mode = docs_scan_mode,
-        },
-        .recursive => .{
-            .scan_mode = .reachability_traversal,
-        },
-    };
-
-    const style_lint_options: docent.LintOptions = .{
-        .module_name = plan.package.name,
-        .scan_mode = style_scan_mode,
-    };
-
-    const complexity_lint_options: docent.LintOptions = .{
-        .module_name = plan.package.name,
-        .scan_mode = complexity_scan_mode,
+        .project, .module_root => .{ .module_name = plan.package.name },
+        .recursive => .{},
     };
 
     var linted_files = std.StringHashMap(void).init(allocator);
@@ -115,22 +99,22 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         for (rt.files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            _ = try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, .none);
+            _ = try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, .none);
         }
     }
 
     for (plan.extra_lint_files) |path| {
         const gptr = try linted_files.getOrPut(path);
         if (gptr.found_existing) continue;
-        _ = try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, .none);
+        _ = try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, .none);
     }
 
     var analyzed_files = std.StringHashMap(void).init(allocator);
     defer analyzed_files.deinit();
 
-    _ = try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, style_lint_options, &all_diagnostics, &summary, .none);
+    _ = try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, style_opts, &all_diagnostics, &summary, .none);
     analyzed_files.clearRetainingCapacity();
-    _ = try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_lint_options, complexity_options, &all_diagnostics, &summary, .none);
+    _ = try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_opts, &all_diagnostics, &summary, .none);
 
     var count_rows: std.ArrayList(check_shared.RuleCountRow) = .empty;
     defer count_rows.deinit(allocator);

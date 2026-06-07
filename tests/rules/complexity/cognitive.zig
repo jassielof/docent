@@ -4,16 +4,13 @@ const std = @import("std");
 const docent = @import("docent");
 const utils = @import("../../utils.zig");
 
-// The complexity sub-command always measures every declaration, so reachability follows the public
-// API surface but no visibility filter is applied within a file.
 fn lint(source: [:0]const u8, threshold: u32) !docent.LintResult {
     return docent.lintComplexitySource(
         std.testing.allocator,
         source,
         .{},
         "<test>",
-        .{ .scan_mode = .reachability_traversal },
-        .{ .cognitive_threshold = threshold },
+        .{ .cognitive = .{ .threshold = threshold } },
     );
 }
 
@@ -64,7 +61,6 @@ test "default threshold leaves simple declarations clean" {
     ,
         .{},
         "<test>",
-        .{ .scan_mode = .reachability_traversal },
         .{},
     );
     defer result.deinit();

@@ -52,6 +52,9 @@ const Ast = std.zig.Ast;
 
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
+const scan_modes = @import("../../scan_modes.zig");
+const Config = @import("../../schemas/Config.zig");
+const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -63,8 +66,17 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
-// TODO: Implement the rule to be configurable via an option structure.
-pub const Options = struct {};
+pub const Options = struct {
+    scan_mode: scan_modes.Mode = scan_modes.Mode.reachability_traversal,
+
+    pub fn resolve(category_scan: scan_modes.Mode, rule: Config.RuleSimple) Options {
+        return .{ .scan_mode = rule_opts.scanModeFromSimple(category_scan, rule) };
+    }
+
+    pub fn publicApiOnly(self: Options) bool {
+        return self.scan_mode.publicApiOnly();
+    }
+};
 
 /// A naming convention an identifier is expected to follow.
 const Case = enum {
@@ -104,13 +116,14 @@ pub fn check(
     tree: *const Ast,
     severity_level: severity.Level,
     file: []const u8,
-    public_api_only: bool,
+    options: Options,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     if (!severity_level.isActive()) return;
+    const public_api_only = options.publicApiOnly();
 
     var namespace_cache = std.StringHashMap(bool).init(allocator);
     defer {
@@ -593,7 +606,7 @@ const TestResult = struct {
     }
 };
 
-fn runCheck(source: [:0]const u8, public_api_only: bool) !TestResult {
+fn runCheck(source: [:0]const u8, scan_mode: scan_modes.Mode) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     errdefer msg_arena.deinit();
@@ -604,7 +617,7 @@ fn runCheck(source: [:0]const u8, public_api_only: bool) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", public_api_only, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", .{ .scan_mode = scan_mode }, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
@@ -636,7 +649,7 @@ test "import member re-export does not flag PascalCase binding" {
         &tree,
         .warn,
         "src/lib/root.zig",
-        false,
+        .{},
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -663,7 +676,7 @@ test "PascalCase binding on namespace import is flagged" {
         &tree,
         .warn,
         "tests/fixtures/style/import_site.zig",
-        false,
+        .{},
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -703,7 +716,7 @@ test "snake_case predicates" {
 }
 
 test "concrete function should be camelCase" {
-    var r = try runCheck("pub fn DoThing() void {}", false);
+    var r = try runCheck("pub fn DoThing() void {}", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.count());
     try std.testing.expectEqual(.function, r.items.items[0].subject.?.kind);
@@ -711,26 +724,26 @@ test "concrete function should be camelCase" {
 }
 
 test "well-cased concrete function is clean" {
-    var r = try runCheck("pub fn doThing() void {}", false);
+    var r = try runCheck("pub fn doThing() void {}", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 0), r.count());
 }
 
 test "type-returning function should be PascalCase" {
-    var r = try runCheck("pub fn list() type { return struct {}; }", false);
+    var r = try runCheck("pub fn list() type { return struct {}; }", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.count());
     try std.testing.expectEqualStrings("list", r.items.items[0].subject.?.name);
 }
 
 test "well-cased generic function is clean" {
-    var r = try runCheck("pub fn List() type { return struct {}; }", false);
+    var r = try runCheck("pub fn List() type { return struct {}; }", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 0), r.count());
 }
 
 test "global constant should be snake_case" {
-    var r = try runCheck("pub const MaxSize = 10;", false);
+    var r = try runCheck("pub const MaxSize = 10;", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.count());
     try std.testing.expectEqual(.constant, r.items.items[0].subject.?.kind);
@@ -741,7 +754,7 @@ test "struct with fields should be PascalCase" {
         \\pub const my_struct = struct {
         \\    x: u32,
         \\};
-    , false);
+    , .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.count());
     try std.testing.expectEqual(.structure, r.items.items[0].subject.?.kind);
@@ -753,7 +766,7 @@ test "field-less container is a namespace and should be snake_case" {
         \\pub const Helpers = struct {
         \\    pub fn ok() void {}
         \\};
-    , false);
+    , .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.count());
     try std.testing.expectEqual(.namespace, r.items.items[0].subject.?.kind);
@@ -766,7 +779,7 @@ test "struct fields should be snake_case" {
         \\    X: u32,
         \\    y: u32,
         \\};
-    , false);
+    , .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.count());
     try std.testing.expectEqual(.field, r.items.items[0].subject.?.kind);
@@ -779,7 +792,7 @@ test "enum should be PascalCase and enumerators snake_case" {
         \\    Red,
         \\    green,
         \\};
-    , false);
+    , .reachability_traversal);
     defer r.deinit();
     // `color` (should be PascalCase) and `Red` (should be snake_case).
     try std.testing.expectEqual(@as(usize, 2), r.count());
@@ -789,7 +802,7 @@ test "enum should be PascalCase and enumerators snake_case" {
 }
 
 test "error set should be PascalCase and error values too" {
-    var r = try runCheck("pub const my_error = error{ out_of_memory };", false);
+    var r = try runCheck("pub const my_error = error{ out_of_memory };", .reachability_traversal);
     defer r.deinit();
     // `my_error` (should be PascalCase) and `out_of_memory` (should be PascalCase).
     try std.testing.expectEqual(@as(usize, 2), r.count());
@@ -799,7 +812,7 @@ test "error set should be PascalCase and error values too" {
 }
 
 test "inline type-expression alias should be PascalCase" {
-    var r = try runCheck("pub const kind_phrase = []const []const u8;", false);
+    var r = try runCheck("pub const kind_phrase = []const []const u8;", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.count());
     try std.testing.expectEqual(.type_alias, r.items.items[0].subject.?.kind);
@@ -807,13 +820,13 @@ test "inline type-expression alias should be PascalCase" {
 }
 
 test "well-cased inline type alias is clean" {
-    var r = try runCheck("pub const KindPhrase = []const u8;", false);
+    var r = try runCheck("pub const KindPhrase = []const u8;", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 0), r.count());
 }
 
 test "idiomatic error set is clean" {
-    var r = try runCheck("pub const Error = error{ OutOfMemory, FileNotFound };", false);
+    var r = try runCheck("pub const Error = error{ OutOfMemory, FileNotFound };", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 0), r.count());
 }
@@ -836,7 +849,7 @@ test "PascalCase basename on namespace import is flagged" {
         &tree,
         .warn,
         "tests/fixtures/style/import_site.zig",
-        false,
+        .{},
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -866,7 +879,7 @@ test "PascalCase basename on struct-at-file-scope import is not flagged" {
         &tree,
         .warn,
         "tests/fixtures/style/import_site.zig",
-        false,
+        .{},
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -879,31 +892,31 @@ test "function alias re-export is skipped" {
     var r = try runCheck(
         \\const helpers = @import("helpers.zig");
         \\pub const parseInt = helpers.parseInt;
-    , false);
+    , .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 0), r.count());
 }
 
 test "quoted identifiers are exempt" {
-    var r = try runCheck("pub const @\"foo bar\" = 1;", false);
+    var r = try runCheck("pub const @\"foo bar\" = 1;", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 0), r.count());
 }
 
 test "private declarations skipped under public_api_only" {
-    var r = try runCheck("fn DoThing() void {}", true);
+    var r = try runCheck("fn DoThing() void {}", .public_api_surface);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 0), r.count());
 }
 
 test "private declarations checked when public_api_only is false" {
-    var r = try runCheck("fn DoThing() void {}", false);
+    var r = try runCheck("fn DoThing() void {}", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.count());
 }
 
 test "detail explains expected case" {
-    var r = try runCheck("pub fn DoThing() void {}", false);
+    var r = try runCheck("pub fn DoThing() void {}", .reachability_traversal);
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.count());
     try std.testing.expectEqualStrings("should be camelCase", r.items.items[0].detail.?);
@@ -915,6 +928,6 @@ test "inactive severity yields no diagnostics" {
     defer tree.deinit(base);
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
-    try check(&tree, .allow, "<test>", false, base, std.testing.io, base, &diagnostics);
+    try check(&tree, .allow, "<test>", .{}, base, std.testing.io, base, &diagnostics);
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

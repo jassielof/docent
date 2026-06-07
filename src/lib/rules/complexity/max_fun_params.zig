@@ -9,6 +9,9 @@ const Ast = std.zig.Ast;
 
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
+const scan_modes = @import("../../scan_modes.zig");
+const Config = @import("../../schemas/Config.zig");
+const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -20,8 +23,21 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
-// TODO: Implement the rule to be configurable via an option structure.
-pub const Options = struct {};
+pub const Options = struct {
+    scan_mode: scan_modes.Mode = scan_modes.Mode.reachability_traversal,
+    threshold: u32 = default_threshold,
+
+    pub fn resolve(category_scan: scan_modes.Mode, rule: Config.RuleThreshold) Options {
+        return .{
+            .scan_mode = rule_opts.scanModeFromThreshold(category_scan, rule),
+            .threshold = rule.threshold orelse default_threshold,
+        };
+    }
+
+    pub fn publicApiOnly(self: Options) bool {
+        return self.scan_mode.publicApiOnly();
+    }
+};
 
 /// Default maximum parameter count (functions with more parameters are flagged).
 pub const default_threshold: u32 = 7;
@@ -33,13 +49,14 @@ pub fn check(
     tree: *const Ast,
     severity_level: severity.Level,
     file: []const u8,
-    public_api_only: bool,
-    threshold: u32,
+    options: Options,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
     if (!severity_level.isActive()) return;
+    const public_api_only = options.publicApiOnly();
+    const threshold = options.threshold;
 
     var fns: std.ArrayList(Ast.Node.Index) = .empty;
     defer fns.deinit(allocator);
@@ -134,7 +151,7 @@ const TestResult = struct {
     }
 };
 
-fn runCheck(source: [:0]const u8, threshold: u32, public_api_only: bool) !TestResult {
+fn runCheck(source: [:0]const u8, threshold: u32, options: Options) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     errdefer msg_arena.deinit();
@@ -145,7 +162,9 @@ fn runCheck(source: [:0]const u8, threshold: u32, public_api_only: bool) !TestRe
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", public_api_only, threshold, base, msg_arena.allocator(), &diagnostics);
+    var opts = options;
+    opts.threshold = threshold;
+    try check(&tree, .warn, "<test>", opts, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
@@ -165,7 +184,7 @@ test "counts parameters from the function prototype" {
 }
 
 test "function within threshold is accepted" {
-    var r = try runCheck("pub fn ok(a: u32, b: u32, c: u32) void {}", 7, false);
+    var r = try runCheck("pub fn ok(a: u32, b: u32, c: u32) void {}", 7, .{});
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 0), r.items.items.len);
 }
@@ -173,7 +192,7 @@ test "function within threshold is accepted" {
 test "function above threshold is reported" {
     var r = try runCheck(
         \\pub fn too_many(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}
-    , 7, false);
+    , 7, .{});
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
@@ -184,7 +203,7 @@ test "function above threshold is reported" {
 test "exactly at threshold is accepted" {
     var r = try runCheck(
         \\pub fn seven(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32) void {}
-    , 7, false);
+    , 7, .{});
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 0), r.items.items.len);
 }
@@ -192,7 +211,7 @@ test "exactly at threshold is accepted" {
 test "private functions are measured when public_api_only is false" {
     var r = try runCheck(
         \\fn hidden(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}
-    , 7, false);
+    , 7, .{});
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.items.items.len);
 }
@@ -200,7 +219,7 @@ test "private functions are measured when public_api_only is false" {
 test "private functions are skipped under public_api_only" {
     var r = try runCheck(
         \\fn hidden(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}
-    , 7, true);
+    , 7, .{ .scan_mode = .public_api_surface });
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 0), r.items.items.len);
 }
@@ -211,6 +230,6 @@ test "inactive severity yields no diagnostics" {
     defer tree.deinit(base);
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
-    try check(&tree, .allow, "<test>", false, 7, base, base, &diagnostics);
+    try check(&tree, .allow, "<test>", .{ .threshold = 7 }, base, base, &diagnostics);
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

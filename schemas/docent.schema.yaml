@@ -89,7 +89,7 @@ definitions:
   # --- Rule base shapes ---
 
   rule_simple:
-    description: "A rule with no options beyond severity."
+    description: "A rule with severity and an optional per-rule scan_mode override."
     oneOf:
       - $ref: "#/definitions/severity"
       - type: "object"
@@ -98,9 +98,12 @@ definitions:
         properties:
           level:
             $ref: "#/definitions/severity"
+          scan_mode:
+            $ref: "#/definitions/scan_mode"
+            description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
 
   rule_threshold:
-    description: "A rule with a single numeric threshold option. Shared by cognitive_complexity, cyclomatic_complexity, and max_function_parameters."
+    description: "A rule with a numeric threshold and optional per-rule scan_mode override. Shared by cognitive_complexity, cyclomatic_complexity, and max_function_parameters."
     oneOf:
       - $ref: "#/definitions/severity"
       - type: "object"
@@ -109,6 +112,9 @@ definitions:
         properties:
           level:
             $ref: "#/definitions/severity"
+          scan_mode:
+            $ref: "#/definitions/scan_mode"
+            description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
           threshold:
             type: "integer"
             minimum: 1
@@ -125,6 +131,9 @@ definitions:
         properties:
           level:
             $ref: "#/definitions/severity"
+          scan_mode:
+            $ref: "#/definitions/scan_mode"
+            description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
           check_parameters:
             type: "boolean"
             default: false
@@ -139,6 +148,9 @@ definitions:
         properties:
           level:
             $ref: "#/definitions/severity"
+          scan_mode:
+            $ref: "#/definitions/scan_mode"
+            description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
           scope:
             type: "string"
             enum: ["summary", "all"]
@@ -161,6 +173,9 @@ definitions:
         properties:
           level:
             $ref: "#/definitions/severity"
+          scan_mode:
+            $ref: "#/definitions/scan_mode"
+            description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
           mode:
             type: "string"
             enum: ["relaxed", "canonical", "strict"]
@@ -185,6 +200,9 @@ definitions:
         properties:
           level:
             $ref: "#/definitions/severity"
+          scan_mode:
+            $ref: "#/definitions/scan_mode"
+            description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
           namespaces:
             type: "string"
             enum: ["snake_case", "camelCase", "PascalCase"]
@@ -213,6 +231,9 @@ definitions:
         properties:
           level:
             $ref: "#/definitions/severity"
+          scan_mode:
+            $ref: "#/definitions/scan_mode"
+            description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
           max_length:
             type: "integer"
             minimum: 1

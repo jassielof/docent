@@ -5,15 +5,13 @@ const std = @import("std");
 const RuleSeverities = @import("RuleSeverities.zig");
 const scan_modes = @import("scan_modes.zig");
 const rules = @import("rules.zig");
-const ComplexityOptions = @import("ComplexityOptions.zig");
-const DocsOptions = @import("DocsOptions.zig");
-const ConfigToml = @import("ConfigToml.zig");
+const Config = @import("schemas/Config.zig");
 
 /// Default config path relative to the project root.
 pub const default_relative_path = ".config/docent.toml";
 
 /// Errors that can occur while loading or parsing configuration.
-pub const Error = ConfigToml.Error || error{
+pub const Error = Config.Error || error{
     ConfigNotFound,
     InvalidConfigPath,
 };
@@ -53,13 +51,33 @@ pub fn findConfigPathRelative(allocator: std.mem.Allocator, io: std.Io, relative
     }
 }
 
-/// Loads rule severities from a `docent.toml` file; omitted rules keep library defaults.
-pub fn loadRuleSeverities(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!RuleSeverities {
+/// Loads and decodes a `docent.toml` file.
+pub fn loadConfig(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!Config.Root {
     var parsed = try parseConfigFile(allocator, io, config_path);
     defer parsed.deinit();
+    return try Config.decode(parsed.root);
+}
 
+/// Loads config from an explicit `config_path`, or searches for the default file when null.
+pub fn loadConfigFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!Config.Root {
+    if (config_path) |explicit| {
+        const abs = try resolveExplicitConfigPath(allocator, io, explicit);
+        defer allocator.free(abs);
+        return loadConfig(allocator, io, abs);
+    }
+    const discovered = try findNearestConfigPath(allocator, io);
+    if (discovered) |path| {
+        defer allocator.free(path);
+        return loadConfig(allocator, io, path);
+    }
+    return .{};
+}
+
+/// Loads rule severities from a `docent.toml` file; omitted rules keep library defaults.
+pub fn loadRuleSeverities(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!RuleSeverities {
+    const cfg = try loadConfig(allocator, io, config_path);
     var rule_severities: RuleSeverities = .{};
-    try ConfigToml.applyRuleSeverities(parsed.root, &rule_severities);
+    try Config.applyRuleSeverities(cfg, &rule_severities);
     return rule_severities;
 }
 
@@ -68,84 +86,66 @@ pub fn loadNearestRuleSeverities(allocator: std.mem.Allocator, io: std.Io) Error
     return loadRuleSeveritiesFromCli(allocator, io, null);
 }
 
-/// Loads documentation rule options from a `docent.toml` file; a missing `[docs]` section uses defaults.
-pub fn loadDocsOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!DocsOptions {
-    var parsed = try parseConfigFile(allocator, io, config_path);
-    defer parsed.deinit();
-
-    var options: DocsOptions = .{};
-    try ConfigToml.applyDocsOptions(parsed.root, &options);
-    return options;
+/// Loads resolved documentation rule options from a `docent.toml` file.
+pub fn loadDocsOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.docs.Options {
+    const cfg = try loadConfig(allocator, io, config_path);
+    return rules.docs.Options.resolve(cfg.docs);
 }
 
 /// Loads documentation options from an explicit `config_path`, or searches for the default file when null.
-pub fn loadDocsOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!DocsOptions {
-    if (config_path) |explicit| {
-        const abs = try resolveExplicitConfigPath(allocator, io, explicit);
-        defer allocator.free(abs);
-        return loadDocsOptions(allocator, io, abs);
-    }
-    const discovered = try findNearestConfigPath(allocator, io);
-    if (discovered) |path| {
-        defer allocator.free(path);
-        return loadDocsOptions(allocator, io, path);
-    }
-    return .{};
+pub fn loadDocsOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!rules.docs.Options {
+    const cfg = try loadConfigFromCli(allocator, io, config_path);
+    return rules.docs.Options.resolve(cfg.docs);
 }
 
-/// Loads complexity thresholds from a `docent.toml` file; a missing `[complexity]` section uses defaults.
-pub fn loadComplexityOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!ComplexityOptions {
-    var parsed = try parseConfigFile(allocator, io, config_path);
-    defer parsed.deinit();
-
-    var options: ComplexityOptions = .{};
-    try ConfigToml.applyComplexityOptions(parsed.root, &options);
-    return options;
+/// Loads resolved complexity rule options from a `docent.toml` file.
+pub fn loadComplexityOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.complexity.Options {
+    const cfg = try loadConfig(allocator, io, config_path);
+    return rules.complexity.Options.resolve(cfg.complexity);
 }
 
 /// Loads complexity options from an explicit `config_path`, or searches for the default file when null.
-pub fn loadComplexityOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!ComplexityOptions {
-    if (config_path) |explicit| {
-        const abs = try resolveExplicitConfigPath(allocator, io, explicit);
-        defer allocator.free(abs);
-        return loadComplexityOptions(allocator, io, abs);
-    }
-    const discovered = try findNearestConfigPath(allocator, io);
-    if (discovered) |path| {
-        defer allocator.free(path);
-        return loadComplexityOptions(allocator, io, path);
-    }
-    return .{};
+pub fn loadComplexityOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!rules.complexity.Options {
+    const cfg = try loadConfigFromCli(allocator, io, config_path);
+    return rules.complexity.Options.resolve(cfg.complexity);
+}
+
+/// Loads resolved style rule options from a `docent.toml` file.
+pub fn loadStyleOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.style.Options {
+    const cfg = try loadConfig(allocator, io, config_path);
+    return rules.style.Options.resolve(cfg.style);
+}
+
+/// Loads style options from an explicit `config_path`, or searches for the default file when null.
+pub fn loadStyleOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!rules.style.Options {
+    const cfg = try loadConfigFromCli(allocator, io, config_path);
+    return rules.style.Options.resolve(cfg.style);
 }
 
 /// Returns the declaration scan mode for documentation rules.
 pub fn loadDocsScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan_modes.Mode {
-    return loadScanModeFromCli(allocator, io, config_path, ConfigToml.docsScanMode, rules.docs.default_scan_mode);
+    const cfg = try loadConfigFromCli(allocator, io, config_path);
+    return cfg.docs.scan_mode orelse rules.docs.default_scan_mode;
 }
 
 /// Returns the declaration scan mode for complexity rules.
 pub fn loadComplexityScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan_modes.Mode {
-    return loadScanModeFromCli(allocator, io, config_path, ConfigToml.complexityScanMode, rules.complexity.default_scan_mode);
+    const cfg = try loadConfigFromCli(allocator, io, config_path);
+    return cfg.complexity.scan_mode orelse rules.complexity.default_scan_mode;
 }
 
 /// Returns the declaration scan mode for style rules.
 pub fn loadStyleScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan_modes.Mode {
-    return loadScanModeFromCli(allocator, io, config_path, ConfigToml.styleScanMode, rules.style.default_scan_mode);
+    const cfg = try loadConfigFromCli(allocator, io, config_path);
+    return cfg.style.scan_mode orelse rules.style.default_scan_mode;
 }
 
 /// Loads rules from an explicit `config_path`, or searches for the default file when null.
 pub fn loadRuleSeveritiesFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!RuleSeverities {
-    if (config_path) |explicit| {
-        const abs = try resolveExplicitConfigPath(allocator, io, explicit);
-        defer allocator.free(abs);
-        return loadRuleSeverities(allocator, io, abs);
-    }
-    const discovered = try findNearestConfigPath(allocator, io);
-    if (discovered) |path| {
-        defer allocator.free(path);
-        return loadRuleSeverities(allocator, io, path);
-    }
-    return .{};
+    const cfg = try loadConfigFromCli(allocator, io, config_path);
+    var rule_severities: RuleSeverities = .{};
+    try Config.applyRuleSeverities(cfg, &rule_severities);
+    return rule_severities;
 }
 
 /// Resolved config path for status output: explicit path, discovered file, or null.
@@ -173,32 +173,8 @@ fn parseConfigFile(allocator: std.mem.Allocator, io: std.Io, config_path: []cons
         else => return error.ConfigParseFailed,
     };
 
-    const root = try ConfigToml.parseRoot(arena.allocator(), config_text);
+    const root = try Config.parseRoot(arena.allocator(), config_text);
     return .{ .root = root, .arena = arena };
-}
-
-fn loadScanModeFromCli(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    config_path: ?[]const u8,
-    comptime reader: *const fn (@import("toml").DynamicValue) ConfigToml.Error!scan_modes.Mode,
-    comptime default_mode: scan_modes.Mode,
-) Error!scan_modes.Mode {
-    if (config_path) |explicit| {
-        const abs = try resolveExplicitConfigPath(allocator, io, explicit);
-        defer allocator.free(abs);
-        var parsed = try parseConfigFile(allocator, io, abs);
-        defer parsed.deinit();
-        return try reader(parsed.root);
-    }
-    const discovered = try findNearestConfigPath(allocator, io);
-    if (discovered) |path| {
-        defer allocator.free(path);
-        var parsed = try parseConfigFile(allocator, io, path);
-        defer parsed.deinit();
-        return try reader(parsed.root);
-    }
-    return default_mode;
 }
 
 fn resolveExplicitConfigPath(allocator: std.mem.Allocator, io: std.Io, path: []const u8) Error![]u8 {
@@ -232,6 +208,7 @@ pub fn formatError(
         error.ConfigParseFailed => "failed to parse docent.toml",
         error.InvalidConfigPath => "invalid config path",
         error.InvalidSeverity => "invalid severity in docent.toml (must be allow, warn, deny, or forbid)",
+        error.InvalidScanMode => "invalid scan_mode in docent.toml (must be public or all)",
         error.OutOfMemory => "out of memory",
     };
 }
