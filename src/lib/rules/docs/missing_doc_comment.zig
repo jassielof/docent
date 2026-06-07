@@ -14,7 +14,7 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
-const scan_modes = @import("../../scan_modes.zig");
+const scanning = @import("../../scanning.zig");
 const Config = @import("../../schemas/Config.zig");
 const reexport = @import("../../reexport.zig");
 const rule_opts = @import("../options.zig");
@@ -30,10 +30,10 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 pub const default_severity: severity.Level = .warn;
 
 pub const Options = struct {
-    scan_mode: scan_modes.Mode = scan_modes.Mode.public_api_surface,
+    scan_mode: scanning.Modes = scanning.Modes.public_api_surface,
     check_parameters: bool = false,
 
-    pub fn resolve(category_scan: scan_modes.Mode, rule: Config.MissingDocCommentRule) Options {
+    pub fn resolve(category_scan: scanning.Modes, rule: Config.MissingDocCommentRule) Options {
         return .{
             .scan_mode = rule_opts.scanModeFromMissingDocComment(category_scan, rule),
             .check_parameters = rule.check_parameters orelse false,

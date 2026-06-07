@@ -6,7 +6,7 @@ const std = @import("std");
 const toml = @import("toml");
 
 const RuleSeverities = @import("../RuleSeverities.zig");
-const scan_modes = @import("../scan_modes.zig");
+const scanning = @import("../scanning.zig");
 const severity = @import("../severity.zig");
 
 pub const Error = error{
@@ -21,25 +21,41 @@ const rules = @import("../rules.zig");
 /// Rule with only severity and an optional scan-mode override.
 pub const RuleSimple = struct {
     level: ?severity.Level = null,
-    scan_mode: ?scan_modes.Mode = null,
+    scan_mode: ?scanning.Modes = null,
 };
 
 /// Threshold rule shared by complexity rules.
 pub const RuleThreshold = struct {
     level: ?severity.Level = null,
-    scan_mode: ?scan_modes.Mode = null,
+    scan_mode: ?scanning.Modes = null,
     threshold: ?u32 = null,
 };
 
 /// `[docs.missing_doc_comment]` options.
 pub const MissingDocCommentRule = struct {
     level: ?severity.Level = null,
-    scan_mode: ?scan_modes.Mode = null,
+    scan_mode: ?scanning.Modes = null,
     check_parameters: ?bool = null,
 };
 
+/// Leading-phrase strictness for `[docs.invalid_leading_phrase]`.
+pub const LeadingPhraseMode = enum {
+    relaxed,
+    canonical,
+    strict,
+};
+
+/// `[docs.invalid_leading_phrase]` options.
+pub const InvalidLeadingPhraseRule = struct {
+    level: ?severity.Level = null,
+    scan_mode: ?scanning.Modes = null,
+    mode: ?LeadingPhraseMode = null,
+    require_article: ?bool = null,
+    require_backticks: ?bool = null,
+};
+
 pub const Docs = struct {
-    scan_mode: ?scan_modes.Mode = null,
+    scan_mode: ?scanning.Modes = null,
     missing_doc_comment: MissingDocCommentRule = .{},
     blank_doc_comment: RuleSimple = .{},
     trailing_blank_doc_comment: RuleSimple = .{},
@@ -47,16 +63,16 @@ pub const Docs = struct {
     missing_doctest: RuleSimple = .{},
     private_doctest: RuleSimple = .{},
     doctest_naming_mismatch: RuleSimple = .{},
-    invalid_leading_phrase: RuleSimple = .{},
+    invalid_leading_phrase: InvalidLeadingPhraseRule = .{},
 };
 
 pub const Style = struct {
-    scan_mode: ?scan_modes.Mode = null,
+    scan_mode: ?scanning.Modes = null,
     identifier_case: RuleSimple = .{},
 };
 
 pub const Complexity = struct {
-    scan_mode: ?scan_modes.Mode = null,
+    scan_mode: ?scanning.Modes = null,
     cognitive_complexity: RuleThreshold = .{},
     cyclomatic_complexity: RuleThreshold = .{},
     max_function_parameters: RuleThreshold = .{},
@@ -135,7 +151,7 @@ fn decodeDocs(section: *const toml.Table) Error!Docs {
     if (section.get("missing_doctest")) |value| docs.missing_doctest = try decodeRuleSimple(value);
     if (section.get("private_doctest")) |value| docs.private_doctest = try decodeRuleSimple(value);
     if (section.get("doctest_naming_mismatch")) |value| docs.doctest_naming_mismatch = try decodeRuleSimple(value);
-    if (section.get("invalid_leading_phrase")) |value| docs.invalid_leading_phrase = try decodeRuleSimple(value);
+    if (section.get("invalid_leading_phrase")) |value| docs.invalid_leading_phrase = try decodeInvalidLeadingPhrase(value);
     return docs;
 }
 
@@ -178,23 +194,33 @@ fn decodeMissingDocComment(value: toml.DynamicValue) Error!MissingDocCommentRule
     };
 }
 
+fn decodeInvalidLeadingPhrase(value: toml.DynamicValue) Error!InvalidLeadingPhraseRule {
+    return .{
+        .level = try decodeLevelValue(value),
+        .scan_mode = decodeScanModeField(value),
+        .mode = decodeLeadingPhraseModeField(value),
+        .require_article = decodeBoolField(value, "require_article"),
+        .require_backticks = decodeBoolField(value, "require_backticks"),
+    };
+}
+
 fn decodeLevelValue(value: toml.DynamicValue) Error!?severity.Level {
     const level_name = std.mem.trim(u8, try ruleLevelName(value), " \t\r\n");
     if (level_name.len == 0) return null;
     return std.meta.stringToEnum(severity.Level, level_name) orelse return error.InvalidSeverity;
 }
 
-fn decodeScanModeValue(value: toml.DynamicValue) Error!scan_modes.Mode {
+fn decodeScanModeValue(value: toml.DynamicValue) Error!scanning.Modes {
     const mode = value.stringSlice() orelse return error.ConfigParseFailed;
-    return scan_modes.Mode.fromConfigString(mode) orelse return error.InvalidScanMode;
+    return scanning.Modes.fromConfigString(mode) orelse return error.InvalidScanMode;
 }
 
-fn decodeScanModeField(value: toml.DynamicValue) ?scan_modes.Mode {
+fn decodeScanModeField(value: toml.DynamicValue) ?scanning.Modes {
     return switch (value) {
         .table => |table| blk: {
             const field_value = table.get("scan_mode") orelse return null;
             const mode = field_value.stringSlice() orelse return null;
-            break :blk scan_modes.Mode.fromConfigString(mode);
+            break :blk scanning.Modes.fromConfigString(mode);
         },
         else => null,
     };
@@ -221,6 +247,21 @@ fn decodeBoolField(value: toml.DynamicValue, key: []const u8) ?bool {
                 .boolean => |enabled| enabled,
                 else => null,
             };
+        },
+        else => null,
+    };
+}
+
+fn decodeLeadingPhraseModeField(value: toml.DynamicValue) ?LeadingPhraseMode {
+    const mode_name = decodeStringField(value, "mode") orelse return null;
+    return std.meta.stringToEnum(LeadingPhraseMode, mode_name);
+}
+
+fn decodeStringField(value: toml.DynamicValue, key: []const u8) ?[]const u8 {
+    return switch (value) {
+        .table => |table| blk: {
+            const field_value = table.get(key) orelse return null;
+            break :blk field_value.stringSlice();
         },
         else => null,
     };
@@ -275,9 +316,27 @@ test "decode reads nested rule tables and section options" {
     try std.testing.expectEqual(@as(?severity.Level, .deny), cfg.docs.missing_doc_comment.level);
     try std.testing.expectEqual(@as(?bool, true), cfg.docs.missing_doc_comment.check_parameters);
     try std.testing.expectEqual(@as(?severity.Level, .allow), cfg.docs.missing_doctest.level);
-    try std.testing.expectEqual(scan_modes.Mode.reachability_traversal, cfg.docs.scan_mode.?);
+    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.docs.scan_mode.?);
     try std.testing.expectEqual(@as(?severity.Level, .deny), cfg.complexity.cognitive_complexity.level);
     try std.testing.expectEqual(@as(?u32, 12), cfg.complexity.cognitive_complexity.threshold);
+}
+
+test "resolved docs options read invalid_leading_phrase settings" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const root = try parseRoot(arena.allocator(),
+        \\[docs.invalid_leading_phrase]
+        \\mode = "strict"
+        \\require_article = true
+        \\require_backticks = true
+    );
+
+    const cfg = try decode(root);
+    const docs_options = @import("../rules/docs.zig").Options.resolve(cfg.docs);
+    try std.testing.expectEqual(LeadingPhraseMode.strict, docs_options.invalid_leading_phrase.mode);
+    try std.testing.expect(docs_options.invalid_leading_phrase.require_article);
+    try std.testing.expect(docs_options.invalid_leading_phrase.require_backticks);
 }
 
 test "resolved docs options read check_parameters" {
@@ -330,8 +389,8 @@ test "scan modes default and override" {
         \\scan_mode = "public"
     );
     const cfg = try decode(root);
-    try std.testing.expectEqual(scan_modes.Mode.reachability_traversal, cfg.docs.scan_mode.?);
-    try std.testing.expectEqual(scan_modes.Mode.public_api_surface, cfg.complexity.scan_mode.?);
+    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.docs.scan_mode.?);
+    try std.testing.expectEqual(scanning.Modes.public_api_surface, cfg.complexity.scan_mode.?);
 }
 
 test "applyRuleSeverities respects forbid and defaults" {

@@ -14,10 +14,10 @@
 const std = @import("std");
 
 const Config = @import("../schemas/Config.zig");
-const scan_modes = @import("../scan_modes.zig");
+const scanning = @import("../scanning.zig");
 
 /// Default declaration scanning mode for documentation rules.
-pub const default_scan_mode = scan_modes.Mode.public_api_surface;
+pub const default_scan_mode = scanning.Modes.public_api_surface;
 
 pub const missing_doc_comment = @import("docs/missing_doc_comment.zig");
 pub const blank_doc_comment = @import("docs/blank_doc_comment.zig");
@@ -60,7 +60,7 @@ pub const Options = struct {
     }
 
     /// Overrides every rule's scan mode for a single lint invocation (e.g. explicit path targets).
-    pub fn applyRunScanMode(self: *Options, mode: scan_modes.Mode) void {
+    pub fn applyRunScanMode(self: *Options, mode: scanning.Modes) void {
         inline for (std.meta.fields(@This())) |field| {
             @field(self, field.name).scan_mode = mode;
         }

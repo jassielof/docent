@@ -2,10 +2,10 @@
 const std = @import("std");
 
 const Config = @import("../schemas/Config.zig");
-const scan_modes = @import("../scan_modes.zig");
+const scanning = @import("../scanning.zig");
 
 /// Default declaration scanning mode for complexity rules.
-pub const default_scan_mode = scan_modes.Mode.reachability_traversal;
+pub const default_scan_mode = scanning.Modes.reachability_traversal;
 
 pub const cognitive = @import("complexity/cognitive.zig");
 pub const cyclomatic = @import("complexity/cyclomatic.zig");
@@ -30,7 +30,7 @@ pub const Options = struct {
         return resolve(.{});
     }
 
-    pub fn applyRunScanMode(self: *Options, mode: scan_modes.Mode) void {
+    pub fn applyRunScanMode(self: *Options, mode: scanning.Modes) void {
         inline for (std.meta.fields(@This())) |field| {
             @field(self, field.name).scan_mode = mode;
         }

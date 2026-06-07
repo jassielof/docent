@@ -60,7 +60,7 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
-const scan_modes = @import("../../scan_modes.zig");
+const scanning = @import("../../scanning.zig");
 const Config = @import("../../schemas/Config.zig");
 const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
@@ -71,19 +71,26 @@ inline fn srcLoc() std.builtin.SourceLocation {
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
-// TODO: Add the ability for this rule to be configurable. As follows:
-// - Whether to require always an article or keep it optional (default).
-// - Whether to always require backticks, optional (default) or never allow them.
-// - Whether to require the identifier kind to be present or not.
-//   - If required, the position can also be configured, whether to enforce it always before or after, or just allow both (default).
-// - Identifier presence isn't configurable, it's always expected to be present and match the identifier case.
-//   - Edge cases for false positives and errors should be considered with literal identifiers (e.g. `const @"foo bar" = 1;`).
+pub const Mode = Config.LeadingPhraseMode;
 
+/// The Options resolved for the rule.
 pub const Options = struct {
-    scan_mode: scan_modes.Mode = scan_modes.Mode.public_api_surface,
+    /// Which declarations this rule inspects; inherits `[docs] scan_mode` unless overridden for this rule.
+    scan_mode: scanning.Modes = scanning.Modes.public_api_surface,
+    /// Leading-phrase strictness. `relaxed` accepts identifier-first summaries; `canonical` (default) allows kind-before or identifier-first; `strict` requires kind-before-identifier when phrases exist for the declaration type.
+    mode: Mode = .canonical,
+    /// When set, the summary must begin with an English article (`a`, `an`, `the`).
+    require_article: bool = false,
+    /// When set, the documented identifier must appear wrapped in backticks.
+    require_backticks: bool = false,
 
-    pub fn resolve(category_scan: scan_modes.Mode, rule: Config.RuleSimple) Options {
-        return .{ .scan_mode = rule_opts.scanModeFromSimple(category_scan, rule) };
+    pub fn resolve(category_scan: scanning.Modes, rule: Config.InvalidLeadingPhraseRule) Options {
+        return .{
+            .scan_mode = rule_opts.scanModeFromInvalidLeadingPhrase(category_scan, rule),
+            .mode = rule.mode orelse .canonical,
+            .require_article = rule.require_article orelse false,
+            .require_backticks = rule.require_backticks orelse false,
+        };
     }
 
     pub fn publicApiOnly(self: Options) bool {
@@ -145,7 +152,7 @@ pub fn check(
         const report_tok = try collectSummaryWords(tree, block_start, block_end, allocator, &words);
         if (report_tok == null or words.items.len == 0) continue;
 
-        if (hasLeadingPhrase(words.items, subject)) continue;
+        if (hasLeadingPhrase(words.items, subject, options)) continue;
 
         const tok = report_tok.?;
         const slice = tree.tokenSlice(tok);
@@ -190,19 +197,61 @@ fn collectSummaryWords(
     return report_tok;
 }
 
-fn hasLeadingPhrase(words: []const []const u8, subject: Diagnostic.Subject) bool {
+fn hasLeadingPhrase(words: []const []const u8, subject: Diagnostic.Subject, options: Options) bool {
     var i: usize = 0;
-    if (i < words.len and isArticle(words[i])) i += 1;
+    const has_article = i < words.len and isArticle(words[i]);
+    if (has_article) i += 1;
+    if (options.require_article and !has_article) return false;
+    if (i >= words.len) return false;
 
-    // Identifier kind before the identifier: "Module Foo", "Function `foo`".
-    const consumed = matchKindPhrase(words[i..], subject.kind);
-    const after_kind = i + consumed;
-    if (after_kind < words.len and identifierMatches(words[after_kind], subject)) return true;
+    const namespace_requires_kind = subject.kind == .namespace;
+    return switch (options.mode) {
+        .relaxed => leadingPhraseRelaxed(words[i..], subject, options),
+        .canonical => leadingPhraseCanonical(words[i..], subject, options, namespace_requires_kind),
+        .strict => leadingPhraseStrict(words[i..], subject, options, namespace_requires_kind),
+    };
+}
 
-    // Identifier first, with an optional kind afterwards: "InitOptions", "ParseError error set".
-    if (i < words.len and identifierMatches(words[i], subject)) return true;
-
+/// Identifier-first or kind-then-identifier; kind phrases are optional.
+fn leadingPhraseRelaxed(words: []const []const u8, subject: Diagnostic.Subject, options: Options) bool {
+    const consumed = matchKindPhrase(words, subject.kind);
+    if (consumed < words.len and wordMatchesIdentifier(words[consumed], subject, options)) return true;
+    if (words.len > 0 and wordMatchesIdentifier(words[0], subject, options)) return true;
     return false;
+}
+
+/// Kind-before or identifier-first; namespaces must include a kind word.
+fn leadingPhraseCanonical(
+    words: []const []const u8,
+    subject: Diagnostic.Subject,
+    options: Options,
+    namespace_requires_kind: bool,
+) bool {
+    const consumed = matchKindPhrase(words, subject.kind);
+    const id_after_kind = consumed < words.len and wordMatchesIdentifier(words[consumed], subject, options);
+    const id_first = words.len > 0 and wordMatchesIdentifier(words[0], subject, options);
+    if (namespace_requires_kind and consumed == 0) return false;
+    return id_after_kind or id_first;
+}
+
+/// Kind-before-identifier when kind phrases exist; identifier-first only as a fallback.
+fn leadingPhraseStrict(
+    words: []const []const u8,
+    subject: Diagnostic.Subject,
+    options: Options,
+    namespace_requires_kind: bool,
+) bool {
+    const consumed = matchKindPhrase(words, subject.kind);
+    if (consumed > 0) return consumed < words.len and wordMatchesIdentifier(words[consumed], subject, options);
+    if (namespace_requires_kind or kindPhrases(subject.kind).len > 0) return false;
+    return words.len > 0 and wordMatchesIdentifier(words[0], subject, options);
+}
+
+fn wordMatchesIdentifier(word: []const u8, subject: Diagnostic.Subject, options: Options) bool {
+    if (options.require_backticks) {
+        if (word.len < 2 or word[0] != '`' or word[word.len - 1] != '`') return false;
+    }
+    return identifierMatches(word, subject);
 }
 
 fn isArticle(word: []const u8) bool {
@@ -297,7 +346,6 @@ fn runCheckOpts(source: [:0]const u8, module_name: ?[]const u8, options: Options
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
-
 test "accepts identifier-first summary on a function" {
     var r = try runCheck("/// add returns the sum.\npub fn add(a: i32, b: i32) i32 {\n    return a + b;\n}");
     defer r.deinit();
@@ -391,4 +439,64 @@ test "private function checked when public_api_only is false" {
     var r = try runCheckOpts("/// Returns something.\nfn hidden() void {}", null, .{ .scan_mode = .reachability_traversal });
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
+}
+
+test "strict mode rejects identifier-first function summary" {
+    var r = try runCheckOpts(
+        "/// add returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
+        null,
+        .{ .mode = .strict },
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+}
+
+test "strict mode accepts kind-before identifier summary" {
+    var r = try runCheckOpts(
+        "/// Function `add` returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
+        null,
+        .{ .mode = .strict },
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
+}
+
+test "require_article rejects summary without article" {
+    var r = try runCheckOpts(
+        "/// Function `add` returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
+        null,
+        .{ .require_article = true },
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+}
+
+test "require_article accepts summary with article" {
+    var r = try runCheckOpts(
+        "/// The function `add` returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
+        null,
+        .{ .require_article = true },
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
+}
+
+test "require_backticks rejects bare identifier" {
+    var r = try runCheckOpts(
+        "/// Function add returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
+        null,
+        .{ .require_backticks = true },
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+}
+
+test "require_backticks accepts backticked identifier" {
+    var r = try runCheckOpts(
+        "/// Function `add` returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
+        null,
+        .{ .require_backticks = true },
+    );
+    defer r.deinit();
+    try std.testing.expectEqual(0, r.items.items.len);
 }

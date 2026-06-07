@@ -4,7 +4,7 @@ const std = @import("std");
 const docent = @import("docent");
 const utils = @import("../../utils.zig");
 
-fn lint(source: [:0]const u8, scan_mode: docent.scan_modes.Mode) !docent.LintResult {
+fn lint(source: [:0]const u8, scan_mode: docent.scanning.Modes) !docent.LintResult {
     var style_options = docent.rules.style.Options.defaults();
     style_options.applyRunScanMode(scan_mode);
     return docent.lintStyleSource(

@@ -1,5 +1,4 @@
 #:schema ../schemas/docent.schema.json
-# Tiger style preset
 
 [docs]
 scan_mode = "public"
