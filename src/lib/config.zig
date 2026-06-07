@@ -52,14 +52,14 @@ pub fn findConfigPathRelative(allocator: std.mem.Allocator, io: std.Io, relative
 }
 
 /// Loads and decodes a `docent.toml` file.
-pub fn loadConfig(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!Config.Root {
+pub fn loadConfig(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!Config {
     var parsed = try parseConfigFile(allocator, io, config_path);
     defer parsed.deinit();
     return try Config.decode(parsed.root);
 }
 
 /// Loads config from an explicit `config_path`, or searches for the default file when null.
-pub fn loadConfigFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!Config.Root {
+pub fn loadConfigFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!Config {
     if (config_path) |explicit| {
         const abs = try resolveExplicitConfigPath(allocator, io, explicit);
         defer allocator.free(abs);

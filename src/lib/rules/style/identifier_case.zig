@@ -53,7 +53,8 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const Config = @import("../../schemas/Config.zig");
+const toml = @import("toml");
+const rule_config = @import("../config.zig");
 const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
@@ -66,17 +67,42 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
-/// Resolved options for `[style.identifier_case]`.
-pub const Options = struct {
-    /// Which declarations this rule inspects; inherits `[style] scan_mode` unless overridden for this rule.
-    scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
-    /// When set, struct files may use snake_case filenames (Tiger Style). When unset, struct files and struct import paths use PascalCase filenames while struct import bindings follow the configured types case.
-    allow_snake_case_struct_files: bool = false,
+/// Filename case convention for struct-at-file-scope modules.
+pub const FilenameCase = enum {
+    snake_case,
+    camelCase,
+    PascalCase,
+    kebab_case, // TODO: We can use string identifiers and make it into @"kebab-case".
+};
 
-    pub fn resolve(category_scan: scanning.Modes, rule: Config.IdentifierCaseRule) Options {
+/// Raw configuration for this rule from `docent.toml`.
+pub const Config = struct {
+    level: ?severity.Level = null,
+    scan_mode: ?scanning.Modes = null,
+    /// Case convention for struct file basenames. When omitted, defaults to PascalCase (Zig); set independently of declaration `types` case when filenames should differ (for example Tiger Style snake_case files with PascalCase struct names).
+    struct_file_case: ?FilenameCase = null,
+};
+
+pub fn decodeConfig(value: toml.DynamicValue) rule_config.Error!Config {
+    const case_name = rule_config.decodeStringField(value, "struct_file_case");
+    return .{
+        .level = try rule_config.decodeLevelValue(value),
+        .scan_mode = rule_config.decodeScanModeField(value),
+        .struct_file_case = if (case_name) |name| std.meta.stringToEnum(FilenameCase, name) else null,
+    };
+}
+
+/// Resolved options for the identifier case rule.
+pub const Options = struct {
+    /// Which declarations this rule inspects; inherits the style category `scan_mode` unless overridden for this rule.
+    scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
+    /// Expected case for struct-at-file-scope module filenames.
+    struct_file_case: FilenameCase = .PascalCase,
+
+    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
         return .{
-            .scan_mode = rule_opts.scanModeFromIdentifierCase(category_scan, rule),
-            .allow_snake_case_struct_files = rule.allow_snake_case_struct_files orelse false,
+            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
+            .struct_file_case = rule.struct_file_case orelse .PascalCase,
         };
     }
 
@@ -288,26 +314,24 @@ fn checkStructFileName(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    if (options.allow_snake_case_struct_files) return;
-
+    const file_case = options.struct_file_case;
     const base = std.fs.path.basename(file);
     if (std.mem.eql(u8, base, "root.zig") or std.mem.eql(u8, base, "main.zig")) return;
     if (!std.mem.endsWith(u8, base, ".zig")) return;
     const stem = base[0 .. base.len - ".zig".len];
 
     if (!utils.fileIsNamespace(tree)) {
-        if (isPascalCase(stem)) return;
+        if (stemMatchesFilenameCase(stem, file_case)) return;
 
-        const expected_stem = try snakeCaseStemToPascal(msg_allocator, stem);
+        const expected_stem = try suggestStructImportStem(msg_allocator, stem, file_case);
         defer msg_allocator.free(expected_stem);
-        if (std.mem.eql(u8, stem, expected_stem) and isPascalCase(stem)) return;
 
         const report_tok: Ast.TokenIndex = if (tree.rootDecls().len > 0) tree.firstToken(tree.rootDecls()[0]) else 0;
         const loc = tree.tokenLocation(0, report_tok);
         const detail = try std.fmt.allocPrint(
             msg_allocator,
-            "struct file should use PascalCase filename \"{s}.zig\"",
-            .{expected_stem},
+            "struct file should use {s} filename \"{s}.zig\"",
+            .{ filenameCaseLabel(file_case), expected_stem },
         );
         try diagnostics.append(allocator, .{
             .rule = rule_name,
@@ -336,13 +360,16 @@ fn checkStructFileName(
         const name_tok = var_decl.ast.mut_token + 1;
         const name = tree.tokenSlice(name_tok);
         if (isExemptName(name)) continue;
-        if (std.mem.eql(u8, stem, name) and isPascalCase(stem)) continue;
+
+        const expected_stem = try identifierToFilenameStem(msg_allocator, name, file_case);
+        defer msg_allocator.free(expected_stem);
+        if (std.mem.eql(u8, stem, expected_stem)) continue;
 
         const loc = tree.tokenLocation(0, name_tok);
         const detail = try std.fmt.allocPrint(
             msg_allocator,
-            "struct file should use PascalCase filename \"{s}.zig\" for struct '{s}'",
-            .{ name, name },
+            "struct file should use {s} filename \"{s}.zig\" for struct '{s}'",
+            .{ filenameCaseLabel(file_case), expected_stem, name },
         );
         try diagnostics.append(allocator, .{
             .rule = rule_name,
@@ -421,15 +448,19 @@ fn checkImportFilename(
     const file_kind = try resolveImportedFileKind(lit.path, file, allocator, io, namespace_cache) orelse return;
     const loc = tree.tokenLocation(0, lit.str_tok);
 
-    if (file_kind == .structure and !options.allow_snake_case_struct_files and isSnakeCase(stem)) {
-        const expected_stem = try snakeCaseStemToPascal(msg_allocator, stem);
+    if (file_kind == .structure and !stemMatchesFilenameCase(stem, options.struct_file_case)) {
+        const expected_stem = try suggestStructImportStem(msg_allocator, stem, options.struct_file_case);
         defer msg_allocator.free(expected_stem);
         const expected = try std.fmt.allocPrint(msg_allocator, "{s}.zig", .{expected_stem});
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
             .subject = try utils.ownedSubject(msg_allocator, .source_file, basename),
-            .detail = try std.fmt.allocPrint(msg_allocator, "struct file should use PascalCase filename; expected \"{s}\"", .{expected}),
+            .detail = try std.fmt.allocPrint(
+                msg_allocator,
+                "struct file should use {s} filename; expected \"{s}\"",
+                .{ filenameCaseLabel(options.struct_file_case), expected },
+            ),
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
@@ -486,6 +517,85 @@ fn pascalCaseStemToSnake(allocator: std.mem.Allocator, stem: []const u8) std.mem
     }
 
     return try out.toOwnedSlice(allocator);
+}
+
+fn filenameCaseLabel(case: FilenameCase) []const u8 {
+    return switch (case) {
+        .snake_case => "snake_case",
+        .camelCase => "camelCase",
+        .PascalCase => "PascalCase",
+        .kebab_case => "kebab-case",
+    };
+}
+
+fn stemMatchesFilenameCase(stem: []const u8, case: FilenameCase) bool {
+    return switch (case) {
+        .snake_case => isSnakeCase(stem),
+        .camelCase => isCamelCase(stem),
+        .PascalCase => isPascalCase(stem),
+        .kebab_case => isKebabCase(stem),
+    };
+}
+
+fn isKebabCase(name: []const u8) bool {
+    if (name.len == 0) return false;
+    for (name) |c| {
+        if (!((c >= 'a' and c <= 'z') or (c >= '0' and c <= '9') or c == '-')) return false;
+    }
+    return true;
+}
+
+fn identifierToFilenameStem(allocator: std.mem.Allocator, name: []const u8, case: FilenameCase) std.mem.Allocator.Error![]u8 {
+    return switch (case) {
+        .snake_case => pascalCaseStemToSnake(allocator, name),
+        .camelCase => pascalIdentifierToCamelStem(allocator, name),
+        .PascalCase => allocator.dupe(u8, name),
+        .kebab_case => pascalCaseStemToKebab(allocator, name),
+    };
+}
+
+fn suggestStructImportStem(allocator: std.mem.Allocator, stem: []const u8, case: FilenameCase) std.mem.Allocator.Error![]u8 {
+    if (stemMatchesFilenameCase(stem, case)) return allocator.dupe(u8, stem);
+    const pascal = try snakeOrKebabStemToPascal(allocator, stem);
+    defer allocator.free(pascal);
+    return identifierToFilenameStem(allocator, pascal, case);
+}
+
+fn pascalIdentifierToCamelStem(allocator: std.mem.Allocator, name: []const u8) std.mem.Allocator.Error![]u8 {
+    if (name.len == 0) return try allocator.dupe(u8, "");
+    if (name[0] >= 'A' and name[0] <= 'Z') {
+        var out: std.ArrayList(u8) = .empty;
+        errdefer out.deinit(allocator);
+        try out.append(allocator, name[0] + 32);
+        try out.appendSlice(allocator, name[1..]);
+        return try out.toOwnedSlice(allocator);
+    }
+    return try allocator.dupe(u8, name);
+}
+
+fn pascalCaseStemToKebab(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
+    const snake = try pascalCaseStemToSnake(allocator, stem);
+    defer allocator.free(snake);
+
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    for (snake) |c| {
+        try out.append(allocator, if (c == '_') '-' else c);
+    }
+    return try out.toOwnedSlice(allocator);
+}
+
+fn snakeOrKebabStemToPascal(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
+    if (isPascalCase(stem) or isCamelCase(stem)) return allocator.dupe(u8, stem);
+    if (isKebabCase(stem)) {
+        var snake: std.ArrayList(u8) = .empty;
+        errdefer snake.deinit(allocator);
+        for (stem) |c| try snake.append(allocator, if (c == '-') '_' else c);
+        const snake_slice = try snake.toOwnedSlice(allocator);
+        defer allocator.free(snake_slice);
+        return snakeCaseStemToPascal(allocator, snake_slice);
+    }
+    return snakeCaseStemToPascal(allocator, stem);
 }
 
 /// Converts a `snake_case` stem to PascalCase for struct filename suggestions.
@@ -1070,7 +1180,7 @@ test "inactive severity yields no diagnostics" {
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
 
-test "allow_snake_case_struct_files accepts snake_case implicit struct file stem" {
+test "struct_file_case snake_case accepts snake_case implicit struct file stem" {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     defer msg_arena.deinit();
@@ -1088,7 +1198,7 @@ test "allow_snake_case_struct_files accepts snake_case implicit struct file stem
         &tree,
         .warn,
         "init_options.zig",
-        .{ .allow_snake_case_struct_files = true },
+        .{ .struct_file_case = .snake_case },
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1097,7 +1207,7 @@ test "allow_snake_case_struct_files accepts snake_case implicit struct file stem
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
 
-test "zig convention flags snake_case implicit struct file stem" {
+test "default struct_file_case flags snake_case implicit struct file stem" {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     defer msg_arena.deinit();
@@ -1171,7 +1281,7 @@ test "snake_case binding on struct import is flagged" {
         &tree,
         .warn,
         "tests/fixtures/style/import_site.zig",
-        .{ .allow_snake_case_struct_files = true },
+        .{ .struct_file_case = .snake_case },
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1205,7 +1315,7 @@ test "PascalCase binding on snake_case struct import path is clean under Tiger" 
         &tree,
         .warn,
         "tests/fixtures/style/import_site.zig",
-        .{ .allow_snake_case_struct_files = true },
+        .{ .struct_file_case = .snake_case },
         base,
         std.testing.io,
         msg_arena.allocator(),

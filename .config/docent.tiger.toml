@@ -6,7 +6,7 @@ scan_mode = "all"
 [style.identifier_case]
 level = "deny"
 functions = "snake_case"
-allow_snake_case_struct_files = true
+struct_file_case = "snake_case"
 
 [style.line_length_limit]
 level = "forbid"

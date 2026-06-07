@@ -61,7 +61,8 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const Config = @import("../../schemas/Config.zig");
+const toml = @import("toml");
+const rule_config = @import("../config.zig");
 const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
@@ -71,11 +72,36 @@ inline fn srcLoc() std.builtin.SourceLocation {
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
-pub const Mode = Config.LeadingPhraseMode;
+/// Leading-phrase strictness for this rule.
+pub const Mode = enum {
+    relaxed,
+    canonical,
+    strict,
+};
+
+/// Raw configuration for this rule from `docent.toml`.
+pub const Config = struct {
+    level: ?severity.Level = null,
+    scan_mode: ?scanning.Modes = null,
+    mode: ?Mode = null,
+    require_article: ?bool = null,
+    require_backticks: ?bool = null,
+};
+
+pub fn decodeConfig(value: toml.DynamicValue) rule_config.Error!Config {
+    const mode_name = rule_config.decodeStringField(value, "mode");
+    return .{
+        .level = try rule_config.decodeLevelValue(value),
+        .scan_mode = rule_config.decodeScanModeField(value),
+        .mode = if (mode_name) |name| std.meta.stringToEnum(Mode, name) else null,
+        .require_article = rule_config.decodeBoolField(value, "require_article"),
+        .require_backticks = rule_config.decodeBoolField(value, "require_backticks"),
+    };
+}
 
 /// The Options resolved for the rule.
 pub const Options = struct {
-    /// Which declarations this rule inspects; inherits `[docs] scan_mode` unless overridden for this rule.
+    /// Which declarations this rule inspects; inherits the docs category `scan_mode` unless overridden for this rule.
     scan_mode: scanning.Modes = scanning.Modes.public_api_surface,
     /// Leading-phrase strictness. `relaxed` accepts identifier-first summaries; `canonical` (default) allows kind-before or identifier-first; `strict` requires kind-before-identifier when phrases exist for the declaration type.
     mode: Mode = .canonical,
@@ -84,9 +110,9 @@ pub const Options = struct {
     /// When set, the documented identifier must appear wrapped in backticks.
     require_backticks: bool = false,
 
-    pub fn resolve(category_scan: scanning.Modes, rule: Config.InvalidLeadingPhraseRule) Options {
+    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
         return .{
-            .scan_mode = rule_opts.scanModeFromInvalidLeadingPhrase(category_scan, rule),
+            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
             .mode = rule.mode orelse .canonical,
             .require_article = rule.require_article orelse false,
             .require_backticks = rule.require_backticks orelse false,
