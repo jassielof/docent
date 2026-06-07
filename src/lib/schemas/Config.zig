@@ -1,0 +1,1 @@
+// TODO: Here should be defined the configuration schema (struct) for the library, the one that's used on pair with the YAML Schema to parse the configuration file. This should be used to parse the configuration TOML, so parsing is type-safe and we can guarantee that the configuration file is correct.

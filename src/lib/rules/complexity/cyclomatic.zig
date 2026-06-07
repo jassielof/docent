@@ -1,9 +1,12 @@
 //! The `cyclomatic` namespace provides the implementation of the cyclomatic complexity rule.
 //!
-//! Cyclomatic complexity counts linearly independent paths through a function's control flow (McCabe,
-//! 1976). The score starts at 1 and adds one for each decision point: `if`, loops, `catch`, logical
-//! `and`/`or`, and each `switch` prong. Unlike cognitive complexity, `switch` arms are counted
-//! individually rather than as a single structure.
+//! Cyclomatic complexity counts linearly independent paths through a function's control flow (McCabe, 1976). The score starts at 1 and adds one for each decision point: `if`, loops, `catch`, logical `and`/`or`, and each `switch` prong. Unlike cognitive complexity, `switch` arms are counted individually rather than as a single structure.
+//!
+//! See NIST/McCabe guidance (_Structured Testing: A Testing Methodology Using the Cyclomatic Complexity Metric_).
+//!
+//! Unlike tools like [Lizard](https://github.com/terryyin/lizard/), which can be configured to treat an entire `switch` statement as a single branch, this tool enforces the traditional mathematical definition. While some teams modify it to act as a proxy for readability, it should be used strictly as a **testability metric** (mapping directly to the number of required unit tests). Readability and maintainability concerns are instead handled by _Cognitive Complexity_, which provides a much more reliable metric for human code comprehension.
+//!
+//! Therefore, exhaustive `switch` statements over `enum`s are still penalized, as each branch represents a real, testable path regardless of whether the compiler requires it.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -17,13 +20,19 @@ const rule_name = utils.ruleIdWithName("cyclomatic_complexity");
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
+// TODO: Move the default threshold to an Options structure. As a `threshold` field with its default of 10.
+pub const Options = struct {};
+
 /// Default McCabe-recommended limit on linearly independent paths.
+///
+/// As suggested by McCabe, a score of 10–15 is considered _complex_, and anything above 15 is considered _risky_.
+///
+/// See § 2.5: _Limiting cyclomatic complexity to 10_.
 pub const default_threshold: u32 = 10;
 
 /// Walks `tree` and appends a diagnostic for each scanned function whose cyclomatic complexity exceeds `threshold`.
 ///
-/// When `public_api_only` is set, only `pub` functions (at the container level) are measured; otherwise every
-/// container-level function is measured.
+/// When `public_api_only` is set, only `pub` functions (at the container level) are measured; otherwise every container-level function is measured.
 pub fn check(
     tree: *const Ast,
     severity_level: severity.Level,

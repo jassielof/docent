@@ -66,7 +66,6 @@ inline fn srcLoc() std.builtin.SourceLocation {
     return @src();
 }
 
-const sel = @This();
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
 // TODO: Add the ability for this rule to be configurable. As follows:

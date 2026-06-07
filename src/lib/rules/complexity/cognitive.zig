@@ -1,23 +1,16 @@
 //! The `cognitive` namespace provides the implementation of the cognitive complexity rule.
 //!
-//! Cognitive Complexity follows the Sonar specification (G. Ann Campbell, 2023): instead of counting linearly independent paths, it scores how hard a function's control flow is to *understand*. Three
-//! kinds of increments are accumulated per function body:
+//! Cognitive Complexity follows the Sonar specification (G. Ann Campbell, 2023). Instead of counting linearly independent paths (like Cyclomatic Complexity), it scores how hard a function's control flow is to *understand*. Three kinds of increments are accumulated per function body:
 //!
-//! * Structural — control-flow structures that also receive a nesting increment (`if`, `for`, `while`,
-//!   `switch`, `catch`). Each adds `1 + current_nesting`.
-//! * Hybrid — `else` / `else if`, which add `1` but never receive a nesting increment (the cost of the
-//!   `if` was already paid), yet still raise the nesting level for their body.
-//! * Fundamental — breaks in linear flow that are independent of nesting: each new sequence of binary
-//!   logical operators (`and` / `or`), labeled loop `break`/`continue`, and direct recursion.
+//! - Structural: Control-flow structures that also receive a nesting increment (`if`, `for`, `while`, `switch`, `catch`). Each adds `1 + current_nesting`.
+//! - Hybrid: `else` / `else if`, which add `1` but never receive a nesting increment (the cost of the `if` was already paid), yet still raise the nesting level for their body.
+//! - Fundamental: breaks in linear flow that are independent of nesting: each new sequence of binary logical operators (`and` / `or`), labeled loop `break`/`continue`, and direct recursion.
 //!
-//! Zig-specific mappings:
+//! ## Zig-specific mappings
 //!
-//! * `catch` is treated like an exception `catch` clause (structural + nesting). `orelse` is the optional
-//!   counterpart of null-coalescing and is intentionally ignored.
-//! * Labeled `break`/`continue` only increment when the label targets a `for`/`while` loop; labeled block
-//!   breaks (`break :blk value`) are value expressions and are not penalized.
+//! * `catch` is treated like an exception `catch` clause (structural + nesting). `orelse` is the optional counterpart of null-coalescing and is intentionally ignored.
+//! * Labeled `break`/`continue` only increment when the label targets a `for`/`while` loop; labeled block breaks (`break :blk value`) are value expressions and are not penalized.
 //! * Only direct recursion (a function calling itself by name) is scored; indirect recursion is out of scope.
-
 const std = @import("std");
 const Ast = std.zig.Ast;
 
@@ -30,7 +23,12 @@ const rule_name = utils.ruleIdWithName("cognitive_complexity");
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
-/// The default_threshold is the one recommended by Sonar Source. See <https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103/3>.
+// TODO: Move the default threshold to an Options structure.
+pub const Options = struct {};
+
+/// The default_threshold is the one recommended by Sonar Source.
+///
+/// See <https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103/3>.
 pub const default_threshold: u32 = 15;
 
 /// Walks `tree` and appends a diagnostic for each scanned function whose cognitive complexity exceeds `threshold`.
