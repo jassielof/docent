@@ -49,6 +49,9 @@ inline fn srcLoc() std.builtin.SourceLocation {
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .warn;
+
 // TODO: Implement the rule to be configurable via an option structure.
 pub const Options = struct {};
 

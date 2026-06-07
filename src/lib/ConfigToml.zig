@@ -3,8 +3,10 @@
 const std = @import("std");
 const toml = @import("toml");
 
-const RuleSet = @import("RuleSet.zig");
+const RuleSeverities = @import("RuleSeverities.zig");
+const scan_modes = @import("scan_modes.zig");
 const severity = @import("severity.zig");
+const rules = @import("rules.zig");
 const ComplexityOptions = @import("ComplexityOptions.zig");
 const DocsOptions = @import("DocsOptions.zig");
 
@@ -63,7 +65,7 @@ pub fn parseRoot(allocator: std.mem.Allocator, text: []const u8) Error!toml.Dyna
 }
 
 /// Applies `[docs]`, `[style]`, and `[complexity]` rule severities to `rule_set`.
-pub fn applyRuleSet(root: toml.DynamicValue, rule_set: *RuleSet) Error!void {
+pub fn applyRuleSeverities(root: toml.DynamicValue, rule_set: *RuleSeverities) Error!void {
     const table = rootTable(root) orelse return error.ConfigParseFailed;
 
     if (sectionTable(table, "docs")) |docs| try applySectionRules(rule_set, docs, &docs_rules);
@@ -97,19 +99,19 @@ pub fn applyComplexityOptions(root: toml.DynamicValue, options: *ComplexityOptio
     }
 }
 
-/// Returns whether doc rules should restrict checks to public declarations (default: true).
-pub fn docsPublicApiOnly(root: toml.DynamicValue) Error!bool {
-    return scanModePublicApiOnly(root, "docs", true);
+/// Returns the declaration scan mode for `[docs]` (default: `rules.docs.default_scan_mode`).
+pub fn docsScanMode(root: toml.DynamicValue) Error!scan_modes.Mode {
+    return scanModeForSection(root, "docs", rules.docs.default_scan_mode);
 }
 
-/// Returns whether complexity rules should restrict checks to public declarations (default: false).
-pub fn complexityPublicApiOnly(root: toml.DynamicValue) Error!bool {
-    return scanModePublicApiOnly(root, "complexity", false);
+/// Returns the declaration scan mode for `[style]` (default: `rules.style.default_scan_mode`).
+pub fn styleScanMode(root: toml.DynamicValue) Error!scan_modes.Mode {
+    return scanModeForSection(root, "style", rules.style.default_scan_mode);
 }
 
-/// Returns whether style rules should restrict checks to public declarations (default: false).
-pub fn stylePublicApiOnly(root: toml.DynamicValue) Error!bool {
-    return scanModePublicApiOnly(root, "style", false);
+/// Returns the declaration scan mode for `[complexity]` (default: `rules.complexity.default_scan_mode`).
+pub fn complexityScanMode(root: toml.DynamicValue) Error!scan_modes.Mode {
+    return scanModeForSection(root, "complexity", rules.complexity.default_scan_mode);
 }
 
 fn rootTable(root: toml.DynamicValue) ?*const toml.Table {
@@ -128,18 +130,18 @@ fn sectionTable(root: *const toml.Table, key: []const u8) ?*const toml.Table {
 }
 
 fn applySectionRules(
-    rule_set: *RuleSet,
+    rule_set: *RuleSeverities,
     section: *const toml.Table,
-    comptime rules: []const SectionRule,
+    comptime section_rules: []const SectionRule,
 ) Error!void {
-    inline for (rules) |mapping| {
+    inline for (section_rules) |mapping| {
         if (section.get(mapping.config_key)) |rule_value| {
             try applyRuleToSet(rule_set, mapping.rule_field, rule_value);
         }
     }
 }
 
-fn applyRuleToSet(rule_set: *RuleSet, comptime field: []const u8, value: toml.DynamicValue) Error!void {
+fn applyRuleToSet(rule_set: *RuleSeverities, comptime field: []const u8, value: toml.DynamicValue) Error!void {
     const level_name = std.mem.trim(u8, try ruleLevelName(value), " \t\r\n");
     if (level_name.len == 0) return;
 
@@ -185,24 +187,21 @@ fn ruleValueU32(value: toml.DynamicValue, key: []const u8) ?u32 {
     };
 }
 
-fn scanModePublicApiOnly(root: toml.DynamicValue, section_key: []const u8, default_public_api_only: bool) Error!bool {
+fn scanModeForSection(root: toml.DynamicValue, section_key: []const u8, default_mode: scan_modes.Mode) Error!scan_modes.Mode {
     const table = rootTable(root) orelse return error.ConfigParseFailed;
-    const section = sectionTable(table, section_key) orelse return default_public_api_only;
-    const scan_mode = section.get("scan_mode") orelse return default_public_api_only;
+    const section = sectionTable(table, section_key) orelse return default_mode;
+    const scan_mode = section.get("scan_mode") orelse return default_mode;
     const mode = scan_mode.stringSlice() orelse return error.ConfigParseFailed;
-
-    if (std.mem.eql(u8, mode, "public")) return true;
-    if (std.mem.eql(u8, mode, "all")) return false;
-    return error.ConfigParseFailed;
+    return scan_modes.Mode.fromConfigString(mode) orelse return error.ConfigParseFailed;
 }
 
-fn setRuleLevel(rule_set: *RuleSet, comptime field: []const u8, level: severity.Level) void {
+fn setRuleLevel(rule_set: *RuleSeverities, comptime field: []const u8, level: severity.Level) void {
     const current = @field(rule_set.*, field);
     if (current == .forbid and level != .forbid) return;
     @field(rule_set, field) = level;
 }
 
-test "applyRuleSet reads manifest fixture file from disk" {
+test "applyRuleSeverities reads manifest fixture file from disk" {
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     const rel = "tests/fixtures/scenarios/manifest_with_deps/.config/docent.toml";
     const len = std.Io.Dir.cwd().realPathFile(std.testing.io, rel, &buf) catch return error.SkipZigTest;
@@ -220,14 +219,14 @@ test "applyRuleSet reads manifest fixture file from disk" {
     defer arena.deinit();
 
     const root = try parseRoot(arena.allocator(), config_text);
-    var rule_set: RuleSet = .{};
-    try applyRuleSet(root, &rule_set);
+    var rule_set: RuleSeverities = .{};
+    try applyRuleSeverities(root, &rule_set);
 
     try std.testing.expect(rule_set.missing_doc_comment == .deny);
     try std.testing.expect(rule_set.missing_doctest == .allow);
 }
 
-test "applyRuleSet reads manifest fixture config" {
+test "applyRuleSeverities reads manifest fixture config" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
@@ -239,14 +238,14 @@ test "applyRuleSet reads manifest fixture config" {
         \\missing_doctest = "allow"
     );
 
-    var rule_set: RuleSet = .{};
-    try applyRuleSet(root, &rule_set);
+    var rule_set: RuleSeverities = .{};
+    try applyRuleSeverities(root, &rule_set);
 
     try std.testing.expect(rule_set.missing_doc_comment == .deny);
     try std.testing.expect(rule_set.missing_doctest == .allow);
 }
 
-test "applyRuleSet reads docs and complexity sections" {
+test "applyRuleSeverities reads docs and complexity sections" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
@@ -261,8 +260,8 @@ test "applyRuleSet reads docs and complexity sections" {
         \\level = "deny"
     );
 
-    var rule_set: RuleSet = .{};
-    try applyRuleSet(root, &rule_set);
+    var rule_set: RuleSeverities = .{};
+    try applyRuleSeverities(root, &rule_set);
 
     try std.testing.expect(rule_set.missing_doc_comment == .deny);
     try std.testing.expect(rule_set.missing_doctest == .allow);
@@ -309,8 +308,8 @@ test "scan modes default and override" {
     defer arena.deinit();
 
     const empty = try parseRoot(arena.allocator(), "");
-    try std.testing.expect(try docsPublicApiOnly(empty));
-    try std.testing.expect(!try complexityPublicApiOnly(empty));
+    try std.testing.expectEqual(rules.docs.default_scan_mode, try docsScanMode(empty));
+    try std.testing.expectEqual(rules.complexity.default_scan_mode, try complexityScanMode(empty));
 
     const root = try parseRoot(arena.allocator(),
         \\[docs]
@@ -319,6 +318,6 @@ test "scan modes default and override" {
         \\[complexity]
         \\scan_mode = "public"
     );
-    try std.testing.expect(!try docsPublicApiOnly(root));
-    try std.testing.expect(try complexityPublicApiOnly(root));
+    try std.testing.expectEqual(scan_modes.Mode.reachability_traversal, try docsScanMode(root));
+    try std.testing.expectEqual(scan_modes.Mode.public_api_surface, try complexityScanMode(root));
 }

@@ -1,10 +1,10 @@
 //! Single source for human-facing rule names, defaults, and summaries shared by CLI help, docs, and completions.
 const std = @import("std");
-const RuleSet = @import("RuleSet.zig");
+const RuleSeverities = @import("RuleSeverities.zig");
 
 /// One rule entry for CLI help, docs, and shell completions.
 pub const RuleRow = struct {
-    /// Rule identifier (matches `RuleSet` field names).
+    /// Rule identifier (matches `RuleSeverities` field names).
     name: []const u8,
     /// Default severity string (`allow`, `warn`, `deny`, or `forbid`).
     default_level: []const u8,
@@ -32,7 +32,7 @@ pub const levels: []const struct { name: []const u8, summary: []const u8 } = &.{
     .{ .name = "forbid", .summary = "Like deny, but cannot be relaxed by later overrides." },
 };
 
-/// Rule catalog in the same field order as `RuleSet`.
+/// Rule catalog in the same field order as `RuleSeverities`.
 pub const rules: []const RuleRow = &.{
     .{
         .name = "missing_doc_comment",
@@ -90,7 +90,7 @@ pub const rules: []const RuleRow = &.{
     },
     .{
         .name = "cyclomatic_complexity",
-        .default_level = "allow",
+        .default_level = "warn",
         .summary = "Functions should stay below the cyclomatic complexity threshold (default 10).",
         .prose_title = "Cyclomatic complexity",
     },
@@ -109,19 +109,19 @@ pub const rules: []const RuleRow = &.{
 };
 
 comptime {
-    const fnames = RuleSet.fieldNames();
+    const fnames = RuleSeverities.fieldNames();
     if (rules.len != fnames.len)
-        @compileError("rule_metadata.rules length must match RuleSet fields");
+        @compileError("rule_metadata.rules length must match RuleSeverities fields");
 
     for (rules, fnames) |row, n| {
-        if (!std.mem.eql(u8, row.name, n)) @compileError("rule_metadata.rules order/names must match RuleSet fields");
+        if (!std.mem.eql(u8, row.name, n)) @compileError("rule_metadata.rules order/names must match RuleSeverities fields");
     }
 
-    const defs: RuleSet = .{};
-    for (rules, std.meta.fields(RuleSet)) |row, f| {
+    const defs: RuleSeverities = .{};
+    for (rules, std.meta.fields(RuleSeverities)) |row, f| {
         const expected = @tagName(@field(defs, f.name));
         if (!std.mem.eql(u8, row.default_level, expected)) {
-            @compileError("rule_metadata default_level does not match RuleSet field default");
+            @compileError("rule_metadata default_level does not match RuleSeverities field default");
         }
     }
 }

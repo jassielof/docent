@@ -3,7 +3,7 @@ const Ast = std.zig.Ast;
 const vereda = @import("vereda");
 
 const Diagnostic = @import("../../Diagnostic.zig");
-const RuleSet = @import("../../RuleSet.zig");
+const RuleSeverities = @import("../../RuleSeverities.zig");
 
 /// Normalizes `\` to `/` so diagnostic paths match Zig source import style on every platform.
 pub fn normalizePathSeparators(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
@@ -322,20 +322,20 @@ pub fn ruleIdFromSrc(comptime src: std.builtin.SourceLocation) []const u8 {
     if (!std.mem.endsWith(u8, base, ".zig"))
         @compileError("rule module path must end with .zig: " ++ src.file);
     const id = base[0 .. base.len - ".zig".len];
-    comptime assertIsRuleSetField(id);
+    comptime assertIsRuleSeverityField(id);
     return id;
 }
 
-/// Returns a canonical rule identifier when the file stem differs from the `RuleSet` field name.
+/// Returns a canonical rule identifier when the file stem differs from the `RuleSeverities` field name.
 pub fn ruleIdWithName(comptime id: []const u8) []const u8 {
-    comptime assertIsRuleSetField(id);
+    comptime assertIsRuleSeverityField(id);
     return id;
 }
 
-fn assertIsRuleSetField(comptime name: []const u8) void {
-    for (RuleSet.fieldNames()) |field| {
+fn assertIsRuleSeverityField(comptime name: []const u8) void {
+    for (RuleSeverities.fieldNames()) |field| {
         if (std.mem.eql(u8, field, name)) return;
     }
 
-    @compileError("Unknown rule ID '" ++ name ++ "' (no matching RuleSet field)");
+    @compileError("Unknown rule ID '" ++ name ++ "' (no matching RuleSeverities field)");
 }

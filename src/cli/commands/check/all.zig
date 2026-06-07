@@ -27,7 +27,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const rule_set = docent.config.loadRuleSetFromCli(allocator, io, args.config_path) catch |err| {
+    const rule_set = docent.config.loadRuleSeveritiesFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -42,17 +42,17 @@ fn run(ctx: *fangz.ParseContext) !void {
         std.process.exit(1);
     };
 
-    const docs_public_api_only = docent.config.loadDocsPublicApiOnlyFromCli(allocator, io, args.config_path) catch |err| {
+    const docs_scan_mode = docent.config.loadDocsScanModeFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
 
-    const style_public_api_only = docent.config.loadStylePublicApiOnlyFromCli(allocator, io, args.config_path) catch |err| {
+    const style_scan_mode = docent.config.loadStyleScanModeFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
 
-    const complexity_public_api_only = docent.config.loadComplexityPublicApiOnlyFromCli(allocator, io, args.config_path) catch |err| {
+    const complexity_scan_mode = docent.config.loadComplexityScanModeFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -87,21 +87,21 @@ fn run(ctx: *fangz.ParseContext) !void {
     const docs_lint_options: docent.LintOptions = switch (plan.path_mode) {
         .project, .module_root => .{
             .module_name = plan.package.name,
-            .public_api_only = docs_public_api_only,
+            .scan_mode = docs_scan_mode,
         },
         .recursive => .{
-            .public_api_only = false,
+            .scan_mode = .reachability_traversal,
         },
     };
 
     const reachability_lint_options: docent.LintOptions = .{
         .module_name = plan.package.name,
-        .public_api_only = style_public_api_only,
+        .scan_mode = style_scan_mode,
     };
 
     const complexity_lint_options: docent.LintOptions = .{
         .module_name = plan.package.name,
-        .public_api_only = complexity_public_api_only,
+        .scan_mode = complexity_scan_mode,
     };
 
     var linted_files = std.StringHashMap(void).init(allocator);

@@ -28,7 +28,7 @@ test "warnings alone do not fail the process summary" {
 }
 
 test "rule_config forbid cannot be relaxed" {
-    var rs: docent.RuleSet = .{};
+    var rs: docent.RuleSeverities = .{};
     rs.missing_doc_comment = .forbid;
 
     const pair = fangz.KeyValuePair{ .key = "missing_doc_comment", .value = "warn" };

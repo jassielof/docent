@@ -1,7 +1,11 @@
 //! The docs namespace gathers related rules to the doc comments and doctests.
 //!
-//! By default, these rules are enforced across the public API surface, it is configurable to selectively or completely include non-public declarations too.
-// TODO: The default scanning strategy should be documented as a public variable with an enum type. And each rule category should expose its own for this, docs should be public api surface, style and complexity should be same but including private declarations.
+//! By default, these rules are enforced across the public API surface. It is configurable to
+//! selectively or completely include non-public declarations too.
+const scan_modes = @import("../scan_modes.zig");
+
+/// Default declaration scanning mode for documentation rules.
+pub const default_scan_mode = scan_modes.Mode.public_api_surface;
 
 pub const missing_doc_comment = @import("docs/missing_doc_comment.zig");
 pub const blank_doc_comment = @import("docs/blank_doc_comment.zig");

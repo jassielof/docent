@@ -27,6 +27,9 @@ const utils = @import("../utils.zig");
 
 const rule_name = utils.ruleIdWithName("cognitive_complexity");
 
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .warn;
+
 /// The default_threshold is the one recommended by Sonar Source. See <https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103/3>.
 pub const default_threshold: u32 = 15;
 

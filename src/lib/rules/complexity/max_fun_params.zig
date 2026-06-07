@@ -15,6 +15,9 @@ inline fn srcLoc() std.builtin.SourceLocation {
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .warn;
+
 /// Default maximum parameter count (functions with more parameters are flagged).
 pub const default_threshold: u32 = 7;
 

@@ -53,7 +53,7 @@ pub fn lintFixturePath(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    rule_set: docent.RuleSet,
+    rule_set: docent.RuleSeverities,
     display_path: []const u8,
     options: docent.LintOptions,
 ) !docent.LintResult {
@@ -65,7 +65,7 @@ pub fn lintFixturePath(
 pub fn lintRuleFixture(
     namespace: []const u8,
     parts: []const []const u8,
-    rule_set: docent.RuleSet,
+    rule_set: docent.RuleSeverities,
     options: docent.LintOptions,
 ) !docent.LintResult {
     const allocator = std.testing.allocator;
@@ -84,7 +84,7 @@ pub fn ruleProjectRootPath(namespace: []const u8, case_dir: []const u8) ![]const
 
 pub fn lintScenarioFixture(
     parts: []const []const u8,
-    rule_set: docent.RuleSet,
+    rule_set: docent.RuleSeverities,
     options: docent.LintOptions,
 ) !docent.LintResult {
     const allocator = std.testing.allocator;

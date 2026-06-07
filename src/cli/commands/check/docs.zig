@@ -25,7 +25,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const rule_set = docent.config.loadRuleSetFromCli(allocator, io, args.config_path) catch |err| {
+    const rule_set = docent.config.loadRuleSeveritiesFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -35,7 +35,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         std.process.exit(1);
     };
 
-    const docs_public_api_only = docent.config.loadDocsPublicApiOnlyFromCli(allocator, io, args.config_path) catch |err| {
+    const docs_scan_mode = docent.config.loadDocsScanModeFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -75,10 +75,10 @@ fn run(ctx: *fangz.ParseContext) !void {
     const lint_options: docent.LintOptions = switch (plan.path_mode) {
         .project, .module_root => .{
             .module_name = plan.package.name,
-            .public_api_only = docs_public_api_only,
+            .scan_mode = docs_scan_mode,
         },
         .recursive => .{
-            .public_api_only = false,
+            .scan_mode = .reachability_traversal,
         },
     };
 
@@ -117,7 +117,7 @@ pub fn lintPlanFile(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    rule_set: docent.RuleSet,
+    rule_set: docent.RuleSeverities,
     lint_options: docent.LintOptions,
     library_entry_roots: []const []const u8,
     docs_options: docent.DocsOptions,

@@ -15,7 +15,7 @@ inline fn srcLoc() std.builtin.SourceLocation {
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
 /// The default_severity for the rule.
-pub const default_severity: severity.Level = .allow;
+pub const default_severity: severity.Level = .warn;
 
 /// Walks `tree` and appends diagnostics when private items use public-style doctests.
 pub fn check(
