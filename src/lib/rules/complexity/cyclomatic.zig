@@ -1,6 +1,6 @@
 //! The `cyclomatic` namespace provides the implementation of the cyclomatic complexity rule.
 //!
-//! Cyclomatic complexity counts linearly independent paths through a function's control flow (McCabe, 1976). The score starts at 1 and adds one for each decision point: `if`, loops, `catch`, logical `and`/`or`, and each `switch` prong. Unlike cognitive complexity, `switch` arms are counted individually rather than as a single structure.
+//! Cyclomatic complexity counts linearly independent paths through a function's control flow (McCabe, 1976). The score adds one for each decision point: `if`, loops, `catch`, logical `and`/`or`, and each `switch` prong. Unlike cognitive complexity, `switch` arms are counted individually rather than as a single structure.
 //!
 //! See NIST/McCabe guidance (_Structured Testing: A Testing Methodology Using the Cyclomatic Complexity Metric_).
 //!
@@ -13,7 +13,7 @@ const Ast = std.zig.Ast;
 
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
-const scan_modes = @import("../../scan_modes.zig");
+const scanning = @import("../../scanning.zig");
 const Config = @import("../../schemas/Config.zig");
 const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
@@ -24,10 +24,10 @@ const rule_name = utils.ruleIdWithName("cyclomatic_complexity");
 pub const default_severity: severity.Level = .warn;
 
 pub const Options = struct {
-    scan_mode: scan_modes.Mode = scan_modes.Mode.reachability_traversal,
+    scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
     threshold: u32 = default_threshold,
 
-    pub fn resolve(category_scan: scan_modes.Mode, rule: Config.RuleThreshold) Options {
+    pub fn resolve(category_scan: scanning.Modes, rule: Config.RuleThreshold) Options {
         return .{
             .scan_mode = rule_opts.scanModeFromThreshold(category_scan, rule),
             .threshold = rule.threshold orelse default_threshold,
@@ -39,12 +39,21 @@ pub const Options = struct {
     }
 };
 
+/// Number of linearly independent paths through a function control-flow graph (McCabe *V(G)*).
+pub const Complexity = u32;
+
+/// McCabe cyclomatic complexity from control-flow graph dimensions: *V(G) = E − N + 2P*.
+pub fn formula(edges: u32, nodes: u32, connected_components: u32) Complexity {
+    const result = @as(i64, edges) - @as(i64, nodes) + 2 * @as(i64, connected_components);
+    return @intCast(result);
+}
+
 /// Default McCabe-recommended limit on linearly independent paths.
 ///
 /// As suggested by McCabe, a score of 10–15 is considered _complex_, and anything above 15 is considered _risky_.
 ///
 /// See § 2.5: _Limiting cyclomatic complexity to 10_.
-pub const default_threshold: u32 = 10;
+pub const default_threshold: Complexity = 10;
 
 /// Walks `tree` and appends a diagnostic for each scanned function whose cyclomatic complexity exceeds `threshold`.
 ///
@@ -139,12 +148,33 @@ fn collectFunctions(
     }
 }
 
-fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
+const GraphMetrics = struct {
+    nodes: u32,
+    edges: u32,
+    connected_components: u32,
+};
+
+fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) Complexity {
+    const metrics = graphMetrics(tree, fn_node);
+    return formula(metrics.edges, metrics.nodes, metrics.connected_components);
+}
+
+/// Derives *N* and *E* for a single-function graph from its decision-point count. For structured control flow with one connected component, *V(G) = 1 + d* where *d* is the number of decision points. That is equivalent to *V(G) = E − N + 2* when *N = d + 1*, *E = 2d*, and *P = 1*.
+fn graphMetrics(tree: *const Ast, fn_node: Ast.Node.Index) GraphMetrics {
+    const decision_points = countDecisionPoints(tree, fn_node);
+    return .{
+        .nodes = decision_points + 1,
+        .edges = decision_points * 2,
+        .connected_components = 1,
+    };
+}
+
+fn countDecisionPoints(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
     const body = tree.nodeData(fn_node).node_and_node[1];
     const body_first = tree.firstToken(body);
     const body_last = tree.lastToken(body);
 
-    var score: u32 = 1;
+    var points: u32 = 0;
     const node_count: u32 = @intCast(tree.nodes.len);
     var raw: u32 = 0;
     while (raw < node_count) : (raw += 1) {
@@ -153,17 +183,10 @@ fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
         const first = tree.firstToken(node);
         const last = tree.lastToken(node);
         if (first < body_first or last > body_last) continue;
-        score += nodeIncrement(tree, node);
+        points += nodeIncrement(tree, node);
     }
-    return score;
+    return points;
 }
-
-// TODO: There should be a `formula` function that reflects the actual cyclomatic complexity formula, and its respective measure unit, even if it's mostly unitless, something like "number of linearly independent paths".
-// const CyclomaticComplexityUnit = u32;
-
-// fn formula(edges: u32, nodes: u32, connected_components: u32) CyclomaticComplexityUnit {
-//   return edges - nodes + 2 * connected_components;
-// }
 
 fn nodeIncrement(tree: *const Ast, node: Ast.Node.Index) u32 {
     switch (tree.nodeTag(node)) {
@@ -185,7 +208,7 @@ fn nodeIncrement(tree: *const Ast, node: Ast.Node.Index) u32 {
     }
 }
 
-fn complexityOfFirstFn(source: [:0]const u8) !u32 {
+fn complexityOfFirstFn(source: [:0]const u8) !Complexity {
     const allocator = std.testing.allocator;
     var tree = try std.zig.Ast.parse(allocator, source, .zig);
     defer tree.deinit(allocator);
@@ -219,6 +242,12 @@ fn runCheck(source: [:0]const u8, threshold: u32) !TestResult {
 
     try check(&tree, .warn, "<test>", .{ .scan_mode = .public_api_surface, .threshold = threshold }, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
+}
+
+test "formula computes V(G) = E - N + 2P" {
+    try std.testing.expectEqual(@as(Complexity, 1), formula(0, 1, 1));
+    try std.testing.expectEqual(@as(Complexity, 3), formula(4, 3, 1));
+    try std.testing.expectEqual(@as(Complexity, 5), formula(8, 5, 1));
 }
 
 test "empty function scores 1" {

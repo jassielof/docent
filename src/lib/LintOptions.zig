@@ -1,10 +1,10 @@
 //! Per-file options for `lintSource` / `lintFile`.
 
-const scan_modes = @import("scan_modes.zig");
+const scanning = @import("scanning.zig");
 
 /// When set to `public_api_surface`, only `pub` declarations are checked; `reachability_traversal`
 /// includes every declaration in reachable files.
-scan_mode: scan_modes.Mode = .public_api_surface,
+scan_mode: scanning.Modes = .public_api_surface,
 /// Package or module name for module-doc diagnostics (from `build.zig.zon` when available).
 module_name: ?[]const u8 = null,
 

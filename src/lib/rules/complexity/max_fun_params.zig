@@ -9,7 +9,7 @@ const Ast = std.zig.Ast;
 
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
-const scan_modes = @import("../../scan_modes.zig");
+const scanning = @import("../../scanning.zig");
 const Config = @import("../../schemas/Config.zig");
 const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
@@ -24,10 +24,10 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 pub const default_severity: severity.Level = .warn;
 
 pub const Options = struct {
-    scan_mode: scan_modes.Mode = scan_modes.Mode.reachability_traversal,
+    scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
     threshold: u32 = default_threshold,
 
-    pub fn resolve(category_scan: scan_modes.Mode, rule: Config.RuleThreshold) Options {
+    pub fn resolve(category_scan: scanning.Modes, rule: Config.RuleThreshold) Options {
         return .{
             .scan_mode = rule_opts.scanModeFromThreshold(category_scan, rule),
             .threshold = rule.threshold orelse default_threshold,
