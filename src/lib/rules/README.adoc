@@ -2,6 +2,8 @@
 
 The rules listed here are in a draft state, meaning they aren't implemented and are subject to be dropped.
 
+To check actual implemented rules, see the rules namespace in the library documentation.
+
 == Doc comments
 
 === Broken intra-doc links
@@ -12,49 +14,16 @@ NOTE: Given that Zig's doc comment support for Markdown is ambiguous and its spe
 
 == Style
 
-=== Identifier case
+=== Line length
 
-Checks for consistent identifier naming case conventions, by default it follows the {zig-docs}#Names[Zig documentation style]. It is reported by `docent check style`. Like the complexity checks, it measures *every* identifier — both public and non-public. File discovery starts from the project's module roots on the public API surface, then follows a *reachability traversal* that includes every local `@import("…zig")` (including private imports such as `const Severity = @import("../../severity.zig");`); within each reached file no visibility filter is applied.
+Warns on lines that exceed a certain column length threshold, which is 100 characters by default. This is in line with the {zig-docs}#Whitespace[Zig documentation style] recommendation to limit lines to 100 characters for better readability.
 
-Checks are:
-`snake_case`::
-* Namespaces, considering that every Zig source file is basically a structure, to ease the differentiation between a structure file and a namespace file, without depending on the file name case or its identifier, if a source file doesn't have structure fields, it's automatically marked as a namespace.
-* Global variables and constants
-* Enumerators
-* Fields or values from structures, union, and error sets.
-`camelCase`::
-* Functions (concrete ones).
-`PascalCase`::
-* Structures
-* Unions
-* Enumerations
-* Error sets
-* Generic functions.
+=== File size
 
-[NOTE]
-====
-* Error set values technically fall under the value category, similar to enumerators. And Zig itself isn't quite consistent with {zig-docs}std/#std.builtin.OptimizeMode[its own conventions]. Regardless, we'll follow the standard library conventions, so error-set values are expected to be `PascalCase` (e.g. `error.OutOfMemory`).
-* It must be careful on re-exported declarations that work as aliases, for example a function that is re-exported in the module root, but lives in a different place, it's a global constant, but internally, it's a function being aliased to that constant. Mostly to avoid false positives, this causes `camelCase` global constants that are in fact just aliases to functions. Declarations whose initializer is a plain identifier, field access, call, or `@import(...)` are therefore skipped.
-* Generic functions are detected as those returning `type`.
-* Quoted identifiers (`@"foo bar"`) are exempt.
-* `@import("…zig")` paths: when the resolved file is a namespace (no structure fields at file scope), the basename must be `snake_case` (e.g. `reachability.zig`, suggested as `diagnostic_message.zig` from `DiagnosticMessage.zig`). The import binding must also be `snake_case` for whole-module imports (e.g. `const severity = @import("severity.zig");`, not `const Severity = …`). Member re-exports (`pub const SeverityLevel = @import("severity.zig").Level;`) name the imported declaration and are not checked as namespace bindings. Struct-at-file-scope modules (e.g. `Diagnostic.zig`, `LintResult.zig`) keep `PascalCase` basenames and bindings.
-====
+.By:
+** True LoCs
+** Byte size
 
-// TODO: This should be for raw column length, not just code, otherwise it becomes a statement complexity measure.
-=== LoC column length
-
-Warns if the true LoC, from the first and up to the last valid code character, surpasses the threshold of 100 characters, as recommended by {zig-docs}#Whitespace[Zig documentation style].
-
-NOTE: This excludes comments, whitespace, etc.
-
-// File size is a low priority, meaning I need to define the details on how it's gonna be implemented yet properly, so other checks should be focused first.
-// === File size
-
-// .By:
-// ** NLoC
-// ** Byte size
-
-// Also low priority.
 === Function size
 
 Function size is measured in terms of physical true LoCs, which excludes comments, blank lines, function declaration, and braces.
@@ -72,57 +41,11 @@ NOTE: This doesn't mean that it will never be implemented, but it's implementati
 
 == Complexity
 
-=== Cyclomatic Complexity
+Both depth and control structure are taken from how Lizard defines them, but Lizard defines them quite vague, it's mostly understandable once you read its source code, but basically the nested control structures metric is the one similar to the Linux guideline of maximum of 3 levels of indentation or depth. While the nesting depth metric, is similar to the control structure one, except it takes in consideration the logic/branches within the condition. So these 2 are low priority.
 
-Defaults to a limit of 10 linearly independent paths, as suggested by <<mccabe-guidance>>. A score of 10–15 is considered _complex_, and anything above 15 is considered _risky_.
+=== Nesting depth
 
-NOTE: Unlike tools like Lizard—which can be configured to treat an entire `switch` statement as a single branch—this tool enforces the traditional mathematical definition of _Cyclomatic Complexity_. While some teams modify CC to act as a proxy for readability, it should be used strictly as a **testability metric** (mapping directly to the number of required unit tests). Readability and maintainability are instead handled by **Cognitive Complexity**, which provides a much more reliable metric for human code comprehension.
-
-.Edge cases:
-* Exhaustive `switch` statements over `enum`s are still penalized, as each branch represents a real, testable path regardless of whether the compiler requires it.
-
-.Options:
-* The threshold can be configured with whole numbers.
-
-=== Cognitive Complexity
-
-Defaults to the Sonar-recommended threshold of 15. See <<sonar-reasoning>> and <<sonar-paper>>. A function is flagged when its score is *strictly greater* than the threshold. It is reported by `docent check complexity`.
-
-Unlike the doc-comment rules, complexity checks measure *every* function — both public and non-public. File discovery still starts from the project's module roots and follows the public API surface, but within each reached file no visibility filter is applied.
-
-Unlike <<_cyclomatic_complexity>>, the score is not a count of paths but an estimate of how hard the control flow is to *understand*. It accumulates three kinds of increments per function:
-
-Structural::
-Control-flow structures that also receive a nesting increment: `if`, `for`, `while`, `switch`, and `catch`. Each adds `1 + current_nesting`, so the same structure costs more the deeper it is nested.
-Hybrid::
-`else` and `else if` add `1` but never receive a nesting increment (the cost of reading the `if` has already been paid), yet they still raise the nesting level for their body.
-Fundamental::
-Breaks in linear flow that are independent of nesting: each new sequence of binary logical operators (`and` / `or`), a labeled loop `break`/`continue`, and direct recursion.
-
-.Zig-specific mappings:
-* `catch` is treated like an exception `catch` clause (structural). `orelse` is the optional counterpart of null-coalescing and is intentionally ignored.
-* A labeled `break`/`continue` only increments when the label targets a `for`/`while` loop. Labeled block breaks (`break :blk value`) are value expressions and are not penalized.
-* Only direct recursion (a function calling itself by name) is scored; indirect recursion is out of scope.
-* `switch` and all of its prongs combined incur a single structural increment, matching the Sonar treatment of `switch`.
-
-.Options
-* The threshold can be configured with whole numbers in project config under `complexity.cognitive_threshold`; it defaults to 15.
-* The severity (`cognitive_complexity`) follows the usual rule severities and can be set in project config.
-
-// Both depth and control structure are taken from how Lizard defines them, but Lizard defines them quite vague, it's mostly understandable once you read its source code, but basically the nested control structures metric is the one similar to the Linux guideline of maximum of 3 levels of indentation or depth. While the nesting depth metric, is similar to the control structure one, except it takes in consideration the logic/branches within the condition. So these 2 are low priority.
-// === Nesting depth
-
-// === Nested control structures
-
-=== Maximum function parameter
-
-The maximum number of parameters in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, writers, and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
-
-A function is flagged when its parameter count is *strictly greater* than the threshold. It is reported by `docent check complexity`. Like the other complexity checks, it measures *every* function in the import-closure reachable from the module roots.
-
-.Options
-* The threshold can be configured with whole numbers in project config under `complexity.max_fun_params_threshold`; it defaults to 7.
-* The severity (`max_fun_params`) follows the usual rule severities and can be set in project config.
+=== Nested control structures
 
 == Configuration of rule options
 

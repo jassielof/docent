@@ -1,6 +1,8 @@
-//! The `max_fun_params` namespace flags functions with more parameters than the configured limit.
+//! The `max_fun_params` namespace checks functions with more parameters than the configured limit.
 //!
-//! Zig code often passes allocators, writers, and I/O handles explicitly; the default limit is 7 rather than the more common 5 used in other ecosystems.
+//! The maximum number of parameters in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, writers, and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
+//!
+//! A function is flagged when its parameter count is *strictly greater* than the threshold. It is reported by `docent check complexity`. Like the other complexity checks, it measures *every* function in the import-closure reachable from the module roots.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -18,13 +20,15 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
+// TODO: Implement the rule to be configurable via an option structure.
+pub const Options = struct {};
+
 /// Default maximum parameter count (functions with more parameters are flagged).
 pub const default_threshold: u32 = 7;
 
 /// Walks `tree` and appends a diagnostic for each scanned function whose parameter count exceeds `threshold`.
 ///
-/// When `public_api_only` is set, only `pub` functions (at the container level) are measured; otherwise every
-/// container-level function is measured.
+/// When `public_api_only` is set, only `pub` functions (at the container level) are measured; otherwise every container-level function is measured.
 pub fn check(
     tree: *const Ast,
     severity_level: severity.Level,

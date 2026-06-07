@@ -18,12 +18,23 @@
 //!   - error sets and unions, and its values
 //!   - generic (type-returning) functions
 //!
-//! Notes:
+//! ## Notes
 //!
-//! - Error-set values are checked as `PascalCase`, following the standard-library convention (`error.OutOfMemory`), even though they technically belong to the "value" category.
-//! - Declarations whose initializer is an alias/re-export (a plain identifier, field access, or call) are skipped: their real kind lives elsewhere. `@import("path.zig")` bindings are checked against the imported file kind (namespace → `snake_case` name, struct-at-file-scope → `PascalCase`). Member re-exports (`@import("path.zig").Level`) are skipped — the binding names the imported declaration, not the module.
-//! - For `@import("path.zig")`, when the resolved file is a *namespace* (no structure fields at file scope — the usual `fn`/`const` module layout), the `.zig` basename must be `snake_case` (e.g. `reachability.zig`, not `Reachability.zig`). Struct files that declare fields on the file type itself (e.g. `LintResult.zig`) keep `PascalCase` basenames.
-//! - Quoted identifiers (`@"foo bar"`) are exempt from case checks.
+//! ### On errors
+//!
+//! Error-set values are checked as `PascalCase`, following the standard-library convention (`error.OutOfMemory`), even though they technically belong to the "value" category.
+//!
+//! ### Re-exported aliases
+//!
+//! Declarations whose initializer is a plain identifier, field access, call, or `@import(...)` are treated as aliases/re-exports, so checks must be conservative to avoid false positives. In particular, cases like `camelCase` globals that alias functions at the module root should not be misclassified — the effective kind comes from the original declaration, not the alias form.
+//!
+//! ### Quotes identifiers
+//!
+//! These are simply exempt from case checks.
+//!
+//! ### Import paths
+//!
+//! For `@import("path.zig")`, the expected case follows the kind of the imported file: namespaces (no struct fields at file scope) use `snake_case`, while struct-at-file-scope modules use `PascalCase`. The binding should match the same convention. Member re-exports (`@import("path.zig").Level`) refer to a declaration, not the module, and are handled accordingly.
 //!
 //! ## Tiger Beetle's Style
 //!

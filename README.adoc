@@ -127,16 +127,9 @@ When explicit paths are provided, the default project discovery is disabled and 
 ** Otherwise, it is treated as a library source file.
 * In all cases, the publicly reachable API is traversed starting from the resolved module root.
 
-ifdef::env-github[]
 == Linting rules
 
-Please refer to link:src/lib/rules/README.adoc[Linting rules documentation] for the list of available rules and their details.
-
-endif::env-github[]
-
-ifndef::env-github[]
-include::src/lib/rules/README.adoc[leveloff set=1]
-endif::env-github[]
+To check the rules documentation, check link:{website}lib/#docent.rules[library documentation rules namespace] for the actual implemented rules.
 
 == Test suite
 

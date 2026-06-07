@@ -56,8 +56,10 @@ const complexity_thresholds = [_]ThresholdRule{
 /// Parses TOML config text into the dynamic value tree.
 pub fn parseRoot(allocator: std.mem.Allocator, text: []const u8) Error!toml.DynamicValue {
     const trimmed = std.mem.trim(u8, text, " \t\r\n");
+
     if (trimmed.len == 0) {
         const empty = try toml.Table.create(allocator);
+
         return .{ .table = empty };
     }
 
@@ -192,6 +194,7 @@ fn scanModeForSection(root: toml.DynamicValue, section_key: []const u8, default_
     const section = sectionTable(table, section_key) orelse return default_mode;
     const scan_mode = section.get("scan_mode") orelse return default_mode;
     const mode = scan_mode.stringSlice() orelse return error.ConfigParseFailed;
+
     return scan_modes.Mode.fromConfigString(mode) orelse return error.ConfigParseFailed;
 }
 
