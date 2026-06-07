@@ -18,7 +18,7 @@ const rule_config = @import("config.zig");
 const scanning = @import("../scanning.zig");
 
 /// Default declaration scanning mode for documentation rules.
-pub const default_scan_mode = scanning.Modes.public_api_surface;
+pub const default_scan_mode: scanning.Modes = .public_api_surface;
 
 pub const missing_doc_comment = @import("docs/missing_doc_comment.zig");
 pub const blank_doc_comment = @import("docs/blank_doc_comment.zig");
