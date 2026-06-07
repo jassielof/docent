@@ -13,6 +13,9 @@ const Ast = std.zig.Ast;
 
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
+const scan_modes = @import("../../scan_modes.zig");
+const Config = @import("../../schemas/Config.zig");
+const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
 const rule_name = utils.ruleIdWithName("cyclomatic_complexity");
@@ -20,8 +23,21 @@ const rule_name = utils.ruleIdWithName("cyclomatic_complexity");
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
-// TODO: Move the default threshold to an Options structure. As a `threshold` field with its default of 10.
-pub const Options = struct {};
+pub const Options = struct {
+    scan_mode: scan_modes.Mode = scan_modes.Mode.reachability_traversal,
+    threshold: u32 = default_threshold,
+
+    pub fn resolve(category_scan: scan_modes.Mode, rule: Config.RuleThreshold) Options {
+        return .{
+            .scan_mode = rule_opts.scanModeFromThreshold(category_scan, rule),
+            .threshold = rule.threshold orelse default_threshold,
+        };
+    }
+
+    pub fn publicApiOnly(self: Options) bool {
+        return self.scan_mode.publicApiOnly();
+    }
+};
 
 /// Default McCabe-recommended limit on linearly independent paths.
 ///
@@ -37,13 +53,14 @@ pub fn check(
     tree: *const Ast,
     severity_level: severity.Level,
     file: []const u8,
-    public_api_only: bool,
-    threshold: u32,
+    options: Options,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
     if (!severity_level.isActive()) return;
+    const public_api_only = options.publicApiOnly();
+    const threshold = options.threshold;
 
     var fns: std.ArrayList(Ast.Node.Index) = .empty;
     defer fns.deinit(allocator);
@@ -200,7 +217,7 @@ fn runCheck(source: [:0]const u8, threshold: u32) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", true, threshold, base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", .{ .scan_mode = .public_api_surface, .threshold = threshold }, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 

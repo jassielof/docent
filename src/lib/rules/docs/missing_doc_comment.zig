@@ -10,19 +10,14 @@
 //! - [Unions and their members](https://ziglang.org/documentation/0.16.0/#union).
 //! - [Errors](https://ziglang.org/documentation/0.16.0/#Errors).
 //!   - Its values aren't checked since Zig documentation generator doesn't support them.
-//!
-//! ## Specializations
-//!
-//! To help with clarification and context, the following cases are handled specially:
-//!
-//! - Missing module doc comment: Checks for the module root.
-//! - Missing source file (or container-level) doc comment: Checks for implicit structure files and namespaces.
-// TODO: The section of "specialization" in this rule's doc comment seems that it's quite related to just scanning and diagnostics, as it can also be applied to blank doc comments, invalid doc comments, and missing summary terminal punctuation. So that description should be moved to somewhere where it's really related, but not here tied with the rule, otherwise I'd have to rewrite the rule on all those rule desriptions.
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
+const scan_modes = @import("../../scan_modes.zig");
+const Config = @import("../../schemas/Config.zig");
 const reexport = @import("../../reexport.zig");
+const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -34,21 +29,33 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
-// TODO: The rule should have its options in this Options struct, instead of receiving them as separate parameters in the check function.
-pub const Options = struct {};
+pub const Options = struct {
+    scan_mode: scan_modes.Mode = scan_modes.Mode.public_api_surface,
+    check_parameters: bool = false,
+
+    pub fn resolve(category_scan: scan_modes.Mode, rule: Config.MissingDocCommentRule) Options {
+        return .{
+            .scan_mode = rule_opts.scanModeFromMissingDocComment(category_scan, rule),
+            .check_parameters = rule.check_parameters orelse false,
+        };
+    }
+
+    pub fn publicApiOnly(self: Options) bool {
+        return self.scan_mode.publicApiOnly();
+    }
+};
 
 /// Walks `tree` and appends diagnostics for undocumented public items.
 ///
-/// - When `require_module_doc` is set, also requires a file-level `//!` on module entry roots.
-/// -  When `require_function_param_docs` is set, also requires `///` on each named function parameter.
+/// When `require_module_doc` is set, also requires a file-level `//!` on module entry roots.
+/// When `options.check_parameters` is set, also requires `///` on each named function parameter.
 pub fn check(
     tree: *const Ast,
     severity_level: severity.Level,
     file: []const u8,
     require_module_doc: bool,
     module_name: ?[]const u8,
-    public_api_only: bool,
-    require_function_param_docs: bool,
+    options: Options,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
@@ -56,8 +63,9 @@ pub fn check(
 ) std.mem.Allocator.Error!void {
     if (!severity_level.isActive()) return;
     try checkModuleDocComment(tree, severity_level, file, require_module_doc, module_name, allocator, msg_allocator, diagnostics);
+    const public_api_only = options.publicApiOnly();
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity_level, file, public_api_only, require_function_param_docs, .field, allocator, io, msg_allocator, diagnostics);
+        try checkNode(tree, decl, severity_level, file, public_api_only, options.check_parameters, .field, allocator, io, msg_allocator, diagnostics);
     }
 }
 
@@ -370,7 +378,7 @@ fn runCheck(
     source: [:0]const u8,
     require_module_doc: bool,
     module_name: ?[]const u8,
-    require_function_param_docs: bool,
+    options: Options,
 ) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
@@ -382,12 +390,12 @@ fn runCheck(
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", require_module_doc, module_name, true, require_function_param_docs, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", require_module_doc, module_name, options, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
 test "detects missing module doc comment on entry root" {
-    var r = try runCheck("pub fn foo() void {}", true, "fixture", false);
+    var r = try runCheck("pub fn foo() void {}", true, "fixture", .{});
     defer r.deinit();
     try std.testing.expectEqual(2, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
@@ -396,14 +404,14 @@ test "detects missing module doc comment on entry root" {
 }
 
 test "no module doc diagnostic when //! present" {
-    var r = try runCheck("//! Module documentation.\npub fn foo() void {}", true, "fixture", false);
+    var r = try runCheck("//! Module documentation.\npub fn foo() void {}", true, "fixture", .{});
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(.function, r.items.items[0].subject.?.kind);
 }
 
 test "no module doc check when require_module_doc is false" {
-    var r = try runCheck("pub fn foo() void {}", false, null, false);
+    var r = try runCheck("pub fn foo() void {}", false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expect(r.items.items[0].subject.?.kind != .module);
@@ -417,13 +425,13 @@ test "no extra module doc required inside pub const struct body" {
         \\    /// Documented field.
         \\    x: u32,
         \\};
-    , true, "mylib", false);
+    , true, "mylib", .{});
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "detects missing doc comment on pub fn, names the symbol" {
-    var r = try runCheck("pub fn foo() void {}", false, null, false);
+    var r = try runCheck("pub fn foo() void {}", false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
@@ -435,19 +443,19 @@ test "no diagnostic for documented pub fn" {
     var r = try runCheck(
         \\/// Does something.
         \\pub fn foo() void {}
-    , false, null, false);
+    , false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "no diagnostic for private fn" {
-    var r = try runCheck("fn foo() void {}", false, null, false);
+    var r = try runCheck("fn foo() void {}", false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "detects missing doc comment on pub const, names the symbol" {
-    var r = try runCheck("pub const answer = 42;", false, null, false);
+    var r = try runCheck("pub const answer = 42;", false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings("answer", r.items.items[0].subject.?.name);
@@ -455,7 +463,7 @@ test "detects missing doc comment on pub const, names the symbol" {
 }
 
 test "detects missing doc comment on pub const error set" {
-    var r = try runCheck("pub const MyErr = error{ OutOfMemory };", false, null, false);
+    var r = try runCheck("pub const MyErr = error{ OutOfMemory };", false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(.error_set, r.items.items[0].subject.?.kind);
@@ -469,7 +477,7 @@ test "detects missing doc comment on container fields, names the field" {
         \\    x: u32,
         \\    y: u32,
         \\};
-    , false, null, false);
+    , false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(2, r.items.items.len);
     try std.testing.expectEqualStrings("x", r.items.items[0].subject.?.name);
@@ -484,7 +492,7 @@ test "detects missing doc comment on pub enum and enumerators" {
         \\    red,
         \\    green,
         \\};
-    , false, null, false);
+    , false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(3, r.items.items.len);
     try std.testing.expectEqual(.enumeration, r.items.items[0].subject.?.kind);
@@ -502,20 +510,20 @@ test "no diagnostic for private const struct members and pub fn inside" {
         \\    color: []const u8,
         \\    pub fn world() void {}
         \\};
-    , false, null, false);
+    , false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
 
 test "location points to name token, not keyword" {
-    var r = try runCheck("pub fn myFunc() void {}", false, null, false);
+    var r = try runCheck("pub fn myFunc() void {}", false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(@as(usize, 8), r.items.items[0].column);
 }
 
 test "source_line is populated" {
-    var r = try runCheck("pub fn foo() void {}", false, null, false);
+    var r = try runCheck("pub fn foo() void {}", false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings("pub fn foo() void {}", r.items.items[0].source_line);
@@ -524,7 +532,7 @@ test "source_line is populated" {
 test "re-export with unresolvable import is silently skipped (no false positive)" {
     // When the imported file can't be resolved (fake path from <test> file),
     // the re-export must produce zero diagnostics.
-    var r = try runCheck("pub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;", false, null, false);
+    var r = try runCheck("pub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;", false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
@@ -533,7 +541,7 @@ test "re-export through local import alias is recognized" {
     var r = try runCheck(
         \\const helpers = @import("helpers.zig");
         \\pub const greet = helpers.greet;
-    , false, null, false);
+    , false, null, .{});
     defer r.deinit();
     // Unresolvable from <test> path — must not false-positive on the re-export line.
     try std.testing.expectEqual(0, r.items.items.len);
@@ -546,7 +554,7 @@ test "function parameters are not checked by default" {
         \\    _ = allocator;
         \\    _ = value;
         \\}
-    , false, null, false);
+    , false, null, .{});
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
@@ -562,7 +570,7 @@ test "undocumented function parameters are reported when enabled" {
         \\    _ = allocator;
         \\    _ = value;
         \\}
-    , false, null, true);
+    , false, null, .{ .check_parameters = true });
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqual(.parameter, r.items.items[0].subject.?.kind);
@@ -581,7 +589,7 @@ test "all documented function parameters are accepted when enabled" {
         \\    _ = allocator;
         \\    _ = value;
         \\}
-    , false, null, true);
+    , false, null, .{ .check_parameters = true });
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
 }
@@ -592,7 +600,7 @@ test "unnamed and varargs parameters are skipped when enabled" {
         \\pub fn foo(_: u32, args: anytype, ...) void {
         \\    _ = args;
         \\}
-    , false, null, true);
+    , false, null, .{ .check_parameters = true });
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
     try std.testing.expectEqualStrings("args", r.items.items[0].subject.?.name);
@@ -615,6 +623,6 @@ test "private function parameters are not checked under public_api_only" {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", false, null, true, true, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", false, null, .{ .scan_mode = .public_api_surface, .check_parameters = true }, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

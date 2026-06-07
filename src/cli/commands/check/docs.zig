@@ -120,7 +120,7 @@ pub fn lintPlanFile(
     rule_set: docent.RuleSeverities,
     lint_options: docent.LintOptions,
     library_entry_roots: []const []const u8,
-    docs_options: docent.DocsOptions,
+    docs_options: docent.rules.docs.Options,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,

@@ -6,6 +6,9 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
+const scan_modes = @import("../../scan_modes.zig");
+const Config = @import("../../schemas/Config.zig");
+const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -17,16 +20,30 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
+pub const Options = struct {
+    scan_mode: scan_modes.Mode = scan_modes.Mode.public_api_surface,
+
+    pub fn resolve(category_scan: scan_modes.Mode, rule: Config.RuleSimple) Options {
+        return .{ .scan_mode = rule_opts.scanModeFromSimple(category_scan, rule) };
+    }
+
+    pub fn publicApiOnly(self: Options) bool {
+        return self.scan_mode.publicApiOnly();
+    }
+};
+
 /// Walks `tree` and appends diagnostics when private items use public-style doctests.
 pub fn check(
     tree: *const Ast,
     severity_level: severity.Level,
     file: []const u8,
+    options: Options,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
     if (!severity_level.isActive()) return;
+    _ = options;
 
     var pub_names = std.StringHashMap(void).init(allocator);
     defer pub_names.deinit();
@@ -123,7 +140,7 @@ fn runCheck(source: [:0]const u8) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", .{}, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 

@@ -4,15 +4,16 @@ const std = @import("std");
 const docent = @import("docent");
 const utils = @import("../../utils.zig");
 
-// Style checks follow the public API surface; explicit recursive runs check every declaration.
 fn lint(source: [:0]const u8, scan_mode: docent.scan_modes.Mode) !docent.LintResult {
+    var style_options = docent.rules.style.Options.defaults();
+    style_options.applyRunScanMode(scan_mode);
     return docent.lintStyleSource(
         std.testing.allocator,
         std.testing.io,
         source,
         .{},
         "<test>",
-        .{ .scan_mode = scan_mode },
+        style_options,
     );
 }
 
@@ -63,12 +64,14 @@ test "private declarations checked in recursive mode" {
 }
 
 test "snake_case namespace imports in root.zig are not flagged" {
+    var style_options = docent.rules.style.Options.defaults();
+    style_options.applyRunScanMode(.reachability_traversal);
     var result = try docent.lintStyleFile(
         std.testing.allocator,
         std.testing.io,
         "src/lib/root.zig",
         .{},
-        .{ .scan_mode = .reachability_traversal },
+        style_options,
     );
     defer result.deinit();
 
@@ -83,12 +86,14 @@ test "snake_case namespace imports in root.zig are not flagged" {
 }
 
 test "import member re-export in root.zig is not flagged" {
+    var style_options = docent.rules.style.Options.defaults();
+    style_options.applyRunScanMode(.reachability_traversal);
     var result = try docent.lintStyleFile(
         std.testing.allocator,
         std.testing.io,
         "src/lib/root.zig",
         .{},
-        .{ .scan_mode = .reachability_traversal },
+        style_options,
     );
     defer result.deinit();
 

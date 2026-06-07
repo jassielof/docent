@@ -166,7 +166,7 @@ test "lintSource honors require_function_param_docs option" {
         "<test>",
         .{},
         &.{},
-        .{ .require_function_param_docs = true },
+        .{ .missing_doc_comment = .{ .check_parameters = true } },
     );
     defer result.deinit();
     try utils.expectRuleCount(result, "missing_doc_comment", 1);

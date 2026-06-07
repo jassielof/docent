@@ -10,8 +10,7 @@ fn lint(source: [:0]const u8, threshold: u32) !docent.LintResult {
         source,
         .{ .cyclomatic_complexity = .warn },
         "<test>",
-        .{ .scan_mode = .reachability_traversal },
-        .{ .cyclomatic_threshold = threshold },
+        .{ .cyclomatic = .{ .threshold = threshold } },
     );
 }
 
@@ -66,7 +65,6 @@ test "default threshold leaves simple declarations clean" {
     ,
         .{ .cyclomatic_complexity = .warn },
         "<test>",
-        .{ .scan_mode = .reachability_traversal },
         .{},
     );
     defer result.deinit();
@@ -94,8 +92,7 @@ test "switch with many prongs exceeds default threshold" {
     ,
         .{ .cyclomatic_complexity = .warn },
         "<test>",
-        .{ .scan_mode = .reachability_traversal },
-        .{ .cyclomatic_threshold = 10 },
+        .{ .cyclomatic = .{ .threshold = 10 } },
     );
     defer result.deinit();
     try utils.expectRuleCount(result, "cyclomatic_complexity", 1);

@@ -60,6 +60,9 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
+const scan_modes = @import("../../scan_modes.zig");
+const Config = @import("../../schemas/Config.zig");
+const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -76,7 +79,17 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 // - Identifier presence isn't configurable, it's always expected to be present and match the identifier case.
 //   - Edge cases for false positives and errors should be considered with literal identifiers (e.g. `const @"foo bar" = 1;`).
 
-pub const Options = struct {};
+pub const Options = struct {
+    scan_mode: scan_modes.Mode = scan_modes.Mode.public_api_surface,
+
+    pub fn resolve(category_scan: scan_modes.Mode, rule: Config.RuleSimple) Options {
+        return .{ .scan_mode = rule_opts.scanModeFromSimple(category_scan, rule) };
+    }
+
+    pub fn publicApiOnly(self: Options) bool {
+        return self.scan_mode.publicApiOnly();
+    }
+};
 
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
@@ -92,12 +105,13 @@ pub fn check(
     severity_level: severity.Level,
     file: []const u8,
     module_name: ?[]const u8,
-    public_api_only: bool,
+    options: Options,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
     if (!severity_level.isActive()) return;
+    const public_api_only = options.publicApiOnly();
     const tags = tree.tokens.items(.tag);
     var i: usize = 0;
     while (i < tags.len) {
@@ -261,14 +275,14 @@ const TestResult = struct {
 };
 
 fn runCheck(source: [:0]const u8) !TestResult {
-    return runCheckOpts(source, null, true);
+    return runCheckOpts(source, null, .{ .scan_mode = .public_api_surface });
 }
 
 fn runCheckNamed(source: [:0]const u8, module_name: ?[]const u8) !TestResult {
-    return runCheckOpts(source, module_name, true);
+    return runCheckOpts(source, module_name, .{ .scan_mode = .public_api_surface });
 }
 
-fn runCheckOpts(source: [:0]const u8, module_name: ?[]const u8, public_api_only: bool) !TestResult {
+fn runCheckOpts(source: [:0]const u8, module_name: ?[]const u8, options: Options) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     errdefer msg_arena.deinit();
@@ -279,9 +293,10 @@ fn runCheckOpts(source: [:0]const u8, module_name: ?[]const u8, public_api_only:
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", module_name, public_api_only, base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .warn, "<test>", module_name, options, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
+
 
 test "accepts identifier-first summary on a function" {
     var r = try runCheck("/// add returns the sum.\npub fn add(a: i32, b: i32) i32 {\n    return a + b;\n}");
@@ -373,7 +388,7 @@ test "warns on public function when public_api_only" {
 }
 
 test "private function checked when public_api_only is false" {
-    var r = try runCheckOpts("/// Returns something.\nfn hidden() void {}", null, false);
+    var r = try runCheckOpts("/// Returns something.\nfn hidden() void {}", null, .{ .scan_mode = .reachability_traversal });
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
 }

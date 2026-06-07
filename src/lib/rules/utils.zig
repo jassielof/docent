@@ -11,7 +11,6 @@ pub const isPubVisibility = helpers.isPubVisibility;
 pub const shouldCheckDocCommentTarget = helpers.shouldCheckDocCommentTarget;
 pub const resolveDocCommentSubject = helpers.resolveDocCommentSubject;
 pub const docCommentLineBody = helpers.docCommentLineBody;
-pub const endsWithTerminalPunctuation = helpers.endsWithTerminalPunctuation;
 pub const isEmptyDocCommentLine = helpers.isEmptyDocCommentLine;
 pub const fileIsNamespace = helpers.fileIsNamespace;
 pub const exposedSourceFileSubjectKind = helpers.exposedSourceFileSubjectKind;

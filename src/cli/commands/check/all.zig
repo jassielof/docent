@@ -42,17 +42,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         std.process.exit(1);
     };
 
-    const docs_scan_mode = docent.config.loadDocsScanModeFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
-        std.process.exit(1);
-    };
-
-    const style_scan_mode = docent.config.loadStyleScanModeFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
-        std.process.exit(1);
-    };
-
-    const complexity_scan_mode = docent.config.loadComplexityScanModeFromCli(allocator, io, args.config_path) catch |err| {
+    const style_options = docent.config.loadStyleOptionsFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -84,24 +74,18 @@ fn run(ctx: *fangz.ParseContext) !void {
         allocator.free(library_entry_roots_owned);
     };
 
+    var docs_opts = docs_options;
+    var style_opts = style_options;
+    var complexity_opts = complexity_options;
+    if (plan.path_mode == .recursive) {
+        docs_opts.applyRunScanMode(.reachability_traversal);
+        style_opts.applyRunScanMode(.reachability_traversal);
+        complexity_opts.applyRunScanMode(.reachability_traversal);
+    }
+
     const docs_lint_options: docent.LintOptions = switch (plan.path_mode) {
-        .project, .module_root => .{
-            .module_name = plan.package.name,
-            .scan_mode = docs_scan_mode,
-        },
-        .recursive => .{
-            .scan_mode = .reachability_traversal,
-        },
-    };
-
-    const reachability_lint_options: docent.LintOptions = .{
-        .module_name = plan.package.name,
-        .scan_mode = style_scan_mode,
-    };
-
-    const complexity_lint_options: docent.LintOptions = .{
-        .module_name = plan.package.name,
-        .scan_mode = complexity_scan_mode,
+        .project, .module_root => .{ .module_name = plan.package.name },
+        .recursive => .{},
     };
 
     var linted_files = std.StringHashMap(void).init(allocator);
@@ -115,7 +99,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         for (rt.files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            if (try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
                 break;
             }
@@ -126,7 +110,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         for (plan.extra_lint_files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            if (try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
                 break;
             }
@@ -137,11 +121,11 @@ fn run(ctx: *fangz.ParseContext) !void {
         var analyzed_files = std.StringHashMap(void).init(allocator);
         defer analyzed_files.deinit();
 
-        if (try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, reachability_lint_options, &all_diagnostics, &summary, args.fail_fast)) {
+        if (try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, style_opts, &all_diagnostics, &summary, args.fail_fast)) {
             should_stop = true;
         } else {
             analyzed_files.clearRetainingCapacity();
-            if (try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_lint_options, complexity_options, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_opts, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
             }
         }

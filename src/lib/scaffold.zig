@@ -131,7 +131,7 @@ pub const LintStep = struct {
 
 fn lintDirectory(
     rule_set: docent.RuleSeverities,
-    docs_options: docent.DocsOptions,
+    docs_options: docent.rules.docs.Options,
     targeting: docent.targeting.Options,
     output: OutputOptions,
     allocator: std.mem.Allocator,
@@ -164,7 +164,7 @@ fn lintDirectory(
 
 fn lintSingleFile(
     rule_set: docent.RuleSeverities,
-    docs_options: docent.DocsOptions,
+    docs_options: docent.rules.docs.Options,
     output: OutputOptions,
     allocator: std.mem.Allocator,
     io: std.Io,

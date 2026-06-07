@@ -59,7 +59,7 @@ pub fn lintFixturePath(
 ) !docent.LintResult {
     const source = try readFixtureFile(allocator, io, path);
     defer allocator.free(source);
-    return docent.lintSource(allocator, io, source, rule_set, display_path, options, &.{}, .{});
+    return docent.lintSource(allocator, io, source, rule_set, display_path, options, &.{}, docent.rules.docs.Options.defaults());
 }
 
 pub fn lintRuleFixture(

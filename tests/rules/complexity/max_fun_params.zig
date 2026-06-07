@@ -10,8 +10,7 @@ fn lint(source: [:0]const u8, threshold: u32) !docent.LintResult {
         source,
         .{},
         "<test>",
-        .{ .scan_mode = .reachability_traversal },
-        .{ .max_fun_params_threshold = threshold },
+        .{ .max_fun_params = .{ .threshold = threshold } },
     );
 }
 
@@ -46,7 +45,6 @@ test "default threshold leaves small signatures clean" {
     ,
         .{},
         "<test>",
-        .{ .scan_mode = .reachability_traversal },
         .{},
     );
     defer result.deinit();
