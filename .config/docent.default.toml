@@ -30,10 +30,11 @@ scan_mode = "all"
 level = "warn"
 namespaces = "snake_case"
 functions = "camelCase"
+allow_snake_case_struct_files = false
 types = "PascalCase"
 constants = "snake_case"
 
-[style.loc_column_length]
+[style.line_length_limit]
 level = "allow"
 max_length = 100
 

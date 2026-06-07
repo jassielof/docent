@@ -1,53 +1,13 @@
 #:schema ../schemas/docent.schema.json
 
-[docs]
-scan_mode = "public"
-blank_doc_comment = "warn"
-trailing_blank_doc_comment = "warn"
-missing_doctest = "allow"
-private_doctest = "warn"
-doctest_naming_mismatch = "warn"
-
-[docs.missing_doc_comment]
-level = "warn"
-check_parameters = false
-
-[docs.missing_summary_terminal_punctuation]
-level = "warn"
-scope = "summary"
-accepted_marks = [".", "!", "?"]
-
-[docs.invalid_leading_phrase]
-level = "warn"
-mode = "canonical"
-require_article = false
-require_backticks = false
-
 [style]
 scan_mode = "all"
 
 [style.identifier_case]
-level = "warn"
-namespaces = "snake_case"
-functions = "camelCase"
-types = "PascalCase"
-constants = "snake_case"
+level = "deny"
+functions = "snake_case"
+allow_snake_case_struct_files = true
 
-[style.loc_column_length]
-level = "allow"
+[style.line_length_limit]
+level = "forbid"
 max_length = 100
-
-[complexity]
-scan_mode = "all"
-
-[complexity.cognitive_complexity]
-level = "warn"
-threshold = 15
-
-[complexity.cyclomatic_complexity]
-level = "allow"
-threshold = 10
-
-[complexity.max_function_parameters]
-level = "allow"
-threshold = 7

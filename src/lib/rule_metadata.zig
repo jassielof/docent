@@ -106,6 +106,12 @@ pub const rules: []const RuleRow = &.{
         .summary = "Identifiers should follow the Zig naming-case conventions (snake_case, camelCase, PascalCase).",
         .prose_title = "Identifier case",
     },
+    .{
+        .name = "line_length_limit",
+        .default_level = "allow",
+        .summary = "Source lines should stay within the configured maximum width (default 100 columns).",
+        .prose_title = "Line length limit",
+    },
 };
 
 comptime {

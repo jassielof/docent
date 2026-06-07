@@ -192,7 +192,7 @@ pub const RuleCategory = enum {
         for (docs_rules) |name| {
             if (std.mem.eql(u8, rule, name)) return .docs;
         }
-        if (std.mem.eql(u8, rule, "identifier_case")) return .style;
+        if (std.mem.eql(u8, rule, "identifier_case") or std.mem.eql(u8, rule, "line_length_limit")) return .style;
         const complexity_rules = [_][]const u8{
             "cognitive_complexity",
             "cyclomatic_complexity",

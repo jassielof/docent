@@ -105,6 +105,34 @@ test "import member re-export in root.zig is not flagged" {
     }
 }
 
+test "zig convention flags snake_case struct import paths" {
+    var result = try docent.lintStyleSource(
+        std.testing.allocator,
+        std.testing.io,
+        "const InitOptions = @import(\"init_options.zig\");\n",
+        .{ .identifier_case = .warn },
+        "tests/fixtures/style/import_site.zig",
+        docent.rules.style.Options.defaults(),
+    );
+    defer result.deinit();
+    try utils.expectRuleCount(result, "identifier_case", 1);
+}
+
+test "snake_case struct import binding is flagged even under Tiger filenames" {
+    var style_options = docent.rules.style.Options.defaults();
+    style_options.identifier_case.allow_snake_case_struct_files = true;
+    var result = try docent.lintStyleSource(
+        std.testing.allocator,
+        std.testing.io,
+        "const init_options = @import(\"init_options.zig\");\n",
+        .{ .identifier_case = .warn },
+        "tests/fixtures/style/import_site.zig",
+        style_options,
+    );
+    defer result.deinit();
+    try utils.expectRuleCount(result, "identifier_case", 1);
+}
+
 test "function alias re-export does not false positive" {
     var result = try lint(
         \\const helpers = @import("helpers.zig");

@@ -17,6 +17,7 @@ cognitive_complexity: severity.Level = rules.complexity.cognitive.default_severi
 cyclomatic_complexity: severity.Level = rules.complexity.cyclomatic.default_severity,
 max_fun_params: severity.Level = rules.complexity.max_fun_params.default_severity,
 identifier_case: severity.Level = rules.style.identifier_case.default_severity,
+line_length_limit: severity.Level = rules.style.line_length_limit.default_severity,
 
 /// Comptime-computed array of all rule field names in declaration order.
 const _field_names_buf = init: {
