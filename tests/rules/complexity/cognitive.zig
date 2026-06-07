@@ -12,7 +12,7 @@ fn lint(source: [:0]const u8, threshold: u32) !docent.LintResult {
         source,
         .{},
         "<test>",
-        .{ .public_api_only = false },
+        .{ .scan_mode = .reachability_traversal },
         .{ .cognitive_threshold = threshold },
     );
 }
@@ -64,7 +64,7 @@ test "default threshold leaves simple declarations clean" {
     ,
         .{},
         "<test>",
-        .{ .public_api_only = false },
+        .{ .scan_mode = .reachability_traversal },
         .{},
     );
     defer result.deinit();

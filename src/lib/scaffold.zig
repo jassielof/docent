@@ -10,7 +10,7 @@ pub const LintStep = struct {
     /// Explicit sources; empty means load `.paths` from the nearest manifest at run time.
     sources: []const []const u8,
     /// When set, overrides `.config/docent.toml` and defaults.
-    rules_override: ?docent.RuleSet,
+    rules_override: ?docent.RuleSeverities,
     /// Target filters (library vs binaries vs tests, dependency roots, etc.).
     targeting: docent.targeting.Options,
     /// Diagnostic output formatting for stderr.
@@ -51,10 +51,10 @@ pub const LintStep = struct {
         const allocator = step.owner.allocator;
         const io = step.owner.graph.io;
 
-        const rule_set: docent.RuleSet = if (self.rules_override) |rules|
+        const rule_set: docent.RuleSeverities = if (self.rules_override) |rules|
             rules
         else
-            try docent.config.loadNearestRuleSet(allocator, io);
+            try docent.config.loadNearestRuleSeverities(allocator, io);
 
         const docs_options = docent.config.loadDocsOptionsFromCli(allocator, io, null) catch return error.MakeFailed;
 
@@ -130,7 +130,7 @@ pub const LintStep = struct {
 };
 
 fn lintDirectory(
-    rule_set: docent.RuleSet,
+    rule_set: docent.RuleSeverities,
     docs_options: docent.DocsOptions,
     targeting: docent.targeting.Options,
     output: OutputOptions,
@@ -163,7 +163,7 @@ fn lintDirectory(
 }
 
 fn lintSingleFile(
-    rule_set: docent.RuleSet,
+    rule_set: docent.RuleSeverities,
     docs_options: docent.DocsOptions,
     output: OutputOptions,
     allocator: std.mem.Allocator,
@@ -206,8 +206,8 @@ fn lintSingleFile(
 pub const Options = struct {
     /// Lint roots; when null, uses `.paths` from the nearest `build.zig.zon`.
     sources: ?[]const []const u8 = null,
-    /// When null, uses `.config/docent.toml` or `RuleSet` defaults.
-    rules: ?docent.RuleSet = null,
+    /// When null, uses `.config/docent.toml` or `RuleSeverities` defaults.
+    rules: ?docent.RuleSeverities = null,
     /// Full targeting options; when null, the other options are used.
     targeting: ?docent.targeting.Options = null,
     /// Lint library targets only (used when `targeting` is null).

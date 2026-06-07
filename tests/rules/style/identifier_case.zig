@@ -5,19 +5,19 @@ const docent = @import("docent");
 const utils = @import("../../utils.zig");
 
 // Style checks follow the public API surface; explicit recursive runs check every declaration.
-fn lint(source: [:0]const u8, public_api_only: bool) !docent.LintResult {
+fn lint(source: [:0]const u8, scan_mode: docent.scan_modes.Mode) !docent.LintResult {
     return docent.lintStyleSource(
         std.testing.allocator,
         std.testing.io,
         source,
         .{},
         "<test>",
-        .{ .public_api_only = public_api_only },
+        .{ .scan_mode = scan_mode },
     );
 }
 
 test "concrete function should be camelCase" {
-    var result = try lint("pub fn DoThing() void {}", true);
+    var result = try lint("pub fn DoThing() void {}", .public_api_surface);
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 1);
 }
@@ -35,7 +35,7 @@ test "idiomatic declarations are clean" {
         \\pub fn List() type {
         \\    return struct {};
         \\}
-    , true);
+    , .public_api_surface);
     defer result.deinit();
     try utils.expectRuleAbsent(result, "identifier_case");
 }
@@ -45,19 +45,19 @@ test "field-less container should be snake_case" {
         \\pub const Helpers = struct {
         \\    pub fn ok() void {}
         \\};
-    , true);
+    , .public_api_surface);
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 1);
 }
 
 test "private declarations skipped under public API surface" {
-    var result = try lint("fn DoThing() void {}", true);
+    var result = try lint("fn DoThing() void {}", .public_api_surface);
     defer result.deinit();
     try utils.expectRuleAbsent(result, "identifier_case");
 }
 
 test "private declarations checked in recursive mode" {
-    var result = try lint("fn DoThing() void {}", false);
+    var result = try lint("fn DoThing() void {}", .reachability_traversal);
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 1);
 }
@@ -68,7 +68,7 @@ test "snake_case namespace imports in root.zig are not flagged" {
         std.testing.io,
         "src/lib/root.zig",
         .{},
-        .{ .public_api_only = false },
+        .{ .scan_mode = .reachability_traversal },
     );
     defer result.deinit();
 
@@ -88,7 +88,7 @@ test "import member re-export in root.zig is not flagged" {
         std.testing.io,
         "src/lib/root.zig",
         .{},
-        .{ .public_api_only = false },
+        .{ .scan_mode = .reachability_traversal },
     );
     defer result.deinit();
 
@@ -104,7 +104,7 @@ test "function alias re-export does not false positive" {
     var result = try lint(
         \\const helpers = @import("helpers.zig");
         \\pub const parseInt = helpers.parseInt;
-    , true);
+    , .public_api_surface);
     defer result.deinit();
     try utils.expectRuleAbsent(result, "identifier_case");
 }

@@ -8,7 +8,7 @@ const utils = @import("../../utils.zig");
 
 const ns = "docs";
 
-fn lint(parts: []const []const u8, rule_set: docent.RuleSet) !docent.LintResult {
+fn lint(parts: []const []const u8, rule_set: docent.RuleSeverities) !docent.LintResult {
     return harness.lintRuleFixture(ns, parts, rule_set, .{});
 }
 

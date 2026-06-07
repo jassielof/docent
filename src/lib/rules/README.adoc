@@ -128,7 +128,7 @@ A function is flagged when its parameter count is *strictly greater* than the th
 
 Configuration options for the rules are defined in the project root, under the `.config` directory, in the file `docent.toml`. Run `docent init` to write a starter file with the published JSON Schema URL for editor validation. Docent does not use Zig's ZON notation for project config.
 
-When no config file is found, or a rule is omitted, Docent uses the `RuleSet` defaults from the library.
+When no config file is found, or a rule is omitted, Docent uses the `RuleSeverities` defaults from the library.
 
 .`docent.toml`:
 ====

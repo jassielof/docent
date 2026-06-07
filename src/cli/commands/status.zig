@@ -83,7 +83,7 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     const args = try ctx.extract(Args);
 
-    const rule_set = docent.config.loadRuleSetFromCli(allocator, io, args.config_path) catch |err| {
+    const rule_set = docent.config.loadRuleSeveritiesFromCli(allocator, io, args.config_path) catch |err| {
         try printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -120,7 +120,7 @@ pub fn printStatusReport(
     allocator: std.mem.Allocator,
     io: std.Io,
     plan: docent.status_plan.Plan,
-    rule_set: docent.RuleSet,
+    rule_set: docent.RuleSeverities,
     config_path: ?[]const u8,
 ) !void {
     const profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle);
@@ -261,7 +261,7 @@ fn printEffectiveRules(
     allocator: std.mem.Allocator,
     w: *std.Io.Writer,
     profile: carnaval.ColorProfile,
-    rule_set: docent.RuleSet,
+    rule_set: docent.RuleSeverities,
 ) !void {
     var items = std.ArrayList([]const u8).empty;
     defer {
@@ -269,7 +269,7 @@ fn printEffectiveRules(
         items.deinit(allocator);
     }
 
-    inline for (@typeInfo(docent.RuleSet).@"struct".fields) |f| {
+    inline for (@typeInfo(docent.RuleSeverities).@"struct".fields) |f| {
         const level = @field(rule_set, f.name);
         var buf: [512]u8 = undefined;
         var line_writer = std.Io.Writer.fixed(&buf);

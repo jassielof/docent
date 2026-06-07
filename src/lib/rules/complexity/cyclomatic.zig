@@ -14,6 +14,9 @@ const utils = @import("../utils.zig");
 
 const rule_name = utils.ruleIdWithName("cyclomatic_complexity");
 
+/// The default_severity for the rule.
+pub const default_severity: severity.Level = .warn;
+
 /// Default McCabe-recommended limit on linearly independent paths.
 pub const default_threshold: u32 = 10;
 

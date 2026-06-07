@@ -9,7 +9,8 @@ pub const LintResult = @import("LintResult.zig");
 pub const output = @import("output.zig");
 pub const reachability = @import("reachability.zig");
 pub const reexport = @import("reexport.zig");
-pub const RuleSet = @import("RuleSet.zig");
+pub const RuleSeverities = @import("RuleSeverities.zig");
+pub const scan_modes = @import("scan_modes.zig");
 pub const rule_metadata = @import("rule_metadata.zig");
 pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
@@ -81,7 +82,7 @@ pub fn lintSource(
     allocator: std.mem.Allocator,
     io: std.Io,
     source: [:0]const u8,
-    rule_set: RuleSet,
+    rule_set: RuleSeverities,
     file: []const u8,
     options: LintOptions,
     library_entry_roots: []const []const u8,
@@ -104,7 +105,7 @@ pub fn lintSource(
         file_owned,
         require_module_doc,
         options.module_name,
-        options.public_api_only,
+        options.publicApiOnly(),
         docs_options.require_function_param_docs,
         allocator,
         io,
@@ -117,7 +118,7 @@ pub fn lintSource(
         file_owned,
         options.module_name,
         require_module_doc,
-        options.public_api_only,
+        options.publicApiOnly(),
         allocator,
         io,
         msg,
@@ -141,15 +142,16 @@ pub fn lintSource(
         msg,
         &result.diagnostics,
     );
-    try rules.docs.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, options.public_api_only, allocator, msg, &result.diagnostics);
+    const public_api_only = options.publicApiOnly();
+    try rules.docs.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, public_api_only, allocator, msg, &result.diagnostics);
     try rules.docs.private_doctest.check(&tree, rule_set.private_doctest, file_owned, allocator, msg, &result.diagnostics);
-    try rules.docs.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, options.public_api_only, allocator, msg, &result.diagnostics);
+    try rules.docs.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, public_api_only, allocator, msg, &result.diagnostics);
     try rules.docs.invalid_leading_phrase.check(
         &tree,
         rule_set.invalid_leading_phrase,
         file_owned,
         options.module_name,
-        options.public_api_only,
+        options.publicApiOnly(),
         allocator,
         msg,
         &result.diagnostics,
@@ -164,7 +166,7 @@ pub fn lintSource(
 pub fn lintComplexitySource(
     allocator: std.mem.Allocator,
     source: [:0]const u8,
-    rule_set: RuleSet,
+    rule_set: RuleSeverities,
     file: []const u8,
     options: LintOptions,
     complexity_options: ComplexityOptions,
@@ -182,7 +184,7 @@ pub fn lintComplexitySource(
         &tree,
         rule_set.cognitive_complexity,
         file_owned,
-        options.public_api_only,
+        options.publicApiOnly(),
         complexity_options.cognitive_threshold,
         allocator,
         msg,
@@ -192,7 +194,7 @@ pub fn lintComplexitySource(
         &tree,
         rule_set.cyclomatic_complexity,
         file_owned,
-        options.public_api_only,
+        options.publicApiOnly(),
         complexity_options.cyclomatic_threshold,
         allocator,
         msg,
@@ -202,7 +204,7 @@ pub fn lintComplexitySource(
         &tree,
         rule_set.max_fun_params,
         file_owned,
-        options.public_api_only,
+        options.publicApiOnly(),
         complexity_options.max_fun_params_threshold,
         allocator,
         msg,
@@ -219,7 +221,7 @@ pub fn lintStyleSource(
     allocator: std.mem.Allocator,
     io: std.Io,
     source: [:0]const u8,
-    rule_set: RuleSet,
+    rule_set: RuleSeverities,
     file: []const u8,
     options: LintOptions,
 ) !LintResult {
@@ -236,7 +238,7 @@ pub fn lintStyleSource(
         &tree,
         rule_set.identifier_case,
         file_owned,
-        options.public_api_only,
+        options.publicApiOnly(),
         allocator,
         io,
         msg,
@@ -251,7 +253,7 @@ pub fn lintStyleFile(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    rule_set: RuleSet,
+    rule_set: RuleSeverities,
     options: LintOptions,
 ) !LintResult {
     const source = try std.Io.Dir.cwd().readFileAllocOptions(
@@ -272,7 +274,7 @@ pub fn lintComplexityFile(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    rule_set: RuleSet,
+    rule_set: RuleSeverities,
     options: LintOptions,
     complexity_options: ComplexityOptions,
 ) !LintResult {
@@ -294,7 +296,7 @@ pub fn lintFile(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    rule_set: RuleSet,
+    rule_set: RuleSeverities,
     options: LintOptions,
     library_entry_roots: []const []const u8,
     docs_options: DocsOptions,

@@ -63,14 +63,14 @@ test "config loadDocsOptions reads docs block from docent.toml" {
     try std.testing.expect(!docs_options.require_function_param_docs);
 }
 
-test "config loadRuleSet reads rules from docent.toml" {
+test "config loadRuleSeverities reads rules from docent.toml" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
     const config_path = try fixtureConfigPath(allocator, io);
     defer allocator.free(config_path);
 
-    const rule_set = try docent.config.loadRuleSet(allocator, io, config_path);
+    const rule_set = try docent.config.loadRuleSeverities(allocator, io, config_path);
     try std.testing.expect(rule_set.missing_doc_comment == .deny);
     try std.testing.expect(rule_set.missing_doctest == .allow);
 }
@@ -82,7 +82,7 @@ test "config explicit config-path loads rules" {
     const config_path = try fixtureConfigPath(allocator, io);
     defer allocator.free(config_path);
 
-    const rule_set = try docent.config.loadRuleSetFromCli(allocator, io, config_path);
+    const rule_set = try docent.config.loadRuleSeveritiesFromCli(allocator, io, config_path);
     try std.testing.expect(rule_set.missing_doc_comment == .deny);
     try std.testing.expect(rule_set.missing_doctest == .allow);
 }
@@ -90,11 +90,11 @@ test "config explicit config-path loads rules" {
 test "config explicit config-path errors when file is missing" {
     try std.testing.expectError(
         error.ConfigNotFound,
-        docent.config.loadRuleSetFromCli(std.testing.allocator, std.testing.io, "tests/fixtures/no_such_docent.toml"),
+        docent.config.loadRuleSeveritiesFromCli(std.testing.allocator, std.testing.io, "tests/fixtures/no_such_docent.toml"),
     );
 }
 
-test "config empty file uses RuleSet defaults" {
+test "config empty file uses RuleSeverities defaults" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
@@ -104,7 +104,7 @@ test "config empty file uses RuleSet defaults" {
     const config_path = try allocator.dupe(u8, buf[0..len]);
     defer allocator.free(config_path);
 
-    const rule_set = try docent.config.loadRuleSet(allocator, io, config_path);
+    const rule_set = try docent.config.loadRuleSeverities(allocator, io, config_path);
     try std.testing.expect(rule_set.missing_doc_comment == .warn);
     try std.testing.expect(rule_set.missing_doctest == .allow);
 }
