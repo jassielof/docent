@@ -221,10 +221,11 @@ definitions:
             enum: ["snake_case", "camelCase", "PascalCase"]
             default: "snake_case"
             description: "Global constants and comptime values."
-          allow_snake_case_struct_files:
-            type: "boolean"
-            default: false
-            description: "When true, struct files may use snake_case filenames (Tiger Style). When false, struct files use PascalCase filenames and struct imports use PascalCase bindings."
+          struct_file_case:
+            type: "string"
+            enum: ["snake_case", "camelCase", "PascalCase", "kebab_case"]
+            default: "PascalCase"
+            description: "Case convention for struct-at-file-scope module filenames. Independent of declaration types case; struct import bindings still follow the configured types case. Use snake_case for Tiger Style."
 
   rule_line_length_limit:
     oneOf:

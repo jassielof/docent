@@ -17,7 +17,7 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const Config = @import("../../schemas/Config.zig");
+const rule_config = @import("../config.zig");
 const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
@@ -26,13 +26,15 @@ const rule_name = utils.ruleIdWithName("cognitive_complexity");
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
+pub const Config = rule_config.RuleThreshold;
+
 pub const Options = struct {
     scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
     threshold: u32 = default_threshold,
 
-    pub fn resolve(category_scan: scanning.Modes, rule: Config.RuleThreshold) Options {
+    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
         return .{
-            .scan_mode = rule_opts.scanModeFromThreshold(category_scan, rule),
+            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
             .threshold = rule.threshold orelse default_threshold,
         };
     }

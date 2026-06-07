@@ -15,7 +15,8 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const Config = @import("../../schemas/Config.zig");
+const toml = @import("toml");
+const rule_config = @import("../config.zig");
 const reexport = @import("../../reexport.zig");
 const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
@@ -29,13 +30,28 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
+/// Raw configuration for this rule from `docent.toml`.
+pub const Config = struct {
+    level: ?severity.Level = null,
+    scan_mode: ?scanning.Modes = null,
+    check_parameters: ?bool = null,
+};
+
+pub fn decodeConfig(value: toml.DynamicValue) rule_config.Error!Config {
+    return .{
+        .level = try rule_config.decodeLevelValue(value),
+        .scan_mode = rule_config.decodeScanModeField(value),
+        .check_parameters = rule_config.decodeBoolField(value, "check_parameters"),
+    };
+}
+
 pub const Options = struct {
     scan_mode: scanning.Modes = scanning.Modes.public_api_surface,
     check_parameters: bool = false,
 
-    pub fn resolve(category_scan: scanning.Modes, rule: Config.MissingDocCommentRule) Options {
+    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
         return .{
-            .scan_mode = rule_opts.scanModeFromMissingDocComment(category_scan, rule),
+            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
             .check_parameters = rule.check_parameters orelse false,
         };
     }

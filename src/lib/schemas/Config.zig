@@ -8,97 +8,20 @@ const toml = @import("toml");
 const RuleSeverities = @import("../RuleSeverities.zig");
 const scanning = @import("../scanning.zig");
 const severity = @import("../severity.zig");
+const rule_config = @import("../rules/config.zig");
+const docs_rules = @import("../rules/docs.zig");
+const style_rules = @import("../rules/style.zig");
+const complexity_rules = @import("../rules/complexity.zig");
 
-pub const Error = error{
-    ConfigParseFailed,
-    InvalidSeverity,
-    InvalidScanMode,
-    OutOfMemory,
-};
+pub const Error = rule_config.Error;
 
-const rules = @import("../rules.zig");
+pub const Docs = docs_rules.Section;
+pub const Style = style_rules.Section;
+pub const Complexity = complexity_rules.Section;
 
-/// Rule with only severity and an optional scan-mode override.
-pub const RuleSimple = struct {
-    level: ?severity.Level = null,
-    scan_mode: ?scanning.Modes = null,
-};
-
-/// Threshold rule shared by complexity rules.
-pub const RuleThreshold = struct {
-    level: ?severity.Level = null,
-    scan_mode: ?scanning.Modes = null,
-    threshold: ?u32 = null,
-};
-
-/// `[docs.missing_doc_comment]` options.
-pub const MissingDocCommentRule = struct {
-    level: ?severity.Level = null,
-    scan_mode: ?scanning.Modes = null,
-    check_parameters: ?bool = null,
-};
-
-/// Leading-phrase strictness for `[docs.invalid_leading_phrase]`.
-pub const LeadingPhraseMode = enum {
-    relaxed,
-    canonical,
-    strict,
-};
-
-/// `[docs.invalid_leading_phrase]` options.
-pub const InvalidLeadingPhraseRule = struct {
-    level: ?severity.Level = null,
-    scan_mode: ?scanning.Modes = null,
-    mode: ?LeadingPhraseMode = null,
-    require_article: ?bool = null,
-    require_backticks: ?bool = null,
-};
-
-/// `[style.identifier_case]` options.
-pub const IdentifierCaseRule = struct {
-    level: ?severity.Level = null,
-    scan_mode: ?scanning.Modes = null,
-    allow_snake_case_struct_files: ?bool = null,
-};
-
-/// `[style.line_length_limit]` options.
-pub const LineLengthLimitRule = struct {
-    level: ?severity.Level = null,
-    scan_mode: ?scanning.Modes = null,
-    max_length: ?u32 = null,
-    ignore_trailing_comments: ?bool = null,
-};
-
-pub const Docs = struct {
-    scan_mode: ?scanning.Modes = null,
-    missing_doc_comment: MissingDocCommentRule = .{},
-    blank_doc_comment: RuleSimple = .{},
-    trailing_blank_doc_comment: RuleSimple = .{},
-    missing_summary_terminal_punctuation: RuleSimple = .{},
-    missing_doctest: RuleSimple = .{},
-    private_doctest: RuleSimple = .{},
-    doctest_naming_mismatch: RuleSimple = .{},
-    invalid_leading_phrase: InvalidLeadingPhraseRule = .{},
-};
-
-pub const Style = struct {
-    scan_mode: ?scanning.Modes = null,
-    identifier_case: IdentifierCaseRule = .{},
-    line_length_limit: LineLengthLimitRule = .{},
-};
-
-pub const Complexity = struct {
-    scan_mode: ?scanning.Modes = null,
-    cognitive_complexity: RuleThreshold = .{},
-    cyclomatic_complexity: RuleThreshold = .{},
-    max_function_parameters: RuleThreshold = .{},
-};
-
-pub const Root = struct {
-    docs: Docs = .{},
-    style: Style = .{},
-    complexity: Complexity = .{},
-};
+docs: Docs = .{},
+style: Style = .{},
+complexity: Complexity = .{},
 
 /// Parses TOML config text into the dynamic value tree.
 pub fn parseRoot(allocator: std.mem.Allocator, text: []const u8) Error!toml.DynamicValue {
@@ -113,18 +36,18 @@ pub fn parseRoot(allocator: std.mem.Allocator, text: []const u8) Error!toml.Dyna
 }
 
 /// Decodes a parsed TOML root into the typed configuration schema.
-pub fn decode(root: toml.DynamicValue) Error!Root {
+pub fn decode(root: toml.DynamicValue) Error!@This() {
     const table = rootTable(root) orelse return error.ConfigParseFailed;
 
-    var cfg: Root = .{};
-    if (sectionTable(table, "docs")) |docs| cfg.docs = try decodeDocs(docs);
-    if (sectionTable(table, "style")) |style| cfg.style = try decodeStyle(style);
-    if (sectionTable(table, "complexity")) |complexity| cfg.complexity = try decodeComplexity(complexity);
+    var cfg: @This() = .{};
+    if (sectionTable(table, "docs")) |section| cfg.docs = try docs_rules.decodeSection(section);
+    if (sectionTable(table, "style")) |section| cfg.style = try style_rules.decodeSection(section);
+    if (sectionTable(table, "complexity")) |section| cfg.complexity = try complexity_rules.decodeSection(section);
     return cfg;
 }
 
 /// Applies configured severity levels to `rule_set`. Omitted rules keep library defaults.
-pub fn applyRuleSeverities(cfg: Root, rule_set: *RuleSeverities) Error!void {
+pub fn applyRuleSeverities(cfg: @This(), rule_set: *RuleSeverities) Error!void {
     try applyDocsSeverities(cfg.docs, rule_set);
     try applyStyleSeverities(cfg.style, rule_set);
     try applyComplexitySeverities(cfg.complexity, rule_set);
@@ -156,166 +79,6 @@ fn applyLevel(slot: *severity.Level, configured: ?severity.Level) Error!void {
     const level = configured orelse return;
     if (slot.* == .forbid and level != .forbid) return;
     slot.* = level;
-}
-
-fn decodeDocs(section: *const toml.Table) Error!Docs {
-    var docs: Docs = .{};
-    if (section.get("scan_mode")) |value| docs.scan_mode = try decodeScanModeValue(value);
-    if (section.get("missing_doc_comment")) |value| docs.missing_doc_comment = try decodeMissingDocComment(value);
-    if (section.get("blank_doc_comment")) |value| docs.blank_doc_comment = try decodeRuleSimple(value);
-    if (section.get("trailing_blank_doc_comment")) |value| docs.trailing_blank_doc_comment = try decodeRuleSimple(value);
-    if (section.get("missing_summary_terminal_punctuation")) |value| docs.missing_summary_terminal_punctuation = try decodeRuleSimple(value);
-    if (section.get("missing_doctest")) |value| docs.missing_doctest = try decodeRuleSimple(value);
-    if (section.get("private_doctest")) |value| docs.private_doctest = try decodeRuleSimple(value);
-    if (section.get("doctest_naming_mismatch")) |value| docs.doctest_naming_mismatch = try decodeRuleSimple(value);
-    if (section.get("invalid_leading_phrase")) |value| docs.invalid_leading_phrase = try decodeInvalidLeadingPhrase(value);
-    return docs;
-}
-
-fn decodeStyle(section: *const toml.Table) Error!Style {
-    var style: Style = .{};
-    if (section.get("scan_mode")) |value| style.scan_mode = try decodeScanModeValue(value);
-    if (section.get("identifier_case")) |value| style.identifier_case = try decodeIdentifierCase(value);
-    if (section.get("line_length_limit")) |value| style.line_length_limit = try decodeLineLengthLimit(value);
-    return style;
-}
-
-fn decodeComplexity(section: *const toml.Table) Error!Complexity {
-    var complexity: Complexity = .{};
-    if (section.get("scan_mode")) |value| complexity.scan_mode = try decodeScanModeValue(value);
-    if (section.get("cognitive_complexity")) |value| complexity.cognitive_complexity = try decodeRuleThreshold(value);
-    if (section.get("cyclomatic_complexity")) |value| complexity.cyclomatic_complexity = try decodeRuleThreshold(value);
-    if (section.get("max_function_parameters")) |value| complexity.max_function_parameters = try decodeRuleThreshold(value);
-    return complexity;
-}
-
-fn decodeRuleSimple(value: toml.DynamicValue) Error!RuleSimple {
-    return .{
-        .level = try decodeLevelValue(value),
-        .scan_mode = decodeScanModeField(value),
-    };
-}
-
-fn decodeRuleThreshold(value: toml.DynamicValue) Error!RuleThreshold {
-    return .{
-        .level = try decodeLevelValue(value),
-        .scan_mode = decodeScanModeField(value),
-        .threshold = decodeThresholdField(value),
-    };
-}
-
-fn decodeMissingDocComment(value: toml.DynamicValue) Error!MissingDocCommentRule {
-    return .{
-        .level = try decodeLevelValue(value),
-        .scan_mode = decodeScanModeField(value),
-        .check_parameters = decodeBoolField(value, "check_parameters"),
-    };
-}
-
-fn decodeInvalidLeadingPhrase(value: toml.DynamicValue) Error!InvalidLeadingPhraseRule {
-    return .{
-        .level = try decodeLevelValue(value),
-        .scan_mode = decodeScanModeField(value),
-        .mode = decodeLeadingPhraseModeField(value),
-        .require_article = decodeBoolField(value, "require_article"),
-        .require_backticks = decodeBoolField(value, "require_backticks"),
-    };
-}
-
-fn decodeIdentifierCase(value: toml.DynamicValue) Error!IdentifierCaseRule {
-    return .{
-        .level = try decodeLevelValue(value),
-        .scan_mode = decodeScanModeField(value),
-        .allow_snake_case_struct_files = decodeBoolField(value, "allow_snake_case_struct_files"),
-    };
-}
-
-fn decodeLineLengthLimit(value: toml.DynamicValue) Error!LineLengthLimitRule {
-    return .{
-        .level = try decodeLevelValue(value),
-        .scan_mode = decodeScanModeField(value),
-        .max_length = decodeU32Field(value, "max_length"),
-        .ignore_trailing_comments = decodeBoolField(value, "ignore_trailing_comments"),
-    };
-}
-
-fn decodeLevelValue(value: toml.DynamicValue) Error!?severity.Level {
-    const level_name = std.mem.trim(u8, try ruleLevelName(value), " \t\r\n");
-    if (level_name.len == 0) return null;
-    return std.meta.stringToEnum(severity.Level, level_name) orelse return error.InvalidSeverity;
-}
-
-fn decodeScanModeValue(value: toml.DynamicValue) Error!scanning.Modes {
-    const mode = value.stringSlice() orelse return error.ConfigParseFailed;
-    return scanning.Modes.fromConfigString(mode) orelse return error.InvalidScanMode;
-}
-
-fn decodeScanModeField(value: toml.DynamicValue) ?scanning.Modes {
-    return switch (value) {
-        .table => |table| blk: {
-            const field_value = table.get("scan_mode") orelse return null;
-            const mode = field_value.stringSlice() orelse return null;
-            break :blk scanning.Modes.fromConfigString(mode);
-        },
-        else => null,
-    };
-}
-
-fn decodeThresholdField(value: toml.DynamicValue) ?u32 {
-    return decodeU32Field(value, "threshold");
-}
-
-fn decodeU32Field(value: toml.DynamicValue, key: []const u8) ?u32 {
-    return switch (value) {
-        .table => |table| blk: {
-            const field_value = table.get(key) orelse return null;
-            break :blk switch (field_value) {
-                .integer => |integer_value| std.math.cast(u32, integer_value) orelse null,
-                else => null,
-            };
-        },
-        else => null,
-    };
-}
-
-fn decodeBoolField(value: toml.DynamicValue, key: []const u8) ?bool {
-    return switch (value) {
-        .table => |table| blk: {
-            const field_value = table.get(key) orelse return null;
-            break :blk switch (field_value) {
-                .boolean => |enabled| enabled,
-                else => null,
-            };
-        },
-        else => null,
-    };
-}
-
-fn decodeLeadingPhraseModeField(value: toml.DynamicValue) ?LeadingPhraseMode {
-    const mode_name = decodeStringField(value, "mode") orelse return null;
-    return std.meta.stringToEnum(LeadingPhraseMode, mode_name);
-}
-
-fn decodeStringField(value: toml.DynamicValue, key: []const u8) ?[]const u8 {
-    return switch (value) {
-        .table => |table| blk: {
-            const field_value = table.get(key) orelse return null;
-            break :blk field_value.stringSlice();
-        },
-        else => null,
-    };
-}
-
-fn ruleLevelName(value: toml.DynamicValue) Error![]const u8 {
-    return switch (value) {
-        .string => |string_value| string_value.bytes,
-        .table => |table| {
-            const level_value = table.get("level") orelse return "";
-            return level_value.stringSlice() orelse return error.ConfigParseFailed;
-        },
-        .boolean, .integer, .float, .array => return "",
-        else => return error.ConfigParseFailed,
-    };
 }
 
 fn rootTable(root: toml.DynamicValue) ?*const toml.Table {
@@ -371,23 +134,23 @@ test "resolved style options read line_length_limit settings" {
     );
 
     const cfg = try decode(root);
-    const style_options = @import("../rules/style.zig").Options.resolve(cfg.style);
+    const style_options = style_rules.Options.resolve(cfg.style);
     try std.testing.expectEqual(@as(u32, 80), style_options.line_length_limit.max_length);
     try std.testing.expect(style_options.line_length_limit.ignore_trailing_comments);
 }
 
-test "resolved style options read allow_snake_case_struct_files" {
+test "resolved style options read struct_file_case" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
     const root = try parseRoot(arena.allocator(),
         \\[style.identifier_case]
-        \\allow_snake_case_struct_files = true
+        \\struct_file_case = "snake_case"
     );
 
     const cfg = try decode(root);
-    const style_options = @import("../rules/style.zig").Options.resolve(cfg.style);
-    try std.testing.expect(style_options.identifier_case.allow_snake_case_struct_files);
+    const style_options = style_rules.Options.resolve(cfg.style);
+    try std.testing.expectEqual(style_rules.identifier_case.FilenameCase.snake_case, style_options.identifier_case.struct_file_case);
 }
 
 test "resolved docs options read invalid_leading_phrase settings" {
@@ -402,8 +165,8 @@ test "resolved docs options read invalid_leading_phrase settings" {
     );
 
     const cfg = try decode(root);
-    const docs_options = @import("../rules/docs.zig").Options.resolve(cfg.docs);
-    try std.testing.expectEqual(LeadingPhraseMode.strict, docs_options.invalid_leading_phrase.mode);
+    const docs_options = docs_rules.Options.resolve(cfg.docs);
+    try std.testing.expectEqual(docs_rules.invalid_leading_phrase.Mode.strict, docs_options.invalid_leading_phrase.mode);
     try std.testing.expect(docs_options.invalid_leading_phrase.require_article);
     try std.testing.expect(docs_options.invalid_leading_phrase.require_backticks);
 }
@@ -419,7 +182,7 @@ test "resolved docs options read check_parameters" {
     );
 
     const cfg = try decode(root);
-    const docs_options = @import("../rules/docs.zig").Options.resolve(cfg.docs);
+    const docs_options = docs_rules.Options.resolve(cfg.docs);
     try std.testing.expect(docs_options.missing_doc_comment.check_parameters);
 }
 
@@ -436,7 +199,7 @@ test "resolved complexity options read thresholds" {
     );
 
     const cfg = try decode(root);
-    const complexity_options = @import("../rules/complexity.zig").Options.resolve(cfg.complexity);
+    const complexity_options = complexity_rules.Options.resolve(cfg.complexity);
     try std.testing.expectEqual(@as(u32, 12), complexity_options.cognitive.threshold);
     try std.testing.expectEqual(@as(u32, 5), complexity_options.max_fun_params.threshold);
     try std.testing.expectEqual(@as(u32, 10), complexity_options.cyclomatic.threshold);
@@ -448,7 +211,7 @@ test "scan modes default and override" {
 
     const empty = try parseRoot(arena.allocator(), "");
     const empty_cfg = try decode(empty);
-    try std.testing.expectEqual(rules.docs.default_scan_mode, empty_cfg.docs.scan_mode orelse rules.docs.default_scan_mode);
+    try std.testing.expectEqual(docs_rules.default_scan_mode, empty_cfg.docs.scan_mode orelse docs_rules.default_scan_mode);
 
     const root = try parseRoot(arena.allocator(),
         \\[docs]
@@ -464,7 +227,7 @@ test "scan modes default and override" {
 
 test "applyRuleSeverities respects forbid and defaults" {
     var rule_set: RuleSeverities = .{ .missing_doc_comment = .forbid };
-    const cfg: Root = .{
+    const cfg: @This() = .{
         .docs = .{ .missing_doc_comment = .{ .level = .warn } },
     };
     try applyRuleSeverities(cfg, &rule_set);

@@ -120,7 +120,7 @@ test "zig convention flags snake_case struct import paths" {
 
 test "snake_case struct import binding is flagged even under Tiger filenames" {
     var style_options = docent.rules.style.Options.defaults();
-    style_options.identifier_case.allow_snake_case_struct_files = true;
+    style_options.identifier_case.struct_file_case = .snake_case;
     var result = try docent.lintStyleSource(
         std.testing.allocator,
         std.testing.io,

@@ -5,7 +5,8 @@ const std = @import("std");
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const Config = @import("../../schemas/Config.zig");
+const toml = @import("toml");
+const rule_config = @import("../config.zig");
 const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
@@ -21,18 +22,35 @@ pub const default_severity: severity.Level = .allow;
 /// Default maximum line length in characters.
 pub const default_max_length: u32 = 100;
 
-/// Resolved options for `[style.line_length_limit]`.
+/// Raw configuration for this rule from `docent.toml`.
+pub const Config = struct {
+    level: ?severity.Level = null,
+    scan_mode: ?scanning.Modes = null,
+    max_length: ?u32 = null,
+    ignore_trailing_comments: ?bool = null,
+};
+
+pub fn decodeConfig(value: toml.DynamicValue) rule_config.Error!Config {
+    return .{
+        .level = try rule_config.decodeLevelValue(value),
+        .scan_mode = rule_config.decodeScanModeField(value),
+        .max_length = rule_config.decodeU32Field(value, "max_length"),
+        .ignore_trailing_comments = rule_config.decodeBoolField(value, "ignore_trailing_comments"),
+    };
+}
+
+/// Resolved options for the line length limit rule.
 pub const Options = struct {
-    /// Which declarations this rule inspects; inherits `[style] scan_mode` unless overridden for this rule.
+    /// Which declarations this rule inspects; inherits the style category `scan_mode` unless overridden for this rule.
     scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
     /// Maximum physical line width in characters before the rule triggers.
     max_length: u32 = default_max_length,
     /// When set, trailing `//` comments are excluded from the measured width.
     ignore_trailing_comments: bool = false,
 
-    pub fn resolve(category_scan: scanning.Modes, rule: Config.LineLengthLimitRule) Options {
+    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
         return .{
-            .scan_mode = rule_opts.scanModeFromLineLengthLimit(category_scan, rule),
+            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
             .max_length = rule.max_length orelse default_max_length,
             .ignore_trailing_comments = rule.ignore_trailing_comments orelse false,
         };
