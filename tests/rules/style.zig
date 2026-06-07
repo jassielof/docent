@@ -5,4 +5,5 @@ const refAllDecls = std.testing.refAllDecls;
 
 comptime {
     refAllDecls(@import("style/identifier_case.zig"));
+    refAllDecls(@import("style/line_length_limit.zig"));
 }

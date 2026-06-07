@@ -27,3 +27,13 @@ pub fn scanModeFromMissingDocComment(category_scan: scanning.Modes, rule: Config
 pub fn scanModeFromInvalidLeadingPhrase(category_scan: scanning.Modes, rule: Config.InvalidLeadingPhraseRule) scanning.Modes {
     return resolveScanMode(category_scan, rule.scan_mode);
 }
+
+/// Resolves scan mode from an identifier-case rule config entry.
+pub fn scanModeFromIdentifierCase(category_scan: scanning.Modes, rule: Config.IdentifierCaseRule) scanning.Modes {
+    return resolveScanMode(category_scan, rule.scan_mode);
+}
+
+/// Resolves scan mode from a line-length-limit rule config entry.
+pub fn scanModeFromLineLengthLimit(category_scan: scanning.Modes, rule: Config.LineLengthLimitRule) scanning.Modes {
+    return resolveScanMode(category_scan, rule.scan_mode);
+}

@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://json-schema.org/draft-07/schema#
-$schema: "http://json-schema.org/draft-07/schema#"
+$schema: "https://json-schema.org/draft-07/schema#"
 $id: "https://jassielof.github.io/docent/schemas/docent.schema.json"
 title: "Docent Configuration Schema"
 description: "Categorized configuration schema for the Docent Zig documentation linter."
@@ -52,8 +52,8 @@ properties:
       identifier_case:
         $ref: "#/definitions/rule_identifier_case"
         description: "Identifiers should follow casing conventions."
-      loc_column_length:
-        $ref: "#/definitions/rule_loc_column_length"
+      line_length_limit:
+        $ref: "#/definitions/rule_line_length_limit"
         description: "Physical line columns must stay within length limits."
 
   complexity:
@@ -221,8 +221,12 @@ definitions:
             enum: ["snake_case", "camelCase", "PascalCase"]
             default: "snake_case"
             description: "Global constants and comptime values."
+          allow_snake_case_struct_files:
+            type: "boolean"
+            default: false
+            description: "When true, struct files may use snake_case filenames (Tiger Style). When false, struct files use PascalCase filenames and struct imports use PascalCase bindings."
 
-  rule_loc_column_length:
+  rule_line_length_limit:
     oneOf:
       - $ref: "#/definitions/severity"
       - type: "object"
@@ -239,3 +243,7 @@ definitions:
             minimum: 1
             default: 100
             description: "Maximum character column width per line."
+          ignore_trailing_comments:
+            type: "boolean"
+            default: false
+            description: "Exclude trailing inline `//` comments from the measured line width."

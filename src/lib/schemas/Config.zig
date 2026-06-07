@@ -54,6 +54,21 @@ pub const InvalidLeadingPhraseRule = struct {
     require_backticks: ?bool = null,
 };
 
+/// `[style.identifier_case]` options.
+pub const IdentifierCaseRule = struct {
+    level: ?severity.Level = null,
+    scan_mode: ?scanning.Modes = null,
+    allow_snake_case_struct_files: ?bool = null,
+};
+
+/// `[style.line_length_limit]` options.
+pub const LineLengthLimitRule = struct {
+    level: ?severity.Level = null,
+    scan_mode: ?scanning.Modes = null,
+    max_length: ?u32 = null,
+    ignore_trailing_comments: ?bool = null,
+};
+
 pub const Docs = struct {
     scan_mode: ?scanning.Modes = null,
     missing_doc_comment: MissingDocCommentRule = .{},
@@ -68,7 +83,8 @@ pub const Docs = struct {
 
 pub const Style = struct {
     scan_mode: ?scanning.Modes = null,
-    identifier_case: RuleSimple = .{},
+    identifier_case: IdentifierCaseRule = .{},
+    line_length_limit: LineLengthLimitRule = .{},
 };
 
 pub const Complexity = struct {
@@ -127,6 +143,7 @@ fn applyDocsSeverities(section: Docs, rule_set: *RuleSeverities) Error!void {
 
 fn applyStyleSeverities(section: Style, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.identifier_case, section.identifier_case.level);
+    try applyLevel(&rule_set.line_length_limit, section.line_length_limit.level);
 }
 
 fn applyComplexitySeverities(section: Complexity, rule_set: *RuleSeverities) Error!void {
@@ -158,7 +175,8 @@ fn decodeDocs(section: *const toml.Table) Error!Docs {
 fn decodeStyle(section: *const toml.Table) Error!Style {
     var style: Style = .{};
     if (section.get("scan_mode")) |value| style.scan_mode = try decodeScanModeValue(value);
-    if (section.get("identifier_case")) |value| style.identifier_case = try decodeRuleSimple(value);
+    if (section.get("identifier_case")) |value| style.identifier_case = try decodeIdentifierCase(value);
+    if (section.get("line_length_limit")) |value| style.line_length_limit = try decodeLineLengthLimit(value);
     return style;
 }
 
@@ -204,6 +222,23 @@ fn decodeInvalidLeadingPhrase(value: toml.DynamicValue) Error!InvalidLeadingPhra
     };
 }
 
+fn decodeIdentifierCase(value: toml.DynamicValue) Error!IdentifierCaseRule {
+    return .{
+        .level = try decodeLevelValue(value),
+        .scan_mode = decodeScanModeField(value),
+        .allow_snake_case_struct_files = decodeBoolField(value, "allow_snake_case_struct_files"),
+    };
+}
+
+fn decodeLineLengthLimit(value: toml.DynamicValue) Error!LineLengthLimitRule {
+    return .{
+        .level = try decodeLevelValue(value),
+        .scan_mode = decodeScanModeField(value),
+        .max_length = decodeU32Field(value, "max_length"),
+        .ignore_trailing_comments = decodeBoolField(value, "ignore_trailing_comments"),
+    };
+}
+
 fn decodeLevelValue(value: toml.DynamicValue) Error!?severity.Level {
     const level_name = std.mem.trim(u8, try ruleLevelName(value), " \t\r\n");
     if (level_name.len == 0) return null;
@@ -227,9 +262,13 @@ fn decodeScanModeField(value: toml.DynamicValue) ?scanning.Modes {
 }
 
 fn decodeThresholdField(value: toml.DynamicValue) ?u32 {
+    return decodeU32Field(value, "threshold");
+}
+
+fn decodeU32Field(value: toml.DynamicValue, key: []const u8) ?u32 {
     return switch (value) {
         .table => |table| blk: {
-            const field_value = table.get("threshold") orelse return null;
+            const field_value = table.get(key) orelse return null;
             break :blk switch (field_value) {
                 .integer => |integer_value| std.math.cast(u32, integer_value) orelse null,
                 else => null,
@@ -319,6 +358,36 @@ test "decode reads nested rule tables and section options" {
     try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.docs.scan_mode.?);
     try std.testing.expectEqual(@as(?severity.Level, .deny), cfg.complexity.cognitive_complexity.level);
     try std.testing.expectEqual(@as(?u32, 12), cfg.complexity.cognitive_complexity.threshold);
+}
+
+test "resolved style options read line_length_limit settings" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const root = try parseRoot(arena.allocator(),
+        \\[style.line_length_limit]
+        \\max_length = 80
+        \\ignore_trailing_comments = true
+    );
+
+    const cfg = try decode(root);
+    const style_options = @import("../rules/style.zig").Options.resolve(cfg.style);
+    try std.testing.expectEqual(@as(u32, 80), style_options.line_length_limit.max_length);
+    try std.testing.expect(style_options.line_length_limit.ignore_trailing_comments);
+}
+
+test "resolved style options read allow_snake_case_struct_files" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const root = try parseRoot(arena.allocator(),
+        \\[style.identifier_case]
+        \\allow_snake_case_struct_files = true
+    );
+
+    const cfg = try decode(root);
+    const style_options = @import("../rules/style.zig").Options.resolve(cfg.style);
+    try std.testing.expect(style_options.identifier_case.allow_snake_case_struct_files);
 }
 
 test "resolved docs options read invalid_leading_phrase settings" {

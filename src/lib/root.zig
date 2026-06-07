@@ -239,6 +239,15 @@ pub fn lintStyleSource(
         msg,
         &result.diagnostics,
     );
+    try rules.style.line_length_limit.check(
+        source,
+        rule_set.line_length_limit,
+        file_owned,
+        style_options.line_length_limit,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
 
     return result;
 }

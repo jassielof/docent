@@ -66,11 +66,18 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
+/// Resolved options for `[style.identifier_case]`.
 pub const Options = struct {
+    /// Which declarations this rule inspects; inherits `[style] scan_mode` unless overridden for this rule.
     scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
+    /// When set, struct files may use snake_case filenames (Tiger Style). When unset, struct files and struct import paths use PascalCase filenames while struct import bindings follow the configured types case.
+    allow_snake_case_struct_files: bool = false,
 
-    pub fn resolve(category_scan: scanning.Modes, rule: Config.RuleSimple) Options {
-        return .{ .scan_mode = rule_opts.scanModeFromSimple(category_scan, rule) };
+    pub fn resolve(category_scan: scanning.Modes, rule: Config.IdentifierCaseRule) Options {
+        return .{
+            .scan_mode = rule_opts.scanModeFromIdentifierCase(category_scan, rule),
+            .allow_snake_case_struct_files = rule.allow_snake_case_struct_files orelse false,
+        };
     }
 
     pub fn publicApiOnly(self: Options) bool {
@@ -125,6 +132,8 @@ pub fn check(
     if (!severity_level.isActive()) return;
     const public_api_only = options.publicApiOnly();
 
+    try checkStructFileName(tree, severity_level, file, options, allocator, msg_allocator, diagnostics);
+
     var namespace_cache = std.StringHashMap(bool).init(allocator);
     defer {
         var it = namespace_cache.keyIterator();
@@ -133,7 +142,7 @@ pub fn check(
     }
 
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity_level, file, public_api_only, .field, allocator, io, &namespace_cache, msg_allocator, diagnostics);
+        try checkNode(tree, decl, severity_level, file, public_api_only, options, .field, allocator, io, &namespace_cache, msg_allocator, diagnostics);
     }
 }
 
@@ -143,6 +152,7 @@ fn checkNode(
     severity_level: severity.Level,
     file: []const u8,
     public_api_only: bool,
+    options: Options,
     member_field_kind: Diagnostic.SubjectKind,
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -167,7 +177,7 @@ fn checkNode(
 
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.ast.init_node.unwrap()) |init_node| {
-            try checkImportFilenameExpr(tree, init_node, severity_level, file, allocator, io, namespace_cache, msg_allocator, diagnostics);
+            try checkImportFilenameExpr(tree, init_node, severity_level, file, options, allocator, io, namespace_cache, msg_allocator, diagnostics);
             try checkImportBinding(tree, var_decl, init_node, severity_level, file, allocator, io, namespace_cache, msg_allocator, diagnostics);
         }
         if (utils.isPubVisibility(tree, var_decl.visib_token) or !public_api_only) {
@@ -181,7 +191,7 @@ fn checkNode(
                 }
             }
         }
-        try checkVarDeclInit(tree, var_decl, severity_level, file, public_api_only, allocator, io, namespace_cache, msg_allocator, diagnostics);
+        try checkVarDeclInit(tree, var_decl, severity_level, file, public_api_only, options, allocator, io, namespace_cache, msg_allocator, diagnostics);
         return;
     }
 
@@ -190,7 +200,7 @@ fn checkNode(
         if (tree.fullContainerDecl(&buf, node)) |container| {
             const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, node)) .enumerator else member_field_kind;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity_level, file, public_api_only, child_kind, allocator, io, namespace_cache, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity_level, file, public_api_only, options, child_kind, allocator, io, namespace_cache, msg_allocator, diagnostics);
             }
         }
         return;
@@ -209,6 +219,7 @@ fn checkVarDeclInit(
     severity_level: severity.Level,
     file: []const u8,
     public_api_only: bool,
+    options: Options,
     allocator: std.mem.Allocator,
     io: std.Io,
     namespace_cache: *std.StringHashMap(bool),
@@ -224,7 +235,7 @@ fn checkVarDeclInit(
     if (tree.fullContainerDecl(&buf, init_node)) |container| {
         const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, init_node)) .enumerator else .field;
         for (container.ast.members) |member| {
-            try checkNode(tree, member, severity_level, file, public_api_only, child_kind, allocator, io, namespace_cache, msg_allocator, diagnostics);
+            try checkNode(tree, member, severity_level, file, public_api_only, options, child_kind, allocator, io, namespace_cache, msg_allocator, diagnostics);
         }
     }
 }
@@ -268,6 +279,85 @@ fn isImportMemberReexport(tree: *const Ast, node: Ast.Node.Index) bool {
     return getImportLiteral(tree, fa[0]) != null;
 }
 
+fn checkStructFileName(
+    tree: *const Ast,
+    severity_level: severity.Level,
+    file: []const u8,
+    options: Options,
+    allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
+    diagnostics: *std.ArrayList(Diagnostic),
+) std.mem.Allocator.Error!void {
+    if (options.allow_snake_case_struct_files) return;
+
+    const base = std.fs.path.basename(file);
+    if (std.mem.eql(u8, base, "root.zig") or std.mem.eql(u8, base, "main.zig")) return;
+    if (!std.mem.endsWith(u8, base, ".zig")) return;
+    const stem = base[0 .. base.len - ".zig".len];
+
+    if (!utils.fileIsNamespace(tree)) {
+        if (isPascalCase(stem)) return;
+
+        const expected_stem = try snakeCaseStemToPascal(msg_allocator, stem);
+        defer msg_allocator.free(expected_stem);
+        if (std.mem.eql(u8, stem, expected_stem) and isPascalCase(stem)) return;
+
+        const report_tok: Ast.TokenIndex = if (tree.rootDecls().len > 0) tree.firstToken(tree.rootDecls()[0]) else 0;
+        const loc = tree.tokenLocation(0, report_tok);
+        const detail = try std.fmt.allocPrint(
+            msg_allocator,
+            "struct file should use PascalCase filename \"{s}.zig\"",
+            .{expected_stem},
+        );
+        try diagnostics.append(allocator, .{
+            .rule = rule_name,
+            .severity_level = severity_level,
+            .subject = try utils.ownedSubject(msg_allocator, .source_file, base),
+            .detail = detail,
+            .file = file,
+            .line = loc.line + 1,
+            .column = loc.column + 1,
+            .source_line = try utils.dupSourceLine(tree, report_tok, msg_allocator),
+            .symbol_len = stem.len,
+        });
+        return;
+    }
+
+    for (tree.rootDecls()) |decl| {
+        const var_decl = tree.fullVarDecl(decl) orelse continue;
+        const init_node = var_decl.ast.init_node.unwrap() orelse continue;
+        if (!utils.isContainerDecl(tree.nodeTag(init_node))) continue;
+
+        var buf: [2]Ast.Node.Index = undefined;
+        const container = tree.fullContainerDecl(&buf, init_node) orelse continue;
+        if (tree.tokenTag(container.ast.main_token) != .keyword_struct) continue;
+        if (!containerHasFields(tree, container)) continue;
+
+        const name_tok = var_decl.ast.mut_token + 1;
+        const name = tree.tokenSlice(name_tok);
+        if (isExemptName(name)) continue;
+        if (std.mem.eql(u8, stem, name) and isPascalCase(stem)) continue;
+
+        const loc = tree.tokenLocation(0, name_tok);
+        const detail = try std.fmt.allocPrint(
+            msg_allocator,
+            "struct file should use PascalCase filename \"{s}.zig\" for struct '{s}'",
+            .{ name, name },
+        );
+        try diagnostics.append(allocator, .{
+            .rule = rule_name,
+            .severity_level = severity_level,
+            .subject = try utils.ownedSubject(msg_allocator, .structure, name),
+            .detail = detail,
+            .file = file,
+            .line = loc.line + 1,
+            .column = loc.column + 1,
+            .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+            .symbol_len = name.len,
+        });
+    }
+}
+
 fn checkImportBinding(
     tree: *const Ast,
     var_decl: Ast.full.VarDecl,
@@ -298,6 +388,7 @@ fn checkImportFilenameExpr(
     node: Ast.Node.Index,
     severity_level: severity.Level,
     file: []const u8,
+    options: Options,
     allocator: std.mem.Allocator,
     io: std.Io,
     namespace_cache: *std.StringHashMap(bool),
@@ -305,7 +396,7 @@ fn checkImportFilenameExpr(
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     const lit = getImportLiteral(tree, node) orelse return;
-    try checkImportFilename(tree, lit, severity_level, file, allocator, io, namespace_cache, msg_allocator, diagnostics);
+    try checkImportFilename(tree, lit, severity_level, file, options, allocator, io, namespace_cache, msg_allocator, diagnostics);
 }
 
 fn checkImportFilename(
@@ -313,6 +404,7 @@ fn checkImportFilename(
     lit: ImportLiteral,
     severity_level: severity.Level,
     file: []const u8,
+    options: Options,
     allocator: std.mem.Allocator,
     io: std.Io,
     namespace_cache: *std.StringHashMap(bool),
@@ -326,12 +418,30 @@ fn checkImportFilename(
     if (basename.len <= ".zig".len) return;
 
     const stem = basename[0 .. basename.len - ".zig".len];
-    if (isSnakeCase(stem)) return;
-
     const file_kind = try resolveImportedFileKind(lit.path, file, allocator, io, namespace_cache) orelse return;
+    const loc = tree.tokenLocation(0, lit.str_tok);
+
+    if (file_kind == .structure and !options.allow_snake_case_struct_files and isSnakeCase(stem)) {
+        const expected_stem = try snakeCaseStemToPascal(msg_allocator, stem);
+        defer msg_allocator.free(expected_stem);
+        const expected = try std.fmt.allocPrint(msg_allocator, "{s}.zig", .{expected_stem});
+        try diagnostics.append(allocator, .{
+            .rule = rule_name,
+            .severity_level = severity_level,
+            .subject = try utils.ownedSubject(msg_allocator, .source_file, basename),
+            .detail = try std.fmt.allocPrint(msg_allocator, "struct file should use PascalCase filename; expected \"{s}\"", .{expected}),
+            .file = file,
+            .line = loc.line + 1,
+            .column = loc.column + 1,
+            .source_line = try utils.dupSourceLine(tree, lit.str_tok, msg_allocator),
+            .symbol_len = lit.path.len,
+        });
+        return;
+    }
+
+    if (isSnakeCase(stem)) return;
     if (file_kind != .namespace) return;
 
-    const loc = tree.tokenLocation(0, lit.str_tok);
     const snake_stem = try pascalCaseStemToSnake(msg_allocator, stem);
     defer msg_allocator.free(snake_stem);
     const expected = try std.fmt.allocPrint(msg_allocator, "{s}.zig", .{snake_stem});
@@ -372,6 +482,34 @@ fn pascalCaseStemToSnake(allocator: std.mem.Allocator, stem: []const u8) std.mem
             try out.append(allocator, c + 32);
         } else {
             try out.append(allocator, c);
+        }
+    }
+
+    return try out.toOwnedSlice(allocator);
+}
+
+/// Converts a `snake_case` stem to PascalCase for struct filename suggestions.
+fn snakeCaseStemToPascal(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
+    if (stem.len == 0) return try allocator.dupe(u8, "");
+
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+
+    var capitalize_next = true;
+    for (stem) |c| {
+        if (c == '_') {
+            capitalize_next = true;
+            continue;
+        }
+        if (capitalize_next and c >= 'a' and c <= 'z') {
+            try out.append(allocator, c - 32);
+            capitalize_next = false;
+        } else if (capitalize_next and c >= 'A' and c <= 'Z') {
+            try out.append(allocator, c);
+            capitalize_next = false;
+        } else {
+            try out.append(allocator, c);
+            capitalize_next = false;
         }
     }
 
@@ -929,5 +1067,149 @@ test "inactive severity yields no diagnostics" {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
     try check(&tree, .allow, "<test>", .{}, base, std.testing.io, base, &diagnostics);
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "allow_snake_case_struct_files accepts snake_case implicit struct file stem" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\x: u32 = 0,
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "init_options.zig",
+        .{ .allow_snake_case_struct_files = true },
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "zig convention flags snake_case implicit struct file stem" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\x: u32 = 0,
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "init_options.zig",
+        .{},
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "zig convention accepts PascalCase named struct file stem" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\pub const InitOptions = struct {
+        \\    x: u32,
+        \\};
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "InitOptions.zig",
+        .{},
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "snake_case binding on struct import is flagged" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\const init_options = @import("init_options.zig");
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "tests/fixtures/style/import_site.zig",
+        .{ .allow_snake_case_struct_files = true },
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+
+    var found_binding = false;
+    for (diagnostics.items) |d| {
+        if (d.subject) |s| {
+            if (s.kind == .structure and std.mem.eql(u8, s.name, "init_options")) found_binding = true;
+        }
+    }
+    try std.testing.expect(found_binding);
+}
+
+test "PascalCase binding on snake_case struct import path is clean under Tiger" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\const InitOptions = @import("init_options.zig");
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "tests/fixtures/style/import_site.zig",
+        .{ .allow_snake_case_struct_files = true },
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
