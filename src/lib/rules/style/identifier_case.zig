@@ -1,27 +1,40 @@
 //! The `identifier_case` namespace checks that identifiers follow the project's naming conventions.
 //!
-//! By default the conventions mirror the {zig-docs}#Names[Zig documentation style]:
+//! By default the conventions mirror the [Zig documentation style](https://ziglang.org/documentation/0.16.0/#Names), which is translated to:
 //!
-//! * `snake_case` — namespaces (field-less containers), global variables and constants, struct/union
-//!   fields, and enumerators.
-//! * `camelCase` — concrete functions.
-//! * `PascalCase` — structs, unions, enumerations, error sets, generic (type-returning) functions, and
-//!   error-set values.
+//! - `snake_case`:
+//!   - namespaces (field-less structures)
+//!   - global variables and constants
+//!   - fields or values from:
+//!     - structures
+//!     - unions
+//!     - enumerations (its enumerators)
+//!     - function parameters
+//! - `camelCase`: concrete functions.
+//! - `PascalCase`:
+//!   - structures
+//!   - unions
+//!   - enumerations
+//!   - error sets and unions, and its values
+//!   - generic (type-returning) functions
 //!
 //! Notes:
 //!
-//! * Error-set values are checked as `PascalCase`, following the standard-library convention
-//!   (`error.OutOfMemory`), even though they technically belong to the "value" category.
-//! * Declarations whose initializer is an alias/re-export (a plain identifier, field access, or call)
-//!   are skipped: their real kind lives elsewhere. `@import("path.zig")` bindings are checked against
-//!   the imported file kind (namespace → `snake_case` name, struct-at-file-scope → `PascalCase`).
-//!   Member re-exports (`@import("path.zig").Level`) are skipped — the binding names the imported
-//!   declaration, not the module.
-//! * For `@import("path.zig")`, when the resolved file is a *namespace* (no structure fields at file
-//!   scope — the usual `fn`/`const` module layout), the `.zig` basename must be `snake_case` (e.g.
-//!   `reachability.zig`, not `Reachability.zig`). Struct files that declare fields on the file type
-//!   itself (e.g. `LintResult.zig`) keep `PascalCase` basenames.
-//! * Quoted identifiers (`@"foo bar"`) are exempt from case checks.
+//! - Error-set values are checked as `PascalCase`, following the standard-library convention (`error.OutOfMemory`), even though they technically belong to the "value" category.
+//! - Declarations whose initializer is an alias/re-export (a plain identifier, field access, or call) are skipped: their real kind lives elsewhere. `@import("path.zig")` bindings are checked against the imported file kind (namespace → `snake_case` name, struct-at-file-scope → `PascalCase`). Member re-exports (`@import("path.zig").Level`) are skipped — the binding names the imported declaration, not the module.
+//! - For `@import("path.zig")`, when the resolved file is a *namespace* (no structure fields at file scope — the usual `fn`/`const` module layout), the `.zig` basename must be `snake_case` (e.g. `reachability.zig`, not `Reachability.zig`). Struct files that declare fields on the file type itself (e.g. `LintResult.zig`) keep `PascalCase` basenames.
+//! - Quoted identifiers (`@"foo bar"`) are exempt from case checks.
+//!
+//! ## Tiger Beetle's Style
+//!
+//! Tiger Beetle has its own style convention called [Tiger Style](https://tigerstyle.dev/), a solid reference point for _experience_.
+//!
+//! Check it out at:
+//!
+//! - <https://tigerstyle.dev/#nouns-and-verbs>
+//! - <https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md#naming-things>
+//!
+//! It's worth noting it because it centers on 3 pillars: _Safety_, _Performance_, and _Experience_.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -35,6 +48,9 @@ inline fn srcLoc() std.builtin.SourceLocation {
 }
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
+
+// TODO: Implement the rule to be configurable via an option structure.
+pub const Options = struct {};
 
 /// A naming convention an identifier is expected to follow.
 const Case = enum {

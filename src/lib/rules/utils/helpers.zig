@@ -336,5 +336,6 @@ fn assertIsRuleSetField(comptime name: []const u8) void {
     for (RuleSet.fieldNames()) |field| {
         if (std.mem.eql(u8, field, name)) return;
     }
-    @compileError("unknown rule id '" ++ name ++ "' (no matching RuleSet field)");
+
+    @compileError("Unknown rule ID '" ++ name ++ "' (no matching RuleSet field)");
 }

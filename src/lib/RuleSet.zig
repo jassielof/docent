@@ -6,8 +6,7 @@ const severity = @import("severity.zig");
 
 /// Checks for missing doc comments on public API items, module roots (`//!`), and re-exported source files.
 ///
-/// Re-exported declarations are resolved through `reexport`; see that module for chain following and
-/// diagnostic attribution.
+/// Re-exported declarations are resolved through `reexport`; see that module for chain following and diagnostic attribution.
 missing_doc_comment: severity.Level = .warn,
 /// Suggests runnable `///` examples on public functions when enabled.
 missing_doctest: severity.Level = .allow,

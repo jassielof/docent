@@ -1,5 +1,7 @@
 = Linting Rules
 
+The rules listed here are in a draft state, meaning they aren't implemented and are subject to be dropped.
+
 == Doc comments
 
 === Broken intra-doc links
@@ -38,18 +40,7 @@ Checks are:
 * `@import("…zig")` paths: when the resolved file is a namespace (no structure fields at file scope), the basename must be `snake_case` (e.g. `reachability.zig`, suggested as `diagnostic_message.zig` from `DiagnosticMessage.zig`). The import binding must also be `snake_case` for whole-module imports (e.g. `const severity = @import("severity.zig");`, not `const Severity = …`). Member re-exports (`pub const SeverityLevel = @import("severity.zig").Level;`) name the imported declaration and are not checked as namespace bindings. Struct-at-file-scope modules (e.g. `Diagnostic.zig`, `LintResult.zig`) keep `PascalCase` basenames and bindings.
 ====
 
-==== Tiger Beetle's Tiger Style
-
-Tiger Beetle has its own style convention called https://tigerstyle.dev/[Tiger Style], a solid reference point for _experience_:
-
-* https://tigerstyle.dev/#nouns-and-verbs[Nouns and Verbs]
-* https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md#naming-things[Naming Things (Markdown version, more detailed)]
-
-It centers on three pillars: _Safety_, _Performance_, and _Experience_.
-
-You can check for a Tiger Style configuration in `/.config/docent.tiger.toml`.
-
-// TODO: This should be for raw column length, not just code, otherwise it becomes a statement complexity measure,
+// TODO: This should be for raw column length, not just code, otherwise it becomes a statement complexity measure.
 === LoC column length
 
 Warns if the true LoC, from the first and up to the last valid code character, surpasses the threshold of 100 characters, as recommended by {zig-docs}#Whitespace[Zig documentation style].
