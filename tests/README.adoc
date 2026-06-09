@@ -1,3 +1,4 @@
+// TODO: Move all this docs to each test file as doc comments respectively.
 = Test suite
 
 The main entry point of
