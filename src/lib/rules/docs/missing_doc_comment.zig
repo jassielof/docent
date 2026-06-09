@@ -10,6 +10,7 @@
 //! - [Unions and their members](https://ziglang.org/documentation/0.16.0/#union).
 //! - [Errors](https://ziglang.org/documentation/0.16.0/#Errors).
 //!   - Its values aren't checked since Zig documentation generator doesn't support them.
+// TODO: Error "values" are simply called "errors", it can also be a member of the set, but errors can be either sets or unions, and its members are just the plain "errors", let's fix that in terminology and code doc comments. As well, these are supported to be doc commented, so I was wrong to say they aren't checked, they are completely checked and rendered in the generated documentation. So, let's fix the documentation, and add checks for "errors", this should be warned by default, just like the rule, and configurable, as sometimes it might be too noisy to document each error.
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");

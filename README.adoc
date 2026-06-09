@@ -138,18 +138,25 @@ Please refer to the tests README.
 [bibliography]
 == References
 
+.Zig
 * [[[doctests]]] Doctests in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Doctests
+* [[[top-level-doc-comments]]] Top-level documentation comments in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Top-Level-Doc-Comments
+* [[[doc-comments]]] Doc comments in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Doc-Comments
+
+.Complexity
 * [[[mccabe-guidance]]] NIST/McCabe guidance (_Structured Testing: A Testing Methodology Using the Cyclomatic Complexity Metric_):
 ** Section 2.5: _Limiting cyclomatic complexity to 10_.
 * [[[sonar-cyclomatic]]] Discussing Cyclomatic Complexity — https://www.sonarsource.com/blog/discussing-cyclomatic-complexity/
 * [[[sonar-paper]]] Cognitive Complexity, a Sonar exclusive metric formulated to more accurately measure the relative understandability of methods — https://www.sonarsource.com/resources/cognitive-complexity/
 * [[[sonar-reasoning]]] Sonar's reasoning for defaulting cognitive complexity to 15 — https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103
-* [[[doc-comments]]] Doc comments in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Doc-Comments
-* [[[top-level-doc-comments]]] Top-level documentation comments in the Zig documentation — https://ziglang.org/documentation/{zig-version}/#Top-Level-Doc-Comments
+
+.Rust
 * [[[rustdoc-lints]]] The Rustdoc Book — https://doc.rust-lang.org/rustdoc/lints.html[§5. Rustdoc-specific lints].
 * [[[rustc-lints]]] The Rustc Book — https://doc.rust-lang.org/rustc/lints/[§4. Lints].
 * [[[rustc-missing-docs]]] The Rustc Book — https://doc.rust-lang.org/rustc/lints/listing/allowed-by-default.html#missing-docs[Missing docs lint].
 * [[[clippy-lints]]] https://rust-lang.github.io/rust-clippy/master/index.html[Clippy lints] (filter by `doc` or `documentation`).
+
+.Go
 * [[[godoc-comments]]] https://go.dev/doc/comment[Go Doc Comments].
 * [[[godoc-comment-pkg]]] Go standard library — https://pkg.go.dev/go/doc/comment[`go/doc/comment`].
 * [[[godoc-lint]]] https://github.com/godoc-lint/godoc-lint[Godoc-Lint].
