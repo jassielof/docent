@@ -28,7 +28,6 @@ Scenarios are integration tests that don't focus strictly on a single rule, but 
 2. Add or extend `tests/rules/docs/<rule_id>.zig` and call `harness.lintRuleFixture("docs", &.{ ... }, rule_set, .{})`.
 3. Import the test file from `tests/rules/docs.zig` (or the matching namespace aggregator).
 
-
 // TODO: Fangz is independent of Docent, so this shouldn't be mentioned. While both are my libraries, I'll end up just building a generic E2E test for Fangz for UX, etc.
 == CLI UX
 
