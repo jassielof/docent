@@ -70,7 +70,7 @@ pub const default_severity: severity.Level = .warn;
 /// Filename case convention for struct-at-file-scope modules.
 pub const FilenameCase = enum {
     snake_case,
-    // TODO: Implement Docent ignore/disable comments for rules.
+    // TODO: Implement Docent ignore/disable comments for rules. The disable/ignore rules must be carefully designed and really well done for people to not have any issues with it, you must consider other implementations like Go/Rust for example and learn from its flaw. Once it's implemented, these 2 enums, except kebab-case should be ignored, as it's a quoted identifier and it's automatically excempt.
     camelCase,
     PascalCase,
     kebab_case, // TODO: We can use string identifiers and make it into @"kebab-case".
