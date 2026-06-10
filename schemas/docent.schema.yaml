@@ -196,7 +196,6 @@ definitions:
       - type: "object"
         additionalProperties: false
         required: ["level"]
-        # TODO: add the rest of declaration types (if necessary...?), as well as define the enum set to avoid duplication
         properties:
           level:
             $ref: "#/definitions/severity"
