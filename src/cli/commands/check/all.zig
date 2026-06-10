@@ -118,13 +118,13 @@ fn run(ctx: *fangz.ParseContext) !void {
     }
 
     if (!should_stop) {
-        var analyzed_files = std.StringHashMap(void).init(allocator);
-        defer analyzed_files.deinit();
+        var analyzed_files = docent.targeting.PathSet.init(allocator);
+        defer analyzed_files.deinit(allocator);
 
         if (try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, style_opts, &all_diagnostics, &summary, args.fail_fast)) {
             should_stop = true;
         } else {
-            analyzed_files.clearRetainingCapacity();
+            analyzed_files.clear(allocator);
             if (try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_opts, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
             }

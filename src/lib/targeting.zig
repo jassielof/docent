@@ -264,9 +264,71 @@ pub fn isBuildScriptPath(path: []const u8) bool {
 
 pub fn containsPath(items: []const []const u8, needle: []const u8) bool {
     for (items) |it| {
-        if (std.mem.eql(u8, it, needle)) return true;
+        if (pathsEqual(it, needle)) return true;
     }
     return false;
+}
+
+/// Owns canonical paths for deduplicating lint file visits across analysis passes.
+pub const PathSet = struct {
+    map: std.StringHashMap(void),
+
+    pub fn init(allocator: std.mem.Allocator) PathSet {
+        return .{ .map = std.StringHashMap(void).init(allocator) };
+    }
+
+    pub fn deinit(self: *PathSet, allocator: std.mem.Allocator) void {
+        self.clear(allocator);
+        self.map.deinit();
+    }
+
+    pub fn clear(self: *PathSet, allocator: std.mem.Allocator) void {
+        var it = self.map.keyIterator();
+        while (it.next()) |key| {
+            allocator.free(key.*);
+        }
+        self.map.clearRetainingCapacity();
+    }
+
+    /// Returns `true` when `path` was already recorded.
+    pub fn put(self: *PathSet, allocator: std.mem.Allocator, io: std.Io, path: []const u8) !bool {
+        const canonical = realPathFileAlloc(allocator, io, path) catch try allocator.dupe(u8, path);
+        defer allocator.free(canonical);
+
+        var it = self.map.keyIterator();
+        while (it.next()) |existing| {
+            if (pathsEqual(existing.*, canonical)) return true;
+        }
+
+        const owned = try allocator.dupe(u8, canonical);
+        errdefer allocator.free(owned);
+        const gop = try self.map.getOrPut(owned);
+        if (gop.found_existing) {
+            allocator.free(owned);
+            return true;
+        }
+        return false;
+    }
+};
+
+/// Returns `path` relative to `base`, or a copy of `path` when `path` is not under `base`.
+pub fn pathRelativeTo(allocator: std.mem.Allocator, base: []const u8, path: []const u8) ![]const u8 {
+    if (path.len < base.len or !pathsEqual(path[0..base.len], base)) {
+        return allocator.dupe(u8, path);
+    }
+
+    var rest = path[base.len..];
+    if (rest.len > 0 and pathSeparatorsEqual(rest[0], '/')) {
+        rest = rest[1..];
+    }
+    if (rest.len == 0) return allocator.dupe(u8, ".");
+
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    for (rest) |c| {
+        try out.append(allocator, if (c == '\\') '/' else c);
+    }
+    return try out.toOwnedSlice(allocator);
 }
 
 /// Returns whether a scanned build target matches the active targeting options.
@@ -336,6 +398,20 @@ pub fn matchReason(kind: build_scan.TargetKind) []const u8 {
         .bin => "Selected by active filters (--bins / --bin).",
         .test_target => "Selected by active filters (--tests / --test).",
     };
+}
+
+test "PathSet deduplicates canonical paths" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var set = PathSet.init(allocator);
+    defer set.deinit(allocator);
+
+    const first = try realPathFileAlloc(allocator, io, ".");
+    defer allocator.free(first);
+
+    try std.testing.expect(!try set.put(allocator, io, first));
+    try std.testing.expect(try set.put(allocator, io, first));
 }
 
 test "artifact directories are skipped" {
