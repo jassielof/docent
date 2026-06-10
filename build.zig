@@ -121,6 +121,7 @@ pub fn build(b: *std.Build) void {
     });
     check_step.dependOn(&fmt.step);
 
+    // TODO: This should be a full check, not just of docs, but also for complexity, and style. Plus, it should also check for my dependendencies, considering that the dependencies are maintained by me, and it would cause recursive dependencies if I wanted to use Docent checks on them.
     const docs_lint = b.addRunArtifact(cli);
     docs_lint.addArgs(&.{
         "check",
