@@ -5,6 +5,7 @@ const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
+const check_shared = @import("../check_shared.zig");
 const cli_flags = @import("../flags.zig");
 
 pub fn register(root: *fangz.Command) !void {
@@ -57,6 +58,12 @@ pub fn register(root: *fangz.Command) !void {
     });
 
     try status_cmd.addFlag(bool, .{
+        .name = "include-deps",
+        .brief = "List build targets and module roots discovered in path dependencies",
+        .default = false,
+    });
+
+    try status_cmd.addFlag(bool, .{
         .name = "build-script",
         .brief = "Include build.zig and build/*.zig files in lint targets",
         .default = false,
@@ -78,6 +85,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         tests: bool = false,
         @"test": []const []const u8 = &.{},
         deps: bool = false,
+        include_deps: bool = false,
         build_script: bool = false,
     };
 
@@ -110,9 +118,9 @@ fn run(ctx: *fangz.ParseContext) !void {
     };
     if (config_path) |path| {
         defer allocator.free(path);
-        try printStatusReport(allocator, io, plan, rule_set, path);
+        try printStatusReport(allocator, io, plan, rule_set, path, args.include_deps);
     } else {
-        try printStatusReport(allocator, io, plan, rule_set, null);
+        try printStatusReport(allocator, io, plan, rule_set, null, args.include_deps);
     }
 }
 
@@ -122,6 +130,7 @@ pub fn printStatusReport(
     plan: docent.status_plan.Plan,
     rule_set: docent.RuleSeverities,
     config_path: ?[]const u8,
+    include_deps: bool,
 ) !void {
     const profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle);
     var buf: [32768]u8 = undefined;
@@ -155,7 +164,9 @@ pub fn printStatusReport(
         try w.print("  Path mode: {s} (build.zig target discovery skipped).\n", .{mode_label});
         try w.print("  Target files:\n", .{});
         for (plan.extra_lint_files) |path| {
-            try w.print("    - {s}\n", .{path});
+            const display = try formatDisplayPath(allocator, plan.package.project_root, path);
+            defer allocator.free(display);
+            try w.print("    - {s}\n", .{display});
         }
         try w.print("\n", .{});
     } else {
@@ -164,7 +175,9 @@ pub fn printStatusReport(
             if (plan.extra_lint_files.len > 0) {
                 try w.print("  Fallback files (from build.zig.zon or project root):\n", .{});
                 for (plan.extra_lint_files) |path| {
-                    try w.print("    - {s}\n", .{path});
+                    const display = try formatDisplayPath(allocator, plan.package.project_root, path);
+                    defer allocator.free(display);
+                    try w.print("    - {s}\n", .{display});
                 }
             } else {
                 try w.print("  No source files found for linting.\n", .{});
@@ -172,58 +185,14 @@ pub fn printStatusReport(
             try w.print("\n", .{});
         } else {
             for (plan.resolved_targets) |rt| {
-                try w.writeAll("  Target: ");
-                try carnaval.Style.init().italicized().renderWithProfile(
-                    rt.name,
-                    w,
-                    profile,
-                );
-
-                try w.writeAll(" (");
-
-                const kind_style = switch (rt.kind) {
-                    .lib => carnaval.Style.init().fg(.{ .ansi16 = .cyan }),
-                    .bin => carnaval.Style.init().fg(.{ .ansi16 = .green }),
-                    .test_target => carnaval.Style.init().fg(.{ .ansi16 = .magenta }),
-                };
-
-                const kind_name = switch (rt.kind) {
-                    .lib => "Library",
-                    .bin => "Executable",
-                    .test_target => "Test",
-                };
-
-                try kind_style.renderWithProfile(kind_name, w, profile);
-                try w.writeAll(")\n");
-
-                try w.writeAll("    - ");
-                try carnaval.Style.init().bolded().renderWithProfile("Module root", w, profile);
-                try w.print(": {s}\n", .{rt.root_source_file});
-
-                try w.writeAll("    - ");
-                try carnaval.Style.init().bolded().renderWithProfile("Status", w, profile);
-                try w.writeAll(": ");
-                if (rt.status == .linted) {
-                    try carnaval.Style.init().fg(.{ .ansi16 = .green }).renderWithProfile("LINTED", w, profile);
-                } else {
-                    try carnaval.Style.init().dimmed().renderWithProfile("SKIPPED", w, profile);
-                }
-                try w.writeAll("\n");
-
-                try w.writeAll("    - ");
-                try carnaval.Style.init().bolded().renderWithProfile("Reason", w, profile);
-                try w.print(": {s}\n", .{rt.reason});
-                if (rt.status == .linted) {
-                    try w.writeAll("    - ");
-                    try carnaval.Style.init().bolded().renderWithProfile("Reachable files", w, profile);
-                    try w.print(": {d}\n", .{rt.files.len});
-                }
-                try w.print("\n", .{});
+                try printResolvedTarget(w, profile, rt);
             }
             if (plan.extra_lint_files.len > 0) {
                 try w.print("  Extra/Build files:\n", .{});
                 for (plan.extra_lint_files) |f| {
-                    try w.print("    - {s}\n", .{f});
+                    const display = try formatDisplayPath(allocator, plan.package.project_root, f);
+                    defer allocator.free(display);
+                    try w.print("    - {s}\n", .{display});
                 }
                 try w.print("\n", .{});
             }
@@ -235,13 +204,19 @@ pub fn printStatusReport(
         try w.print("  (none; use --deps to include path dependencies)\n\n", .{});
     } else {
         for (plan.targeting.exclude_roots) |dep| {
-            try w.print("  - {s}\n", .{dep});
+            const rel = try docent.targeting.pathRelativeTo(allocator, plan.package.project_root, dep);
+            defer allocator.free(rel);
+            try w.print("  - {s}\n", .{rel});
         }
         try w.print("  Skipped unless --deps is set.\n\n", .{});
     }
 
+    if (include_deps) {
+        try printDependencyTargets(allocator, io, w, profile, plan);
+    }
+
     try sectionHeading(w, profile, "Effective rules");
-    try printEffectiveRules(allocator, w, profile, rule_set);
+    try check_shared.printCategorizedEffectiveRules(allocator, w, profile, rule_set);
     try w.print("\n", .{});
 
     try carnaval.Style.init().dimmed().renderWithProfile(
@@ -252,36 +227,119 @@ pub fn printStatusReport(
     try w.flush();
 }
 
-fn sectionHeading(w: *std.Io.Writer, profile: carnaval.ColorProfile, title: []const u8) !void {
-    try carnaval.Style.init().bolded().renderWithProfile(title, w, profile);
+fn formatDisplayPath(allocator: std.mem.Allocator, project_root: []const u8, path: []const u8) ![]const u8 {
+    return docent.targeting.pathRelativeTo(allocator, project_root, path);
+}
+
+fn printResolvedTarget(w: *std.Io.Writer, profile: carnaval.ColorProfile, rt: docent.status_plan.ResolvedTarget) !void {
+    try w.writeAll("  Target: ");
+    try carnaval.Style.init().italicized().renderWithProfile(rt.name, w, profile);
+    try w.writeAll(" (");
+
+    const kind_style = targetKindStyle(rt.kind);
+    const kind_name = targetKindLabel(rt.kind);
+
+    try kind_style.renderWithProfile(kind_name, w, profile);
+    try w.writeAll(")\n");
+
+    try w.writeAll("    - ");
+    try carnaval.Style.init().bolded().renderWithProfile("Module root", w, profile);
+    try w.print(": {s}\n", .{rt.root_source_file});
+
+    try w.writeAll("    - ");
+    try carnaval.Style.init().bolded().renderWithProfile("Status", w, profile);
+    try w.writeAll(": ");
+    if (rt.status == .linted) {
+        try carnaval.Style.init().fg(.{ .ansi16 = .green }).renderWithProfile("LINTED", w, profile);
+    } else {
+        try carnaval.Style.init().dimmed().renderWithProfile("SKIPPED", w, profile);
+    }
+    try w.writeAll("\n");
+
+    try w.writeAll("    - ");
+    try carnaval.Style.init().bolded().renderWithProfile("Reason", w, profile);
+    try w.print(": {s}\n", .{rt.reason});
+    if (rt.status == .linted) {
+        try w.writeAll("    - ");
+        try carnaval.Style.init().bolded().renderWithProfile("Reachable files", w, profile);
+        try w.print(": {d}\n", .{rt.files.len});
+    }
     try w.print("\n", .{});
 }
 
-fn printEffectiveRules(
+fn targetKindStyle(kind: docent.build_scan.TargetKind) carnaval.Style {
+    return switch (kind) {
+        .lib => carnaval.Style.init().fg(.{ .ansi16 = .cyan }),
+        .bin => carnaval.Style.init().fg(.{ .ansi16 = .yellow }),
+        .test_target => carnaval.Style.init().fg(.{ .ansi16 = .magenta }),
+    };
+}
+
+fn targetKindLabel(kind: docent.build_scan.TargetKind) []const u8 {
+    return switch (kind) {
+        .lib => "Library",
+        .bin => "Executable",
+        .test_target => "Test",
+    };
+}
+
+fn printDependencyTargets(
     allocator: std.mem.Allocator,
+    io: std.Io,
     w: *std.Io.Writer,
     profile: carnaval.ColorProfile,
-    rule_set: docent.RuleSeverities,
+    plan: docent.status_plan.Plan,
 ) !void {
-    var items = std.ArrayList([]const u8).empty;
-    defer {
-        for (items.items) |line| allocator.free(line);
-        items.deinit(allocator);
-    }
+    if (plan.targeting.exclude_roots.len == 0) return;
 
-    inline for (@typeInfo(docent.RuleSeverities).@"struct".fields) |f| {
-        const level = @field(rule_set, f.name);
-        var buf: [512]u8 = undefined;
-        var line_writer = std.Io.Writer.fixed(&buf);
-        try docent.output.writeSeverityRuleTag(&line_writer, level, f.name, profile);
-        try items.append(allocator, try allocator.dupe(u8, line_writer.buffered()));
-    }
+    try sectionHeading(w, profile, "Dependency targets");
 
-    try carnaval.renderList(items.items, w, .{
-        .style = .bullet,
-        .indent = "  ",
-        .color_profile = profile,
-    });
+    for (plan.targeting.exclude_roots) |dep_root| {
+        const rel = try docent.targeting.pathRelativeTo(allocator, plan.package.project_root, dep_root);
+        defer allocator.free(rel);
+
+        try w.writeAll("  ");
+        try carnaval.Style.init().italicized().renderWithProfile(rel, w, profile);
+        try w.print("\n", .{});
+
+        var scanned = try docent.build_scan.scanProjectBuildScript(allocator, io, dep_root);
+        defer if (scanned) |*scan| scan.deinit(allocator);
+
+        if (scanned) |scan| {
+            if (scan.targets.len > 0) {
+                for (scan.targets) |target| {
+                    try w.writeAll("    - ");
+                    try carnaval.Style.init().italicized().renderWithProfile(target.name, w, profile);
+                    try w.writeAll(" (");
+                    try targetKindStyle(target.kind).renderWithProfile(targetKindLabel(target.kind), w, profile);
+                    try w.print("): {s}\n", .{target.root_source_file});
+                }
+                try w.print("\n", .{});
+                continue;
+            }
+        }
+
+        var entrypoints: std.ArrayList([]const u8) = .empty;
+        defer docent.targeting.deinitOwnedPaths(allocator, &entrypoints);
+        try docent.targeting.collectDirectoryEntrypoints(allocator, io, dep_root, plan.targeting, &entrypoints);
+
+        if (entrypoints.items.len == 0) {
+            try w.print("    (no module roots found)\n\n", .{});
+            continue;
+        }
+
+        for (entrypoints.items) |entry| {
+            const entry_rel = try docent.targeting.pathRelativeTo(allocator, dep_root, entry);
+            defer allocator.free(entry_rel);
+            try w.print("    - module root: {s}\n", .{entry_rel});
+        }
+        try w.print("\n", .{});
+    }
+}
+
+fn sectionHeading(w: *std.Io.Writer, profile: carnaval.ColorProfile, title: []const u8) !void {
+    try carnaval.Style.init().bolded().renderWithProfile(title, w, profile);
+    try w.print("\n", .{});
 }
 
 fn printStderr(io: std.Io, comptime fmt: []const u8, args: anytype) !void {

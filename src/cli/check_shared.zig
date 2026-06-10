@@ -299,6 +299,61 @@ fn printCategoryHeading(writer: *std.Io.Writer, profile: carnaval.ColorProfile, 
     try writer.writeAll("\n");
 }
 
+pub fn printCategorizedEffectiveRules(
+    allocator: std.mem.Allocator,
+    w: *std.Io.Writer,
+    profile: carnaval.ColorProfile,
+    rule_set: docent.RuleSeverities,
+) !void {
+    var any_category = false;
+    try printEffectiveRulesCategory(allocator, w, profile, rule_set, .docs, &any_category);
+    try printEffectiveRulesCategory(allocator, w, profile, rule_set, .style, &any_category);
+    try printEffectiveRulesCategory(allocator, w, profile, rule_set, .complexity, &any_category);
+
+    if (!any_category) {
+        try carnaval.Style.init().dimmed().renderWithProfile("  (none)\n", w, profile);
+    }
+}
+
+fn printEffectiveRulesCategory(
+    allocator: std.mem.Allocator,
+    w: *std.Io.Writer,
+    profile: carnaval.ColorProfile,
+    rule_set: docent.RuleSeverities,
+    comptime category: RuleCategory,
+    any_category: *bool,
+) !void {
+    var lines: std.ArrayList([]const u8) = .empty;
+    defer {
+        for (lines.items) |line| allocator.free(line);
+        lines.deinit(allocator);
+    }
+
+    inline for (@typeInfo(docent.RuleSeverities).@"struct".fields) |field| {
+        comptime {
+            const rule_category = RuleCategory.fromRule(field.name) orelse continue;
+            if (rule_category != category) continue;
+        }
+
+        const level = @field(rule_set, field.name);
+        var buf: [512]u8 = undefined;
+        var line_writer = std.Io.Writer.fixed(&buf);
+        try docent.output.writeSeverityRuleTag(&line_writer, level, field.name, profile);
+        try lines.append(allocator, try allocator.dupe(u8, line_writer.buffered()));
+    }
+
+    if (lines.items.len == 0) return;
+
+    if (any_category.*) try w.writeAll("\n");
+    try printCategoryHeading(w, profile, category.heading());
+    try carnaval.renderList(lines.items, w, .{
+        .style = .bullet,
+        .indent = "  ",
+        .color_profile = profile,
+    });
+    any_category.* = true;
+}
+
 pub fn printCategorizedSummary(allocator: std.mem.Allocator, io: std.Io, rows: []const RuleCountRow) !void {
     const profile = stderrColorProfile(io);
     const categories = [_]RuleCategory{ .docs, .style, .complexity };

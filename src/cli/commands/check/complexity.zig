@@ -51,8 +51,8 @@ fn run(ctx: *fangz.ParseContext) !void {
         all_diagnostics.deinit(allocator);
     }
 
-    var analyzed_files = std.StringHashMap(void).init(allocator);
-    defer analyzed_files.deinit();
+    var analyzed_files = docent.targeting.PathSet.init(allocator);
+    defer analyzed_files.deinit(allocator);
 
     _ = try analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_options, &all_diagnostics, &summary, args.fail_fast);
 
@@ -65,7 +65,7 @@ pub fn analyzeReachableTargets(
     allocator: std.mem.Allocator,
     io: std.Io,
     plan: *const docent.status_plan.Plan,
-    analyzed_files: *std.StringHashMap(void),
+    analyzed_files: *docent.targeting.PathSet,
     rule_set: docent.RuleSeverities,
     complexity_options: docent.rules.complexity.Options,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
@@ -89,15 +89,13 @@ pub fn analyzeReachableTargets(
 
         for (reachable.items) |path| {
             if (docent.targeting.shouldSkipLintFile(path, plan.targeting)) continue;
-            const gptr = try analyzed_files.getOrPut(path);
-            if (gptr.found_existing) continue;
+            if (try analyzed_files.put(allocator, io, path)) continue;
             if (try analyzeFile(allocator, io, path, rule_set, complexity_options, all_diagnostics, summary, fail_fast)) return true;
         }
     }
 
     for (plan.extra_lint_files) |path| {
-        const gptr = try analyzed_files.getOrPut(path);
-        if (gptr.found_existing) continue;
+        if (try analyzed_files.put(allocator, io, path)) continue;
         if (try analyzeFile(allocator, io, path, rule_set, complexity_options, all_diagnostics, summary, fail_fast)) return true;
     }
 

@@ -110,11 +110,11 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         _ = try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, .none);
     }
 
-    var analyzed_files = std.StringHashMap(void).init(allocator);
-    defer analyzed_files.deinit();
+    var analyzed_files = docent.targeting.PathSet.init(allocator);
+    defer analyzed_files.deinit(allocator);
 
     _ = try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, style_opts, &all_diagnostics, &summary, .none);
-    analyzed_files.clearRetainingCapacity();
+    analyzed_files.clear(allocator);
     _ = try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_opts, &all_diagnostics, &summary, .none);
 
     var count_rows: std.ArrayList(check_shared.RuleCountRow) = .empty;
