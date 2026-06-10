@@ -6,24 +6,24 @@
     },
     {
       "name": "Fangz",
-      "path": "../modules/fangz",
+      "path": "../dependencies/fangz",
     },
     {
       "name": "Vereda",
-      "path": "../modules/vereda",
+      "path": "../dependencies/vereda",
     },
     {
       "name": "Carnaval",
-      "path": "../modules/carnaval",
+      "path": "../dependencies/carnaval",
     },
     {
       "name": "TOML",
-      "path": "../modules/toml",
+      "path": "../dependencies/toml",
     },
   ],
   "settings": {
     "git.repositoryScanIgnoredFolders": ["references"],
     "git.detectSubmodules": false,
-    "git.scanRepositories": ["modules"],
+    "git.scanRepositories": ["modules", "dependencies"],
   },
 }
