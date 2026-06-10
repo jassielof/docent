@@ -17,7 +17,7 @@ pub fn register(check: *fangz.Command) !void {
         .description = "Run documentation, style, and complexity checks in one pass and print all diagnostics. Exits non-zero when a denied rule reports a finding.",
     });
 
-    try check_shared.registerTargetFlags(all_cmd);
+    try check_shared.registerCategoryPositionals(all_cmd);
     try check_shared.registerOutputFlags(all_cmd);
     all_cmd.setHooks(.{ .run = &run });
 }

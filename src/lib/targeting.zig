@@ -82,8 +82,22 @@ fn pathSeparatorsEqual(a: u8, b: u8) bool {
     return na == nb;
 }
 
+fn pathHasSegment(path: []const u8, segment: []const u8) bool {
+    var rest = path;
+    while (rest.len > 0) {
+        if (std.mem.startsWith(u8, rest, segment)) {
+            const after = rest[segment.len..];
+            if (after.len == 0 or pathSeparatorsEqual(after[0], '/')) return true;
+        }
+        const slash = std.mem.indexOfScalar(u8, rest, '/') orelse std.mem.indexOfScalar(u8, rest, '\\') orelse break;
+        rest = rest[slash + 1 ..];
+    }
+    return false;
+}
+
 /// Returns true when a path should be skipped by lint targeting.
 pub fn shouldSkipLintFile(path: []const u8, options: Options) bool {
+    if (pathHasSegment(path, ".zig-cache") or pathHasSegment(path, "zig-out") or pathHasSegment(path, ".git")) return true;
     if (!options.build_script and isBuildScriptPath(path)) return true;
 
     if (options.apply_exclude_roots and !options.deps) {
@@ -135,7 +149,24 @@ pub fn deinitOwnedPaths(allocator: std.mem.Allocator, paths: *std.ArrayList([]co
     paths.deinit(allocator);
 }
 
-/// Collects `root.zig` or every top-level `.zig` file in `dir_path`.
+fn tryAppendEntrypoint(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    candidate: []const u8,
+    options: Options,
+    out: *std.ArrayList([]const u8),
+) !bool {
+    if (!isReadableLocalFile(io, candidate)) return false;
+    const root_abs = realPathFileAlloc(allocator, io, candidate) catch return false;
+    if (shouldSkipLintFile(root_abs, options)) {
+        allocator.free(root_abs);
+        return false;
+    }
+    try out.append(allocator, root_abs);
+    return true;
+}
+
+/// Collects a package entry root or every top-level `.zig` file in `dir_path`.
 pub fn collectDirectoryEntrypoints(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -143,17 +174,16 @@ pub fn collectDirectoryEntrypoints(
     options: Options,
     out: *std.ArrayList([]const u8),
 ) !void {
-    const root_candidate = try std.fs.path.join(allocator, &.{ dir_path, "root.zig" });
-    defer allocator.free(root_candidate);
+    const relative_roots = [_][]const u8{
+        "root.zig",
+        "src/lib/root.zig",
+        "src/root.zig",
+    };
 
-    if (isReadableLocalFile(io, root_candidate)) {
-        const root_abs = realPathFileAlloc(allocator, io, root_candidate) catch return;
-        if (!shouldSkipLintFile(root_abs, options)) {
-            try out.append(allocator, root_abs);
-        } else {
-            allocator.free(root_abs);
-        }
-        return;
+    for (relative_roots) |relative_root| {
+        const candidate = try std.fs.path.join(allocator, &.{ dir_path, relative_root });
+        defer allocator.free(candidate);
+        if (try tryAppendEntrypoint(allocator, io, candidate, options, out)) return;
     }
 
     var dir = std.Io.Dir.cwd().openDir(
@@ -306,6 +336,12 @@ pub fn matchReason(kind: build_scan.TargetKind) []const u8 {
         .bin => "Selected by active filters (--bins / --bin).",
         .test_target => "Selected by active filters (--tests / --test).",
     };
+}
+
+test "artifact directories are skipped" {
+    try std.testing.expect(shouldSkipLintFile("/project/.zig-cache/o/foo.zig", .{}));
+    try std.testing.expect(shouldSkipLintFile("/project/zig-out/bin/app.zig", .{}));
+    try std.testing.expect(!shouldSkipLintFile("/project/src/app.zig", .{}));
 }
 
 test "apply_exclude_roots controls dependency path skipping" {

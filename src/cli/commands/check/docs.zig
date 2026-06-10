@@ -15,7 +15,7 @@ pub fn register(check: *fangz.Command) !void {
         .description = "Lint doc comments on the public API surface (or all declarations when scan_mode is \"all\" in config). Exits non-zero when a denied rule reports a finding.",
     });
 
-    try check_shared.registerTargetFlags(docs_cmd);
+    try check_shared.registerCategoryPositionals(docs_cmd);
     try check_shared.registerOutputFlags(docs_cmd);
     docs_cmd.setHooks(.{ .run = &run });
 }

@@ -56,7 +56,7 @@ pub const Options = struct {
     /// When non-empty, include only tests with matching step names.
     test_names: []const []const u8 = &.{},
 
-    /// When true, do not exclude path-dependency trees.
+    /// When true, also lint path-dependency trees from `build.zig.zon` (`.path` entries only).
     deps: bool = false,
     /// When true, include `build.zig` and `build/*.zig` in the plan.
     build_script: bool = false,
@@ -415,6 +415,10 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
         if (targeting_options.build_script) {
             try collectBuildFiles(allocator, io, package.project_root, &extra_lint_files);
         }
+
+        if (options.deps) {
+            try appendDependencyLintFiles(allocator, io, duped_exclude_roots, targeting_options, &extra_lint_files);
+        }
     }
 
     return Plan{
@@ -425,6 +429,24 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
         .module_entry_roots = try module_entry_roots_list.toOwnedSlice(allocator),
         .targeting = targeting_options,
     };
+}
+
+fn appendDependencyLintFiles(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    dependency_roots: []const []const u8,
+    options: targeting.Options,
+    extra_lint_files: *std.ArrayList([]const u8),
+) !void {
+    for (dependency_roots) |dep_root| {
+        var dep_files = try targeting.collectDirectoryLintTargets(allocator, io, dep_root, options);
+        defer targeting.deinitOwnedPaths(allocator, &dep_files);
+
+        for (dep_files.items) |path| {
+            if (targeting.containsPath(extra_lint_files.items, path)) continue;
+            try extra_lint_files.append(allocator, try allocator.dupe(u8, path));
+        }
+    }
 }
 
 fn resolveUserPath(allocator: std.mem.Allocator, project_root: []const u8, raw: []const u8) ![]const u8 {

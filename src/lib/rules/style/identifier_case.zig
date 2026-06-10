@@ -70,6 +70,7 @@ pub const default_severity: severity.Level = .warn;
 /// Filename case convention for struct-at-file-scope modules.
 pub const FilenameCase = enum {
     snake_case,
+    // TODO: Implement Docent ignore/disable comments for rules.
     camelCase,
     PascalCase,
     kebab_case, // TODO: We can use string identifiers and make it into @"kebab-case".
@@ -361,8 +362,13 @@ fn checkStructFileName(
         const name = tree.tokenSlice(name_tok);
         if (isExemptName(name)) continue;
 
+        const snake_from_name = try pascalCaseStemToSnake(msg_allocator, name);
+        defer msg_allocator.free(snake_from_name);
         const expected_stem = try identifierToFilenameStem(msg_allocator, name, file_case);
         defer msg_allocator.free(expected_stem);
+
+        // Only dedicated struct modules pair a filename stem with the struct name.
+        if (!std.mem.eql(u8, stem, snake_from_name) and !std.mem.eql(u8, stem, expected_stem)) continue;
         if (std.mem.eql(u8, stem, expected_stem)) continue;
 
         const loc = tree.tokenLocation(0, name_tok);
@@ -1214,6 +1220,66 @@ test "default struct_file_case flags snake_case implicit struct file stem" {
 
     const source =
         \\x: u32 = 0,
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "init_options.zig",
+        .{},
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "namespace module helper struct does not require matching filename" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\pub const Options = struct {
+        \\    threshold: u32 = 0,
+        \\};
+        \\
+        \\pub fn check() void {}
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "max_fun_params.zig",
+        .{},
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "paired struct name still requires matching filename stem" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\pub const InitOptions = struct {
+        \\    x: u32,
+        \\};
     ++ "\x00";
     var tree = try std.zig.Ast.parse(base, source, .zig);
     defer tree.deinit(base);

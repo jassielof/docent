@@ -19,6 +19,7 @@ pub fn register(root: *fangz.Command) !void {
         .description = "Run documentation, style, or complexity checks. Use a category subcommand for full diagnostics, or run `docent check` alone for a compact summary across every category.",
     });
 
+    try check_shared.registerTargetFlags(check_cmd, .{ .persistent = true, .positionals = false });
     check_cmd.setHooks(.{ .run = &runSummary });
 
     try docs_check.register(check_cmd);
