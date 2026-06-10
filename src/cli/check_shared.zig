@@ -6,7 +6,6 @@ const carnaval = @import("carnaval");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-const cli_flags = @import("flags.zig");
 const cli_types = @import("types.zig");
 
 pub const TargetArgs = struct {
@@ -23,53 +22,84 @@ pub const TargetArgs = struct {
     fail_fast: cli_types.FailFast = cli_types.default_fail_fast,
 };
 
-pub fn registerTargetFlags(cmd: *fangz.Command) !void {
-    try cmd.addPositional(.{
-        .name = "paths",
-        .brief = "Files or directories to analyze. If omitted, uses package paths from build.zig.zon when available.",
-        .variadic = true,
-    });
+pub const RegisterTargetFlagsOptions = struct {
+    /// When true, flags are inherited by category subcommands (register on `check` only).
+    persistent: bool = false,
+    /// When true, registers the variadic `paths` positional (category subcommands only).
+    positionals: bool = true,
+};
 
-    try cli_flags.registerConfigPath(cmd);
+pub fn registerTargetFlags(cmd: *fangz.Command, options: RegisterTargetFlagsOptions) !void {
+    if (options.positionals) {
+        try cmd.addPositional(.{
+            .name = "paths",
+            .brief = "Files or directories to analyze. If omitted, uses package paths from build.zig.zon when available.",
+            .variadic = true,
+        });
+    }
+
+    try cmd.addFlag(?[]const u8, .{
+        .name = "config-path",
+        .brief = "Path to docent.toml",
+        .description = "When omitted, Docent searches upward from the working directory for `.config/docent.toml`.",
+        .value_hint = "PATH",
+        .persistent = options.persistent,
+    });
 
     try cmd.addFlag(bool, .{
         .name = "lib",
         .brief = "Analyze library targets only (default)",
         .default = false,
+        .persistent = options.persistent,
     });
 
     try cmd.addFlag(bool, .{
         .name = "bins",
         .brief = "Analyze all binary targets",
         .default = false,
+        .persistent = options.persistent,
     });
 
     try cmd.addFlag([]const []const u8, .{
         .name = "bin",
         .brief = "Analyze specific binary by name (repeatable)",
+        .persistent = options.persistent,
     });
 
     try cmd.addFlag(bool, .{
         .name = "tests",
         .brief = "Analyze all test targets",
         .default = false,
+        .persistent = options.persistent,
     });
 
     try cmd.addFlag([]const []const u8, .{
         .name = "test",
         .brief = "Analyze specific test by name (repeatable)",
+        .persistent = options.persistent,
     });
 
     try cmd.addFlag(bool, .{
         .name = "deps",
         .brief = "Also analyze files under path dependencies from build.zig.zon",
         .default = false,
+        .persistent = options.persistent,
     });
 
     try cmd.addFlag(bool, .{
         .name = "build-script",
         .brief = "Include build.zig and build/*.zig files in targets",
         .default = false,
+        .persistent = options.persistent,
+    });
+}
+
+/// Registers the variadic `paths` positional on a category subcommand.
+pub fn registerCategoryPositionals(cmd: *fangz.Command) !void {
+    try cmd.addPositional(.{
+        .name = "paths",
+        .brief = "Files or directories to analyze. If omitted, uses package paths from build.zig.zon when available.",
+        .variadic = true,
     });
 }
 

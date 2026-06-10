@@ -15,7 +15,7 @@ pub fn register(check: *fangz.Command) !void {
         .description = "Measure complexity and parameter counts for every function reachable from the project's module roots. Thresholds are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
     });
 
-    try check_shared.registerTargetFlags(complexity_cmd);
+    try check_shared.registerCategoryPositionals(complexity_cmd);
     try check_shared.registerOutputFlags(complexity_cmd);
     complexity_cmd.setHooks(.{ .run = &run });
 }
@@ -88,6 +88,7 @@ pub fn analyzeReachableTargets(
         defer docent.reachability.deinitOwnedPaths(allocator, &reachable);
 
         for (reachable.items) |path| {
+            if (docent.targeting.shouldSkipLintFile(path, plan.targeting)) continue;
             const gptr = try analyzed_files.getOrPut(path);
             if (gptr.found_existing) continue;
             if (try analyzeFile(allocator, io, path, rule_set, complexity_options, all_diagnostics, summary, fail_fast)) return true;
