@@ -1,9 +1,35 @@
-//! Legal file checker.
-//!
-//! TODO:
-//! - Define core file: LICENSE (LICENSE, LICENSE.md, LICENSE.txt, LICENCE, etc.)
-//! - Define extra files: NOTICE, COPYRIGHT, COPYING, TRADEMARK
-//! - Detect which of the above are present in the project root
-//! - Return core_found + extras slice for scoring
+//! Legal file presence scoring (LICENSE and related files).
 
-// The only thing worth noting: both files (legal and community) will be nearly identical in structure, so once you implement one, the other is essentially a copy with different file name lists. You might want to implement a shared FilePresenceCheck in a common file (e.g. checks/common.zig or just check.zig) that both call into, keeping the actual lists as the only thing that differs between them.
+const std = @import("std");
+const presence = @import("presence.zig");
+
+pub const core_variants = [_][]const u8{
+    "LICENSE",
+    "LICENSE.md",
+    "LICENSE.txt",
+    "LICENCE",
+    "LICENCE.md",
+    "LICENCE.txt",
+    "COPYING",
+};
+
+pub const extra_variants = [_][]const u8{
+    "NOTICE",
+    "NOTICE.md",
+    "NOTICE.txt",
+    "COPYRIGHT",
+    "TRADEMARK",
+    "TRADEMARK.md",
+};
+
+pub const Report = presence.Report;
+
+/// Scans `project_root` for legal files.
+pub fn scan(allocator: std.mem.Allocator, io: std.Io, project_root: []const u8) !Report {
+    return presence.scan(allocator, io, project_root, &core_variants, &extra_variants);
+}
+
+/// Returns 100 when a core license file exists, otherwise 0.
+pub fn percentage(report: Report) f64 {
+    return if (report.core_found) 100.0 else 0.0;
+}

@@ -4,6 +4,7 @@ const fangz = @import("fangz");
 
 const check_command = @import("commands/check.zig");
 const init_command = @import("commands/init.zig");
+const score_command = @import("commands/score.zig");
 const status_command = @import("commands/status.zig");
 pub const rule_config = @import("rule_config.zig");
 
@@ -33,6 +34,7 @@ pub fn main(init: std.process.Init) !void {
     try status_command.register(root);
     try init_command.register(root);
     try check_command.register(root);
+    try score_command.register(root);
 
     try app.executeProcess(init.minimal.args);
 }

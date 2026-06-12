@@ -9,8 +9,7 @@
 //! - [Structures and their fields](https://ziglang.org/documentation/0.16.0/#struct).
 //! - [Unions and their members](https://ziglang.org/documentation/0.16.0/#union).
 //! - [Errors](https://ziglang.org/documentation/0.16.0/#Errors).
-//!   - Its values aren't checked since Zig documentation generator doesn't support them.
-// TODO: Error "values" are simply called "errors", it can also be a member of the set, but errors can be either sets or unions, and its members are just the plain "errors", let's fix that in terminology and code doc comments. As well, these are supported to be doc commented, so I was wrong to say they aren't checked, they are completely checked and rendered in the generated documentation. So, let's fix the documentation, and add checks for "errors", this should be warned by default, just like the rule, and configurable, as sometimes it might be too noisy to document each error.
+//!   - Individual errors inside a set (or merged set) are checked when `check_errors` is enabled.
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
@@ -36,6 +35,7 @@ pub const Config = struct {
     level: ?severity.Level = null,
     scan_mode: ?scanning.Modes = null,
     check_parameters: ?bool = null,
+    check_errors: ?bool = null,
 };
 
 pub fn decodeConfig(value: toml.DynamicValue) rule_config.Error!Config {
@@ -43,17 +43,20 @@ pub fn decodeConfig(value: toml.DynamicValue) rule_config.Error!Config {
         .level = try rule_config.decodeLevelValue(value),
         .scan_mode = rule_config.decodeScanModeField(value),
         .check_parameters = rule_config.decodeBoolField(value, "check_parameters"),
+        .check_errors = rule_config.decodeBoolField(value, "check_errors"),
     };
 }
 
 pub const Options = struct {
     scan_mode: scanning.Modes = scanning.Modes.public_api_surface,
     check_parameters: bool = false,
+    check_errors: bool = true,
 
     pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
         return .{
             .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
             .check_parameters = rule.check_parameters orelse false,
+            .check_errors = rule.check_errors orelse true,
         };
     }
 
@@ -82,7 +85,7 @@ pub fn check(
     try checkModuleDocComment(tree, severity_level, file, require_module_doc, module_name, allocator, msg_allocator, diagnostics);
     const public_api_only = options.publicApiOnly();
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity_level, file, public_api_only, options.check_parameters, .field, allocator, io, msg_allocator, diagnostics);
+        try checkNode(tree, decl, severity_level, file, public_api_only, options, .field, allocator, io, msg_allocator, diagnostics);
     }
 }
 
@@ -140,7 +143,7 @@ fn checkNode(
     severity_level: severity.Level,
     file: []const u8,
     public_api_only: bool,
-    require_function_param_docs: bool,
+    options: Options,
     member_field_kind: Diagnostic.SubjectKind,
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -168,7 +171,7 @@ fn checkNode(
                         .symbol_len = name.len,
                     });
                 }
-                if (require_function_param_docs) {
+                if (options.check_parameters) {
                     try checkFunctionParams(tree, proto, severity_level, file, allocator, msg_allocator, diagnostics);
                 }
             }
@@ -219,7 +222,7 @@ fn checkNode(
                 });
             }
         }
-        try checkVarDeclInit(tree, var_decl, severity_level, file, public_api_only, require_function_param_docs, allocator, io, msg_allocator, diagnostics);
+        try checkVarDeclInit(tree, var_decl, severity_level, file, public_api_only, options, allocator, io, msg_allocator, diagnostics);
         return;
     }
 
@@ -231,7 +234,7 @@ fn checkNode(
             else
                 member_field_kind;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity_level, file, public_api_only, require_function_param_docs, child_member_kind, allocator, io, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity_level, file, public_api_only, options, child_member_kind, allocator, io, msg_allocator, diagnostics);
             }
         }
         return;
@@ -293,7 +296,7 @@ fn checkVarDeclInit(
     severity_level: severity.Level,
     file: []const u8,
     public_api_only: bool,
-    require_function_param_docs: bool,
+    options: Options,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
@@ -302,6 +305,10 @@ fn checkVarDeclInit(
     if (public_api_only and !shouldCheckDecl(tree, var_decl.visib_token, true)) return;
 
     const init_node = var_decl.ast.init_node.unwrap() orelse return;
+    if (tree.nodeTag(init_node) == .error_set_decl) {
+        try checkErrorSetMembers(tree, init_node, severity_level, file, options.check_errors, allocator, msg_allocator, diagnostics);
+        return;
+    }
     if (isContainerDecl(tree.nodeTag(init_node))) {
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, init_node)) |container| {
@@ -310,9 +317,43 @@ fn checkVarDeclInit(
             else
                 .field;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity_level, file, public_api_only, require_function_param_docs, child_member_kind, allocator, io, msg_allocator, diagnostics);
+                try checkNode(tree, member, severity_level, file, public_api_only, options, child_member_kind, allocator, io, msg_allocator, diagnostics);
             }
         }
+    }
+}
+
+fn checkErrorSetMembers(
+    tree: *const Ast,
+    node: Ast.Node.Index,
+    severity_level: severity.Level,
+    file: []const u8,
+    check_errors: bool,
+    allocator: std.mem.Allocator,
+    msg_allocator: std.mem.Allocator,
+    diagnostics: *std.ArrayList(Diagnostic),
+) std.mem.Allocator.Error!void {
+    if (!check_errors) return;
+
+    const first = tree.firstToken(node);
+    const last = tree.lastToken(node);
+    var tok = first;
+    while (tok <= last) : (tok += 1) {
+        if (tree.tokenTag(tok) != .identifier) continue;
+        if (hasDocComment(tree, tok)) continue;
+
+        const name = tree.tokenSlice(tok);
+        const loc = tree.tokenLocation(0, tok);
+        try diagnostics.append(allocator, .{
+            .rule = rule_name,
+            .severity_level = severity_level,
+            .subject = try utils.ownedSubject(msg_allocator, .error_value, name),
+            .file = file,
+            .line = loc.line + 1,
+            .column = loc.column + 1,
+            .source_line = try utils.dupSourceLine(tree, tok, msg_allocator),
+            .symbol_len = name.len,
+        });
     }
 }
 
@@ -482,9 +523,30 @@ test "detects missing doc comment on pub const, names the symbol" {
 test "detects missing doc comment on pub const error set" {
     var r = try runCheck("pub const MyErr = error{ OutOfMemory };", false, null, .{});
     defer r.deinit();
-    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqual(2, r.items.items.len);
     try std.testing.expectEqual(.error_set, r.items.items[0].subject.?.kind);
     try std.testing.expectEqualStrings("MyErr", r.items.items[0].subject.?.name);
+    try std.testing.expectEqual(.error_value, r.items.items[1].subject.?.kind);
+    try std.testing.expectEqualStrings("OutOfMemory", r.items.items[1].subject.?.name);
+}
+
+test "error members are skipped when check_errors is disabled" {
+    var r = try runCheck("pub const MyErr = error{ OutOfMemory };", false, null, .{ .check_errors = false });
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqual(.error_set, r.items.items[0].subject.?.kind);
+}
+
+test "documented error members are accepted" {
+    var r = try runCheck(
+        \\pub const MyErr = error{
+        \\    /// Out of memory.
+        \\    OutOfMemory,
+        \\};
+    , false, null, .{});
+    defer r.deinit();
+    try std.testing.expectEqual(1, r.items.items.len);
+    try std.testing.expectEqual(.error_set, r.items.items[0].subject.?.kind);
 }
 
 test "detects missing doc comment on container fields, names the field" {

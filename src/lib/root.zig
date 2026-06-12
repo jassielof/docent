@@ -3,6 +3,9 @@
 const std = @import("std");
 
 const path_utils = @import("rules/utils.zig");
+const suppressions = @import("suppressions.zig");
+
+const Ast = std.zig.Ast;
 
 pub const Diagnostic = @import("Diagnostic.zig");
 pub const LintResult = @import("LintResult.zig");
@@ -24,6 +27,8 @@ pub const status_plan = @import("status_plan.zig");
 pub const build_scan = @import("build_scan.zig");
 pub const LintOptions = @import("LintOptions.zig");
 pub const rules = @import("rules.zig");
+pub const score = @import("score.zig");
+pub const Suppressions = suppressions.Table;
 
 /// Returns whether the file-level `//!` check applies to `path`.
 ///
@@ -72,6 +77,12 @@ pub fn collectLibraryEntryRoots(
     }
 
     return try roots.toOwnedSlice(allocator);
+}
+
+fn applySuppressions(allocator: std.mem.Allocator, tree: *const Ast, result: *LintResult) !void {
+    var table = try suppressions.collectFromTree(allocator, tree);
+    defer table.deinit(allocator);
+    suppressions.filterDiagnostics(allocator, &result.diagnostics, &table);
 }
 
 /// Lints in-memory Zig source and returns all rule diagnostics.
@@ -156,6 +167,8 @@ pub fn lintSource(
         &result.diagnostics,
     );
 
+    try applySuppressions(allocator, &tree, &result);
+
     return result;
 }
 
@@ -206,6 +219,8 @@ pub fn lintComplexitySource(
         &result.diagnostics,
     );
 
+    try applySuppressions(allocator, &tree, &result);
+
     return result;
 }
 
@@ -248,6 +263,8 @@ pub fn lintStyleSource(
         msg,
         &result.diagnostics,
     );
+
+    try applySuppressions(allocator, &tree, &result);
 
     return result;
 }

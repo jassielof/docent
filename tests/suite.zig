@@ -13,5 +13,6 @@ comptime {
     refAllDecls(@import("rules/docs.zig"));
     refAllDecls(@import("rules/complexity.zig"));
     refAllDecls(@import("rules/style.zig"));
+    refAllDecls(@import("rules/suppressions.zig"));
     refAllDecls(@import("scenarios.zig"));
 }

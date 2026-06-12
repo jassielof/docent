@@ -11,6 +11,7 @@ doctest_naming_mismatch = "warn"
 [docs.missing_doc_comment]
 level = "warn"
 check_parameters = false
+check_errors = true
 
 [docs.missing_summary_terminal_punctuation]
 level = "warn"
@@ -30,7 +31,7 @@ scan_mode = "all"
 level = "warn"
 namespaces = "snake_case"
 functions = "camelCase"
-struct_file_case = "PascalCase"
+struct_file_case = "snake_case"
 types = "PascalCase"
 constants = "snake_case"
 
