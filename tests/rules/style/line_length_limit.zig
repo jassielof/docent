@@ -5,15 +5,15 @@ const docent = @import("docent");
 const utils = @import("../../utils.zig");
 
 fn lint(source: [:0]const u8, rule_set: docent.RuleSeverities, options: docent.rules.style.line_length_limit.Options) !docent.LintResult {
-    var style_options = docent.rules.style.Options.defaults();
-    style_options.line_length_limit = options;
+    var style_cfg = docent.rules.style.Style.defaults();
+    style_cfg.line_length_limit.level = rule_set.line_length_limit;
+    style_cfg.line_length_limit.options = options;
     return docent.lintStyleSource(
         std.testing.allocator,
         std.testing.io,
         source,
-        rule_set,
         "<test>",
-        style_options,
+        style_cfg,
     );
 }
 

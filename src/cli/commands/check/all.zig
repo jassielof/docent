@@ -27,11 +27,6 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const rule_set = docent.config.loadRuleSeveritiesFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
-        std.process.exit(1);
-    };
-
     const docs_options = docent.config.loadDocsOptionsFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
@@ -99,7 +94,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         for (rt.files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            if (try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try docs_check.lintPlanFile(allocator, io, path, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
                 break;
             }
@@ -110,7 +105,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         for (plan.extra_lint_files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            if (try docs_check.lintPlanFile(allocator, io, path, rule_set, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try docs_check.lintPlanFile(allocator, io, path, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
                 break;
             }
@@ -121,11 +116,11 @@ fn run(ctx: *fangz.ParseContext) !void {
         var analyzed_files = docent.targeting.PathSet.init(allocator);
         defer analyzed_files.deinit(allocator);
 
-        if (try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, style_opts, &all_diagnostics, &summary, args.fail_fast)) {
+        if (try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, style_opts, &all_diagnostics, &summary, args.fail_fast)) {
             should_stop = true;
         } else {
             analyzed_files.clear(allocator);
-            if (try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, complexity_opts, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, complexity_opts, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
             }
         }

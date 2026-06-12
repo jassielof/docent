@@ -128,7 +128,6 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Repor
         allocator,
         io,
         options.plan,
-        options.rule_set,
         lint_options.docs,
         lint_options.style,
         lint_options.complexity,

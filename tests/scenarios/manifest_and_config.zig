@@ -60,7 +60,7 @@ test "config loadDocsOptions reads docs block from docent.toml" {
     defer allocator.free(config_path);
 
     const docs_options = try docent.config.loadDocsOptions(allocator, io, config_path);
-    try std.testing.expect(!docs_options.missing_doc_comment.check_parameters);
+    try std.testing.expect(!docs_options.missing_doc_comment.options.check_parameters);
 }
 
 test "config loadRuleSeverities reads rules from docent.toml" {

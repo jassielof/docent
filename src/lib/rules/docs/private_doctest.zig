@@ -7,8 +7,7 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const rule_config = @import("../config.zig");
-const rule_opts = @import("../options.zig");
+const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -20,32 +19,20 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
-pub const Config = rule_config.RuleSimple;
-
-pub const Options = struct {
-    scan_mode: scanning.Modes = scanning.Modes.public_api_surface,
-
-    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
-        return .{ .scan_mode = rule_opts.scanModeFromRule(category_scan, rule) };
-    }
-
-    pub fn publicApiOnly(self: Options) bool {
-        return self.scan_mode.publicApiOnly();
-    }
-};
+/// Full configuration for `private_doctest`: severity and scan mode, with no rule-specific options.
+pub const Rule = category.Rule(default_severity, struct {}, scanning.Modes.public_api_surface);
 
 /// Walks `tree` and appends diagnostics when private items use public-style doctests.
 pub fn check(
     tree: *const Ast,
-    severity_level: severity.Level,
+    rule: Rule,
     file: []const u8,
-    options: Options,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
-    if (!severity_level.isActive()) return;
-    _ = options;
+    if (!rule.level.isActive()) return;
+    const severity_level = rule.level;
 
     var pub_names = std.StringHashMap(void).init(allocator);
     defer pub_names.deinit();
@@ -142,7 +129,7 @@ fn runCheck(source: [:0]const u8) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", .{}, base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .{}, "<test>", base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 

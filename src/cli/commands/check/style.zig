@@ -25,12 +25,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const rule_set = docent.config.loadRuleSeveritiesFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
-        std.process.exit(1);
-    };
-
-    const style_options = docent.config.loadStyleOptionsFromCli(allocator, io, args.config_path) catch |err| {
+    const style_cfg = docent.config.loadStyleOptionsFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -54,7 +49,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     var analyzed_files = docent.targeting.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
-    _ = try analyzeReachableTargets(allocator, io, &plan, &analyzed_files, rule_set, style_options, &all_diagnostics, &summary, args.fail_fast);
+    _ = try analyzeReachableTargets(allocator, io, &plan, &analyzed_files, style_cfg, &all_diagnostics, &summary, args.fail_fast);
 
     try check_shared.printCheckResults(io, allocator, args, "docent check style", all_diagnostics.items, summary, path_display_root);
 
@@ -66,8 +61,7 @@ pub fn analyzeReachableTargets(
     io: std.Io,
     plan: *const docent.status_plan.Plan,
     analyzed_files: *docent.targeting.PathSet,
-    rule_set: docent.RuleSeverities,
-    style_options: docent.rules.style.Options,
+    style_cfg: docent.rules.style.Style,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
@@ -90,13 +84,13 @@ pub fn analyzeReachableTargets(
         for (reachable.items) |path| {
             if (docent.targeting.shouldSkipLintFile(path, plan.targeting)) continue;
             if (try analyzed_files.put(allocator, io, path)) continue;
-            if (try analyzeFile(allocator, io, path, rule_set, style_options, all_diagnostics, summary, fail_fast)) return true;
+            if (try analyzeFile(allocator, io, path, style_cfg, all_diagnostics, summary, fail_fast)) return true;
         }
     }
 
     for (plan.extra_lint_files) |path| {
         if (try analyzed_files.put(allocator, io, path)) continue;
-        if (try analyzeFile(allocator, io, path, rule_set, style_options, all_diagnostics, summary, fail_fast)) return true;
+        if (try analyzeFile(allocator, io, path, style_cfg, all_diagnostics, summary, fail_fast)) return true;
     }
 
     return false;
@@ -106,13 +100,12 @@ fn analyzeFile(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    rule_set: docent.RuleSeverities,
-    style_options: docent.rules.style.Options,
+    style_cfg: docent.rules.style.Style,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
 ) !bool {
-    var result = docent.lintStyleFile(allocator, io, path, rule_set, style_options) catch |err| {
+    var result = docent.lintStyleFile(allocator, io, path, style_cfg) catch |err| {
         try check_shared.printStderr(io, "error: failed to analyze '{s}': {}\n", .{ path, err });
         return false;
     };

@@ -53,9 +53,7 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const toml = @import("toml");
-const rule_config = @import("../config.zig");
-const rule_opts = @import("../options.zig");
+const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -64,7 +62,7 @@ inline fn srcLoc() std.builtin.SourceLocation {
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
-/// The default_severity for the rule.
+/// Default severity `warn`: naming is advisory, so a fresh checkout sees casing issues without failing the build; raise it to `deny` or `forbid` in CI config.
 pub const default_severity: severity.Level = .warn;
 
 /// Filename case convention for struct-at-file-scope modules.
@@ -73,48 +71,28 @@ pub const FilenameCase = enum {
     PascalCase,
     /// Quoted import identifiers (`@"..."`); config value is literally `@"kebab-case"`.
     @"kebab-case",
+
+    /// Parses the TOML spelling, accepting the literal `@"kebab-case"` form.
+    pub fn fromConfigString(text: []const u8) ?FilenameCase {
+        if (std.mem.eql(u8, text, "@\"kebab-case\"")) return .@"kebab-case";
+        return std.meta.stringToEnum(FilenameCase, text);
+    }
 };
 
-/// Raw configuration for this rule from `docent.toml`.
-pub const Config = struct {
-    level: ?severity.Level = null,
-    scan_mode: ?scanning.Modes = null,
-    /// Case convention for struct file basenames. Defaults to PascalCase (Zig); use snake_case for Tiger Style.
-    struct_file_case: ?FilenameCase = null,
-};
-
-pub fn decodeConfig(value: toml.DynamicValue) rule_config.Error!Config {
-    const case_name = rule_config.decodeStringField(value, "struct_file_case");
-    return .{
-        .level = try rule_config.decodeLevelValue(value),
-        .scan_mode = rule_config.decodeScanModeField(value),
-        .struct_file_case = if (case_name) |name| decodeFilenameCase(name) else null,
-    };
-}
-
-fn decodeFilenameCase(name: []const u8) ?FilenameCase {
-    if (std.mem.eql(u8, name, "@\"kebab-case\"")) return .@"kebab-case";
-    return std.meta.stringToEnum(FilenameCase, name);
-}
-
-/// Resolved options for the identifier case rule.
+/// Full configuration for the `identifier_case` rule.
+///
+/// Severity, scan mode, and the rule-specific knobs live at distinct levels on purpose: `level`
+/// and `scan_mode` describe *how loud* and *over what surface* the rule runs, while `options` is
+/// purely about *what* it checks. This struct is its own resolved shape — every field has a real
+/// default, so `Rule{}` is the fully-defaulted value and TOML decoding only overwrites set keys.
+/// Rule-specific knobs for `identifier_case`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
-    /// Which declarations this rule inspects; inherits the style category `scan_mode` unless overridden for this rule.
-    scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
-    /// Expected case for struct-at-file-scope module filenames.
+    /// Expected case for struct-at-file-scope module filenames; default `PascalCase` mirrors the struct type name (`Report.zig` defines `Report`), while `snake_case` follows Tiger Style.
     struct_file_case: FilenameCase = .PascalCase,
-
-    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
-        return .{
-            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
-            .struct_file_case = rule.struct_file_case orelse .PascalCase,
-        };
-    }
-
-    pub fn publicApiOnly(self: Options) bool {
-        return self.scan_mode.publicApiOnly();
-    }
 };
+
+/// Full configuration for `identifier_case`: severity, scan mode, and the documented `Options` sub-space.
+pub const Rule = category.Rule(default_severity, Options, scanning.Modes.reachability_traversal);
 
 /// A naming convention an identifier is expected to follow.
 const Case = enum {
@@ -152,16 +130,17 @@ const Classification = struct {
 /// `false`, measuring every identifier reachable from the module roots.
 pub fn check(
     tree: *const Ast,
-    severity_level: severity.Level,
+    rule: Rule,
     file: []const u8,
-    options: Options,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    if (!severity_level.isActive()) return;
-    const public_api_only = options.publicApiOnly();
+    if (!rule.level.isActive()) return;
+    const severity_level = rule.level;
+    const options = rule.options;
+    const public_api_only = rule.publicApiOnly();
 
     try checkStructFileName(tree, severity_level, file, options, allocator, msg_allocator, diagnostics);
 
@@ -872,7 +851,7 @@ fn runCheck(source: [:0]const u8, scan_mode: scanning.Modes) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", .{ .scan_mode = scan_mode }, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .{ .scan_mode = scan_mode }, "<test>", base, std.testing.io, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
@@ -902,9 +881,8 @@ test "import member re-export does not flag PascalCase binding" {
 
     try check(
         &tree,
-        .warn,
-        "src/lib/root.zig",
         .{},
+        "src/lib/root.zig",
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -929,9 +907,8 @@ test "PascalCase binding on namespace import is flagged" {
 
     try check(
         &tree,
-        .warn,
-        "tests/fixtures/style/import_site.zig",
         .{},
+        "tests/fixtures/style/import_site.zig",
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1100,9 +1077,8 @@ test "PascalCase basename on namespace import is flagged" {
 
     try check(
         &tree,
-        .warn,
-        "tests/fixtures/style/import_site.zig",
         .{},
+        "tests/fixtures/style/import_site.zig",
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1130,9 +1106,8 @@ test "snake_case basename on struct-at-file-scope import is not flagged" {
 
     try check(
         &tree,
-        .warn,
-        "tests/fixtures/style/import_site.zig",
         .{},
+        "tests/fixtures/style/import_site.zig",
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1181,7 +1156,7 @@ test "inactive severity yields no diagnostics" {
     defer tree.deinit(base);
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
-    try check(&tree, .allow, "<test>", .{}, base, std.testing.io, base, &diagnostics);
+    try check(&tree, .{ .level = .allow }, "<test>", base, std.testing.io, base, &diagnostics);
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
 
@@ -1201,9 +1176,8 @@ test "struct_file_case snake_case accepts snake_case implicit struct file stem" 
 
     try check(
         &tree,
-        .warn,
+        .{ .options = .{ .struct_file_case = .snake_case } },
         "init_options.zig",
-        .{ .struct_file_case = .snake_case },
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1228,9 +1202,8 @@ test "default struct_file_case flags snake_case struct file stem" {
 
     try check(
         &tree,
-        .warn,
-        "init_options.zig",
         .{},
+        "init_options.zig",
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1255,9 +1228,8 @@ test "default struct_file_case accepts PascalCase struct file stem" {
 
     try check(
         &tree,
-        .warn,
-        "InitOptions.zig",
         .{},
+        "InitOptions.zig",
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1286,9 +1258,8 @@ test "namespace module helper struct does not require matching filename" {
 
     try check(
         &tree,
-        .warn,
-        "max_fun_params.zig",
         .{},
+        "max_fun_params.zig",
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1317,9 +1288,8 @@ test "namespace struct with coincidental snake_case stem is not a struct file pa
 
     try check(
         &tree,
-        .warn,
-        "report.zig",
         .{},
+        "report.zig",
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1346,9 +1316,8 @@ test "paired PascalCase struct name with snake_case filename stem is accepted un
 
     try check(
         &tree,
-        .warn,
+        .{ .options = .{ .struct_file_case = .snake_case } },
         "init_options.zig",
-        .{ .struct_file_case = .snake_case },
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1375,9 +1344,8 @@ test "PascalCase struct file stem is accepted by default" {
 
     try check(
         &tree,
-        .warn,
-        "InitOptions.zig",
         .{},
+        "InitOptions.zig",
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1402,9 +1370,8 @@ test "snake_case binding on struct import is flagged" {
 
     try check(
         &tree,
-        .warn,
+        .{ .options = .{ .struct_file_case = .snake_case } },
         "tests/fixtures/style/import_site.zig",
-        .{ .struct_file_case = .snake_case },
         base,
         std.testing.io,
         msg_arena.allocator(),
@@ -1436,9 +1403,8 @@ test "PascalCase binding on snake_case struct import path is clean under Tiger" 
 
     try check(
         &tree,
-        .warn,
+        .{ .options = .{ .struct_file_case = .snake_case } },
         "tests/fixtures/style/import_site.zig",
-        .{ .struct_file_case = .snake_case },
         base,
         std.testing.io,
         msg_arena.allocator(),

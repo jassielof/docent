@@ -5,13 +5,9 @@ const docent = @import("docent");
 const utils = @import("../../utils.zig");
 
 fn lint(source: [:0]const u8, threshold: u32) !docent.LintResult {
-    return docent.lintComplexitySource(
-        std.testing.allocator,
-        source,
-        .{ .cyclomatic_complexity = .warn },
-        "<test>",
-        .{ .cyclomatic = .{ .threshold = threshold } },
-    );
+    var cfg = docent.rules.complexity.Complexity.defaults();
+    cfg.cyclomatic_complexity.options.threshold = threshold;
+    return docent.lintComplexitySource(std.testing.allocator, source, "<test>", cfg);
 }
 
 test "public function above threshold is reported" {
@@ -63,17 +59,15 @@ test "default threshold leaves simple declarations clean" {
         \\    return x + 1;
         \\}
     ,
-        .{ .cyclomatic_complexity = .warn },
         "<test>",
-        .{},
+        docent.rules.complexity.Complexity.defaults(),
     );
     defer result.deinit();
     try utils.expectRuleAbsent(result, "cyclomatic_complexity");
 }
 
 test "switch with many prongs exceeds default threshold" {
-    var result = try docent.lintComplexitySource(
-        std.testing.allocator,
+    var result = try lint(
         \\pub fn classify(n: u8) []const u8 {
         \\    switch (n) {
         \\        0 => return "zero",
@@ -89,11 +83,7 @@ test "switch with many prongs exceeds default threshold" {
         \\        else => return "many",
         \\    }
         \\}
-    ,
-        .{ .cyclomatic_complexity = .warn },
-        "<test>",
-        .{ .cyclomatic = .{ .threshold = 10 } },
-    );
+    , 10);
     defer result.deinit();
     try utils.expectRuleCount(result, "cyclomatic_complexity", 1);
 }
