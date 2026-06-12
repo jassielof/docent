@@ -31,7 +31,7 @@ scan_mode = "all"
 level = "warn"
 namespaces = "snake_case"
 functions = "camelCase"
-struct_file_case = "snake_case"
+struct_file_case = "PascalCase"
 types = "PascalCase"
 constants = "snake_case"
 

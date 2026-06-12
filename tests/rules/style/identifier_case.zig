@@ -105,7 +105,7 @@ test "import member re-export in root.zig is not flagged" {
     }
 }
 
-test "zig convention flags non-snake_case struct import paths" {
+test "zig convention accepts PascalCase struct import paths" {
     var result = try docent.lintStyleSource(
         std.testing.allocator,
         std.testing.io,
@@ -115,7 +115,20 @@ test "zig convention flags non-snake_case struct import paths" {
         docent.rules.style.Options.defaults(),
     );
     defer result.deinit();
-    try utils.expectRuleCount(result, "identifier_case", 1);
+    try utils.expectRuleCount(result, "identifier_case", 0);
+}
+
+test "zig convention flags snake_case struct import paths" {
+    var result = try docent.lintStyleSource(
+        std.testing.allocator,
+        std.testing.io,
+        "const init_options = @import(\"init_options.zig\");\n",
+        .{ .identifier_case = .warn },
+        "tests/fixtures/style/import_site.zig",
+        docent.rules.style.Options.defaults(),
+    );
+    defer result.deinit();
+    try utils.expectRuleCount(result, "identifier_case", 2);
 }
 
 test "snake_case struct import binding is flagged even under Tiger filenames" {
