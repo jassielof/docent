@@ -10,8 +10,7 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const rule_config = @import("../config.zig");
-const rule_opts = @import("../options.zig");
+const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -20,28 +19,19 @@ inline fn srcLoc() std.builtin.SourceLocation {
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
-/// The default_severity for the rule.
+/// Default severity `warn`: an overlong parameter list is an API smell worth surfacing without failing a fresh build.
 pub const default_severity: severity.Level = .warn;
 
-pub const Config = rule_config.RuleThreshold;
-
+/// Rule-specific knobs for `max_fun_params`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
-    scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
+    /// Maximum parameter count before a function is flagged; default `default_threshold` allows Zig's common explicit dependencies (allocator, writer, I/O).
     threshold: u32 = default_threshold,
-
-    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
-        return .{
-            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
-            .threshold = rule.threshold orelse default_threshold,
-        };
-    }
-
-    pub fn publicApiOnly(self: Options) bool {
-        return self.scan_mode.publicApiOnly();
-    }
 };
 
-/// Default maximum parameter count (functions with more parameters are flagged).
+/// Full configuration for `max_fun_params`: severity, scan mode, and the documented `Options` sub-space.
+pub const Rule = category.Rule(default_severity, Options, scanning.Modes.reachability_traversal);
+
+/// Default maximum parameter count; functions with more parameters are flagged.
 pub const default_threshold: u32 = 7;
 
 /// Walks `tree` and appends a diagnostic for each scanned function whose parameter count exceeds `threshold`.
@@ -49,16 +39,16 @@ pub const default_threshold: u32 = 7;
 /// When `public_api_only` is set, only `pub` functions (at the container level) are measured; otherwise every container-level function is measured.
 pub fn check(
     tree: *const Ast,
-    severity_level: severity.Level,
+    rule: Rule,
     file: []const u8,
-    options: Options,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
-    if (!severity_level.isActive()) return;
-    const public_api_only = options.publicApiOnly();
-    const threshold = options.threshold;
+    if (!rule.level.isActive()) return;
+    const severity_level = rule.level;
+    const public_api_only = rule.publicApiOnly();
+    const threshold = rule.options.threshold;
 
     var fns: std.ArrayList(Ast.Node.Index) = .empty;
     defer fns.deinit(allocator);
@@ -153,7 +143,7 @@ const TestResult = struct {
     }
 };
 
-fn runCheck(source: [:0]const u8, threshold: u32, options: Options) !TestResult {
+fn runCheck(source: [:0]const u8, threshold: u32, rule: Rule) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     errdefer msg_arena.deinit();
@@ -164,9 +154,9 @@ fn runCheck(source: [:0]const u8, threshold: u32, options: Options) !TestResult 
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    var opts = options;
-    opts.threshold = threshold;
-    try check(&tree, .warn, "<test>", opts, base, msg_arena.allocator(), &diagnostics);
+    var r = rule;
+    r.options.threshold = threshold;
+    try check(&tree, r, "<test>", base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
@@ -232,6 +222,6 @@ test "inactive severity yields no diagnostics" {
     defer tree.deinit(base);
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
-    try check(&tree, .allow, "<test>", .{ .threshold = 7 }, base, base, &diagnostics);
+    try check(&tree, .{ .level = .allow, .options = .{ .threshold = 7 } }, "<test>", base, base, &diagnostics);
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

@@ -5,9 +5,7 @@ const std = @import("std");
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const toml = @import("toml");
-const rule_config = @import("../config.zig");
-const rule_opts = @import("../options.zig");
+const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -16,63 +14,35 @@ inline fn srcLoc() std.builtin.SourceLocation {
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
-/// The default_severity for the rule.
+/// Default severity `allow`: a hard column cap is a strong opinion many projects skip, so it ships off; opt in with `level = "warn"` or stricter in config.
 pub const default_severity: severity.Level = .allow;
 
 /// Default maximum line length in characters.
 pub const default_max_length: u32 = 100;
 
-/// Raw configuration for this rule from `docent.toml`.
-pub const Config = struct {
-    level: ?severity.Level = null,
-    scan_mode: ?scanning.Modes = null,
-    max_length: ?u32 = null,
-    ignore_trailing_comments: ?bool = null,
-};
-
-pub fn decodeConfig(value: toml.DynamicValue) rule_config.Error!Config {
-    return .{
-        .level = try rule_config.decodeLevelValue(value),
-        .scan_mode = rule_config.decodeScanModeField(value),
-        .max_length = rule_config.decodeU32Field(value, "max_length"),
-        .ignore_trailing_comments = rule_config.decodeBoolField(value, "ignore_trailing_comments"),
-    };
-}
-
-/// Resolved options for the line length limit rule.
+/// Rule-specific knobs for `line_length_limit`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
-    /// Which declarations this rule inspects; inherits the style category `scan_mode` unless overridden for this rule.
-    scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
-    /// Maximum physical line width in characters before the rule triggers.
+    /// Maximum physical line width in characters before the rule triggers; default `100` is a widely shared ceiling for side-by-side diffs.
     max_length: u32 = default_max_length,
-    /// When set, trailing `//` comments are excluded from the measured width.
+    /// When set, trailing `//` comments are excluded from the measured width; default `false` counts them, matching most formatters.
     ignore_trailing_comments: bool = false,
-
-    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
-        return .{
-            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
-            .max_length = rule.max_length orelse default_max_length,
-            .ignore_trailing_comments = rule.ignore_trailing_comments orelse false,
-        };
-    }
-
-    pub fn publicApiOnly(self: Options) bool {
-        return self.scan_mode.publicApiOnly();
-    }
 };
+
+/// Full configuration for `line_length_limit`: severity, scan mode, and the documented `Options` sub-space.
+pub const Rule = category.Rule(default_severity, Options, scanning.Modes.reachability_traversal);
 
 /// Walks `source` line by line and appends a diagnostic for every line wider than `options.max_length`.
 pub fn check(
     source: [:0]const u8,
-    severity_level: severity.Level,
+    rule: Rule,
     file: []const u8,
-    options: Options,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
-    if (!severity_level.isActive()) return;
-    _ = options.publicApiOnly();
+    if (!rule.level.isActive()) return;
+    const severity_level = rule.level;
+    const options = rule.options;
 
     const max_length: usize = @intCast(options.max_length);
     var line_start: usize = 0;
@@ -166,7 +136,7 @@ fn runCheck(source: [:0]const u8, options: Options) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(source, .warn, "<test>", options, base, msg_arena.allocator(), &diagnostics);
+    try check(source, .{ .level = .warn, .options = options }, "<test>", base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 

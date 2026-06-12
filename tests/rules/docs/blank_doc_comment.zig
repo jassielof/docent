@@ -27,7 +27,7 @@ test "whole-module re-export resolves blank namespace doc on imported file" {
     const path = try harness.ruleProjectRootPath(ns, "reexport_blank_whole_namespace");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .blank_doc_comment = .warn }, .{}, &.{}, .{});
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{ .blank_doc_comment = .warn }));
     defer result.deinit();
     try utils.expectRuleCount(result, "blank_doc_comment", 1);
     try std.testing.expectEqual(.namespace, result.diagnostics.items[0].subject.?.kind);
@@ -38,10 +38,10 @@ test "member-only re-export does not require module doc on imported file" {
     const path = try harness.ruleProjectRootPath(ns, "reexport_member_only_no_module_doc");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{
         .missing_doc_comment = .deny,
         .blank_doc_comment = .warn,
-    }, .{}, &.{}, .{});
+    }));
     defer result.deinit();
     try utils.expectRuleAbsent(result, "missing_doc_comment");
     try utils.expectRuleAbsent(result, "blank_doc_comment");

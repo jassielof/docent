@@ -5,15 +5,14 @@ const docent = @import("docent");
 const utils = @import("../../utils.zig");
 
 fn lint(source: [:0]const u8, scan_mode: docent.scanning.Modes) !docent.LintResult {
-    var style_options = docent.rules.style.Options.defaults();
-    style_options.applyRunScanMode(scan_mode);
+    var style_cfg = docent.rules.style.Style.defaults();
+    style_cfg.applyRunScanMode(scan_mode);
     return docent.lintStyleSource(
         std.testing.allocator,
         std.testing.io,
         source,
-        .{},
         "<test>",
-        style_options,
+        style_cfg,
     );
 }
 
@@ -64,14 +63,13 @@ test "private declarations checked in recursive mode" {
 }
 
 test "snake_case namespace imports in root.zig are not flagged" {
-    var style_options = docent.rules.style.Options.defaults();
-    style_options.applyRunScanMode(.reachability_traversal);
+    var style_cfg = docent.rules.style.Style.defaults();
+    style_cfg.applyRunScanMode(.reachability_traversal);
     var result = try docent.lintStyleFile(
         std.testing.allocator,
         std.testing.io,
         "src/lib/root.zig",
-        .{},
-        style_options,
+        style_cfg,
     );
     defer result.deinit();
 
@@ -86,14 +84,13 @@ test "snake_case namespace imports in root.zig are not flagged" {
 }
 
 test "import member re-export in root.zig is not flagged" {
-    var style_options = docent.rules.style.Options.defaults();
-    style_options.applyRunScanMode(.reachability_traversal);
+    var style_cfg = docent.rules.style.Style.defaults();
+    style_cfg.applyRunScanMode(.reachability_traversal);
     var result = try docent.lintStyleFile(
         std.testing.allocator,
         std.testing.io,
         "src/lib/root.zig",
-        .{},
-        style_options,
+        style_cfg,
     );
     defer result.deinit();
 
@@ -110,9 +107,8 @@ test "zig convention accepts PascalCase struct import paths" {
         std.testing.allocator,
         std.testing.io,
         "const StructFile = @import(\"StructFile.zig\");\n",
-        .{ .identifier_case = .warn },
         "tests/fixtures/style/import_site.zig",
-        docent.rules.style.Options.defaults(),
+        docent.rules.style.Style.defaults(),
     );
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 0);
@@ -123,24 +119,22 @@ test "zig convention flags snake_case struct import paths" {
         std.testing.allocator,
         std.testing.io,
         "const init_options = @import(\"init_options.zig\");\n",
-        .{ .identifier_case = .warn },
         "tests/fixtures/style/import_site.zig",
-        docent.rules.style.Options.defaults(),
+        docent.rules.style.Style.defaults(),
     );
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 2);
 }
 
 test "snake_case struct import binding is flagged even under Tiger filenames" {
-    var style_options = docent.rules.style.Options.defaults();
-    style_options.identifier_case.struct_file_case = .snake_case;
+    var style_cfg = docent.rules.style.Style.defaults();
+    style_cfg.identifier_case.options.struct_file_case = .snake_case;
     var result = try docent.lintStyleSource(
         std.testing.allocator,
         std.testing.io,
         "const init_options = @import(\"init_options.zig\");\n",
-        .{ .identifier_case = .warn },
         "tests/fixtures/style/import_site.zig",
-        style_options,
+        style_cfg,
     );
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 1);

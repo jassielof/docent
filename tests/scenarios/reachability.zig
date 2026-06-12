@@ -37,7 +37,7 @@ test "linting reachability_public_api files emits no missing_doc_comment" {
     defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
 
     for (files.items) |path| {
-        var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .warn }, .{}, &.{}, .{});
+        var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{ .missing_doc_comment = .warn }));
         defer result.deinit();
         try utils.expectRuleAbsent(result, "missing_doc_comment");
     }
@@ -94,7 +94,7 @@ test "private-only file is excluded from linted deep set" {
     defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
 
     for (files.items) |path| {
-        var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{ .missing_doc_comment = .warn }, .{}, &.{}, .{});
+        var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{ .missing_doc_comment = .warn }));
         defer result.deinit();
         try utils.expectRuleAbsent(result, "missing_doc_comment");
     }

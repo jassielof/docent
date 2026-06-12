@@ -5,13 +5,9 @@ const docent = @import("docent");
 const utils = @import("../../utils.zig");
 
 fn lint(source: [:0]const u8, threshold: u32) !docent.LintResult {
-    return docent.lintComplexitySource(
-        std.testing.allocator,
-        source,
-        .{},
-        "<test>",
-        .{ .max_fun_params = .{ .threshold = threshold } },
-    );
+    var cfg = docent.rules.complexity.Complexity.defaults();
+    cfg.max_function_parameters.options.threshold = threshold;
+    return docent.lintComplexitySource(std.testing.allocator, source, "<test>", cfg);
 }
 
 test "function above default threshold is reported" {
@@ -43,9 +39,8 @@ test "default threshold leaves small signatures clean" {
         std.testing.allocator,
         \\fn helper(allocator: std.mem.Allocator, io: std.Io) void {}
     ,
-        .{},
         "<test>",
-        .{},
+        docent.rules.complexity.Complexity.defaults(),
     );
     defer result.deinit();
     try utils.expectRuleAbsent(result, "max_fun_params");

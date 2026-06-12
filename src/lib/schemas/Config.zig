@@ -8,16 +8,16 @@ const toml = @import("toml");
 const RuleSeverities = @import("../RuleSeverities.zig");
 const scanning = @import("../scanning.zig");
 const severity = @import("../severity.zig");
-const rule_config = @import("../rules/config.zig");
+const rule_decode = @import("../rules/decode.zig");
 const docs_rules = @import("../rules/docs.zig");
 const style_rules = @import("../rules/style.zig");
 const complexity_rules = @import("../rules/complexity.zig");
 
-pub const Error = rule_config.Error;
+pub const Error = rule_decode.Error;
 
-pub const Docs = docs_rules.Section;
-pub const Style = style_rules.Section;
-pub const Complexity = complexity_rules.Section;
+pub const Docs = docs_rules.Docs;
+pub const Style = style_rules.Style;
+pub const Complexity = complexity_rules.Complexity;
 
 docs: Docs = .{},
 style: Style = .{},
@@ -40,9 +40,12 @@ pub fn decode(root: toml.DynamicValue) Error!@This() {
     const table = rootTable(root) orelse return error.ConfigParseFailed;
 
     var cfg: @This() = .{};
-    if (sectionTable(table, "docs")) |section| cfg.docs = try docs_rules.decodeSection(section);
-    if (sectionTable(table, "style")) |section| cfg.style = try style_rules.decodeSection(section);
-    if (sectionTable(table, "complexity")) |section| cfg.complexity = try complexity_rules.decodeSection(section);
+    if (table.get("docs")) |value| try rule_decode.decodeInto(Docs, value, &cfg.docs);
+    cfg.docs.resolveScanModes();
+    if (table.get("style")) |value| try rule_decode.decodeInto(Style, value, &cfg.style);
+    cfg.style.resolveScanModes();
+    if (table.get("complexity")) |value| try rule_decode.decodeInto(Complexity, value, &cfg.complexity);
+    cfg.complexity.resolveScanModes();
     return cfg;
 }
 
@@ -51,6 +54,11 @@ pub fn applyRuleSeverities(cfg: @This(), rule_set: *RuleSeverities) Error!void {
     try applyDocsSeverities(cfg.docs, rule_set);
     try applyStyleSeverities(cfg.style, rule_set);
     try applyComplexitySeverities(cfg.complexity, rule_set);
+}
+
+fn applyStyleSeverities(section: Style, rule_set: *RuleSeverities) Error!void {
+    try applyLevel(&rule_set.identifier_case, section.identifier_case.level);
+    try applyLevel(&rule_set.line_length_limit, section.line_length_limit.level);
 }
 
 fn applyDocsSeverities(section: Docs, rule_set: *RuleSeverities) Error!void {
@@ -62,11 +70,6 @@ fn applyDocsSeverities(section: Docs, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.private_doctest, section.private_doctest.level);
     try applyLevel(&rule_set.doctest_naming_mismatch, section.doctest_naming_mismatch.level);
     try applyLevel(&rule_set.invalid_leading_phrase, section.invalid_leading_phrase.level);
-}
-
-fn applyStyleSeverities(section: Style, rule_set: *RuleSeverities) Error!void {
-    try applyLevel(&rule_set.identifier_case, section.identifier_case.level);
-    try applyLevel(&rule_set.line_length_limit, section.line_length_limit.level);
 }
 
 fn applyComplexitySeverities(section: Complexity, rule_set: *RuleSeverities) Error!void {
@@ -83,14 +86,6 @@ fn applyLevel(slot: *severity.Level, configured: ?severity.Level) Error!void {
 
 fn rootTable(root: toml.DynamicValue) ?*const toml.Table {
     return switch (root) {
-        .table => |table| table,
-        else => null,
-    };
-}
-
-fn sectionTable(root: *const toml.Table, key: []const u8) ?*const toml.Table {
-    const value = root.get(key) orelse return null;
-    return switch (value) {
         .table => |table| table,
         else => null,
     };
@@ -115,12 +110,12 @@ test "decode reads nested rule tables and section options" {
     );
 
     const cfg = try decode(root);
-    try std.testing.expectEqual(@as(?severity.Level, .deny), cfg.docs.missing_doc_comment.level);
-    try std.testing.expectEqual(@as(?bool, true), cfg.docs.missing_doc_comment.check_parameters);
-    try std.testing.expectEqual(@as(?severity.Level, .allow), cfg.docs.missing_doctest.level);
-    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.docs.scan_mode.?);
-    try std.testing.expectEqual(@as(?severity.Level, .deny), cfg.complexity.cognitive_complexity.level);
-    try std.testing.expectEqual(@as(?u32, 12), cfg.complexity.cognitive_complexity.threshold);
+    try std.testing.expectEqual(severity.Level.deny, cfg.docs.missing_doc_comment.level);
+    try std.testing.expect(cfg.docs.missing_doc_comment.options.check_parameters);
+    try std.testing.expectEqual(severity.Level.allow, cfg.docs.missing_doctest.level);
+    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.docs.scan_mode);
+    try std.testing.expectEqual(severity.Level.deny, cfg.complexity.cognitive_complexity.level);
+    try std.testing.expectEqual(@as(u32, 12), cfg.complexity.cognitive_complexity.options.threshold);
 }
 
 test "resolved style options read line_length_limit settings" {
@@ -134,9 +129,8 @@ test "resolved style options read line_length_limit settings" {
     );
 
     const cfg = try decode(root);
-    const style_options = style_rules.Options.resolve(cfg.style);
-    try std.testing.expectEqual(@as(u32, 80), style_options.line_length_limit.max_length);
-    try std.testing.expect(style_options.line_length_limit.ignore_trailing_comments);
+    try std.testing.expectEqual(@as(u32, 80), cfg.style.line_length_limit.options.max_length);
+    try std.testing.expect(cfg.style.line_length_limit.options.ignore_trailing_comments);
 }
 
 test "resolved style options read struct_file_case" {
@@ -149,8 +143,7 @@ test "resolved style options read struct_file_case" {
     );
 
     const cfg = try decode(root);
-    const style_options = style_rules.Options.resolve(cfg.style);
-    try std.testing.expectEqual(style_rules.identifier_case.FilenameCase.snake_case, style_options.identifier_case.struct_file_case);
+    try std.testing.expectEqual(style_rules.identifier_case.FilenameCase.snake_case, cfg.style.identifier_case.options.struct_file_case);
 }
 
 test "resolved docs options read invalid_leading_phrase settings" {
@@ -165,10 +158,10 @@ test "resolved docs options read invalid_leading_phrase settings" {
     );
 
     const cfg = try decode(root);
-    const docs_options = docs_rules.Options.resolve(cfg.docs);
-    try std.testing.expectEqual(docs_rules.invalid_leading_phrase.Mode.strict, docs_options.invalid_leading_phrase.mode);
-    try std.testing.expect(docs_options.invalid_leading_phrase.require_article);
-    try std.testing.expect(docs_options.invalid_leading_phrase.require_backticks);
+    const phrase = cfg.docs.invalid_leading_phrase.options;
+    try std.testing.expectEqual(docs_rules.invalid_leading_phrase.Mode.strict, phrase.mode);
+    try std.testing.expect(phrase.require_article);
+    try std.testing.expect(phrase.require_backticks);
 }
 
 test "resolved style options read struct_file_case quoted identifier" {
@@ -181,7 +174,7 @@ test "resolved style options read struct_file_case quoted identifier" {
     );
 
     const cfg = try decode(root);
-    try std.testing.expectEqual(style_rules.identifier_case.FilenameCase.@"kebab-case", cfg.style.identifier_case.struct_file_case.?);
+    try std.testing.expectEqual(style_rules.identifier_case.FilenameCase.@"kebab-case", cfg.style.identifier_case.options.struct_file_case);
 }
 
 test "resolved docs options read check_parameters" {
@@ -195,8 +188,7 @@ test "resolved docs options read check_parameters" {
     );
 
     const cfg = try decode(root);
-    const docs_options = docs_rules.Options.resolve(cfg.docs);
-    try std.testing.expect(docs_options.missing_doc_comment.check_parameters);
+    try std.testing.expect(cfg.docs.missing_doc_comment.options.check_parameters);
 }
 
 test "resolved complexity options read thresholds" {
@@ -212,10 +204,9 @@ test "resolved complexity options read thresholds" {
     );
 
     const cfg = try decode(root);
-    const complexity_options = complexity_rules.Options.resolve(cfg.complexity);
-    try std.testing.expectEqual(@as(u32, 12), complexity_options.cognitive.threshold);
-    try std.testing.expectEqual(@as(u32, 5), complexity_options.max_fun_params.threshold);
-    try std.testing.expectEqual(@as(u32, 10), complexity_options.cyclomatic.threshold);
+    try std.testing.expectEqual(@as(u32, 12), cfg.complexity.cognitive_complexity.options.threshold);
+    try std.testing.expectEqual(@as(u32, 5), cfg.complexity.max_function_parameters.options.threshold);
+    try std.testing.expectEqual(@as(u32, 10), cfg.complexity.cyclomatic_complexity.options.threshold);
 }
 
 test "scan modes default and override" {
@@ -224,7 +215,7 @@ test "scan modes default and override" {
 
     const empty = try parseRoot(arena.allocator(), "");
     const empty_cfg = try decode(empty);
-    try std.testing.expectEqual(docs_rules.default_scan_mode, empty_cfg.docs.scan_mode orelse docs_rules.default_scan_mode);
+    try std.testing.expectEqual(docs_rules.default_scan_mode, empty_cfg.docs.scan_mode);
 
     const root = try parseRoot(arena.allocator(),
         \\[docs]
@@ -234,8 +225,8 @@ test "scan modes default and override" {
         \\scan_mode = "public"
     );
     const cfg = try decode(root);
-    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.docs.scan_mode.?);
-    try std.testing.expectEqual(scanning.Modes.public_api_surface, cfg.complexity.scan_mode.?);
+    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.docs.scan_mode);
+    try std.testing.expectEqual(scanning.Modes.public_api_surface, cfg.complexity.scan_mode);
 }
 
 test "applyRuleSeverities respects forbid and defaults" {

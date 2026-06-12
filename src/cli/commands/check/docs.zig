@@ -25,12 +25,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const rule_set = docent.config.loadRuleSeveritiesFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
-        std.process.exit(1);
-    };
-
-    const docs_options = docent.config.loadDocsOptionsFromCli(allocator, io, args.config_path) catch |err| {
+    const docs_cfg = docent.config.loadDocsOptionsFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -88,7 +83,7 @@ fn run(ctx: *fangz.ParseContext) !void {
                 const gptr = try linted_files.getOrPut(path);
                 if (gptr.found_existing) continue;
 
-                if (try lintPlanFile(allocator, io, path, rule_set, lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, args.fail_fast)) {
+                if (try lintPlanFile(allocator, io, path, lint_options, library_entry_roots_owned, docs_cfg, &all_diagnostics, &summary, args.fail_fast)) {
                     should_stop = true;
                     break;
                 }
@@ -102,7 +97,7 @@ fn run(ctx: *fangz.ParseContext) !void {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
 
-            if (try lintPlanFile(allocator, io, path, rule_set, lint_options, library_entry_roots_owned, docs_options, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try lintPlanFile(allocator, io, path, lint_options, library_entry_roots_owned, docs_cfg, &all_diagnostics, &summary, args.fail_fast)) {
                 break;
             }
         }
@@ -117,15 +112,14 @@ pub fn lintPlanFile(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    rule_set: docent.RuleSeverities,
     lint_options: docent.LintOptions,
     library_entry_roots: []const []const u8,
-    docs_options: docent.rules.docs.Options,
+    docs_cfg: docent.rules.docs.Docs,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
 ) !bool {
-    var result = docent.lintFile(allocator, io, path, rule_set, lint_options, library_entry_roots, docs_options) catch |err| {
+    var result = docent.lintFile(allocator, io, path, lint_options, library_entry_roots, docs_cfg) catch |err| {
         try check_shared.printStderr(io, "error: failed to lint '{s}': {}\n", .{ path, err });
         return false;
     };

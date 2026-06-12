@@ -5,13 +5,9 @@ const docent = @import("docent");
 const utils = @import("../../utils.zig");
 
 fn lint(source: [:0]const u8, threshold: u32) !docent.LintResult {
-    return docent.lintComplexitySource(
-        std.testing.allocator,
-        source,
-        .{},
-        "<test>",
-        .{ .cognitive = .{ .threshold = threshold } },
-    );
+    var cfg = docent.rules.complexity.Complexity.defaults();
+    cfg.cognitive_complexity.options.threshold = threshold;
+    return docent.lintComplexitySource(std.testing.allocator, source, "<test>", cfg);
 }
 
 test "public function above threshold is reported" {
@@ -59,9 +55,8 @@ test "default threshold leaves simple declarations clean" {
         \\    return x + 1;
         \\}
     ,
-        .{},
         "<test>",
-        .{},
+        docent.rules.complexity.Complexity.defaults(),
     );
     defer result.deinit();
     try utils.expectRuleAbsent(result, "cognitive_complexity");

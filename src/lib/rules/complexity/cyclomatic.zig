@@ -14,32 +14,22 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const rule_config = @import("../config.zig");
-const rule_opts = @import("../options.zig");
+const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 
 const rule_name = utils.ruleIdWithName("cyclomatic_complexity");
 
-/// The default_severity for the rule.
+/// Default severity `warn`: a high path count is a testability signal worth surfacing without failing a fresh build.
 pub const default_severity: severity.Level = .warn;
 
-pub const Config = rule_config.RuleThreshold;
-
+/// Rule-specific knobs for `cyclomatic_complexity`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
-    scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
+    /// Maximum independent path count before a function is flagged; default `default_threshold` follows McCabe's limit of 10.
     threshold: u32 = default_threshold,
-
-    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
-        return .{
-            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
-            .threshold = rule.threshold orelse default_threshold,
-        };
-    }
-
-    pub fn publicApiOnly(self: Options) bool {
-        return self.scan_mode.publicApiOnly();
-    }
 };
+
+/// Full configuration for `cyclomatic_complexity`: severity, scan mode, and the documented `Options` sub-space.
+pub const Rule = category.Rule(default_severity, Options, scanning.Modes.reachability_traversal);
 
 /// Number of linearly independent paths through a function control-flow graph (McCabe *V(G)*).
 pub const Complexity = u32;
@@ -62,16 +52,16 @@ pub const default_threshold: Complexity = 10;
 /// When `public_api_only` is set, only `pub` functions (at the container level) are measured; otherwise every container-level function is measured.
 pub fn check(
     tree: *const Ast,
-    severity_level: severity.Level,
+    rule: Rule,
     file: []const u8,
-    options: Options,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
-    if (!severity_level.isActive()) return;
-    const public_api_only = options.publicApiOnly();
-    const threshold = options.threshold;
+    if (!rule.level.isActive()) return;
+    const severity_level = rule.level;
+    const public_api_only = rule.publicApiOnly();
+    const threshold = rule.options.threshold;
 
     var fns: std.ArrayList(Ast.Node.Index) = .empty;
     defer fns.deinit(allocator);
@@ -242,7 +232,7 @@ fn runCheck(source: [:0]const u8, threshold: u32) !TestResult {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", .{ .scan_mode = .public_api_surface, .threshold = threshold }, base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .{ .scan_mode = .public_api_surface, .options = .{ .threshold = threshold } }, "<test>", base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 

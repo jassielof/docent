@@ -75,19 +75,18 @@ fn lintFile(
     io: std.Io,
     path: []const u8,
     category: Category,
-    rule_set: RuleSeverities,
-    docs_options: rules.docs.Options,
-    style_options: rules.style.Options,
-    complexity_options: rules.complexity.Options,
+    docs_cfg: rules.docs.Docs,
+    style_cfg: rules.style.Style,
+    complexity_cfg: rules.complexity.Complexity,
     library_entry_roots: []const []const u8,
     module_name: ?[]const u8,
 ) !?usize {
     var result = switch (category) {
-        .docs => root.lintFile(allocator, io, path, rule_set, .{
+        .docs => root.lintFile(allocator, io, path, .{
             .module_name = module_name,
-        }, library_entry_roots, docs_options),
-        .style => root.lintStyleFile(allocator, io, path, rule_set, style_options),
-        .complexity => root.lintComplexityFile(allocator, io, path, rule_set, complexity_options),
+        }, library_entry_roots, docs_cfg),
+        .style => root.lintStyleFile(allocator, io, path, style_cfg),
+        .complexity => root.lintComplexityFile(allocator, io, path, complexity_cfg),
     } catch return null;
     defer result.deinit();
 
@@ -105,10 +104,9 @@ pub fn scorePlan(
     allocator: std.mem.Allocator,
     io: std.Io,
     plan: *const status_plan.Plan,
-    rule_set: RuleSeverities,
-    docs_options: rules.docs.Options,
-    style_options: rules.style.Options,
-    complexity_options: rules.complexity.Options,
+    docs_cfg: rules.docs.Docs,
+    style_cfg: rules.style.Style,
+    complexity_cfg: rules.complexity.Complexity,
 ) !Report {
     const library_entry_roots_owned = blk: {
         if (plan.path_mode == .recursive) break :blk &.{};
@@ -160,10 +158,9 @@ pub fn scorePlan(
                 io,
                 path,
                 category,
-                rule_set,
-                docs_options,
-                style_options,
-                complexity_options,
+                docs_cfg,
+                style_cfg,
+                complexity_cfg,
                 library_entry_roots_owned,
                 module_name,
             ) orelse continue;
@@ -197,18 +194,18 @@ pub fn loadOptionsFromConfig(
     io: std.Io,
     config_path: ?[]const u8,
 ) struct {
-    docs: rules.docs.Options,
-    style: rules.style.Options,
-    complexity: rules.complexity.Options,
+    docs: rules.docs.Docs,
+    style: rules.style.Style,
+    complexity: rules.complexity.Complexity,
 } {
     const cfg = config.loadConfigFromCli(allocator, io, config_path) catch return .{
-        .docs = rules.docs.Options.resolve(.{}),
-        .style = rules.style.Options.resolve(.{}),
-        .complexity = rules.complexity.Options.resolve(.{}),
+        .docs = rules.docs.Docs.defaults(),
+        .style = rules.style.Style.defaults(),
+        .complexity = rules.complexity.Complexity.defaults(),
     };
     return .{
-        .docs = rules.docs.Options.resolve(cfg.docs),
-        .style = rules.style.Options.resolve(cfg.style),
-        .complexity = rules.complexity.Options.resolve(cfg.complexity),
+        .docs = cfg.docs,
+        .style = cfg.style,
+        .complexity = cfg.complexity,
     };
 }

@@ -61,9 +61,7 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const toml = @import("toml");
-const rule_config = @import("../config.zig");
-const rule_opts = @import("../options.zig");
+const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -79,53 +77,21 @@ pub const Mode = enum {
     strict,
 };
 
-/// Raw configuration for this rule from `docent.toml`.
-pub const Config = struct {
-    level: ?severity.Level = null,
-    scan_mode: ?scanning.Modes = null,
-    mode: ?Mode = null,
-    require_article: ?bool = null,
-    require_backticks: ?bool = null,
-};
-
-pub fn decodeConfig(value: toml.DynamicValue) rule_config.Error!Config {
-    const mode_name = rule_config.decodeStringField(value, "mode");
-    return .{
-        .level = try rule_config.decodeLevelValue(value),
-        .scan_mode = rule_config.decodeScanModeField(value),
-        .mode = if (mode_name) |name| std.meta.stringToEnum(Mode, name) else null,
-        .require_article = rule_config.decodeBoolField(value, "require_article"),
-        .require_backticks = rule_config.decodeBoolField(value, "require_backticks"),
-    };
-}
-
-/// The Options resolved for the rule.
+/// Rule-specific knobs for `invalid_leading_phrase`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
-    /// Which declarations this rule inspects; inherits the docs category `scan_mode` unless overridden for this rule.
-    scan_mode: scanning.Modes = scanning.Modes.public_api_surface,
-    /// Leading-phrase strictness. `relaxed` accepts identifier-first summaries; `canonical` (default) allows kind-before or identifier-first; `strict` requires kind-before-identifier when phrases exist for the declaration type.
+    /// Leading-phrase strictness; `relaxed` accepts identifier-first summaries, `canonical` (default) also allows kind-before-identifier, and `strict` requires kind-before-identifier when phrases exist for the declaration type.
     mode: Mode = .canonical,
-    /// When set, the summary must begin with an English article (`a`, `an`, `the`).
+    /// When set, the summary must begin with an English article (`a`, `an`, `the`); default `false`.
     require_article: bool = false,
-    /// When set, the documented identifier must appear wrapped in backticks.
+    /// When set, the documented identifier must appear wrapped in backticks; default `false`.
     require_backticks: bool = false,
-
-    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
-        return .{
-            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
-            .mode = rule.mode orelse .canonical,
-            .require_article = rule.require_article orelse false,
-            .require_backticks = rule.require_backticks orelse false,
-        };
-    }
-
-    pub fn publicApiOnly(self: Options) bool {
-        return self.scan_mode.publicApiOnly();
-    }
 };
 
-/// The default_severity for the rule.
+/// Default severity `warn`: a malformed leading phrase is a documentation-quality signal worth surfacing without failing a fresh build.
 pub const default_severity: severity.Level = .warn;
+
+/// Full configuration for `invalid_leading_phrase`: severity, scan mode, and the documented `Options` sub-space.
+pub const Rule = category.Rule(default_severity, Options, scanning.Modes.public_api_surface);
 
 /// The article_words set contains the words considered as articles for leading phrases.
 pub const article_words: []const []const u8 = &.{ "a", "an", "the" };
@@ -135,16 +101,17 @@ const KindPhrase = []const []const u8;
 /// Walks `tree` and appends diagnostics for doc comment summaries with an invalid leading phrase.
 pub fn check(
     tree: *const Ast,
-    severity_level: severity.Level,
+    rule: Rule,
     file: []const u8,
     module_name: ?[]const u8,
-    options: Options,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
-    if (!severity_level.isActive()) return;
-    const public_api_only = options.publicApiOnly();
+    if (!rule.level.isActive()) return;
+    const severity_level = rule.level;
+    const options = rule.options;
+    const public_api_only = rule.publicApiOnly();
     const tags = tree.tokens.items(.tag);
     var i: usize = 0;
     while (i < tags.len) {
@@ -357,7 +324,7 @@ fn runCheckNamed(source: [:0]const u8, module_name: ?[]const u8) !TestResult {
     return runCheckOpts(source, module_name, .{ .scan_mode = .public_api_surface });
 }
 
-fn runCheckOpts(source: [:0]const u8, module_name: ?[]const u8, options: Options) !TestResult {
+fn runCheckOpts(source: [:0]const u8, module_name: ?[]const u8, rule: Rule) !TestResult {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     errdefer msg_arena.deinit();
@@ -368,7 +335,7 @@ fn runCheckOpts(source: [:0]const u8, module_name: ?[]const u8, options: Options
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", module_name, options, base, msg_arena.allocator(), &diagnostics);
+    try check(&tree, rule, "<test>", module_name, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
@@ -471,7 +438,7 @@ test "strict mode rejects identifier-first function summary" {
     var r = try runCheckOpts(
         "/// add returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
         null,
-        .{ .mode = .strict },
+        .{ .options = .{ .mode = .strict } },
     );
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
@@ -481,7 +448,7 @@ test "strict mode accepts kind-before identifier summary" {
     var r = try runCheckOpts(
         "/// Function `add` returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
         null,
-        .{ .mode = .strict },
+        .{ .options = .{ .mode = .strict } },
     );
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
@@ -491,7 +458,7 @@ test "require_article rejects summary without article" {
     var r = try runCheckOpts(
         "/// Function `add` returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
         null,
-        .{ .require_article = true },
+        .{ .options = .{ .require_article = true } },
     );
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
@@ -501,7 +468,7 @@ test "require_article accepts summary with article" {
     var r = try runCheckOpts(
         "/// The function `add` returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
         null,
-        .{ .require_article = true },
+        .{ .options = .{ .require_article = true } },
     );
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);
@@ -511,7 +478,7 @@ test "require_backticks rejects bare identifier" {
     var r = try runCheckOpts(
         "/// Function add returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
         null,
-        .{ .require_backticks = true },
+        .{ .options = .{ .require_backticks = true } },
     );
     defer r.deinit();
     try std.testing.expectEqual(1, r.items.items.len);
@@ -521,7 +488,7 @@ test "require_backticks accepts backticked identifier" {
     var r = try runCheckOpts(
         "/// Function `add` returns the sum.\npub fn add(a: i32, b: i32) i32 { return a + b; }",
         null,
-        .{ .require_backticks = true },
+        .{ .options = .{ .require_backticks = true } },
     );
     defer r.deinit();
     try std.testing.expectEqual(0, r.items.items.len);

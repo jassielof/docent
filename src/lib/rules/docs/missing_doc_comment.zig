@@ -15,10 +15,8 @@ const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
-const toml = @import("toml");
-const rule_config = @import("../config.zig");
+const category = @import("../category.zig");
 const reexport = @import("../../reexport.zig");
-const rule_opts = @import("../options.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -30,40 +28,16 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
-/// Raw configuration for this rule from `docent.toml`.
-pub const Config = struct {
-    level: ?severity.Level = null,
-    scan_mode: ?scanning.Modes = null,
-    check_parameters: ?bool = null,
-    check_errors: ?bool = null,
-};
-
-pub fn decodeConfig(value: toml.DynamicValue) rule_config.Error!Config {
-    return .{
-        .level = try rule_config.decodeLevelValue(value),
-        .scan_mode = rule_config.decodeScanModeField(value),
-        .check_parameters = rule_config.decodeBoolField(value, "check_parameters"),
-        .check_errors = rule_config.decodeBoolField(value, "check_errors"),
-    };
-}
-
+/// Rule-specific knobs for `missing_doc_comment`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
-    scan_mode: scanning.Modes = scanning.Modes.public_api_surface,
+    /// When set, also require `///` on each named function parameter; default `false` keeps parameters optional.
     check_parameters: bool = false,
+    /// When set, also require docs on individual error-set members; default `true` documents each error.
     check_errors: bool = true,
-
-    pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
-        return .{
-            .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
-            .check_parameters = rule.check_parameters orelse false,
-            .check_errors = rule.check_errors orelse true,
-        };
-    }
-
-    pub fn publicApiOnly(self: Options) bool {
-        return self.scan_mode.publicApiOnly();
-    }
 };
+
+/// Full configuration for `missing_doc_comment`: severity, scan mode, and the documented `Options` sub-space.
+pub const Rule = category.Rule(default_severity, Options, scanning.Modes.public_api_surface);
 
 /// Walks `tree` and appends diagnostics for undocumented public items.
 ///
@@ -71,19 +45,20 @@ pub const Options = struct {
 /// When `options.check_parameters` is set, also requires `///` on each named function parameter.
 pub fn check(
     tree: *const Ast,
-    severity_level: severity.Level,
+    rule: Rule,
     file: []const u8,
     require_module_doc: bool,
     module_name: ?[]const u8,
-    options: Options,
     allocator: std.mem.Allocator,
     io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    if (!severity_level.isActive()) return;
+    if (!rule.level.isActive()) return;
+    const severity_level = rule.level;
+    const options = rule.options;
     try checkModuleDocComment(tree, severity_level, file, require_module_doc, module_name, allocator, msg_allocator, diagnostics);
-    const public_api_only = options.publicApiOnly();
+    const public_api_only = rule.publicApiOnly();
     for (tree.rootDecls()) |decl| {
         try checkNode(tree, decl, severity_level, file, public_api_only, options, .field, allocator, io, msg_allocator, diagnostics);
     }
@@ -448,7 +423,7 @@ fn runCheck(
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     errdefer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", require_module_doc, module_name, options, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .{ .options = options }, "<test>", require_module_doc, module_name, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
 
@@ -702,6 +677,6 @@ test "private function parameters are not checked under public_api_only" {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
 
-    try check(&tree, .warn, "<test>", false, null, .{ .scan_mode = .public_api_surface, .check_parameters = true }, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .{ .scan_mode = .public_api_surface, .options = .{ .check_parameters = true } }, "<test>", false, null, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

@@ -92,11 +92,10 @@ pub fn lintSource(
     allocator: std.mem.Allocator,
     io: std.Io,
     source: [:0]const u8,
-    rule_set: RuleSeverities,
     file: []const u8,
     options: LintOptions,
     library_entry_roots: []const []const u8,
-    docs_options: rules.docs.Options,
+    docs_cfg: rules.docs.Docs,
 ) !LintResult {
     var tree = try std.zig.Ast.parse(allocator, source, .zig);
     defer tree.deinit(allocator);
@@ -111,11 +110,10 @@ pub fn lintSource(
 
     try rules.docs.missing_doc_comment.check(
         &tree,
-        rule_set.missing_doc_comment,
+        docs_cfg.missing_doc_comment,
         file_owned,
         require_module_doc,
         options.module_name,
-        docs_options.missing_doc_comment,
         allocator,
         io,
         msg,
@@ -123,11 +121,10 @@ pub fn lintSource(
     );
     try rules.docs.blank_doc_comment.check(
         &tree,
-        rule_set.blank_doc_comment,
+        docs_cfg.blank_doc_comment,
         file_owned,
         options.module_name,
         require_module_doc,
-        docs_options.blank_doc_comment,
         allocator,
         io,
         msg,
@@ -135,33 +132,30 @@ pub fn lintSource(
     );
     try rules.docs.missing_summary_terminal_punctuation.check(
         &tree,
-        rule_set.missing_summary_terminal_punctuation,
+        docs_cfg.missing_summary_terminal_punctuation,
         file_owned,
         options.module_name,
-        docs_options.missing_summary_terminal_punctuation,
         allocator,
         msg,
         &result.diagnostics,
     );
     try rules.docs.trailing_blank_doc_comment.check(
         &tree,
-        rule_set.trailing_blank_doc_comment,
+        docs_cfg.trailing_blank_doc_comment,
         file_owned,
         options.module_name,
-        docs_options.trailing_blank_doc_comment,
         allocator,
         msg,
         &result.diagnostics,
     );
-    try rules.docs.missing_doctest.check(&tree, rule_set.missing_doctest, file_owned, docs_options.missing_doctest, allocator, msg, &result.diagnostics);
-    try rules.docs.private_doctest.check(&tree, rule_set.private_doctest, file_owned, docs_options.private_doctest, allocator, msg, &result.diagnostics);
-    try rules.docs.doctest_naming_mismatch.check(&tree, rule_set.doctest_naming_mismatch, file_owned, docs_options.doctest_naming_mismatch, allocator, msg, &result.diagnostics);
+    try rules.docs.missing_doctest.check(&tree, docs_cfg.missing_doctest, file_owned, allocator, msg, &result.diagnostics);
+    try rules.docs.private_doctest.check(&tree, docs_cfg.private_doctest, file_owned, allocator, msg, &result.diagnostics);
+    try rules.docs.doctest_naming_mismatch.check(&tree, docs_cfg.doctest_naming_mismatch, file_owned, allocator, msg, &result.diagnostics);
     try rules.docs.invalid_leading_phrase.check(
         &tree,
-        rule_set.invalid_leading_phrase,
+        docs_cfg.invalid_leading_phrase,
         file_owned,
         options.module_name,
-        docs_options.invalid_leading_phrase,
         allocator,
         msg,
         &result.diagnostics,
@@ -178,9 +172,8 @@ pub fn lintSource(
 pub fn lintComplexitySource(
     allocator: std.mem.Allocator,
     source: [:0]const u8,
-    rule_set: RuleSeverities,
     file: []const u8,
-    complexity_options: rules.complexity.Options,
+    complexity_cfg: rules.complexity.Complexity,
 ) !LintResult {
     var tree = try std.zig.Ast.parse(allocator, source, .zig);
     defer tree.deinit(allocator);
@@ -193,27 +186,24 @@ pub fn lintComplexitySource(
 
     try rules.complexity.cognitive.check(
         &tree,
-        rule_set.cognitive_complexity,
+        complexity_cfg.cognitive_complexity,
         file_owned,
-        complexity_options.cognitive,
         allocator,
         msg,
         &result.diagnostics,
     );
     try rules.complexity.cyclomatic.check(
         &tree,
-        rule_set.cyclomatic_complexity,
+        complexity_cfg.cyclomatic_complexity,
         file_owned,
-        complexity_options.cyclomatic,
         allocator,
         msg,
         &result.diagnostics,
     );
     try rules.complexity.max_fun_params.check(
         &tree,
-        rule_set.max_fun_params,
+        complexity_cfg.max_function_parameters,
         file_owned,
-        complexity_options.max_fun_params,
         allocator,
         msg,
         &result.diagnostics,
@@ -231,9 +221,8 @@ pub fn lintStyleSource(
     allocator: std.mem.Allocator,
     io: std.Io,
     source: [:0]const u8,
-    rule_set: RuleSeverities,
     file: []const u8,
-    style_options: rules.style.Options,
+    style_cfg: rules.style.Style,
 ) !LintResult {
     var tree = try std.zig.Ast.parse(allocator, source, .zig);
     defer tree.deinit(allocator);
@@ -246,9 +235,8 @@ pub fn lintStyleSource(
 
     try rules.style.identifier_case.check(
         &tree,
-        rule_set.identifier_case,
+        style_cfg.identifier_case,
         file_owned,
-        style_options.identifier_case,
         allocator,
         io,
         msg,
@@ -256,9 +244,8 @@ pub fn lintStyleSource(
     );
     try rules.style.line_length_limit.check(
         source,
-        rule_set.line_length_limit,
+        style_cfg.line_length_limit,
         file_owned,
-        style_options.line_length_limit,
         allocator,
         msg,
         &result.diagnostics,
@@ -274,8 +261,7 @@ pub fn lintStyleFile(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    rule_set: RuleSeverities,
-    style_options: rules.style.Options,
+    style_cfg: rules.style.Style,
 ) !LintResult {
     const source = try std.Io.Dir.cwd().readFileAllocOptions(
         io,
@@ -287,7 +273,7 @@ pub fn lintStyleFile(
     );
     defer allocator.free(source);
 
-    return lintStyleSource(allocator, io, source, rule_set, path, style_options);
+    return lintStyleSource(allocator, io, source, path, style_cfg);
 }
 
 /// Reads `path` from the cwd and runs `lintComplexitySource` on its contents.
@@ -295,8 +281,7 @@ pub fn lintComplexityFile(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    rule_set: RuleSeverities,
-    complexity_options: rules.complexity.Options,
+    complexity_cfg: rules.complexity.Complexity,
 ) !LintResult {
     const source = try std.Io.Dir.cwd().readFileAllocOptions(
         io,
@@ -308,7 +293,7 @@ pub fn lintComplexityFile(
     );
     defer allocator.free(source);
 
-    return lintComplexitySource(allocator, source, rule_set, path, complexity_options);
+    return lintComplexitySource(allocator, source, path, complexity_cfg);
 }
 
 /// Reads `path` from the cwd and runs `lintSource` on its contents.
@@ -316,10 +301,9 @@ pub fn lintFile(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    rule_set: RuleSeverities,
     options: LintOptions,
     library_entry_roots: []const []const u8,
-    docs_options: rules.docs.Options,
+    docs_cfg: rules.docs.Docs,
 ) !LintResult {
     const source = try std.Io.Dir.cwd().readFileAllocOptions(
         io,
@@ -331,7 +315,7 @@ pub fn lintFile(
     );
     defer allocator.free(source);
 
-    return lintSource(allocator, io, source, rule_set, path, options, library_entry_roots, docs_options);
+    return lintSource(allocator, io, source, path, options, library_entry_roots, docs_cfg);
 }
 
 comptime {
