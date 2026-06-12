@@ -14,7 +14,7 @@
         "build.zig",
         "build.zig.zon",
         ".config",
-        "src", // TODO: Move my convention to use a modules directory instead of src, as Zig projects are categorized by modules, namespaces and structures. And src just feels JS.
+        "src",
         "modules",
         "dependencies",
         "LICENSE.txt",

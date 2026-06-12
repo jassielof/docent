@@ -129,9 +129,10 @@ definitions:
 
   struct_file_case:
     description: >-
-      Struct-at-file-scope module filename convention. camelCase and PascalCase
-      are not valid here; they do not align with the default snake_case layout.
+      Struct-at-file-scope module filename convention. Defaults to PascalCase,
+      matching struct type names. Use snake_case for Tiger Style.
     oneOf:
+      - const: "PascalCase"
       - const: "snake_case"
       - const: '@"kebab-case"'
         description: >-
@@ -279,7 +280,7 @@ definitions:
             description: "Global constants and comptime values."
           struct_file_case:
             $ref: "#/definitions/struct_file_case"
-            default: "snake_case"
+            default: "PascalCase"
             description: "Case convention for struct-at-file-scope module filenames."
 
   rule_line_length_limit:

@@ -18,6 +18,10 @@
 //!   - error sets and unions, and its values
 //!   - generic (type-returning) functions
 //!
+//! ## Granularity of options
+//!
+//! 
+//!
 //! ## Notes
 //!
 //! ### On errors
@@ -70,6 +74,7 @@ pub const default_severity: severity.Level = .warn;
 /// Filename case convention for struct-at-file-scope modules.
 pub const FilenameCase = enum {
     snake_case,
+    PascalCase,
     /// Quoted import identifiers (`@"..."`); config value is literally `@"kebab-case"`.
     @"kebab-case",
 };
@@ -78,7 +83,7 @@ pub const FilenameCase = enum {
 pub const Config = struct {
     level: ?severity.Level = null,
     scan_mode: ?scanning.Modes = null,
-    /// Case convention for struct file basenames. When omitted, defaults to snake_case; use `@"kebab-case"` for quoted-identifier imports.
+    /// Case convention for struct file basenames. Defaults to PascalCase (Zig); use snake_case for Tiger Style.
     struct_file_case: ?FilenameCase = null,
 };
 
@@ -101,12 +106,12 @@ pub const Options = struct {
     /// Which declarations this rule inspects; inherits the style category `scan_mode` unless overridden for this rule.
     scan_mode: scanning.Modes = scanning.Modes.reachability_traversal,
     /// Expected case for struct-at-file-scope module filenames.
-    struct_file_case: FilenameCase = .snake_case,
+    struct_file_case: FilenameCase = .PascalCase,
 
     pub fn resolve(category_scan: scanning.Modes, rule: Config) Options {
         return .{
             .scan_mode = rule_opts.scanModeFromRule(category_scan, rule),
-            .struct_file_case = rule.struct_file_case orelse .snake_case,
+            .struct_file_case = rule.struct_file_case orelse .PascalCase,
         };
     }
 
@@ -371,7 +376,13 @@ fn checkStructFileName(
         defer msg_allocator.free(expected_stem);
 
         // Only dedicated struct modules pair a filename stem with the struct name.
-        if (!std.mem.eql(u8, stem, snake_from_name) and !std.mem.eql(u8, stem, expected_stem)) continue;
+        // Under PascalCase filenames, require an exact stem match (Report.zig + Report).
+        // Snake-case stem pairing (init_options.zig + InitOptions) applies only with
+        // struct_file_case = snake_case (Tiger Style), not when a namespace file
+        // happens to share a stem with the snake_case form of an inner struct (report.zig + Report).
+        const stem_pairs_with_struct = std.mem.eql(u8, stem, expected_stem) or
+            (file_case == .snake_case and std.mem.eql(u8, stem, snake_from_name));
+        if (!stem_pairs_with_struct) continue;
         if (std.mem.eql(u8, stem, expected_stem)) continue;
 
         const loc = tree.tokenLocation(0, name_tok);
@@ -531,6 +542,7 @@ fn pascalCaseStemToSnake(allocator: std.mem.Allocator, stem: []const u8) std.mem
 fn filenameCaseLabel(case: FilenameCase) []const u8 {
     return switch (case) {
         .snake_case => "snake_case",
+        .PascalCase => "PascalCase",
         .@"kebab-case" => "@\"kebab-case\"",
     };
 }
@@ -538,6 +550,7 @@ fn filenameCaseLabel(case: FilenameCase) []const u8 {
 fn stemMatchesFilenameCase(stem: []const u8, case: FilenameCase) bool {
     return switch (case) {
         .snake_case => isSnakeCase(stem),
+        .PascalCase => isPascalCase(stem),
         .@"kebab-case" => isKebabCase(stem),
     };
 }
@@ -553,6 +566,7 @@ fn isKebabCase(name: []const u8) bool {
 fn identifierToFilenameStem(allocator: std.mem.Allocator, name: []const u8, case: FilenameCase) std.mem.Allocator.Error![]u8 {
     return switch (case) {
         .snake_case => pascalCaseStemToSnake(allocator, name),
+        .PascalCase => allocator.dupe(u8, name),
         .@"kebab-case" => pascalCaseStemToKebab(allocator, name),
     };
 }
@@ -1202,7 +1216,34 @@ test "struct_file_case snake_case accepts snake_case implicit struct file stem" 
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
 
-test "default struct_file_case flags non-snake_case struct file stem" {
+test "default struct_file_case flags snake_case struct file stem" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\x: u32 = 0,
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "init_options.zig",
+        .{},
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "default struct_file_case accepts PascalCase struct file stem" {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     defer msg_arena.deinit();
@@ -1226,7 +1267,7 @@ test "default struct_file_case flags non-snake_case struct file stem" {
         msg_arena.allocator(),
         &diagnostics,
     );
-    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
 
 test "namespace module helper struct does not require matching filename" {
@@ -1260,15 +1301,17 @@ test "namespace module helper struct does not require matching filename" {
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
 
-test "paired PascalCase struct name with snake_case filename stem is accepted" {
+test "namespace struct with coincidental snake_case stem is not a struct file pairing" {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     defer msg_arena.deinit();
 
     const source =
-        \\pub const InitOptions = struct {
-        \\    x: u32,
+        \\pub const Report = struct {
+        \\    checks: []const u8 = &.{},
         \\};
+        \\
+        \\pub fn score() void {}
     ++ "\x00";
     var tree = try std.zig.Ast.parse(base, source, .zig);
     defer tree.deinit(base);
@@ -1279,7 +1322,7 @@ test "paired PascalCase struct name with snake_case filename stem is accepted" {
     try check(
         &tree,
         .warn,
-        "init_options.zig",
+        "report.zig",
         .{},
         base,
         std.testing.io,
@@ -1289,7 +1332,7 @@ test "paired PascalCase struct name with snake_case filename stem is accepted" {
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
 
-test "snake_case struct file stem is accepted by default" {
+test "paired PascalCase struct name with snake_case filename stem is accepted under Tiger" {
     const base = std.testing.allocator;
     var msg_arena = std.heap.ArenaAllocator.init(base);
     defer msg_arena.deinit();
@@ -1309,6 +1352,35 @@ test "snake_case struct file stem is accepted by default" {
         &tree,
         .warn,
         "init_options.zig",
+        .{ .struct_file_case = .snake_case },
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "PascalCase struct file stem is accepted by default" {
+    const base = std.testing.allocator;
+    var msg_arena = std.heap.ArenaAllocator.init(base);
+    defer msg_arena.deinit();
+
+    const source =
+        \\pub const InitOptions = struct {
+        \\    x: u32,
+        \\};
+    ++ "\x00";
+    var tree = try std.zig.Ast.parse(base, source, .zig);
+    defer tree.deinit(base);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(base);
+
+    try check(
+        &tree,
+        .warn,
+        "InitOptions.zig",
         .{},
         base,
         std.testing.io,
