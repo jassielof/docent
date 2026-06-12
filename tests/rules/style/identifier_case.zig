@@ -105,11 +105,11 @@ test "import member re-export in root.zig is not flagged" {
     }
 }
 
-test "zig convention flags snake_case struct import paths" {
+test "zig convention flags non-snake_case struct import paths" {
     var result = try docent.lintStyleSource(
         std.testing.allocator,
         std.testing.io,
-        "const InitOptions = @import(\"init_options.zig\");\n",
+        "const StructFile = @import(\"StructFile.zig\");\n",
         .{ .identifier_case = .warn },
         "tests/fixtures/style/import_site.zig",
         docent.rules.style.Options.defaults(),

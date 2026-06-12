@@ -2,7 +2,10 @@
 $schema: "https://json-schema.org/draft-07/schema#"
 $id: "https://jassielof.github.io/docent/schemas/docent.schema.json"
 title: "Docent Configuration Schema"
-description: "Categorized configuration schema for the Docent Zig documentation linter."
+description: >-
+  Categorized configuration for docent.toml. Inline diagnostic suppressions are
+  not TOML keys; they use // line-comment pragmas in source — see
+  #/definitions/inline_suppression.
 type: "object"
 additionalProperties: false
 properties:
@@ -76,10 +79,64 @@ properties:
         description: "Functions should not exceed the parameter count threshold."
 
 definitions:
+  inline_suppression:
+    description: >-
+      Suppress diagnostics in Zig source with // line-comment pragmas. These are
+      not docent.toml settings. Never use /// or //! — those strings are rendered
+      as documentation. Replace `<rule>` with one or more rule_id values
+      (comma-separated), or omit `<rule>` / use `*` to suppress every active rule
+      on the matched span. `docent:disable` is a synonym for `docent:ignore`
+      (including `-next`, `-start`, and `-end` variants). Diagnostics emitted at
+      forbid severity are never suppressed.
+
+      Forms:
+      - `// docent:ignore <rule>` — same line as the comment
+      - `// docent:ignore-next <rule>` — following source line
+      - `// docent:ignore-start <rule>` … `// docent:ignore-end` — inclusive line
+        block; an unclosed `-start` extends to EOF
+
   severity:
     type: "string"
     enum: ["allow", "warn", "deny", "forbid"]
-    description: "Effective severity level of a rule."
+    description: >-
+      Effective severity level of a rule. forbid cannot be suppressed by inline
+      docent:ignore or docent:disable pragmas.
+
+  rule_id:
+    type: "string"
+    description: >-
+      Rule name for inline suppression pragmas (see #/definitions/inline_suppression).
+      Example: `// docent:ignore missing_doc_comment`.
+    enum:
+      - missing_doc_comment
+      - blank_doc_comment
+      - trailing_blank_doc_comment
+      - missing_summary_terminal_punctuation
+      - missing_doctest
+      - private_doctest
+      - doctest_naming_mismatch
+      - invalid_leading_phrase
+      - identifier_case
+      - line_length_limit
+      - cognitive_complexity
+      - cyclomatic_complexity
+      - max_fun_params
+
+  case_convention:
+    type: "string"
+    description: "Expected identifier casing for declarations."
+    enum: ["snake_case", "camelCase", "PascalCase"]
+
+  struct_file_case:
+    description: >-
+      Struct-at-file-scope module filename convention. camelCase and PascalCase
+      are not valid here; they do not align with the default snake_case layout.
+    oneOf:
+      - const: "snake_case"
+      - const: '@"kebab-case"'
+        description: >-
+          Quoted-identifier import (`@"..."`). The string may contain any allowed
+          spelling; matching `@"..."` bindings are exempt from case checks.
 
   scan_mode:
     type: "string"
@@ -138,6 +195,10 @@ definitions:
             type: "boolean"
             default: false
             description: "Also enforce documentation on function parameters."
+          check_errors:
+            type: "boolean"
+            default: true
+            description: "Also enforce documentation on individual error set members."
 
   rule_missing_summary_terminal_punctuation:
     oneOf:
@@ -203,28 +264,23 @@ definitions:
             $ref: "#/definitions/scan_mode"
             description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
           namespaces:
-            type: "string"
-            enum: ["snake_case", "camelCase", "PascalCase"]
+            $ref: "#/definitions/case_convention"
             default: "snake_case"
           functions:
-            type: "string"
-            enum: ["snake_case", "camelCase", "PascalCase"]
+            $ref: "#/definitions/case_convention"
             default: "camelCase"
           types:
-            type: "string"
-            enum: ["snake_case", "camelCase", "PascalCase"]
+            $ref: "#/definitions/case_convention"
             default: "PascalCase"
             description: "Structs, enums, unions, error sets."
           constants:
-            type: "string"
-            enum: ["snake_case", "camelCase", "PascalCase"]
+            $ref: "#/definitions/case_convention"
             default: "snake_case"
             description: "Global constants and comptime values."
           struct_file_case:
-            type: "string"
-            enum: ["snake_case", "camelCase", "PascalCase", "kebab_case"]
-            default: "PascalCase"
-            description: "Case convention for struct-at-file-scope module filenames. Independent of declaration types case; struct import bindings still follow the configured types case. Use snake_case for Tiger Style."
+            $ref: "#/definitions/struct_file_case"
+            default: "snake_case"
+            description: "Case convention for struct-at-file-scope module filenames."
 
   rule_line_length_limit:
     oneOf:

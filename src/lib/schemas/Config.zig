@@ -171,6 +171,19 @@ test "resolved docs options read invalid_leading_phrase settings" {
     try std.testing.expect(docs_options.invalid_leading_phrase.require_backticks);
 }
 
+test "resolved style options read struct_file_case quoted identifier" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const root = try parseRoot(arena.allocator(),
+        \\[style.identifier_case]
+        \\struct_file_case = '@"kebab-case"'
+    );
+
+    const cfg = try decode(root);
+    try std.testing.expectEqual(style_rules.identifier_case.FilenameCase.@"kebab-case", cfg.style.identifier_case.struct_file_case.?);
+}
+
 test "resolved docs options read check_parameters" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
