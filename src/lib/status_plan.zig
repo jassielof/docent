@@ -125,36 +125,7 @@ fn isReadableLocalFile(io: std.Io, path: []const u8) bool {
 }
 
 fn collectBuildFiles(allocator: std.mem.Allocator, io: std.Io, project_root: []const u8, out: *std.ArrayList([]const u8)) !void {
-    const build_zig = try std.fs.path.join(allocator, &.{ project_root, "build.zig" });
-    errdefer allocator.free(build_zig);
-
-    if (isReadableLocalFile(io, build_zig)) {
-        const abs = try realPathFileAlloc(allocator, io, build_zig);
-        allocator.free(build_zig);
-        try out.append(allocator, abs);
-    } else {
-        allocator.free(build_zig);
-    }
-
-    const build_dir = try std.fs.path.join(allocator, &.{ project_root, "build" });
-    defer allocator.free(build_dir);
-
-    var dir = std.Io.Dir.cwd().openDir(io, build_dir, .{ .iterate = true }) catch return;
-    defer dir.close(io);
-
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
-
-    while (try walker.next(io)) |entry| {
-        if (entry.kind != .file) continue;
-        if (!std.mem.endsWith(u8, entry.basename, ".zig")) continue;
-
-        const full = try std.fs.path.join(allocator, &.{ build_dir, entry.path });
-        defer allocator.free(full);
-
-        const abs = try realPathFileAlloc(allocator, io, full);
-        try out.append(allocator, abs);
-    }
+    try targeting.collectBuildScriptLintFiles(allocator, io, project_root, out);
 }
 
 /// Resolves which files Docent would lint for the given options and project layout.

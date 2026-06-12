@@ -88,7 +88,7 @@ pub fn registerTargetFlags(cmd: *fangz.Command, options: RegisterTargetFlagsOpti
 
     try cmd.addFlag(bool, .{
         .name = "build-script",
-        .brief = "Include build.zig and build/*.zig files in targets",
+        .brief = "Include the build script module and everything it depends on to be analyzed",
         .default = false,
         .persistent = options.persistent,
     });
