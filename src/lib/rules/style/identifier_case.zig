@@ -3,8 +3,8 @@
 //! By default the conventions mirror the [Zig documentation style](https://ziglang.org/documentation/0.16.0/#Names), which is translated to:
 //!
 //! - `snake_case`:
-//!   - namespaces (field-less structures)
-//!   - global variables and constants
+//!   - namespace (field-less structures) (namespace files inherit this convention)
+//!   - global (container-level) variables and constants (local ones inherit this convention)
 //!   - fields or values from:
 //!     - structures
 //!     - unions
@@ -12,15 +12,11 @@
 //!     - function parameters
 //! - `camelCase`: concrete functions.
 //! - `PascalCase`:
-//!   - structures
+//!   - structures (structure files inherit this convention)
 //!   - unions
 //!   - enumerations
 //!   - error sets and unions, and its values
 //!   - generic (type-returning) functions
-//!
-//! ## Granularity of options
-//!
-//! 
 //!
 //! ## Notes
 //!
