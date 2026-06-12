@@ -8,9 +8,9 @@
 //!
 //! ## Zig-specific mappings
 //!
-//! * `catch` is treated like an exception `catch` clause (structural + nesting). `orelse` is the optional counterpart of null-coalescing and is intentionally ignored.
-//! * Labeled `break`/`continue` only increment when the label targets a `for`/`while` loop; labeled block breaks (`break :blk value`) are value expressions and are not penalized.
-//! * Only direct recursion (a function calling itself by name) is scored; indirect recursion is out of scope.
+//! - `catch` is treated like an exception `catch` clause (structural + nesting). `orelse` is the optional counterpart of null-coalescing and is intentionally ignored.
+//! - Labeled `break`/`continue` only increment when the label targets a `for`/`while` loop; labeled block breaks (`break :blk value`) are value expressions and are not penalized.
+//! - Only direct recursion (a function calling itself by name) is scored; indirect recursion is out of scope.
 const std = @import("std");
 const Ast = std.zig.Ast;
 
