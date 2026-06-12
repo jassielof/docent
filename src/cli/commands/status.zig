@@ -65,7 +65,7 @@ pub fn register(root: *fangz.Command) !void {
 
     try status_cmd.addFlag(bool, .{
         .name = "build-script",
-        .brief = "Include build.zig and build/*.zig files in lint targets",
+        .brief = "Include the build script module and everything it depends on to be analyzed",
         .default = false,
     });
 

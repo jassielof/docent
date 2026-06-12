@@ -1,8 +1,8 @@
 //! Selects which files and build targets Docent lints based on CLI flags and `build.zig` metadata.
 
 const std = @import("std");
-const reachability = @import("reachability.zig");
 const build_scan = @import("build_scan.zig");
+const reachability = @import("reachability.zig");
 const carnaval = @import("carnaval");
 
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
@@ -26,7 +26,7 @@ pub const Options = struct {
 
     /// When true, lint files under path dependencies instead of excluding them.
     deps: bool = false,
-    /// When true, include `build.zig` and `build/*.zig` files.
+    /// When true, lint `build.zig` and every local file reachable from it via `@import`.
     build_script: bool = false,
 
     /// Directory roots to skip (for example path-dependency trees).
@@ -247,6 +247,27 @@ fn isReadableLocalFile(io: std.Io, path: []const u8) bool {
     const file = std.Io.Dir.cwd().openFile(io, path, .{}) catch return false;
     file.close(io);
     return true;
+}
+
+/// Collects `build.zig` and the import closure rooted at it (when present under `project_root`).
+pub fn collectBuildScriptLintFiles(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    project_root: []const u8,
+    out: *std.ArrayList([]const u8),
+) !void {
+    const build_zig = try std.fs.path.join(allocator, &.{ project_root, "build.zig" });
+    defer allocator.free(build_zig);
+
+    if (!isReadableLocalFile(io, build_zig)) return;
+
+    var reachable = try reachability.collectReachableFiles(allocator, io, build_zig);
+    defer deinitOwnedPaths(allocator, &reachable);
+
+    for (reachable.items) |path| {
+        if (containsPath(out.items, path)) continue;
+        try out.append(allocator, try allocator.dupe(u8, path));
+    }
 }
 
 /// Returns whether `path` refers to a build script (`build.zig` or under `build/`).
