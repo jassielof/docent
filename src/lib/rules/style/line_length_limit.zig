@@ -26,6 +26,7 @@ pub const Options = struct {
     max_length: u32 = default_max_length,
     /// When set, trailing `//` comments are excluded from the measured width; default `false` counts them, matching most formatters.
     ignore_trailing_comments: bool = false,
+    // TODO: Add option to ignore leading doc/comments.
 };
 
 /// Full configuration for `line_length_limit`: severity, scan mode, and the documented `Options` sub-space.
