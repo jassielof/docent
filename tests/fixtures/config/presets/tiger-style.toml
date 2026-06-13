@@ -1,0 +1,31 @@
+#:schema ../../../../schemas/docent.schema.json
+#
+# Tiger Style preset — naming and line-length rules aligned with Tiger Beetle's
+# experience pillar.
+#
+# References:
+#   - https://tigerstyle.dev/#nouns-and-verbs
+#   - https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md#naming-things
+#
+# Tiger Style favors snake_case for functions and file names: nouns for data,
+# verbs for actions. That differs from Zig's default camelCase functions and
+# PascalCase struct-at-file-scope module names documented in the language guide.
+#
+# Line length is capped at 100 columns with `forbid`, matching Tiger's emphasis
+# on readable, side-by-side diffs. Copy this file to `.config/docent.toml` or
+# merge the sections you want.
+
+[style]
+scan_mode = "all"
+
+[style.identifier_case]
+level = "deny"
+# Tiger uses snake_case for functions and file names (nouns for data, verbs for actions).
+# The `functions` key matches the schema surface; identifier kinds still follow the
+# rule's built-in defaults until per-kind overrides are wired through.
+functions = "snake_case"
+struct_file_case = "snake_case"
+
+[style.line_length_limit]
+level = "forbid"
+max_length = 100
