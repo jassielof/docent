@@ -1,4 +1,5 @@
 #:schema ../schemas/docent.schema.json
+# TODO: Move this as a test case
 
 [style]
 scan_mode = "all"
