@@ -1,0 +1,79 @@
+#:schema ../../../../schemas/docent.schema.json
+#
+# Go Doc Comments preset — documentation rules inspired by Go's comment style.
+#
+# References:
+#   - https://go.dev/doc/comment
+#   - https://pkg.go.dev/go/doc/comment
+#   - https://github.com/godoc-lint/godoc-lint
+#
+# Go expects every exported name to have a doc comment whose first sentence is a
+# complete summary naming the symbol (for example "Package path implements…",
+# "Reader serves…", "Parse returns…"). Docent maps that grammar onto Zig via
+# `invalid_leading_phrase` and `missing_summary_terminal_punctuation`.
+#
+# Zig-specific notes:
+#   - `missing_doctest` stays `allow` — Go uses `Example` tests, not doctests.
+#   - `docs.scan_mode = "public"` mirrors Go's focus on exported API surface.
+#   - Identifier keys below match the schema defaults for Zig's public API naming
+#     (Go's exported MixedCaps maps to PascalCase types and camelCase functions).
+#     They document intent even where the rule still uses built-in defaults today.
+#   - `ignore_leading_comments` on line length skips `///` / `//!` lines so long
+#     prose summaries are not judged by the code column limit.
+#
+# Copy this file to `.config/docent.toml` or merge the sections you want.
+
+[docs]
+scan_mode = "public"
+blank_doc_comment = "warn"
+trailing_blank_doc_comment = "warn"
+missing_doctest = "allow"
+private_doctest = "warn"
+doctest_naming_mismatch = "warn"
+
+[docs.missing_doc_comment]
+level = "warn"
+check_parameters = false
+
+[docs.missing_summary_terminal_punctuation]
+level = "warn"
+scope = "summary"
+accepted_marks = [".", "!", "?"]
+
+[docs.invalid_leading_phrase]
+level = "warn"
+mode = "canonical"
+require_article = false
+require_backticks = false
+
+[style]
+scan_mode = "all"
+
+[style.identifier_case]
+level = "warn"
+namespaces = "snake_case"
+functions = "camelCase"
+types = "PascalCase"
+constants = "snake_case"
+struct_file_case = "PascalCase"
+
+[style.line_length_limit]
+level = "allow"
+max_length = 100
+ignore_leading_comments = true
+ignore_trailing_comments = true
+
+[complexity]
+scan_mode = "all"
+
+[complexity.cognitive_complexity]
+level = "warn"
+threshold = 15
+
+[complexity.cyclomatic_complexity]
+level = "allow"
+threshold = 10
+
+[complexity.max_function_parameters]
+level = "allow"
+threshold = 7

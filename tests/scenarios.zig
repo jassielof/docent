@@ -8,4 +8,5 @@ comptime {
     refAllDecls(@import("scenarios/reachability.zig"));
     refAllDecls(@import("scenarios/targeting.zig"));
     refAllDecls(@import("scenarios/manifest_and_config.zig"));
+    refAllDecls(@import("scenarios/config_presets.zig"));
 }
