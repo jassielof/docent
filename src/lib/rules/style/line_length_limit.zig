@@ -26,7 +26,8 @@ pub const Options = struct {
     max_length: u32 = default_max_length,
     /// When set, trailing `//` comments are excluded from the measured width; default `false` counts them, matching most formatters.
     ignore_trailing_comments: bool = false,
-    // TODO: Add option to ignore leading doc/comments.
+    /// When set, lines that are only leading whitespace plus `//`, `///`, or `//!` are excluded from measurement.
+    ignore_leading_comments: bool = false,
 };
 
 /// Full configuration for `line_length_limit`: severity, scan mode, and the documented `Options` sub-space.
@@ -91,9 +92,19 @@ fn fileStem(file: []const u8) []const u8 {
 }
 
 fn effectiveLineLength(line: []const u8, options: Options) usize {
+    if (options.ignore_leading_comments and isLeadingCommentLine(line)) return 0;
+
     if (!options.ignore_trailing_comments) return line.len;
     const comment_start = trailingCommentStart(line) orelse return line.len;
     return std.mem.trim(u8, line[0..comment_start], " \t").len;
+}
+
+fn isLeadingCommentLine(line: []const u8) bool {
+    const content = std.mem.trim(u8, line, " \t");
+    if (content.len == 0) return true;
+    return std.mem.startsWith(u8, content, "//!") or
+        std.mem.startsWith(u8, content, "///") or
+        std.mem.startsWith(u8, content, "//");
 }
 
 fn trailingCommentStart(line: []const u8) ?usize {
@@ -177,4 +188,31 @@ test "ignore_trailing_comments keeps // inside string literals" {
     var r = try runCheck(source, .{ .max_length = 20, .ignore_trailing_comments = true });
     defer r.deinit();
     try std.testing.expectEqual(@as(usize, 1), r.items.items.len);
+}
+
+test "ignore_leading_comments excludes doc and line comments" {
+    const source =
+        \\/// aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        \\//! bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        \\// ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        \\
+    ;
+    var r = try runCheck(source, .{ .max_length = 20, .ignore_leading_comments = true });
+    defer r.deinit();
+    try std.testing.expectEqual(@as(usize, 0), r.items.items.len);
+}
+
+test "ignore_leading_comments still measures code lines" {
+    const source =
+        \\/// This doc comment is intentionally longer than twenty characters.
+        \\pub const x = 1;
+        \\
+    ;
+    var ignored = try runCheck(source, .{ .max_length = 20, .ignore_leading_comments = true });
+    defer ignored.deinit();
+    try std.testing.expectEqual(@as(usize, 0), ignored.items.items.len);
+
+    var measured = try runCheck(source, .{ .max_length = 20, .ignore_leading_comments = false });
+    defer measured.deinit();
+    try std.testing.expectEqual(@as(usize, 1), measured.items.items.len);
 }

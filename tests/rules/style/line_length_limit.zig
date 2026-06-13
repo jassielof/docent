@@ -46,3 +46,18 @@ test "ignore_trailing_comments keeps code width only" {
     defer result.deinit();
     try utils.expectRuleAbsent(result, "line_length_limit");
 }
+
+test "ignore_leading_comments excludes comment-only lines" {
+    const source =
+        \\/// aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        \\pub const x = 1;
+        \\
+    ;
+    var result = try lint(
+        source,
+        .{ .line_length_limit = .warn },
+        .{ .max_length = 20, .ignore_leading_comments = true },
+    );
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "line_length_limit");
+}

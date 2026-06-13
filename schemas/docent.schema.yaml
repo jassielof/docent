@@ -304,3 +304,7 @@ definitions:
             type: "boolean"
             default: false
             description: "Exclude trailing inline `//` comments from the measured line width."
+          ignore_leading_comments:
+            type: "boolean"
+            default: false
+            description: "Exclude lines that are only leading whitespace plus `//`, `///`, or `//!`."
