@@ -56,6 +56,7 @@ const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
+const doc = @import("../../doc.zig");
 const naming_case = @import("../../naming_case.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -284,7 +285,7 @@ fn checkStructFileName(
     if (!std.mem.endsWith(u8, base, ".zig")) return;
     const stem = base[0 .. base.len - ".zig".len];
 
-    if (!utils.fileIsNamespace(tree)) {
+    if (!doc.fileIsNamespace(tree)) {
         if (stemMatchesFilenameCase(stem, file_case)) return;
 
         const expected_stem = try suggestStructImportStem(msg_allocator, stem, file_case);
@@ -614,7 +615,7 @@ fn resolveImportedFileKind(
         var imported = std.zig.Ast.parse(allocator, source, .zig) catch break :blk null;
         defer imported.deinit(allocator);
 
-        break :blk utils.fileIsNamespace(&imported);
+        break :blk doc.fileIsNamespace(&imported);
     };
 
     const is_namespace_val = is_namespace orelse return null;

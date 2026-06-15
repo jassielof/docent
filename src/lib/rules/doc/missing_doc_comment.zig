@@ -19,6 +19,7 @@ const scanning = @import("../../scanning.zig");
 const category = @import("../category.zig");
 const reexport = @import("../../reexport.zig");
 const utils = @import("../utils.zig");
+const doc = @import("../../doc.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();
@@ -76,7 +77,7 @@ fn checkModuleDocComment(
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     if (!require_module_doc) return;
-    if (utils.hasContainerDocComment(tree, 0)) return;
+    if (doc.hasContainerDocComment(tree, 0)) return;
 
     const display_name = utils.moduleDisplayName(file, module_name);
     const first_src = if (tree.tokens.len > 0)
@@ -369,7 +370,7 @@ fn onUndocumentedReexportWholeModule(
 ) !void {
     const ctx: *ReexportEmitContext = @ptrCast(@alignCast(ctx_ptr));
     const source_basename = std.fs.path.basename(file_path);
-    const subject_kind = utils.exposedSourceFileSubjectKind(tree);
+    const subject_kind = doc.exposedSourceFileSubjectKind(tree);
     var line: usize = 0;
     var column: usize = 0;
     if (tree.tokens.len > 0) {
