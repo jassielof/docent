@@ -1,4 +1,4 @@
-//! The docs namespace gathers related rules to the doc comments and doctests.
+//! The doc namespace gathers related rules for doc comments and doctests.
 //!
 //! By default, these rules are enforced across the public API surface. It is configurable to selectively or completely include non-public declarations too.
 //!
@@ -11,20 +11,20 @@
 const scanning = @import("../scanning.zig");
 const category = @import("category.zig");
 
-/// Default scan mode for documentation rules; `public_api_surface` because docs are enforced on the public API by default.
+/// Default scan mode for documentation rules; `public_api_surface` because doc comments are enforced on the public API by default.
 pub const default_scan_mode: scanning.Modes = .public_api_surface;
 
-pub const missing_doc_comment = @import("docs/missing_doc_comment.zig");
-pub const blank_doc_comment = @import("docs/blank_doc_comment.zig");
-pub const trailing_blank_doc_comment = @import("docs/trailing_blank_doc_comment.zig");
-pub const missing_doctest = @import("docs/missing_doctest.zig");
-pub const private_doctest = @import("docs/private_doctest.zig");
-pub const doctest_naming_mismatch = @import("docs/doctest_naming_mismatch.zig");
-pub const missing_summary_terminal_punctuation = @import("docs/missing_summary_terminal_punctuation.zig");
-pub const invalid_leading_phrase = @import("docs/invalid_leading_phrase.zig");
+pub const missing_doc_comment = @import("doc/missing_doc_comment.zig");
+pub const blank_doc_comment = @import("doc/blank_doc_comment.zig");
+pub const trailing_blank_doc_comment = @import("doc/trailing_blank_doc_comment.zig");
+pub const missing_doctest = @import("doc/missing_doctest.zig");
+pub const private_doctest = @import("doc/private_doctest.zig");
+pub const doctest_naming_mismatch = @import("doc/doctest_naming_mismatch.zig");
+pub const missing_summary_terminal_punctuation = @import("doc/missing_summary_terminal_punctuation.zig");
+pub const invalid_leading_phrase = @import("doc/invalid_leading_phrase.zig");
 
-/// The `docs` configuration: the category-wide scan mode plus each rule's config, decoded generically and resolved in place.
-pub const Docs = struct {
+/// The `doc` configuration: the category-wide scan mode plus each rule's config, decoded generically and resolved in place.
+pub const Doc = struct {
     /// Category-wide scan mode; rules with a `null` scan mode inherit this value.
     scan_mode: scanning.Modes = default_scan_mode,
     missing_doc_comment: missing_doc_comment.Rule = .{},
@@ -37,19 +37,19 @@ pub const Docs = struct {
     invalid_leading_phrase: invalid_leading_phrase.Rule = .{},
 
     /// Returns the library defaults with scan-mode inheritance already applied.
-    pub fn defaults() Docs {
-        var docs: Docs = .{};
-        docs.resolveScanModes();
-        return docs;
+    pub fn defaults() Doc {
+        var doc: Doc = .{};
+        doc.resolveScanModes();
+        return doc;
     }
 
     /// Fills each rule's unset (`null`) scan mode with the category default; call once after decoding.
-    pub fn resolveScanModes(self: *Docs) void {
+    pub fn resolveScanModes(self: *Doc) void {
         category.resolveScanModes(self);
     }
 
     /// Overrides every rule's scan mode for a single lint invocation, such as explicit path targets.
-    pub fn applyRunScanMode(self: *Docs, mode: scanning.Modes) void {
+    pub fn applyRunScanMode(self: *Doc, mode: scanning.Modes) void {
         category.applyRunScanMode(self, mode);
     }
 };

@@ -7,7 +7,7 @@ const fangz = @import("fangz");
 
 const all_check = @import("check/all.zig");
 const complexity_check = @import("check/complexity.zig");
-const docs_check = @import("check/docs.zig");
+const doc_check = @import("check/doc.zig");
 const check_shared = @import("../check_shared.zig");
 const style_check = @import("check/style.zig");
 
@@ -22,7 +22,7 @@ pub fn register(root: *fangz.Command) !void {
     try check_shared.registerTargetFlags(check_cmd, .{ .persistent = true, .positionals = false });
     check_cmd.setHooks(.{ .run = &runSummary });
 
-    try docs_check.register(check_cmd);
+    try doc_check.register(check_cmd);
     try style_check.register(check_cmd);
     try complexity_check.register(check_cmd);
     try all_check.register(check_cmd);
@@ -33,7 +33,7 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const docs_options = docent.config.loadDocsOptionsFromCli(allocator, io, args.config_path) catch |err| {
+    const doc_options = docent.config.loadDocOptionsFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -73,16 +73,16 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         allocator.free(library_entry_roots_owned);
     };
 
-    var docs_opts = docs_options;
+    var doc_opts = doc_options;
     var style_opts = style_options;
     var complexity_opts = complexity_options;
     if (plan.path_mode == .recursive) {
-        docs_opts.applyRunScanMode(.reachability_traversal);
+        doc_opts.applyRunScanMode(.reachability_traversal);
         style_opts.applyRunScanMode(.reachability_traversal);
         complexity_opts.applyRunScanMode(.reachability_traversal);
     }
 
-    const docs_lint_options: docent.LintOptions = switch (plan.path_mode) {
+    const doc_lint_options: docent.LintOptions = switch (plan.path_mode) {
         .project, .module_root => .{ .module_name = plan.package.name },
         .recursive => .{},
     };
@@ -95,14 +95,14 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         for (rt.files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            _ = try docs_check.lintPlanFile(allocator, io, path, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, .none);
+            _ = try doc_check.lintPlanFile(allocator, io, path, doc_lint_options, library_entry_roots_owned, doc_opts, &all_diagnostics, &summary, .none);
         }
     }
 
     for (plan.extra_lint_files) |path| {
         const gptr = try linted_files.getOrPut(path);
         if (gptr.found_existing) continue;
-        _ = try docs_check.lintPlanFile(allocator, io, path, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, .none);
+        _ = try doc_check.lintPlanFile(allocator, io, path, doc_lint_options, library_entry_roots_owned, doc_opts, &all_diagnostics, &summary, .none);
     }
 
     var analyzed_files = docent.targeting.PathSet.init(allocator);

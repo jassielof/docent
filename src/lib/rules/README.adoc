@@ -57,11 +57,11 @@ When no config file is found, or a rule is omitted, Docent uses the `RuleSeverit
 ====
 [source,toml]
 ----
-[docs.missing_doc_comment]
+[doc.missing_doc_comment]
 level = "deny"
 check_parameters = false
 
-[docs]
+[doc]
 missing_doctest = "allow"
 private_doctest = "warn"
 
@@ -75,9 +75,9 @@ threshold = 7
 ----
 ====
 
-Rule severities can be set as a string shorthand in a section table (for example `missing_doctest = "allow"` under `[docs]`) or as a nested table with `level = "warn"`. Severity values are `allow`, `warn`, `deny`, and `forbid`. A `forbid` level cannot be relaxed by a later entry in the same file.
+Rule severities can be set as a string shorthand in a section table (for example `missing_doctest = "allow"` under `[doc]`) or as a nested table with `level = "warn"`. Severity values are `allow`, `warn`, `deny`, and `forbid`. A `forbid` level cannot be relaxed by a later entry in the same file.
 
-Nested rule tables hold per-rule options. Under `[docs.missing_doc_comment]`, set `check_parameters = true` to make `missing_doc_comment` also require `///` on each named function parameter (disabled by default).
+Nested rule tables hold per-rule options. Under `[doc.missing_doc_comment]`, set `check_parameters = true` to make `missing_doc_comment` also require `///` on each named function parameter (disabled by default).
 
 Under `[complexity]`, rules such as `cognitive_complexity` and `max_function_parameters` accept a `threshold` alongside `level`. Omitted options fall back to the library defaults.
 

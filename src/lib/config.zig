@@ -87,15 +87,15 @@ pub fn loadNearestRuleSeverities(allocator: std.mem.Allocator, io: std.Io) Error
 }
 
 /// Loads resolved documentation rule config from a `docent.toml` file.
-pub fn loadDocsOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.docs.Docs {
+pub fn loadDocOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.doc.Doc {
     const cfg = try loadConfig(allocator, io, config_path);
-    return cfg.docs;
+    return cfg.doc;
 }
 
 /// Loads documentation config from an explicit `config_path`, or searches for the default file when null.
-pub fn loadDocsOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!rules.docs.Docs {
+pub fn loadDocOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!rules.doc.Doc {
     const cfg = try loadConfigFromCli(allocator, io, config_path);
-    return cfg.docs;
+    return cfg.doc;
 }
 
 /// Loads resolved complexity rule config from a `docent.toml` file.
@@ -123,9 +123,9 @@ pub fn loadStyleOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_
 }
 
 /// Returns the declaration scan mode for documentation rules.
-pub fn loadDocsScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scanning.Modes {
+pub fn loadDocScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scanning.Modes {
     const cfg = try loadConfigFromCli(allocator, io, config_path);
-    return cfg.docs.scan_mode;
+    return cfg.doc.scan_mode;
 }
 
 /// Returns the declaration scan mode for complexity rules.

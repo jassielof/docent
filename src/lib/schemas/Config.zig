@@ -9,17 +9,17 @@ const RuleSeverities = @import("../RuleSeverities.zig");
 const scanning = @import("../scanning.zig");
 const severity = @import("../severity.zig");
 const rule_decode = @import("../rules/decode.zig");
-const docs_rules = @import("../rules/docs.zig");
+const doc_rules = @import("../rules/doc.zig");
 const style_rules = @import("../rules/style.zig");
 const complexity_rules = @import("../rules/complexity.zig");
 
 pub const Error = rule_decode.Error;
 
-pub const Docs = docs_rules.Docs;
+pub const Doc = doc_rules.Doc;
 pub const Style = style_rules.Style;
 pub const Complexity = complexity_rules.Complexity;
 
-docs: Docs = .{},
+doc: Doc = .{},
 style: Style = .{},
 complexity: Complexity = .{},
 
@@ -40,8 +40,8 @@ pub fn decode(root: toml.DynamicValue) Error!@This() {
     const table = rootTable(root) orelse return error.ConfigParseFailed;
 
     var cfg: @This() = .{};
-    if (table.get("docs")) |value| try rule_decode.decodeInto(Docs, value, &cfg.docs);
-    cfg.docs.resolveScanModes();
+    if (table.get("doc")) |value| try rule_decode.decodeInto(Doc, value, &cfg.doc);
+    cfg.doc.resolveScanModes();
     if (table.get("style")) |value| try rule_decode.decodeInto(Style, value, &cfg.style);
     cfg.style.resolveScanModes();
     if (table.get("complexity")) |value| try rule_decode.decodeInto(Complexity, value, &cfg.complexity);
@@ -51,7 +51,7 @@ pub fn decode(root: toml.DynamicValue) Error!@This() {
 
 /// Applies configured severity levels to `rule_set`. Omitted rules keep library defaults.
 pub fn applyRuleSeverities(cfg: @This(), rule_set: *RuleSeverities) Error!void {
-    try applyDocsSeverities(cfg.docs, rule_set);
+    try applyDocSeverities(cfg.doc, rule_set);
     try applyStyleSeverities(cfg.style, rule_set);
     try applyComplexitySeverities(cfg.complexity, rule_set);
 }
@@ -61,7 +61,7 @@ fn applyStyleSeverities(section: Style, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.line_length_limit, section.line_length_limit.level);
 }
 
-fn applyDocsSeverities(section: Docs, rule_set: *RuleSeverities) Error!void {
+fn applyDocSeverities(section: Doc, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.missing_doc_comment, section.missing_doc_comment.level);
     try applyLevel(&rule_set.blank_doc_comment, section.blank_doc_comment.level);
     try applyLevel(&rule_set.trailing_blank_doc_comment, section.trailing_blank_doc_comment.level);
@@ -96,11 +96,11 @@ test "decode reads nested rule tables and section options" {
     defer arena.deinit();
 
     const root = try parseRoot(arena.allocator(),
-        \\[docs.missing_doc_comment]
+        \\[doc.missing_doc_comment]
         \\level = "deny"
         \\check_parameters = true
         \\
-        \\[docs]
+        \\[doc]
         \\missing_doctest = "allow"
         \\scan_mode = "all"
         \\
@@ -110,10 +110,10 @@ test "decode reads nested rule tables and section options" {
     );
 
     const cfg = try decode(root);
-    try std.testing.expectEqual(severity.Level.deny, cfg.docs.missing_doc_comment.level);
-    try std.testing.expect(cfg.docs.missing_doc_comment.options.check_parameters);
-    try std.testing.expectEqual(severity.Level.allow, cfg.docs.missing_doctest.level);
-    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.docs.scan_mode);
+    try std.testing.expectEqual(severity.Level.deny, cfg.doc.missing_doc_comment.level);
+    try std.testing.expect(cfg.doc.missing_doc_comment.options.check_parameters);
+    try std.testing.expectEqual(severity.Level.allow, cfg.doc.missing_doctest.level);
+    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.doc.scan_mode);
     try std.testing.expectEqual(severity.Level.deny, cfg.complexity.cognitive_complexity.level);
     try std.testing.expectEqual(@as(u32, 12), cfg.complexity.cognitive_complexity.options.threshold);
 }
@@ -151,15 +151,15 @@ test "resolved docs options read invalid_leading_phrase settings" {
     defer arena.deinit();
 
     const root = try parseRoot(arena.allocator(),
-        \\[docs.invalid_leading_phrase]
+        \\[doc.invalid_leading_phrase]
         \\mode = "strict"
         \\require_article = true
         \\require_backticks = true
     );
 
     const cfg = try decode(root);
-    const phrase = cfg.docs.invalid_leading_phrase.options;
-    try std.testing.expectEqual(docs_rules.invalid_leading_phrase.Mode.strict, phrase.mode);
+    const phrase = cfg.doc.invalid_leading_phrase.options;
+    try std.testing.expectEqual(doc_rules.invalid_leading_phrase.Mode.strict, phrase.mode);
     try std.testing.expect(phrase.require_article);
     try std.testing.expect(phrase.require_backticks);
 }
@@ -182,13 +182,13 @@ test "resolved docs options read check_parameters" {
     defer arena.deinit();
 
     const root = try parseRoot(arena.allocator(),
-        \\[docs.missing_doc_comment]
+        \\[doc.missing_doc_comment]
         \\level = "warn"
         \\check_parameters = true
     );
 
     const cfg = try decode(root);
-    try std.testing.expect(cfg.docs.missing_doc_comment.options.check_parameters);
+    try std.testing.expect(cfg.doc.missing_doc_comment.options.check_parameters);
 }
 
 test "resolved complexity options read thresholds" {
@@ -215,24 +215,24 @@ test "scan modes default and override" {
 
     const empty = try parseRoot(arena.allocator(), "");
     const empty_cfg = try decode(empty);
-    try std.testing.expectEqual(docs_rules.default_scan_mode, empty_cfg.docs.scan_mode);
+    try std.testing.expectEqual(doc_rules.default_scan_mode, empty_cfg.doc.scan_mode);
 
     const root = try parseRoot(arena.allocator(),
-        \\[docs]
+        \\[doc]
         \\scan_mode = "all"
         \\
         \\[complexity]
         \\scan_mode = "public"
     );
     const cfg = try decode(root);
-    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.docs.scan_mode);
+    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.doc.scan_mode);
     try std.testing.expectEqual(scanning.Modes.public_api_surface, cfg.complexity.scan_mode);
 }
 
 test "applyRuleSeverities respects forbid and defaults" {
     var rule_set: RuleSeverities = .{ .missing_doc_comment = .forbid };
     const cfg: @This() = .{
-        .docs = .{ .missing_doc_comment = .{ .level = .warn } },
+        .doc = .{ .missing_doc_comment = .{ .level = .warn } },
     };
     try applyRuleSeverities(cfg, &rule_set);
     try std.testing.expect(rule_set.missing_doc_comment == .forbid);

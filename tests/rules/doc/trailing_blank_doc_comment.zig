@@ -3,7 +3,7 @@
 const harness = @import("../../harness.zig");
 const utils = @import("../../utils.zig");
 
-const ns = "docs";
+const ns = "doc";
 
 test "internal_blank_lines_in_multiline_doc_are_allowed" {
     var result = try harness.lintRuleFixture(ns, &.{ "partially_empty_doc_comment", "root.zig" }, .{

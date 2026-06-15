@@ -97,7 +97,7 @@ pub fn lintSource(
     file: []const u8,
     options: LintOptions,
     library_entry_roots: []const []const u8,
-    docs_cfg: rules.docs.Docs,
+    doc_cfg: rules.doc.Doc,
 ) !LintResult {
     var tree = try std.zig.Ast.parse(allocator, source, .zig);
     defer tree.deinit(allocator);
@@ -110,9 +110,9 @@ pub fn lintSource(
 
     const require_module_doc = resolveRequireModuleDoc(file_owned, library_entry_roots);
 
-    try rules.docs.missing_doc_comment.check(
+    try rules.doc.missing_doc_comment.check(
         &tree,
-        docs_cfg.missing_doc_comment,
+        doc_cfg.missing_doc_comment,
         file_owned,
         require_module_doc,
         options.module_name,
@@ -121,9 +121,9 @@ pub fn lintSource(
         msg,
         &result.diagnostics,
     );
-    try rules.docs.blank_doc_comment.check(
+    try rules.doc.blank_doc_comment.check(
         &tree,
-        docs_cfg.blank_doc_comment,
+        doc_cfg.blank_doc_comment,
         file_owned,
         options.module_name,
         require_module_doc,
@@ -132,30 +132,30 @@ pub fn lintSource(
         msg,
         &result.diagnostics,
     );
-    try rules.docs.missing_summary_terminal_punctuation.check(
+    try rules.doc.missing_summary_terminal_punctuation.check(
         &tree,
-        docs_cfg.missing_summary_terminal_punctuation,
+        doc_cfg.missing_summary_terminal_punctuation,
         file_owned,
         options.module_name,
         allocator,
         msg,
         &result.diagnostics,
     );
-    try rules.docs.trailing_blank_doc_comment.check(
+    try rules.doc.trailing_blank_doc_comment.check(
         &tree,
-        docs_cfg.trailing_blank_doc_comment,
+        doc_cfg.trailing_blank_doc_comment,
         file_owned,
         options.module_name,
         allocator,
         msg,
         &result.diagnostics,
     );
-    try rules.docs.missing_doctest.check(&tree, docs_cfg.missing_doctest, file_owned, allocator, msg, &result.diagnostics);
-    try rules.docs.private_doctest.check(&tree, docs_cfg.private_doctest, file_owned, allocator, msg, &result.diagnostics);
-    try rules.docs.doctest_naming_mismatch.check(&tree, docs_cfg.doctest_naming_mismatch, file_owned, allocator, msg, &result.diagnostics);
-    try rules.docs.invalid_leading_phrase.check(
+    try rules.doc.missing_doctest.check(&tree, doc_cfg.missing_doctest, file_owned, allocator, msg, &result.diagnostics);
+    try rules.doc.private_doctest.check(&tree, doc_cfg.private_doctest, file_owned, allocator, msg, &result.diagnostics);
+    try rules.doc.doctest_naming_mismatch.check(&tree, doc_cfg.doctest_naming_mismatch, file_owned, allocator, msg, &result.diagnostics);
+    try rules.doc.invalid_leading_phrase.check(
         &tree,
-        docs_cfg.invalid_leading_phrase,
+        doc_cfg.invalid_leading_phrase,
         file_owned,
         options.module_name,
         allocator,
@@ -305,7 +305,7 @@ pub fn lintFile(
     path: []const u8,
     options: LintOptions,
     library_entry_roots: []const []const u8,
-    docs_cfg: rules.docs.Docs,
+    doc_cfg: rules.doc.Doc,
 ) !LintResult {
     const source = try std.Io.Dir.cwd().readFileAllocOptions(
         io,
@@ -317,7 +317,7 @@ pub fn lintFile(
     );
     defer allocator.free(source);
 
-    return lintSource(allocator, io, source, path, options, library_entry_roots, docs_cfg);
+    return lintSource(allocator, io, source, path, options, library_entry_roots, doc_cfg);
 }
 
 comptime {

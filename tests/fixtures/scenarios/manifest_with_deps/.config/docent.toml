@@ -1,5 +1,5 @@
-[docs.missing_doc_comment]
+[doc.missing_doc_comment]
 level = "deny"
 
-[docs]
+[doc]
 missing_doctest = "allow"

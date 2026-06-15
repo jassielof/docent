@@ -52,15 +52,15 @@ test "manifest loadPackageMeta reads name and version" {
     try std.testing.expect(std.mem.indexOf(u8, meta.project_root, "manifest_with_deps") != null);
 }
 
-test "config loadDocsOptions reads docs block from docent.toml" {
+test "config loadDocOptions reads doc block from docent.toml" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
     const config_path = try fixtureConfigPath(allocator, io);
     defer allocator.free(config_path);
 
-    const docs_options = try docent.config.loadDocsOptions(allocator, io, config_path);
-    try std.testing.expect(!docs_options.missing_doc_comment.options.check_parameters);
+    const doc_options = try docent.config.loadDocOptions(allocator, io, config_path);
+    try std.testing.expect(!doc_options.missing_doc_comment.options.check_parameters);
 }
 
 test "config loadRuleSeverities reads rules from docent.toml" {

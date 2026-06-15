@@ -6,7 +6,7 @@ const docent = @import("docent");
 const harness = @import("../../harness.zig");
 const utils = @import("../../utils.zig");
 
-const ns = "docs";
+const ns = "doc";
 
 fn lint(parts: []const []const u8, rule_set: docent.RuleSeverities) !docent.LintResult {
     return harness.lintRuleFixture(ns, parts, rule_set, .{});
@@ -61,7 +61,7 @@ test "reexport_local_binding_documented follows alias to documented symbol" {
     const path = try projectRoot("reexport_local_binding_documented");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{ .missing_doc_comment = .deny }));
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
     defer result.deinit();
     try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
@@ -70,7 +70,7 @@ test "reexport_documented_transitive suppresses diagnostic when definition is do
     const path = try projectRoot("reexport_documented_transitive");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{ .missing_doc_comment = .deny }));
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
     defer result.deinit();
     try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
@@ -79,7 +79,7 @@ test "reexport_undocumented_points_at_definition uses forward slashes in paths" 
     const path = try projectRoot("reexport_undocumented_points_at_definition");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{ .missing_doc_comment = .deny }));
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
     defer result.deinit();
 
     for (result.diagnostics.items) |d| {
@@ -94,7 +94,7 @@ test "reexport_undocumented_points_at_definition points at definition not re-exp
     const path = try projectRoot("reexport_undocumented_points_at_definition");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{ .missing_doc_comment = .deny }));
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
     defer result.deinit();
     try utils.expectRuleCount(result, "missing_doc_comment", 1);
 
@@ -110,7 +110,7 @@ test "whole-module re-export reports missing namespace doc on imported file" {
     const path = try projectRoot("reexport_missing_whole_namespace");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{ .missing_doc_comment = .deny }));
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
     defer result.deinit();
     try utils.expectRuleCount(result, "missing_doc_comment", 1);
     try testing.expectEqual(.namespace, result.diagnostics.items[0].subject.?.kind);
@@ -133,7 +133,7 @@ test "missing_module_doc_on_entry reports missing module doc comment" {
         display,
         .{ .module_name = "fixture" },
         &.{},
-        docent.rules.docs.Docs.defaults(),
+        docent.rules.doc.Doc.defaults(),
     );
     defer result.deinit();
     try utils.expectRuleCount(result, "missing_doc_comment", 3);
@@ -157,9 +157,9 @@ test "lintSource honors require_function_param_docs option" {
         \\    _ = allocator;
         \\}
     ;
-    var docs_cfg = docent.rules.docs.Docs.defaults();
-    docs_cfg.missing_doc_comment.level = .deny;
-    docs_cfg.missing_doc_comment.options.check_parameters = true;
+    var doc_cfg = docent.rules.doc.Doc.defaults();
+    doc_cfg.missing_doc_comment.level = .deny;
+    doc_cfg.missing_doc_comment.options.check_parameters = true;
     var result = try docent.lintSource(
         std.testing.allocator,
         std.testing.io,
@@ -167,7 +167,7 @@ test "lintSource honors require_function_param_docs option" {
         "<test>",
         .{},
         &.{},
-        docs_cfg,
+        doc_cfg,
     );
     defer result.deinit();
     try utils.expectRuleCount(result, "missing_doc_comment", 1);
@@ -178,8 +178,8 @@ test "lintSource honors require_function_param_docs option" {
 test "unresolvable import produces no false positive in single-file mode" {
     const source: [:0]const u8 =
         "//! Module.\npub const Foo = @import(\"definitely_nonexistent_xyz.zig\").Bar;";
-    var docs_cfg = docent.rules.docs.Docs.defaults();
-    docs_cfg.missing_doc_comment.level = .deny;
+    var doc_cfg = docent.rules.doc.Doc.defaults();
+    doc_cfg.missing_doc_comment.level = .deny;
     var result = try docent.lintSource(
         std.testing.allocator,
         std.testing.io,
@@ -187,7 +187,7 @@ test "unresolvable import produces no false positive in single-file mode" {
         "<fake-file.zig>",
         .{},
         &.{},
-        docs_cfg,
+        doc_cfg,
     );
     defer result.deinit();
     try utils.expectRuleAbsent(result, "missing_doc_comment");

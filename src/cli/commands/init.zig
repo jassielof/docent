@@ -94,6 +94,6 @@ test "renderDefaultConfig uses the published schema URL" {
 
     try std.testing.expect(std.mem.startsWith(u8, content, remote_schema_line));
     try std.testing.expect(std.mem.indexOf(u8, content, local_schema_line) == null);
-    try std.testing.expect(std.mem.indexOf(u8, content, "[docs]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, content, "[doc]") != null);
     try std.testing.expect(std.mem.indexOf(u8, content, "[complexity.cognitive_complexity]") != null);
 }

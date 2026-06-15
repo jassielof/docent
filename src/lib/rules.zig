@@ -10,5 +10,4 @@
 
 pub const style = @import("rules/style.zig");
 pub const complexity = @import("rules/complexity.zig");
-// TODO: Rename to singular "doc" instead of "docs", as docs is related to documents, rather than documentation. This applies to the namespace, directory and the CLI.
-pub const docs = @import("rules/docs.zig");
+pub const doc = @import("rules/doc.zig");

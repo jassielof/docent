@@ -4,7 +4,7 @@ const docent = @import("docent");
 const harness = @import("../../harness.zig");
 const utils = @import("../../utils.zig");
 
-const ns = "docs";
+const ns = "doc";
 
 test "pub_fn_missing_doctest reports one warning" {
     var result = try harness.lintRuleFixture(ns, &.{"pub_fn_missing_doctest.zig"}, .{

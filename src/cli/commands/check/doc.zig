@@ -1,4 +1,4 @@
-//! `docent check docs` — documentation comment rules.
+//! `docent check doc` — documentation comment rules.
 
 const std = @import("std");
 
@@ -9,15 +9,15 @@ const cli_types = @import("../../types.zig");
 const check_shared = @import("../../check_shared.zig");
 
 pub fn register(check: *fangz.Command) !void {
-    const docs_cmd = try check.addSubcommand(.{
-        .name = "docs",
+    const doc_cmd = try check.addSubcommand(.{
+        .name = "doc",
         .brief = "Check documentation comments",
         .description = "Lint doc comments on the public API surface (or all declarations when scan_mode is \"all\" in config). Exits non-zero when a denied rule reports a finding.",
     });
 
-    try check_shared.registerCategoryPositionals(docs_cmd);
-    try check_shared.registerOutputFlags(docs_cmd);
-    docs_cmd.setHooks(.{ .run = &run });
+    try check_shared.registerCategoryPositionals(doc_cmd);
+    try check_shared.registerOutputFlags(doc_cmd);
+    doc_cmd.setHooks(.{ .run = &run });
 }
 
 fn run(ctx: *fangz.ParseContext) !void {
@@ -25,12 +25,12 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const docs_cfg = docent.config.loadDocsOptionsFromCli(allocator, io, args.config_path) catch |err| {
+    const doc_cfg = docent.config.loadDocOptionsFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
 
-    const docs_scan_mode = docent.config.loadDocsScanModeFromCli(allocator, io, args.config_path) catch |err| {
+    const doc_scan_mode = docent.config.loadDocScanModeFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -70,7 +70,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     const lint_options: docent.LintOptions = switch (plan.path_mode) {
         .project, .module_root => .{
             .module_name = plan.package.name,
-            .scan_mode = docs_scan_mode,
+            .scan_mode = doc_scan_mode,
         },
         .recursive => .{
             .scan_mode = .reachability_traversal,
@@ -83,7 +83,7 @@ fn run(ctx: *fangz.ParseContext) !void {
                 const gptr = try linted_files.getOrPut(path);
                 if (gptr.found_existing) continue;
 
-                if (try lintPlanFile(allocator, io, path, lint_options, library_entry_roots_owned, docs_cfg, &all_diagnostics, &summary, args.fail_fast)) {
+                if (try lintPlanFile(allocator, io, path, lint_options, library_entry_roots_owned, doc_cfg, &all_diagnostics, &summary, args.fail_fast)) {
                     should_stop = true;
                     break;
                 }
@@ -97,13 +97,13 @@ fn run(ctx: *fangz.ParseContext) !void {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
 
-            if (try lintPlanFile(allocator, io, path, lint_options, library_entry_roots_owned, docs_cfg, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try lintPlanFile(allocator, io, path, lint_options, library_entry_roots_owned, doc_cfg, &all_diagnostics, &summary, args.fail_fast)) {
                 break;
             }
         }
     }
 
-    try check_shared.printCheckResults(io, allocator, args, "docent check docs", all_diagnostics.items, summary, path_display_root);
+    try check_shared.printCheckResults(io, allocator, args, "docent check doc", all_diagnostics.items, summary, path_display_root);
 
     if (summary.hasErrors()) std.process.exit(1);
 }
@@ -114,12 +114,12 @@ pub fn lintPlanFile(
     path: []const u8,
     lint_options: docent.LintOptions,
     library_entry_roots: []const []const u8,
-    docs_cfg: docent.rules.docs.Docs,
+    doc_cfg: docent.rules.doc.Doc,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
 ) !bool {
-    var result = docent.lintFile(allocator, io, path, lint_options, library_entry_roots, docs_cfg) catch |err| {
+    var result = docent.lintFile(allocator, io, path, lint_options, library_entry_roots, doc_cfg) catch |err| {
         try check_shared.printStderr(io, "error: failed to lint '{s}': {}\n", .{ path, err });
         return false;
     };
