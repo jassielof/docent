@@ -2,7 +2,6 @@
 
 const helpers = @import("utils/helpers.zig");
 
-pub const normalizePathSeparators = helpers.normalizePathSeparators;
 pub const ownedSubject = helpers.ownedSubject;
 pub const moduleDisplayName = helpers.moduleDisplayName;
 pub const isContainerDecl = helpers.isContainerDecl;

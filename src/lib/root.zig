@@ -1,8 +1,8 @@
 //! Core library for the Docent CLI: documentation, style, and complexity checks for Zig projects.
 
 const std = @import("std");
+const vereda = @import("vereda");
 
-const path_utils = @import("rules/utils.zig");
 const suppressions = @import("suppressions.zig");
 
 const Ast = std.zig.Ast;
@@ -106,7 +106,7 @@ pub fn lintSource(
     errdefer result.deinit();
 
     const msg = result.messageAllocator();
-    const file_owned = try path_utils.normalizePathSeparators(msg, file);
+    const file_owned = try vereda.path.toPosixSeparators(msg, file);
 
     const require_module_doc = resolveRequireModuleDoc(file_owned, library_entry_roots);
 
@@ -184,7 +184,7 @@ pub fn lintComplexitySource(
     errdefer result.deinit();
 
     const msg = result.messageAllocator();
-    const file_owned = try path_utils.normalizePathSeparators(msg, file);
+    const file_owned = try vereda.path.toPosixSeparators(msg, file);
 
     try rules.complexity.cognitive.check(
         &tree,
@@ -233,7 +233,7 @@ pub fn lintStyleSource(
     errdefer result.deinit();
 
     const msg = result.messageAllocator();
-    const file_owned = try path_utils.normalizePathSeparators(msg, file);
+    const file_owned = try vereda.path.toPosixSeparators(msg, file);
 
     try rules.style.identifier_case.check(
         &tree,

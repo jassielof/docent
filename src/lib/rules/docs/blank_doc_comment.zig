@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const Ast = std.zig.Ast;
+const vereda = @import("vereda");
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
@@ -207,7 +208,7 @@ fn onBlankWholeModuleReexport(ctx_ptr: *anyopaque, tree: *const Ast, file_path: 
         .rule = rule_name,
         .severity_level = ctx.severity_level,
         .subject = try utils.ownedSubject(ctx.msg_allocator, subject_kind, source_basename),
-        .file = try utils.normalizePathSeparators(ctx.msg_allocator, file_path),
+        .file = try vereda.path.toPosixSeparators(ctx.msg_allocator, file_path),
         .line = line + 1,
         .column = column + 1,
         .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(tree, 0, ctx.msg_allocator) else "",
