@@ -12,6 +12,7 @@ const rule_decode = @import("../rules/decode.zig");
 const doc_rules = @import("../rules/doc.zig");
 const style_rules = @import("../rules/style.zig");
 const complexity_rules = @import("../rules/complexity.zig");
+const naming_case = @import("../naming_case.zig");
 
 pub const Error = rule_decode.Error;
 
@@ -143,7 +144,27 @@ test "resolved style options read struct_file_case" {
     );
 
     const cfg = try decode(root);
-    try std.testing.expectEqual(style_rules.identifier_case.FilenameCase.snake_case, cfg.style.identifier_case.options.struct_file_case);
+    try std.testing.expectEqual(naming_case.Style.snake, cfg.style.identifier_case.options.struct_file_case);
+}
+
+test "resolved style options read identifier case conventions" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const root = try parseRoot(arena.allocator(),
+        \\[style.identifier_case]
+        \\namespaces = "PascalCase"
+        \\functions = "camelCase"
+        \\types = "PascalCase"
+        \\constants = "snake_case"
+    );
+
+    const cfg = try decode(root);
+    const opts = cfg.style.identifier_case.options;
+    try std.testing.expectEqual(naming_case.Style.pascal, opts.namespaces);
+    try std.testing.expectEqual(naming_case.Style.camel, opts.functions);
+    try std.testing.expectEqual(naming_case.Style.pascal, opts.types);
+    try std.testing.expectEqual(naming_case.Style.snake, opts.constants);
 }
 
 test "resolved docs options read invalid_leading_phrase settings" {
@@ -174,7 +195,7 @@ test "resolved style options read struct_file_case quoted identifier" {
     );
 
     const cfg = try decode(root);
-    try std.testing.expectEqual(style_rules.identifier_case.FilenameCase.@"kebab-case", cfg.style.identifier_case.options.struct_file_case);
+    try std.testing.expectEqual(naming_case.Style.kebab, cfg.style.identifier_case.options.struct_file_case);
 }
 
 test "resolved docs options read check_parameters" {
