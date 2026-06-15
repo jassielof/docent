@@ -7,6 +7,7 @@ const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
+const doc = @import("../../doc.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();
@@ -47,13 +48,13 @@ pub fn check(
         const block_end = i;
         const documented_first: Ast.TokenIndex = @intCast(block_end);
 
-        if (findFirstTrailingBlank(tree, block_start, block_end)) |blank_tok| {
+        if (doc.comment.firstTrailingBlankLine(tree, block_start, block_end)) |blank_tok| {
             const slice = tree.tokenSlice(blank_tok);
             const loc = tree.tokenLocation(0, blank_tok);
             const subject = if (tag == .container_doc_comment)
                 try utils.ownedSubject(msg_allocator, .module, utils.moduleDisplayName(file, module_name))
             else
-                try utils.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator);
+                try doc.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator);
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity_level = severity_level,
@@ -66,30 +67,6 @@ pub fn check(
             });
         }
     }
-}
-
-fn findFirstTrailingBlank(
-    tree: *const Ast,
-    block_start: usize,
-    block_end: usize,
-) ?Ast.TokenIndex {
-    var last_non_empty: ?usize = null;
-    var tok: usize = block_start;
-    while (tok < block_end) : (tok += 1) {
-        const slice = tree.tokenSlice(@intCast(tok));
-        if (!utils.isEmptyDocCommentLine(slice)) last_non_empty = tok;
-    }
-
-    const after_content = (last_non_empty orelse return null) + 1;
-    if (after_content >= block_end) return null;
-
-    var trailing = after_content;
-    while (trailing < block_end) : (trailing += 1) {
-        const slice = tree.tokenSlice(@intCast(trailing));
-        if (!utils.isEmptyDocCommentLine(slice)) return null;
-    }
-
-    return @intCast(after_content);
 }
 
 const TestResult = struct {
