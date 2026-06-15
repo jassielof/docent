@@ -55,6 +55,7 @@ const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
+const naming_case = @import("../../naming_case.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();
@@ -95,32 +96,9 @@ pub const Options = struct {
 /// Full configuration for `identifier_case`: severity, scan mode, and the documented `Options` sub-space.
 pub const Rule = category.Rule(default_severity, Options, scanning.Modes.reachability_traversal);
 
-/// A naming convention an identifier is expected to follow.
-const Case = enum {
-    snake,
-    camel,
-    pascal,
-
-    fn label(self: Case) []const u8 {
-        return switch (self) {
-            .snake => "snake_case",
-            .camel => "camelCase",
-            .pascal => "PascalCase",
-        };
-    }
-
-    fn matches(self: Case, name: []const u8) bool {
-        return switch (self) {
-            .snake => isSnakeCase(name),
-            .camel => isCamelCase(name),
-            .pascal => isPascalCase(name),
-        };
-    }
-};
-
 /// The expected case plus the diagnostic subject kind for a classified declaration.
 const Classification = struct {
-    case: Case,
+    case: naming_case.Style,
     kind: Diagnostic.SubjectKind,
 };
 
@@ -178,7 +156,7 @@ fn checkNode(
         if (tree.fullFnProto(&buf, node)) |proto| {
             if (utils.isPubVisibility(tree, proto.visib_token) or !public_api_only) {
                 if (proto.name_token) |name_tok| {
-                    const expected: Case = if (isGenericFunction(tree, proto)) .pascal else .camel;
+                    const expected: naming_case.Style = if (isGenericFunction(tree, proto)) .pascal else .camel;
                     try checkName(tree, name_tok, expected, .function, severity_level, file, allocator, msg_allocator, diagnostics);
                 }
             }
@@ -399,7 +377,7 @@ fn checkImportBinding(
     if (!std.mem.endsWith(u8, lit.path, ".zig")) return;
 
     const file_kind = try resolveImportedFileKind(lit.path, file, allocator, io, namespace_cache) orelse return;
-    const expected: Case = if (file_kind == .namespace) .snake else .pascal;
+    const expected: naming_case.Style = if (file_kind == .namespace) .snake else .pascal;
     const kind: Diagnostic.SubjectKind = if (file_kind == .namespace) .namespace else .structure;
 
     const name_tok = var_decl.ast.mut_token + 1;
@@ -466,7 +444,7 @@ fn checkImportFilename(
         return;
     }
 
-    if (isSnakeCase(stem)) return;
+    if (naming_case.isSnake(stem)) return;
     if (file_kind != .namespace) return;
 
     const snake_stem = try pascalCaseStemToSnake(msg_allocator, stem);
@@ -525,18 +503,10 @@ fn filenameCaseLabel(case: FilenameCase) []const u8 {
 
 fn stemMatchesFilenameCase(stem: []const u8, case: FilenameCase) bool {
     return switch (case) {
-        .snake_case => isSnakeCase(stem),
-        .PascalCase => isPascalCase(stem),
-        .@"kebab-case" => isKebabCase(stem),
+        .snake_case => naming_case.isSnake(stem),
+        .PascalCase => naming_case.isPascal(stem),
+        .@"kebab-case" => naming_case.isKebab(stem),
     };
-}
-
-fn isKebabCase(name: []const u8) bool {
-    if (name.len == 0) return false;
-    for (name) |c| {
-        if (!((c >= 'a' and c <= 'z') or (c >= '0' and c <= '9') or c == '-')) return false;
-    }
-    return true;
 }
 
 fn identifierToFilenameStem(allocator: std.mem.Allocator, name: []const u8, case: FilenameCase) std.mem.Allocator.Error![]u8 {
@@ -567,8 +537,8 @@ fn pascalCaseStemToKebab(allocator: std.mem.Allocator, stem: []const u8) std.mem
 }
 
 fn snakeOrKebabStemToPascal(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
-    if (isPascalCase(stem) or isCamelCase(stem)) return allocator.dupe(u8, stem);
-    if (isKebabCase(stem)) {
+    if (naming_case.isPascal(stem) or naming_case.isCamel(stem)) return allocator.dupe(u8, stem);
+    if (naming_case.isKebab(stem)) {
         var snake: std.ArrayList(u8) = .empty;
         errdefer snake.deinit(allocator);
         for (stem) |c| try snake.append(allocator, if (c == '-') '_' else c);
@@ -713,7 +683,7 @@ fn checkErrorSetValues(
 fn checkName(
     tree: *const Ast,
     name_tok: Ast.TokenIndex,
-    expected: Case,
+    expected: naming_case.Style,
     kind: Diagnostic.SubjectKind,
     severity_level: severity.Level,
     file: []const u8,
@@ -723,7 +693,7 @@ fn checkName(
 ) std.mem.Allocator.Error!void {
     const name = tree.tokenSlice(name_tok);
     if (isExemptName(name)) return;
-    if (kind == .enumerator and (isCamelCase(name) or isPascalCase(name))) return;
+    if (kind == .enumerator and (naming_case.isCamel(name) or naming_case.isPascal(name))) return;
     if (expected.matches(name)) return;
 
     const loc = tree.tokenLocation(0, name_tok);
@@ -800,32 +770,6 @@ fn isExemptName(name: []const u8) bool {
     if (name.len == 0) return true;
     if (name[0] == '@') return true;
     return std.mem.eql(u8, name, "_");
-}
-
-// TODO: All these is<case style> functions need to be moved to its own namespace `lib/naming_case.zig`, it should be imported with the root import `@import("root").naming_case;
-fn isSnakeCase(name: []const u8) bool {
-    for (name) |c| {
-        if (c >= 'A' and c <= 'Z') return false;
-    }
-    return true;
-}
-
-fn isCamelCase(name: []const u8) bool {
-    if (name.len == 0) return true;
-    if (!(name[0] >= 'a' and name[0] <= 'z')) return false;
-    for (name) |c| {
-        if (c == '_') return false;
-    }
-    return true;
-}
-
-fn isPascalCase(name: []const u8) bool {
-    if (name.len == 0) return true;
-    if (!(name[0] >= 'A' and name[0] <= 'Z')) return false;
-    for (name) |c| {
-        if (c == '_') return false;
-    }
-    return true;
 }
 
 const TestResult = struct {
@@ -931,22 +875,6 @@ test "PascalCase binding on namespace import is flagged" {
     }
     try std.testing.expect(found_binding);
     try std.testing.expect(found_filename);
-}
-
-test "snake_case predicates" {
-    try std.testing.expect(isSnakeCase("foo_bar"));
-    try std.testing.expect(isSnakeCase("pi"));
-    try std.testing.expect(!isSnakeCase("fooBar"));
-    try std.testing.expect(!isSnakeCase("MAX"));
-
-    try std.testing.expect(isCamelCase("parseInt"));
-    try std.testing.expect(isCamelCase("foo"));
-    try std.testing.expect(!isCamelCase("parse_int"));
-    try std.testing.expect(!isCamelCase("ParseInt"));
-
-    try std.testing.expect(isPascalCase("ArrayList"));
-    try std.testing.expect(!isPascalCase("array_list"));
-    try std.testing.expect(!isPascalCase("arrayList"));
 }
 
 test "concrete function should be camelCase" {
