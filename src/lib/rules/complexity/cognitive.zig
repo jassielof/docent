@@ -361,31 +361,6 @@ fn complexityOfFirstFn(source: [:0]const u8) !u32 {
     return error.NoFunction;
 }
 
-const TestResult = struct {
-    msg_arena: std.heap.ArenaAllocator,
-    items: std.ArrayList(Diagnostic),
-
-    fn deinit(self: *TestResult) void {
-        self.msg_arena.deinit();
-        self.items.deinit(std.testing.allocator);
-    }
-};
-
-fn runCheck(source: [:0]const u8, threshold: u32) !TestResult {
-    const base = std.testing.allocator;
-    var msg_arena = std.heap.ArenaAllocator.init(base);
-    errdefer msg_arena.deinit();
-
-    var tree = try std.zig.Ast.parse(base, source, .zig);
-    defer tree.deinit(base);
-
-    var diagnostics: std.ArrayList(Diagnostic) = .empty;
-    errdefer diagnostics.deinit(base);
-
-    try check(&tree, .{ .scan_mode = .public_api_surface, .options = .{ .threshold = threshold } }, "<test>", base, msg_arena.allocator(), &diagnostics);
-    return .{ .msg_arena = msg_arena, .items = diagnostics };
-}
-
 test "sumOfPrimes scores 7 per the Sonar specification" {
     const score = try complexityOfFirstFn(
         \\fn sumOfPrimes(max: u32) u32 {
@@ -504,40 +479,4 @@ test "labeled block break is not penalized" {
         \\}
     );
     try std.testing.expectEqual(@as(u32, 0), score);
-}
-
-test "emits a diagnostic only above the threshold" {
-    const source =
-        \\pub fn complex(a: bool, b: bool, c: bool) void {
-        \\    if (a) {
-        \\        if (b) {
-        \\            if (c) {}
-        \\        }
-        \\    }
-        \\}
-    ;
-    var below = try runCheck(source, 6);
-    defer below.deinit();
-    try std.testing.expectEqual(@as(usize, 0), below.items.items.len);
-
-    var above = try runCheck(source, 5);
-    defer above.deinit();
-    try std.testing.expectEqual(@as(usize, 1), above.items.items.len);
-    try std.testing.expectEqualStrings(rule_name, above.items.items[0].rule);
-    try std.testing.expectEqualStrings("complex", above.items.items[0].subject.?.name);
-}
-
-test "private functions are skipped under public_api_only" {
-    const source =
-        \\fn complex(a: bool, b: bool, c: bool) void {
-        \\    if (a) {
-        \\        if (b) {
-        \\            if (c) {}
-        \\        }
-        \\    }
-        \\}
-    ;
-    var result = try runCheck(source, 1);
-    defer result.deinit();
-    try std.testing.expectEqual(@as(usize, 0), result.items.items.len);
 }

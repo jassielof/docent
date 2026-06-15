@@ -133,33 +133,6 @@ fn functionParamCount(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
     return @intCast(proto.ast.params.len);
 }
 
-const TestResult = struct {
-    msg_arena: std.heap.ArenaAllocator,
-    items: std.ArrayList(Diagnostic),
-
-    fn deinit(self: *TestResult) void {
-        self.msg_arena.deinit();
-        self.items.deinit(std.testing.allocator);
-    }
-};
-
-fn runCheck(source: [:0]const u8, threshold: u32, rule: Rule) !TestResult {
-    const base = std.testing.allocator;
-    var msg_arena = std.heap.ArenaAllocator.init(base);
-    errdefer msg_arena.deinit();
-
-    var tree = try std.zig.Ast.parse(base, source, .zig);
-    defer tree.deinit(base);
-
-    var diagnostics: std.ArrayList(Diagnostic) = .empty;
-    errdefer diagnostics.deinit(base);
-
-    var r = rule;
-    r.options.threshold = threshold;
-    try check(&tree, r, "<test>", base, msg_arena.allocator(), &diagnostics);
-    return .{ .msg_arena = msg_arena, .items = diagnostics };
-}
-
 test "counts parameters from the function prototype" {
     const count = count: {
         const source =
@@ -173,47 +146,6 @@ test "counts parameters from the function prototype" {
         break :count 0;
     };
     try std.testing.expectEqual(@as(u32, 3), count);
-}
-
-test "function within threshold is accepted" {
-    var r = try runCheck("pub fn ok(a: u32, b: u32, c: u32) void {}", 7, .{});
-    defer r.deinit();
-    try std.testing.expectEqual(@as(usize, 0), r.items.items.len);
-}
-
-test "function above threshold is reported" {
-    var r = try runCheck(
-        \\pub fn too_many(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}
-    , 7, .{});
-    defer r.deinit();
-    try std.testing.expectEqual(@as(usize, 1), r.items.items.len);
-    try std.testing.expectEqualStrings(rule_name, r.items.items[0].rule);
-    try std.testing.expectEqualStrings("too_many", r.items.items[0].subject.?.name);
-    try std.testing.expect(std.mem.indexOf(u8, r.items.items[0].detail.?, "8 parameters") != null);
-}
-
-test "exactly at threshold is accepted" {
-    var r = try runCheck(
-        \\pub fn seven(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32) void {}
-    , 7, .{});
-    defer r.deinit();
-    try std.testing.expectEqual(@as(usize, 0), r.items.items.len);
-}
-
-test "private functions are measured when public_api_only is false" {
-    var r = try runCheck(
-        \\fn hidden(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}
-    , 7, .{});
-    defer r.deinit();
-    try std.testing.expectEqual(@as(usize, 1), r.items.items.len);
-}
-
-test "private functions are skipped under public_api_only" {
-    var r = try runCheck(
-        \\fn hidden(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}
-    , 7, .{ .scan_mode = .public_api_surface });
-    defer r.deinit();
-    try std.testing.expectEqual(@as(usize, 0), r.items.items.len);
 }
 
 test "inactive severity yields no diagnostics" {

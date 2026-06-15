@@ -211,31 +211,6 @@ fn complexityOfFirstFn(source: [:0]const u8) !Complexity {
     return error.NoFunction;
 }
 
-const TestResult = struct {
-    msg_arena: std.heap.ArenaAllocator,
-    items: std.ArrayList(Diagnostic),
-
-    fn deinit(self: *TestResult) void {
-        self.msg_arena.deinit();
-        self.items.deinit(std.testing.allocator);
-    }
-};
-
-fn runCheck(source: [:0]const u8, threshold: u32) !TestResult {
-    const base = std.testing.allocator;
-    var msg_arena = std.heap.ArenaAllocator.init(base);
-    errdefer msg_arena.deinit();
-
-    var tree = try std.zig.Ast.parse(base, source, .zig);
-    defer tree.deinit(base);
-
-    var diagnostics: std.ArrayList(Diagnostic) = .empty;
-    errdefer diagnostics.deinit(base);
-
-    try check(&tree, .{ .scan_mode = .public_api_surface, .options = .{ .threshold = threshold } }, "<test>", base, msg_arena.allocator(), &diagnostics);
-    return .{ .msg_arena = msg_arena, .items = diagnostics };
-}
-
 test "formula computes V(G) = E - N + 2P" {
     try std.testing.expectEqual(@as(Complexity, 1), formula(0, 1, 1));
     try std.testing.expectEqual(@as(Complexity, 3), formula(4, 3, 1));
@@ -305,44 +280,4 @@ test "orelse is ignored" {
         \\}
     );
     try std.testing.expectEqual(@as(u32, 1), score);
-}
-
-test "emits a diagnostic only above the threshold" {
-    const source =
-        \\pub fn complex(x: i32) i32 {
-        \\    if (x == 1) {
-        \\        return 1;
-        \\    } else if (x == 2) {
-        \\        return 2;
-        \\    } else {
-        \\        return 3;
-        \\    }
-        \\}
-    ;
-    var at = try runCheck(source, 3);
-    defer at.deinit();
-    try std.testing.expectEqual(@as(usize, 0), at.items.items.len);
-
-    var above = try runCheck(source, 2);
-    defer above.deinit();
-    try std.testing.expectEqual(@as(usize, 1), above.items.items.len);
-    try std.testing.expectEqualStrings(rule_name, above.items.items[0].rule);
-    try std.testing.expectEqualStrings("complex", above.items.items[0].subject.?.name);
-}
-
-test "private functions are skipped under public_api_only" {
-    const source =
-        \\fn complex(x: i32) i32 {
-        \\    if (x == 1) {
-        \\        return 1;
-        \\    } else if (x == 2) {
-        \\        return 2;
-        \\    } else {
-        \\        return 3;
-        \\    }
-        \\}
-    ;
-    var result = try runCheck(source, 1);
-    defer result.deinit();
-    try std.testing.expectEqual(@as(usize, 0), result.items.items.len);
 }

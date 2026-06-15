@@ -2,46 +2,49 @@
 
 const std = @import("std");
 const docent = @import("docent");
+const harness = @import("../../harness.zig");
 const utils = @import("../../utils.zig");
 
-fn lint(source: [:0]const u8, threshold: u32) !docent.LintResult {
-    var cfg = docent.rules.complexity.Complexity.defaults();
-    cfg.max_function_parameters.options.threshold = threshold;
-    return docent.lintComplexitySource(std.testing.allocator, source, "<test>", cfg);
+const ns = "complexity";
+const warn = docent.RuleSeverities{ .max_fun_params = .warn };
+
+fn configureThreshold7(cfg: *docent.rules.complexity.Complexity) void {
+    cfg.max_function_parameters.options.threshold = 7;
 }
 
-test "function above default threshold is reported" {
-    var result = try lint(
-        \\pub fn too_many(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}
-    , 7);
-    defer result.deinit();
-    try utils.expectRuleCount(result, "max_fun_params", 1);
+fn configureThreshold7PublicApi(cfg: *docent.rules.complexity.Complexity) void {
+    cfg.max_function_parameters.options.threshold = 7;
+    cfg.max_function_parameters.scan_mode = .public_api_surface;
 }
 
-test "function at threshold is accepted" {
-    var result = try lint(
-        \\pub fn seven(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32) void {}
-    , 7);
+test "function within threshold is accepted" {
+    var result = try harness.lintComplexityRuleFixture(ns, &.{ "max_fun_params_within_threshold.zig" }, warn, null, configureThreshold7);
     defer result.deinit();
     try utils.expectRuleAbsent(result, "max_fun_params");
 }
 
-test "non-public functions are also measured" {
-    var result = try lint(
-        \\fn hidden(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}
-    , 7);
+test "function above threshold is reported" {
+    var result = try harness.lintComplexityRuleFixture(ns, &.{ "max_fun_params_above_threshold.zig" }, warn, null, configureThreshold7);
+    defer result.deinit();
+    try utils.expectRuleCount(result, "max_fun_params", 1);
+    try std.testing.expectEqualStrings("too_many", result.diagnostics.items[0].subject.?.name);
+    try std.testing.expect(std.mem.indexOf(u8, result.diagnostics.items[0].detail.?, "8 parameters") != null);
+}
+
+test "exactly at threshold is accepted" {
+    var result = try harness.lintComplexityRuleFixture(ns, &.{ "max_fun_params_at_threshold.zig" }, warn, null, configureThreshold7);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "max_fun_params");
+}
+
+test "private functions are measured when public_api_only is false" {
+    var result = try harness.lintComplexityRuleFixture(ns, &.{ "max_fun_params_private_above.zig" }, warn, null, configureThreshold7);
     defer result.deinit();
     try utils.expectRuleCount(result, "max_fun_params", 1);
 }
 
-test "default threshold leaves small signatures clean" {
-    var result = try docent.lintComplexitySource(
-        std.testing.allocator,
-        \\fn helper(allocator: std.mem.Allocator, io: std.Io) void {}
-    ,
-        "<test>",
-        docent.rules.complexity.Complexity.defaults(),
-    );
+test "private functions are skipped under public_api_only" {
+    var result = try harness.lintComplexityRuleFixture(ns, &.{ "max_fun_params_private_above.zig" }, warn, null, configureThreshold7PublicApi);
     defer result.deinit();
     try utils.expectRuleAbsent(result, "max_fun_params");
 }

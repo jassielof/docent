@@ -11,4 +11,6 @@ comptime {
     refAllDecls(@import("scenarios/targeting.zig"));
     refAllDecls(@import("scenarios/manifest_and_config.zig"));
     refAllDecls(@import("scenarios/config_presets.zig"));
+    refAllDecls(@import("scenarios/doc_reexport.zig"));
+    refAllDecls(@import("scenarios/identifier_case_imports.zig"));
 }
