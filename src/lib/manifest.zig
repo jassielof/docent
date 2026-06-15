@@ -2,13 +2,21 @@
 
 const std = @import("std");
 
-// TODO: There's no need for these types, as the stdlib provides it. use context7 to find out and figure out if there is.
-const PathsManifest = struct {
+/// Subset of `build.zig.zon` fields parsed at runtime via `std.zon.parse`.
+///
+/// The stdlib does not ship a manifest schema type. At comptime, build scripts may
+/// `@import("build.zig.zon")`; at runtime, callers define a partial struct and pass it
+/// to `std.zon.parse.fromSliceAlloc` (same pattern as fangz's `PartialManifest`).
+///
+/// `.name` is omitted here because it is a ZON enum literal (`.identifier`), not a string.
+const ManifestPartial = struct {
+    version: ?[]const u8 = null,
     paths: ?[]const []const u8 = null,
 };
 
-const MetaManifest = struct {
-    version: ?[]const u8 = null,
+const parse_options: std.zon.parse.Options = .{
+    .ignore_unknown_fields = true,
+    .free_on_error = true,
 };
 
 /// Package identity from `build.zig.zon` (when present).
@@ -32,33 +40,6 @@ pub const PackageMeta = struct {
     }
 };
 
-fn scanQuotedField(manifest_text: []const u8, comptime field: []const u8) ?[]const u8 {
-    const needle = "." ++ field;
-    const idx = std.mem.indexOf(u8, manifest_text, needle) orelse return null;
-    var i = idx + needle.len;
-    while (i < manifest_text.len and manifest_text[i] != '=') : (i += 1) {}
-    if (i >= manifest_text.len) return null;
-    i += 1;
-    while (i < manifest_text.len and std.ascii.isWhitespace(manifest_text[i])) : (i += 1) {}
-    if (i >= manifest_text.len or manifest_text[i] != '"') return null;
-    const start = i + 1;
-    i += 1;
-    var escaped = false;
-    while (i < manifest_text.len) : (i += 1) {
-        if (escaped) {
-            escaped = false;
-            continue;
-        }
-        if (manifest_text[i] == '\\') {
-            escaped = true;
-            continue;
-        }
-        if (manifest_text[i] == '"') return manifest_text[start..i];
-    }
-    return null;
-}
-
-/// Reads `.name = .identifier` from zon text (enum-style package names).
 fn scanPackageName(manifest_text: []const u8) ?[]const u8 {
     const idx = std.mem.indexOf(u8, manifest_text, ".name") orelse return null;
     var i = idx + ".name".len;
@@ -75,6 +56,22 @@ fn scanPackageName(manifest_text: []const u8) ?[]const u8 {
     }
     if (start == i) return null;
     return manifest_text[start..i];
+}
+
+fn parseManifestPartial(allocator: std.mem.Allocator, manifest_text: []const u8) !ManifestPartial {
+    const source = try allocator.dupeZ(u8, manifest_text);
+    defer allocator.free(source);
+
+    var diag: std.zon.parse.Diagnostics = .{};
+    defer diag.deinit(allocator);
+
+    return try std.zon.parse.fromSliceAlloc(
+        ManifestPartial,
+        allocator,
+        source,
+        &diag,
+        parse_options,
+    );
 }
 
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
@@ -198,22 +195,7 @@ pub fn loadPackagePaths(allocator: std.mem.Allocator, io: std.Io, manifest_path:
     const manifest_text = try readManifestText(allocator, io, manifest_path);
     defer allocator.free(manifest_text);
 
-    const source = try allocator.dupeZ(u8, manifest_text);
-    defer allocator.free(source);
-
-    var diag: std.zon.parse.Diagnostics = .{};
-    defer diag.deinit(allocator);
-
-    const manifest = try std.zon.parse.fromSliceAlloc(
-        PathsManifest,
-        allocator,
-        source,
-        &diag,
-        .{
-            .ignore_unknown_fields = true,
-            .free_on_error = true,
-        },
-    );
+    const manifest = try parseManifestPartial(allocator, manifest_text);
     defer std.zon.parse.free(allocator, manifest);
 
     const dir = try manifestDir(manifest_path);
@@ -275,29 +257,10 @@ pub fn loadPackageMeta(allocator: std.mem.Allocator, io: std.Io, manifest_path: 
     }
 
     var version: ?[]const u8 = null;
-    if (scanQuotedField(manifest_text, "version")) |raw| {
-        version = try allocator.dupe(u8, raw);
-    } else {
-        const source = try allocator.dupeZ(u8, manifest_text);
-        defer allocator.free(source);
-
-        var diag: std.zon.parse.Diagnostics = .{};
-        defer diag.deinit(allocator);
-
-        const parsed = std.zon.parse.fromSliceAlloc(
-            MetaManifest,
-            allocator,
-            source,
-            &diag,
-            .{
-                .ignore_unknown_fields = true,
-                .free_on_error = true,
-            },
-        ) catch null;
-        if (parsed) |m| {
-            defer std.zon.parse.free(allocator, m);
-            if (m.version) |v| version = try allocator.dupe(u8, v);
-        }
+    const parsed = parseManifestPartial(allocator, manifest_text) catch null;
+    if (parsed) |manifest| {
+        defer std.zon.parse.free(allocator, manifest);
+        if (manifest.version) |v| version = try allocator.dupe(u8, v);
     }
 
     return .{
