@@ -1,4 +1,14 @@
 //! Harness helps with fixture path utilities for flat rule and scenario layouts under `tests/fixtures/`.
+//!
+//! - `fixtures/rules/<namespace>/<case_id>.zig` — single-file rule cases.
+//! - `fixtures/rules/<namespace>/<case_id>/` — project fixtures (`root.zig` entry, optional extra sources).
+//! - `fixtures/scenarios/<case_id>.zig` — single-file scenario cases.
+//! - `fixtures/scenarios/<case_id>/` — scenario project trees.
+//!
+//! To add a rule test:
+//! 1. Add `fixtures/rules/<namespace>/<case_id>.zig`, or a directory `fixtures/rules/<namespace>/<case_id>/` with `root.zig`.
+//! 2. Add or extend `rules/<namespace>/<rule_id>.zig` and call `harness.lintRuleFixture("<namespace>", &.{ ... }, rule_set, .{})`.
+//! 3. Import the test file from `rules/<namespace>.zig`.
 
 const std = @import("std");
 const builtin = @import("builtin");

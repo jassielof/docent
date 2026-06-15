@@ -1,3 +1,5 @@
+//! Scenarios are integration tests that don't focus strictly on a single rule, but rather cover cases where multiple rules interact, complementing the rule-specific tests.
+
 const std = @import("std");
 const refAllDecls = std.testing.refAllDecls;
 
