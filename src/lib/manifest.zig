@@ -2,7 +2,7 @@
 
 const std = @import("std");
 
-// TODO: There's no need for these types, as the stdlib provides it.
+// TODO: There's no need for these types, as the stdlib provides it. use context7 to find out and figure out if there is.
 const PathsManifest = struct {
     paths: ?[]const []const u8 = null,
 };
