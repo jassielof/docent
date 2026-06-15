@@ -98,7 +98,7 @@ pub const article_words: []const []const u8 = &.{ "a", "an", "the" };
 
 const KindPhrase = []const []const u8;
 
-/// Walks `tree` and appends diagnostics for doc comment summaries with an invalid leading phrase.
+/// The check function Walks the AST and appends diagnostics for doc comment summaries with an invalid leading phrase.
 pub fn check(
     tree: *const Ast,
     rule: Rule,
@@ -338,6 +338,8 @@ fn runCheckOpts(source: [:0]const u8, module_name: ?[]const u8, rule: Rule) !Tes
     try check(&tree, rule, "<test>", module_name, base, msg_arena.allocator(), &diagnostics);
     return .{ .msg_arena = msg_arena, .items = diagnostics };
 }
+
+// TODO: This applies not only to this rule, but all of the rules that have the same patter. Any test that checks has any code checks just like these 3 followings, need to go as integration tests, not unit tests, if the private functions need to be moved to integration tests, then so be it. No code should be tested as hardcoded strings, it should be parsed using the `@embedFile()` built-in.
 
 test "accepts identifier-first summary on a function" {
     var r = try runCheck("/// add returns the sum.\npub fn add(a: i32, b: i32) i32 {\n    return a + b;\n}");
