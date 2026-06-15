@@ -5,6 +5,8 @@ const refAllDecls = std.testing.refAllDecls;
 comptime {
     refAllDecls(@import("doc/missing_doc_comment.zig"));
     refAllDecls(@import("doc/missing_doctest.zig"));
+    refAllDecls(@import("doc/private_doctest.zig"));
+    refAllDecls(@import("doc/doctest_naming_mismatch.zig"));
     refAllDecls(@import("doc/blank_doc_comment.zig"));
     refAllDecls(@import("doc/trailing_blank_doc_comment.zig"));
     refAllDecls(@import("doc/missing_summary_terminal_punctuation.zig"));

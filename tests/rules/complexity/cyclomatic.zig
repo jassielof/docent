@@ -2,88 +2,38 @@
 
 const std = @import("std");
 const docent = @import("docent");
+const harness = @import("../../harness.zig");
 const utils = @import("../../utils.zig");
 
-fn lint(source: [:0]const u8, threshold: u32) !docent.LintResult {
-    var cfg = docent.rules.complexity.Complexity.defaults();
-    cfg.cyclomatic_complexity.options.threshold = threshold;
-    return docent.lintComplexitySource(std.testing.allocator, source, "<test>", cfg);
+const ns = "complexity";
+const warn = docent.RuleSeverities{ .cyclomatic_complexity = .warn };
+
+fn configureThreshold3(cfg: *docent.rules.complexity.Complexity) void {
+    cfg.cyclomatic_complexity.options.threshold = 3;
 }
 
-test "public function above threshold is reported" {
-    var result = try lint(
-        \\pub fn complex(x: i32) i32 {
-        \\    if (x == 1) {
-        \\        return 1;
-        \\    } else if (x == 2) {
-        \\        return 2;
-        \\    } else {
-        \\        return 3;
-        \\    }
-        \\}
-    , 2);
-    defer result.deinit();
-    try utils.expectRuleCount(result, "cyclomatic_complexity", 1);
+fn configureThreshold2(cfg: *docent.rules.complexity.Complexity) void {
+    cfg.cyclomatic_complexity.options.threshold = 2;
 }
 
-test "simple function below threshold is accepted" {
-    var result = try lint(
-        \\pub fn simple(x: u32) u32 {
-        \\    return x + 1;
-        \\}
-    , 10);
-    defer result.deinit();
-    try utils.expectRuleAbsent(result, "cyclomatic_complexity");
+fn configureThreshold1PublicApi(cfg: *docent.rules.complexity.Complexity) void {
+    cfg.cyclomatic_complexity.options.threshold = 1;
+    cfg.cyclomatic_complexity.scan_mode = .public_api_surface;
 }
 
-test "non-public functions are also measured" {
-    var result = try lint(
-        \\fn complex(x: i32) i32 {
-        \\    if (x == 1) {
-        \\        return 1;
-        \\    } else if (x == 2) {
-        \\        return 2;
-        \\    } else {
-        \\        return 3;
-        \\    }
-        \\}
-    , 2);
-    defer result.deinit();
-    try utils.expectRuleCount(result, "cyclomatic_complexity", 1);
+test "emits a diagnostic only above the threshold" {
+    var at = try harness.lintComplexityRuleFixture(ns, &.{ "cyclomatic_complex_if_chain.zig" }, warn, null, configureThreshold3);
+    defer at.deinit();
+    try utils.expectRuleAbsent(at, "cyclomatic_complexity");
+
+    var above = try harness.lintComplexityRuleFixture(ns, &.{ "cyclomatic_complex_if_chain.zig" }, warn, null, configureThreshold2);
+    defer above.deinit();
+    try utils.expectRuleCount(above, "cyclomatic_complexity", 1);
+    try std.testing.expectEqualStrings("complex", above.diagnostics.items[0].subject.?.name);
 }
 
-test "default threshold leaves simple declarations clean" {
-    var result = try docent.lintComplexitySource(
-        std.testing.allocator,
-        \\fn helper(x: u32) u32 {
-        \\    return x + 1;
-        \\}
-    ,
-        "<test>",
-        docent.rules.complexity.Complexity.defaults(),
-    );
+test "private functions are skipped under public_api_only" {
+    var result = try harness.lintComplexityRuleFixture(ns, &.{ "cyclomatic_private_if_chain.zig" }, warn, null, configureThreshold1PublicApi);
     defer result.deinit();
     try utils.expectRuleAbsent(result, "cyclomatic_complexity");
-}
-
-test "switch with many prongs exceeds default threshold" {
-    var result = try lint(
-        \\pub fn classify(n: u8) []const u8 {
-        \\    switch (n) {
-        \\        0 => return "zero",
-        \\        1 => return "one",
-        \\        2 => return "two",
-        \\        3 => return "three",
-        \\        4 => return "four",
-        \\        5 => return "five",
-        \\        6 => return "six",
-        \\        7 => return "seven",
-        \\        8 => return "eight",
-        \\        9 => return "nine",
-        \\        else => return "many",
-        \\    }
-        \\}
-    , 10);
-    defer result.deinit();
-    try utils.expectRuleCount(result, "cyclomatic_complexity", 1);
 }

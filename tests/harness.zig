@@ -1,13 +1,12 @@
 //! Harness helps with fixture path utilities for flat rule and scenario layouts under `tests/fixtures/`.
 //!
-//! - `fixtures/rules/<namespace>/<case_id>.zig` — single-file rule cases.
-//! - `fixtures/rules/<namespace>/<case_id>/` — project fixtures (`root.zig` entry, optional extra sources).
+//! - `fixtures/rules/<namespace>/<case_id>.zig` — single-file rule cases only.
 //! - `fixtures/scenarios/<case_id>.zig` — single-file scenario cases.
-//! - `fixtures/scenarios/<case_id>/` — scenario project trees.
+//! - `fixtures/scenarios/<case_id>/` — scenario project trees (multi-file, imports, re-exports).
 //!
 //! To add a rule test:
-//! 1. Add `fixtures/rules/<namespace>/<case_id>.zig`, or a directory `fixtures/rules/<namespace>/<case_id>/` with `root.zig`.
-//! 2. Add or extend `rules/<namespace>/<rule_id>.zig` and call `harness.lintRuleFixture("<namespace>", &.{ ... }, rule_set, .{})`.
+//! 1. Add `fixtures/rules/<namespace>/<case_id>.zig`.
+//! 2. Add or extend `rules/<namespace>/<rule_id>.zig` and call `harness.lintRuleFixture`.
 //! 3. Import the test file from `rules/<namespace>.zig`.
 
 const std = @import("std");
@@ -71,6 +70,7 @@ pub fn lintFixturePath(
     defer allocator.free(source);
     var doc_cfg = docent.rules.doc.Doc.defaults();
     applyDocSeverities(&doc_cfg, rule_set);
+    doc_cfg.applyRunScanMode(options.scan_mode);
     return docent.lintSource(allocator, io, source, display_path, options, &.{}, doc_cfg);
 }
 
@@ -93,24 +93,66 @@ fn applyDocSeverities(cfg: *docent.rules.doc.Doc, rule_set: docent.RuleSeveritie
     cfg.invalid_leading_phrase.level = rule_set.invalid_leading_phrase;
 }
 
+/// Returns a `RuleSeverities` with every doc rule at `.allow` except one set to `level`.
+pub fn isolatedDocRule(comptime rule: []const u8, level: docent.SeverityLevel) docent.RuleSeverities {
+    var rs = docent.RuleSeverities{
+        .missing_doc_comment = .allow,
+        .missing_doctest = .allow,
+        .private_doctest = .allow,
+        .blank_doc_comment = .allow,
+        .missing_summary_terminal_punctuation = .allow,
+        .trailing_blank_doc_comment = .allow,
+        .doctest_naming_mismatch = .allow,
+        .invalid_leading_phrase = .allow,
+    };
+    @field(rs, rule) = level;
+    return rs;
+}
+
 pub fn lintRuleFixture(
     namespace: []const u8,
     parts: []const []const u8,
     rule_set: docent.RuleSeverities,
     options: docent.LintOptions,
 ) !docent.LintResult {
+    return lintRuleFixtureDisplay(namespace, parts, rule_set, options, null);
+}
+
+pub fn lintRuleFixtureDisplay(
+    namespace: []const u8,
+    parts: []const []const u8,
+    rule_set: docent.RuleSeverities,
+    options: docent.LintOptions,
+    display_path: ?[]const u8,
+) !docent.LintResult {
     const allocator = std.testing.allocator;
     const path = try ruleFixturePath(allocator, namespace, parts);
     defer allocator.free(path);
-    const display = try relativeFixtureDisplay(allocator, path);
+    const display = if (display_path) |dp| try allocator.dupe(u8, dp) else try relativeFixtureDisplay(allocator, path);
     defer allocator.free(display);
     return lintFixturePath(allocator, std.testing.io, path, rule_set, display, options);
 }
 
-/// `tests/fixtures/rules/<namespace>/<case_dir>/root.zig` for project fixtures.
-pub fn ruleProjectRootPath(namespace: []const u8, case_dir: []const u8) ![]const u8 {
+pub fn lintRuleFixtureConfigured(
+    namespace: []const u8,
+    parts: []const []const u8,
+    rule_set: docent.RuleSeverities,
+    options: docent.LintOptions,
+    display_path: ?[]const u8,
+    configure: ?*const fn (*docent.rules.doc.Doc) void,
+) !docent.LintResult {
     const allocator = std.testing.allocator;
-    return ruleFixturePath(allocator, namespace, &.{ case_dir, "root.zig" });
+    const path = try ruleFixturePath(allocator, namespace, parts);
+    defer allocator.free(path);
+    const display = if (display_path) |dp| try allocator.dupe(u8, dp) else try relativeFixtureDisplay(allocator, path);
+    defer allocator.free(display);
+
+    const source = try readFixtureFile(allocator, std.testing.io, path);
+    defer allocator.free(source);
+    var doc_cfg = docConfig(rule_set);
+    doc_cfg.applyRunScanMode(options.scan_mode);
+    if (configure) |configure_fn| configure_fn(&doc_cfg);
+    return docent.lintSource(allocator, std.testing.io, source, display, options, &.{}, doc_cfg);
 }
 
 pub fn lintScenarioFixture(
@@ -132,6 +174,12 @@ pub fn scenarioProjectDir(case_dir: []const u8) ![]const u8 {
     return scenarioFixturePath(allocator, &.{case_dir});
 }
 
+/// `tests/fixtures/scenarios/<case_dir>/root.zig` for scenario project entry points.
+pub fn scenarioProjectRootPath(case_dir: []const u8) ![]const u8 {
+    const allocator = std.testing.allocator;
+    return scenarioFixturePath(allocator, &.{ case_dir, "root.zig" });
+}
+
 /// File path inside a scenario project fixture.
 pub fn scenarioProjectPath(case_dir: []const u8, rel: []const u8) ![]const u8 {
     const allocator = std.testing.allocator;
@@ -145,4 +193,85 @@ pub fn relativeFixtureDisplay(allocator: std.mem.Allocator, absolute: []const u8
         return allocator.dupe(u8, absolute);
     const offset = if (std.mem.indexOf(u8, absolute, "tests/")) |_| "tests/".len else "tests\\".len;
     return allocator.dupe(u8, absolute[tests_idx + offset ..]);
+}
+
+fn styleConfig(rule_set: docent.RuleSeverities, scan_mode: docent.scanning.Modes) docent.rules.style.Style {
+    var cfg = docent.rules.style.Style.defaults();
+    cfg.identifier_case.level = rule_set.identifier_case;
+    cfg.line_length_limit.level = rule_set.line_length_limit;
+    cfg.applyRunScanMode(scan_mode);
+    return cfg;
+}
+
+pub fn lintStyleRuleFixture(
+    namespace: []const u8,
+    parts: []const []const u8,
+    rule_set: docent.RuleSeverities,
+    scan_mode: docent.scanning.Modes,
+    display_path: ?[]const u8,
+    configure: ?*const fn (*docent.rules.style.Style) void,
+) !docent.LintResult {
+    const allocator = std.testing.allocator;
+    const path = try ruleFixturePath(allocator, namespace, parts);
+    defer allocator.free(path);
+    const display = if (display_path) |dp| try allocator.dupe(u8, dp) else try relativeFixtureDisplay(allocator, path);
+    defer allocator.free(display);
+
+    const source = try readFixtureFile(allocator, std.testing.io, path);
+    defer allocator.free(source);
+    var style_cfg = styleConfig(rule_set, scan_mode);
+    if (configure) |configure_fn| configure_fn(&style_cfg);
+    return docent.lintStyleSource(allocator, std.testing.io, source, display, style_cfg);
+}
+
+pub fn lintStyleRuleFixtureOptions(
+    namespace: []const u8,
+    parts: []const []const u8,
+    rule_set: docent.RuleSeverities,
+    scan_mode: docent.scanning.Modes,
+    display_path: ?[]const u8,
+    line_length_options: docent.rules.style.line_length_limit.Options,
+) !docent.LintResult {
+    const allocator = std.testing.allocator;
+    const path = try ruleFixturePath(allocator, namespace, parts);
+    defer allocator.free(path);
+    const display = if (display_path) |dp| try allocator.dupe(u8, dp) else try relativeFixtureDisplay(allocator, path);
+    defer allocator.free(display);
+
+    const source = try readFixtureFile(allocator, std.testing.io, path);
+    defer allocator.free(source);
+    var style_cfg = styleConfig(rule_set, scan_mode);
+    style_cfg.line_length_limit.options = line_length_options;
+    return docent.lintStyleSource(allocator, std.testing.io, source, display, style_cfg);
+}
+
+fn complexityConfig(
+    rule_set: docent.RuleSeverities,
+    configure: ?*const fn (*docent.rules.complexity.Complexity) void,
+) docent.rules.complexity.Complexity {
+    var cfg = docent.rules.complexity.Complexity.defaults();
+    cfg.cognitive_complexity.level = rule_set.cognitive_complexity;
+    cfg.cyclomatic_complexity.level = rule_set.cyclomatic_complexity;
+    cfg.max_function_parameters.level = rule_set.max_fun_params;
+    if (configure) |configure_fn| configure_fn(&cfg);
+    return cfg;
+}
+
+pub fn lintComplexityRuleFixture(
+    namespace: []const u8,
+    parts: []const []const u8,
+    rule_set: docent.RuleSeverities,
+    display_path: ?[]const u8,
+    configure: ?*const fn (*docent.rules.complexity.Complexity) void,
+) !docent.LintResult {
+    const allocator = std.testing.allocator;
+    const path = try ruleFixturePath(allocator, namespace, parts);
+    defer allocator.free(path);
+    const display = if (display_path) |dp| try allocator.dupe(u8, dp) else try relativeFixtureDisplay(allocator, path);
+    defer allocator.free(display);
+
+    const source = try readFixtureFile(allocator, std.testing.io, path);
+    defer allocator.free(source);
+    const complexity_cfg = complexityConfig(rule_set, configure);
+    return docent.lintComplexitySource(allocator, source, display, complexity_cfg);
 }

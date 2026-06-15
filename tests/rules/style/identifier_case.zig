@@ -2,149 +2,176 @@
 
 const std = @import("std");
 const docent = @import("docent");
+const harness = @import("../../harness.zig");
 const utils = @import("../../utils.zig");
 
-fn lint(source: [:0]const u8, scan_mode: docent.scanning.Modes) !docent.LintResult {
-    var style_cfg = docent.rules.style.Style.defaults();
-    style_cfg.applyRunScanMode(scan_mode);
-    return docent.lintStyleSource(
-        std.testing.allocator,
-        std.testing.io,
-        source,
-        "<test>",
-        style_cfg,
-    );
+const ns = "style";
+const warn = docent.RuleSeverities{ .identifier_case = .warn };
+const reachability = docent.scanning.Modes.reachability_traversal;
+const public_api = docent.scanning.Modes.public_api_surface;
+
+fn setSnakeStructFileCase(cfg: *docent.rules.style.Style) void {
+    cfg.identifier_case.options.struct_file_case = .snake_case;
 }
 
 test "concrete function should be camelCase" {
-    var result = try lint("pub fn DoThing() void {}", .public_api_surface);
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_function_camel.zig" }, warn, reachability, null, null);
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqual(.function, result.diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("DoThing", result.diagnostics.items[0].subject.?.name);
 }
 
-test "idiomatic declarations are clean" {
-    var result = try lint(
-        \\pub const pi = 3.14;
-        \\pub const Point = struct {
-        \\    x: u32,
-        \\    y: u32,
-        \\};
-        \\pub const Color = enum { red, green };
-        \\pub const Error = error{ OutOfMemory };
-        \\pub fn parseInt() void {}
-        \\pub fn List() type {
-        \\    return struct {};
-        \\}
-    , .public_api_surface);
+test "well-cased concrete function is clean" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_good_function_camel.zig" }, warn, reachability, null, null);
     defer result.deinit();
     try utils.expectRuleAbsent(result, "identifier_case");
 }
 
-test "field-less container should be snake_case" {
-    var result = try lint(
-        \\pub const Helpers = struct {
-        \\    pub fn ok() void {}
-        \\};
-    , .public_api_surface);
+test "type-returning function should be PascalCase" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_generic_function.zig" }, warn, reachability, null, null);
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqualStrings("list", result.diagnostics.items[0].subject.?.name);
 }
 
-test "private declarations skipped under public API surface" {
-    var result = try lint("fn DoThing() void {}", .public_api_surface);
+test "well-cased generic function is clean" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_good_generic_function.zig" }, warn, reachability, null, null);
     defer result.deinit();
     try utils.expectRuleAbsent(result, "identifier_case");
 }
 
-test "private declarations checked in recursive mode" {
-    var result = try lint("fn DoThing() void {}", .reachability_traversal);
+test "global constant should be snake_case" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_constant.zig" }, warn, reachability, null, null);
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqual(.constant, result.diagnostics.items[0].subject.?.kind);
 }
 
-test "snake_case namespace imports in root.zig are not flagged" {
-    var style_cfg = docent.rules.style.Style.defaults();
-    style_cfg.applyRunScanMode(.reachability_traversal);
-    var result = try docent.lintStyleFile(
-        std.testing.allocator,
-        std.testing.io,
-        "src/lib/root.zig",
-        style_cfg,
-    );
+test "struct with fields should be PascalCase" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_struct_name.zig" }, warn, reachability, null, null);
     defer result.deinit();
-
-    for (result.diagnostics.items) |d| {
-        if (!std.mem.eql(u8, d.rule, "identifier_case")) continue;
-        if (d.subject) |s| {
-            if (s.kind == .source_file and std.mem.eql(u8, s.name, "reachability.zig")) {
-                return error.UnexpectedDiagnostic;
-            }
-        }
-    }
+    try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqual(.structure, result.diagnostics.items[0].subject.?.kind);
 }
 
-test "import member re-export in root.zig is not flagged" {
-    var style_cfg = docent.rules.style.Style.defaults();
-    style_cfg.applyRunScanMode(.reachability_traversal);
-    var result = try docent.lintStyleFile(
-        std.testing.allocator,
-        std.testing.io,
-        "src/lib/root.zig",
-        style_cfg,
-    );
+test "field-less container is a namespace and should be snake_case" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_namespace_name.zig" }, warn, reachability, null, null);
     defer result.deinit();
-
-    for (result.diagnostics.items) |d| {
-        if (!std.mem.eql(u8, d.rule, "identifier_case")) continue;
-        if (d.subject) |s| {
-            if (std.mem.eql(u8, s.name, "SeverityLevel")) return error.UnexpectedDiagnostic;
-        }
-    }
+    try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqual(.namespace, result.diagnostics.items[0].subject.?.kind);
 }
 
-test "zig convention accepts PascalCase struct import paths" {
-    var result = try docent.lintStyleSource(
-        std.testing.allocator,
-        std.testing.io,
-        "const StructFile = @import(\"StructFile.zig\");\n",
-        "tests/fixtures/style/import_site.zig",
-        docent.rules.style.Style.defaults(),
-    );
+test "struct fields should be snake_case" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_field.zig" }, warn, reachability, null, null);
     defer result.deinit();
-    try utils.expectRuleCount(result, "identifier_case", 0);
+    try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqual(.field, result.diagnostics.items[0].subject.?.kind);
 }
 
-test "zig convention flags snake_case struct import paths" {
-    var result = try docent.lintStyleSource(
-        std.testing.allocator,
-        std.testing.io,
-        "const init_options = @import(\"init_options.zig\");\n",
-        "tests/fixtures/style/import_site.zig",
-        docent.rules.style.Style.defaults(),
-    );
+test "enum should be PascalCase and camel or Pascal enumerators are exempt" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_enum_name.zig" }, warn, reachability, null, null);
+    defer result.deinit();
+    try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqual(.enumeration, result.diagnostics.items[0].subject.?.kind);
+}
+
+test "error set should be PascalCase and error values too" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_error_set.zig" }, warn, reachability, null, null);
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 2);
+    try std.testing.expectEqual(.error_set, result.diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqual(.error_value, result.diagnostics.items[1].subject.?.kind);
 }
 
-test "snake_case struct import binding is flagged even under Tiger filenames" {
-    var style_cfg = docent.rules.style.Style.defaults();
-    style_cfg.identifier_case.options.struct_file_case = .snake_case;
-    var result = try docent.lintStyleSource(
-        std.testing.allocator,
-        std.testing.io,
-        "const init_options = @import(\"init_options.zig\");\n",
-        "tests/fixtures/style/import_site.zig",
-        style_cfg,
-    );
+test "inline type-expression alias should be PascalCase" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_type_alias.zig" }, warn, reachability, null, null);
+    defer result.deinit();
+    try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqualStrings("should be PascalCase", result.diagnostics.items[0].detail.?);
+}
+
+test "well-cased inline type alias is clean" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_good_type_alias.zig" }, warn, reachability, null, null);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "idiomatic error set is clean" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_good_error_set.zig" }, warn, reachability, null, null);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "function alias re-export is skipped" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_reexport_alias_ok.zig" }, warn, reachability, null, null);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "quoted identifiers are exempt" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_quoted_identifier_ok.zig" }, warn, reachability, null, null);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "private declarations skipped under public_api_only" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_private_skipped_public_api.zig" }, warn, public_api, null, null);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "private declarations checked when public_api_only is false" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_private_checked_reachability.zig" }, warn, reachability, null, null);
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 1);
 }
 
-test "function alias re-export does not false positive" {
-    var result = try lint(
-        \\const helpers = @import("helpers.zig");
-        \\pub const parseInt = helpers.parseInt;
-    , .public_api_surface);
+test "detail explains expected case" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_function_camel.zig" }, warn, reachability, null, null);
+    defer result.deinit();
+    try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqualStrings("should be camelCase", result.diagnostics.items[0].detail.?);
+}
+
+test "struct_file_case snake_case accepts snake_case implicit struct file stem" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "init_options.zig" }, warn, public_api, "init_options.zig", setSnakeStructFileCase);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "default struct_file_case flags snake_case struct file stem" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "init_options.zig" }, warn, public_api, "init_options.zig", null);
+    defer result.deinit();
+    try utils.expectRuleCount(result, "identifier_case", 1);
+}
+
+test "default struct_file_case accepts PascalCase struct file stem" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "init_options.zig" }, warn, public_api, "InitOptions.zig", null);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "namespace module helper struct does not require matching filename" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_namespace_helper_struct_ok.zig" }, warn, public_api, "max_fun_params.zig", null);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "namespace struct with coincidental snake_case stem is not a struct file pairing" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_namespace_coincidental_stem_ok.zig" }, warn, public_api, "report.zig", null);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "paired PascalCase struct name with snake_case filename stem is accepted under Tiger" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_paired_struct_snake_file.zig" }, warn, public_api, "init_options.zig", setSnakeStructFileCase);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "PascalCase struct file stem is accepted by default" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_paired_struct_snake_file.zig" }, warn, public_api, "InitOptions.zig", null);
     defer result.deinit();
     try utils.expectRuleAbsent(result, "identifier_case");
 }
