@@ -2,21 +2,15 @@
 //!
 //! By default the conventions mirror the [Zig documentation style](https://ziglang.org/documentation/0.16.0/#Names), which is translated to:
 //!
-//! - `snake_case`:
-//!   - namespace (field-less structures) (namespace files inherit this convention)
-//!   - global (container-level) variables and constants (local ones inherit this convention)
-//!   - fields or values from:
-//!     - structures
-//!     - unions
-//!     - enumerations (its enumerators)
-//!     - function parameters
-//! - `camelCase`: concrete functions.
+//! - `camelCase`: concrete functions (`options.functions`).
 //! - `PascalCase`:
-//!   - structures (structure files inherit this convention)
+//!   - structures (structure files inherit this convention via `options.struct_file_case`)
 //!   - unions
 //!   - enumerations
-//!   - error sets and unions, and its values
-//!   - generic (type-returning) functions
+//!   - error sets and unions, and its values (`options.types`)
+//!   - generic (type-returning) functions (`options.types`)
+//!
+//! Configure per-category conventions under `[style.identifier_case]` with `namespaces`, `functions`, `types`, and `constants` (see `docent.schema.yaml`).
 //!
 //! ## Notes
 //!
@@ -71,20 +65,6 @@ pub const default_severity: severity.Level = .warn;
 /// Title for diagnostic prose (`Warning: {prose_title} on …`).
 pub const prose_title = "Identifier case";
 
-/// Filename case convention for struct-at-file-scope modules.
-pub const FilenameCase = enum {
-    snake_case,
-    PascalCase,
-    /// Quoted import identifiers (`@"..."`); config value is literally `@"kebab-case"`.
-    @"kebab-case",
-
-    /// Parses the TOML spelling, accepting the literal `@"kebab-case"` form.
-    pub fn fromConfigString(text: []const u8) ?FilenameCase {
-        if (std.mem.eql(u8, text, "@\"kebab-case\"")) return .@"kebab-case";
-        return std.meta.stringToEnum(FilenameCase, text);
-    }
-};
-
 /// Full configuration for the `identifier_case` rule.
 ///
 /// Severity, scan mode, and the rule-specific knobs live at distinct levels on purpose: `level`
@@ -93,9 +73,16 @@ pub const FilenameCase = enum {
 /// default, so `Rule{}` is the fully-defaulted value and TOML decoding only overwrites set keys.
 /// Rule-specific knobs for `identifier_case`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
-    // TODO: The identifier case rule should allow to modify granularly each declaration kind, these being: namespaces (field-less structures) files and nested, structure files and nested, unions, enumerations, error sets/unions, functions (generic and concrete), variables/constants (global/container level and local). For each is also to be considered its fields or members, for example structure fields, union values, errors (the values of an error set), function parameters, enumerators, etc. Just as the rule documentation explains it.
+    /// Field-less containers and namespace import bindings.
+    namespaces: naming_case.Style = .snake,
+    /// Concrete (non-type-returning) functions.
+    functions: naming_case.Style = .camel,
+    /// Structs, enums, unions, error sets, type aliases, and type-returning functions.
+    types: naming_case.Style = .pascal,
+    /// Container fields, variables, and global constants.
+    constants: naming_case.Style = .snake,
     /// Expected case for struct-at-file-scope module filenames; default `PascalCase` mirrors the struct type name (`Report.zig` defines `Report`), while `snake_case` follows Tiger Style.
-    struct_file_case: FilenameCase = .PascalCase,
+    struct_file_case: naming_case.Style = .pascal,
 };
 
 /// Full configuration for `identifier_case`: severity, scan mode, and the documented `Options` sub-space.
@@ -161,7 +148,10 @@ fn checkNode(
         if (tree.fullFnProto(&buf, node)) |proto| {
             if (utils.isPubVisibility(tree, proto.visib_token) or !public_api_only) {
                 if (proto.name_token) |name_tok| {
-                    const expected: naming_case.Style = if (isGenericFunction(tree, proto)) .pascal else .camel;
+                    const expected = if (isGenericFunction(tree, proto))
+                        options.types
+                    else
+                        options.functions;
                     try checkName(tree, name_tok, expected, .function, severity_level, file, allocator, msg_allocator, diagnostics);
                 }
             }
@@ -172,16 +162,16 @@ fn checkNode(
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.ast.init_node.unwrap()) |init_node| {
             try checkImportFilenameExpr(tree, init_node, severity_level, file, options, allocator, io, namespace_cache, msg_allocator, diagnostics);
-            try checkImportBinding(tree, var_decl, init_node, severity_level, file, allocator, io, namespace_cache, msg_allocator, diagnostics);
+            try checkImportBinding(tree, var_decl, init_node, severity_level, file, options, allocator, io, namespace_cache, msg_allocator, diagnostics);
         }
         if (utils.isPubVisibility(tree, var_decl.visib_token) or !public_api_only) {
             const name_tok = var_decl.ast.mut_token + 1;
-            if (classifyVarDecl(tree, var_decl)) |c| {
+            if (classifyVarDecl(tree, var_decl, options)) |c| {
                 try checkName(tree, name_tok, c.case, c.kind, severity_level, file, allocator, msg_allocator, diagnostics);
             }
             if (var_decl.ast.init_node.unwrap()) |init_node| {
                 if (tree.nodeTag(init_node) == .error_set_decl) {
-                    try checkErrorSetValues(tree, init_node, severity_level, file, allocator, msg_allocator, diagnostics);
+                    try checkErrorSetValues(tree, init_node, severity_level, file, options, allocator, msg_allocator, diagnostics);
                 }
             }
         }
@@ -201,7 +191,7 @@ fn checkNode(
     }
 
     if (tree.fullContainerField(node)) |field| {
-        try checkName(tree, field.ast.main_token, .snake, member_field_kind, severity_level, file, allocator, msg_allocator, diagnostics);
+        try checkName(tree, field.ast.main_token, options.constants, member_field_kind, severity_level, file, allocator, msg_allocator, diagnostics);
         return;
     }
 }
@@ -289,9 +279,9 @@ fn checkStructFileName(
     const stem = base[0 .. base.len - ".zig".len];
 
     if (!doc.fileIsNamespace(tree)) {
-        if (stemMatchesFilenameCase(stem, file_case)) return;
+        if (file_case.matches(stem)) return;
 
-        const expected_stem = try suggestStructImportStem(msg_allocator, stem, file_case);
+        const expected_stem = try naming_case.suggestFilenameStem(msg_allocator, stem, file_case);
         defer msg_allocator.free(expected_stem);
 
         const report_tok: Ast.TokenIndex = if (tree.rootDecls().len > 0) tree.firstToken(tree.rootDecls()[0]) else 0;
@@ -299,7 +289,7 @@ fn checkStructFileName(
         const detail = try std.fmt.allocPrint(
             msg_allocator,
             "struct file should use {s} filename \"{s}.zig\"",
-            .{ filenameCaseLabel(file_case), expected_stem },
+            .{ file_case.label(), expected_stem },
         );
         try diagnostics.append(allocator, .{
             .rule = rule_name,
@@ -329,9 +319,9 @@ fn checkStructFileName(
         const name = tree.tokenSlice(name_tok);
         if (isExemptName(name)) continue;
 
-        const snake_from_name = try pascalCaseStemToSnake(msg_allocator, name);
+        const snake_from_name = try naming_case.pascalCaseStemToSnake(msg_allocator, name);
         defer msg_allocator.free(snake_from_name);
-        const expected_stem = try identifierToFilenameStem(msg_allocator, name, file_case);
+        const expected_stem = try naming_case.identifierToFilenameStem(msg_allocator, name, file_case);
         defer msg_allocator.free(expected_stem);
 
         // Only dedicated struct modules pair a filename stem with the struct name.
@@ -340,7 +330,7 @@ fn checkStructFileName(
         // struct_file_case = snake_case (Tiger Style), not when a namespace file
         // happens to share a stem with the snake_case form of an inner struct (report.zig + Report).
         const stem_pairs_with_struct = std.mem.eql(u8, stem, expected_stem) or
-            (file_case == .snake_case and std.mem.eql(u8, stem, snake_from_name));
+            (file_case == .snake and std.mem.eql(u8, stem, snake_from_name));
         if (!stem_pairs_with_struct) continue;
         if (std.mem.eql(u8, stem, expected_stem)) continue;
 
@@ -348,7 +338,7 @@ fn checkStructFileName(
         const detail = try std.fmt.allocPrint(
             msg_allocator,
             "struct file should use {s} filename \"{s}.zig\" for struct '{s}'",
-            .{ filenameCaseLabel(file_case), expected_stem, name },
+            .{ file_case.label(), expected_stem, name },
         );
         try diagnostics.append(allocator, .{
             .rule = rule_name,
@@ -370,6 +360,7 @@ fn checkImportBinding(
     init_node: Ast.Node.Index,
     severity_level: severity.Level,
     file: []const u8,
+    options: Options,
     allocator: std.mem.Allocator,
     io: std.Io,
     namespace_cache: *std.StringHashMap(bool),
@@ -382,7 +373,7 @@ fn checkImportBinding(
     if (!std.mem.endsWith(u8, lit.path, ".zig")) return;
 
     const file_kind = try resolveImportedFileKind(lit.path, file, allocator, io, namespace_cache) orelse return;
-    const expected: naming_case.Style = if (file_kind == .namespace) .snake else .pascal;
+    const expected = if (file_kind == .namespace) options.namespaces else options.types;
     const kind: Diagnostic.SubjectKind = if (file_kind == .namespace) .namespace else .structure;
 
     const name_tok = var_decl.ast.mut_token + 1;
@@ -427,8 +418,8 @@ fn checkImportFilename(
     const file_kind = try resolveImportedFileKind(lit.path, file, allocator, io, namespace_cache) orelse return;
     const loc = tree.tokenLocation(0, lit.str_tok);
 
-    if (file_kind == .structure and !stemMatchesFilenameCase(stem, options.struct_file_case)) {
-        const expected_stem = try suggestStructImportStem(msg_allocator, stem, options.struct_file_case);
+    if (file_kind == .structure and !options.struct_file_case.matches(stem)) {
+        const expected_stem = try naming_case.suggestFilenameStem(msg_allocator, stem, options.struct_file_case);
         defer msg_allocator.free(expected_stem);
         const expected = try std.fmt.allocPrint(msg_allocator, "{s}.zig", .{expected_stem});
         try diagnostics.append(allocator, .{
@@ -438,7 +429,7 @@ fn checkImportFilename(
             .detail = try std.fmt.allocPrint(
                 msg_allocator,
                 "struct file should use {s} filename; expected \"{s}\"",
-                .{ filenameCaseLabel(options.struct_file_case), expected },
+                .{ options.struct_file_case.label(), expected },
             ),
             .file = file,
             .line = loc.line + 1,
@@ -449,137 +440,29 @@ fn checkImportFilename(
         return;
     }
 
-    if (naming_case.isSnake(stem)) return;
+    if (options.namespaces.matches(stem)) return;
     if (file_kind != .namespace) return;
 
-    const snake_stem = try pascalCaseStemToSnake(msg_allocator, stem);
-    defer msg_allocator.free(snake_stem);
-    const expected = try std.fmt.allocPrint(msg_allocator, "{s}.zig", .{snake_stem});
+    const detail: []const u8 = if (options.namespaces == .snake) blk: {
+        const snake_stem = try naming_case.pascalCaseStemToSnake(msg_allocator, stem);
+        defer msg_allocator.free(snake_stem);
+        const expected = try std.fmt.allocPrint(msg_allocator, "{s}.zig", .{snake_stem});
+        break :blk try std.fmt.allocPrint(msg_allocator, "namespace file should use snake_case filename; expected \"{s}\"", .{expected});
+    } else blk: {
+        break :blk try std.fmt.allocPrint(msg_allocator, "namespace file should use {s} filename", .{options.namespaces.label()});
+    };
 
     try diagnostics.append(allocator, .{
         .rule = rule_name,
         .severity_level = severity_level,
         .subject = try utils.ownedSubject(msg_allocator, .source_file, basename),
-        .detail = try std.fmt.allocPrint(msg_allocator, "namespace file should use snake_case filename; expected \"{s}\"", .{expected}),
+        .detail = detail,
         .file = file,
         .line = loc.line + 1,
         .column = loc.column + 1,
         .source_line = try utils.dupSourceLine(tree, lit.str_tok, msg_allocator),
         .symbol_len = lit.path.len,
     });
-}
-
-/// Converts a PascalCase or mixed-case stem to `snake_case` for filename suggestions.
-fn pascalCaseStemToSnake(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
-    if (stem.len == 0) return try allocator.dupe(u8, "");
-
-    var out: std.ArrayList(u8) = .empty;
-    errdefer out.deinit(allocator);
-
-    for (stem, 0..) |c, i| {
-        const is_upper = c >= 'A' and c <= 'Z';
-        if (is_upper) {
-            if (i > 0) {
-                const prev = stem[i - 1];
-                const next: u8 = if (i + 1 < stem.len) stem[i + 1] else 0;
-                const prev_lower = prev >= 'a' and prev <= 'z';
-                const next_lower = next >= 'a' and next <= 'z';
-                const prev_upper = prev >= 'A' and prev <= 'Z';
-                if (prev_lower or (prev_upper and next_lower)) {
-                    try out.append(allocator, '_');
-                }
-            }
-            try out.append(allocator, c + 32);
-        } else {
-            try out.append(allocator, c);
-        }
-    }
-
-    return try out.toOwnedSlice(allocator);
-}
-
-fn filenameCaseLabel(case: FilenameCase) []const u8 {
-    return switch (case) {
-        .snake_case => "snake_case",
-        .PascalCase => "PascalCase",
-        .@"kebab-case" => "@\"kebab-case\"",
-    };
-}
-
-fn stemMatchesFilenameCase(stem: []const u8, case: FilenameCase) bool {
-    return switch (case) {
-        .snake_case => naming_case.isSnake(stem),
-        .PascalCase => naming_case.isPascal(stem),
-        .@"kebab-case" => naming_case.isKebab(stem),
-    };
-}
-
-fn identifierToFilenameStem(allocator: std.mem.Allocator, name: []const u8, case: FilenameCase) std.mem.Allocator.Error![]u8 {
-    return switch (case) {
-        .snake_case => pascalCaseStemToSnake(allocator, name),
-        .PascalCase => allocator.dupe(u8, name),
-        .@"kebab-case" => pascalCaseStemToKebab(allocator, name),
-    };
-}
-
-fn suggestStructImportStem(allocator: std.mem.Allocator, stem: []const u8, case: FilenameCase) std.mem.Allocator.Error![]u8 {
-    if (stemMatchesFilenameCase(stem, case)) return allocator.dupe(u8, stem);
-    const pascal = try snakeOrKebabStemToPascal(allocator, stem);
-    defer allocator.free(pascal);
-    return identifierToFilenameStem(allocator, pascal, case);
-}
-
-fn pascalCaseStemToKebab(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
-    const snake = try pascalCaseStemToSnake(allocator, stem);
-    defer allocator.free(snake);
-
-    var out: std.ArrayList(u8) = .empty;
-    errdefer out.deinit(allocator);
-    for (snake) |c| {
-        try out.append(allocator, if (c == '_') '-' else c);
-    }
-    return try out.toOwnedSlice(allocator);
-}
-
-fn snakeOrKebabStemToPascal(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
-    if (naming_case.isPascal(stem) or naming_case.isCamel(stem)) return allocator.dupe(u8, stem);
-    if (naming_case.isKebab(stem)) {
-        var snake: std.ArrayList(u8) = .empty;
-        errdefer snake.deinit(allocator);
-        for (stem) |c| try snake.append(allocator, if (c == '-') '_' else c);
-        const snake_slice = try snake.toOwnedSlice(allocator);
-        defer allocator.free(snake_slice);
-        return snakeCaseStemToPascal(allocator, snake_slice);
-    }
-    return snakeCaseStemToPascal(allocator, stem);
-}
-
-/// Converts a `snake_case` stem to PascalCase for struct filename suggestions.
-fn snakeCaseStemToPascal(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
-    if (stem.len == 0) return try allocator.dupe(u8, "");
-
-    var out: std.ArrayList(u8) = .empty;
-    errdefer out.deinit(allocator);
-
-    var capitalize_next = true;
-    for (stem) |c| {
-        if (c == '_') {
-            capitalize_next = true;
-            continue;
-        }
-        if (capitalize_next and c >= 'a' and c <= 'z') {
-            try out.append(allocator, c - 32);
-            capitalize_next = false;
-        } else if (capitalize_next and c >= 'A' and c <= 'Z') {
-            try out.append(allocator, c);
-            capitalize_next = false;
-        } else {
-            try out.append(allocator, c);
-            capitalize_next = false;
-        }
-    }
-
-    return try out.toOwnedSlice(allocator);
 }
 
 const ImportedFileKind = enum {
@@ -629,47 +512,52 @@ fn resolveImportedFileKind(
 }
 
 /// Determines the expected case for the *name* of a `var`/`const`, or null when it should be skipped.
-fn classifyVarDecl(tree: *const Ast, var_decl: Ast.full.VarDecl) ?Classification {
+fn classifyVarDecl(tree: *const Ast, var_decl: Ast.full.VarDecl, options: Options) ?Classification {
     const is_const = tree.tokenTag(var_decl.ast.mut_token) == .keyword_const;
     const init_node = var_decl.ast.init_node.unwrap() orelse return null;
     const tag = tree.nodeTag(init_node);
+    const types_case = options.types;
+    const namespaces_case = options.namespaces;
+    const constants_case = options.constants;
 
     if (utils.isContainerDecl(tag)) {
         var buf: [2]Ast.Node.Index = undefined;
         const container = tree.fullContainerDecl(&buf, init_node) orelse return null;
         return switch (tree.tokenTag(container.ast.main_token)) {
-            .keyword_enum => .{ .case = .pascal, .kind = .enumeration },
-            .keyword_union => .{ .case = .pascal, .kind = .@"union" },
+            .keyword_enum => .{ .case = types_case, .kind = .enumeration },
+            .keyword_union => .{ .case = types_case, .kind = .@"union" },
             // A field-less struct/opaque is a namespace; one with fields is a structure.
             .keyword_struct, .keyword_opaque => if (containerHasFields(tree, container))
-                .{ .case = .pascal, .kind = .structure }
+                .{ .case = types_case, .kind = .structure }
             else
-                .{ .case = .snake, .kind = .namespace },
-            else => .{ .case = .pascal, .kind = .structure },
+                .{ .case = namespaces_case, .kind = .namespace },
+            else => .{ .case = types_case, .kind = .structure },
         };
     }
 
-    if (tag == .error_set_decl) return .{ .case = .pascal, .kind = .error_set };
+    if (tag == .error_set_decl) return .{ .case = types_case, .kind = .error_set };
 
     // Inline type expressions (`[]const u8`, `?T`, `fn () void`, …) define a type and use PascalCase.
-    if (isTypeExpr(tag)) return .{ .case = .pascal, .kind = .type_alias };
+    if (isTypeExpr(tag)) return .{ .case = types_case, .kind = .type_alias };
 
     // Aliases/re-exports resolve to a declaration elsewhere; skip to avoid false positives.
     if (isAliasInit(tag)) return null;
 
-    return .{ .case = .snake, .kind = if (is_const) .constant else .variable };
+    return .{ .case = constants_case, .kind = if (is_const) .constant else .variable };
 }
 
-/// Checks each error-set value (e.g. `error{ OutOfMemory }`) as `PascalCase`.
+/// Checks each error-set value (e.g. `error{ OutOfMemory }`) against the configured type convention.
 fn checkErrorSetValues(
     tree: *const Ast,
     node: Ast.Node.Index,
     severity_level: severity.Level,
     file: []const u8,
+    options: Options,
     allocator: std.mem.Allocator,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
+    const expected = options.types;
     const first = tree.firstToken(node);
     const last = tree.lastToken(node);
     var tok = first;
@@ -678,7 +566,7 @@ fn checkErrorSetValues(
             .identifier, .string_literal => {
                 const name = tree.tokenSlice(tok);
                 if (isExemptName(name)) continue;
-                try checkName(tree, tok, .pascal, .error_value, severity_level, file, allocator, msg_allocator, diagnostics);
+                try checkName(tree, tok, expected, .error_value, severity_level, file, allocator, msg_allocator, diagnostics);
             },
             else => {},
         }
@@ -775,16 +663,6 @@ fn isExemptName(name: []const u8) bool {
     if (name.len == 0) return true;
     if (name[0] == '@') return true;
     return std.mem.eql(u8, name, "_");
-}
-
-test "pascalCaseStemToSnake inserts word boundaries" {
-    const stem = try pascalCaseStemToSnake(std.testing.allocator, "DiagnosticMessage");
-    defer std.testing.allocator.free(stem);
-    try std.testing.expectEqualStrings("diagnostic_message", stem);
-
-    const reach = try pascalCaseStemToSnake(std.testing.allocator, "Reachability");
-    defer std.testing.allocator.free(reach);
-    try std.testing.expectEqualStrings("reachability", reach);
 }
 
 test "inactive severity yields no diagnostics" {

@@ -124,20 +124,8 @@ definitions:
 
   case_convention:
     type: "string"
-    description: "Expected identifier casing for declarations."
-    enum: ["snake_case", "camelCase", "PascalCase"]
-
-  struct_file_case:
-    description: >-
-      Struct-at-file-scope module filename convention. Defaults to PascalCase,
-      matching struct type names. Use snake_case for Tiger Style.
-    oneOf:
-      - const: "PascalCase"
-      - const: "snake_case"
-      - const: '@"kebab-case"'
-        description: >-
-          Quoted-identifier import (`@"..."`). The string may contain any allowed
-          spelling; matching `@"..."` bindings are exempt from case checks.
+    description: "Expected identifier or module-filename casing."
+    enum: ["snake_case", "camelCase", "PascalCase", "kebab-case", '@"kebab-case"']
 
   scan_mode:
     type: "string"
@@ -279,9 +267,12 @@ definitions:
             default: "snake_case"
             description: "Global constants and comptime values."
           struct_file_case:
-            $ref: "#/definitions/struct_file_case"
+            $ref: "#/definitions/case_convention"
             default: "PascalCase"
-            description: "Case convention for struct-at-file-scope module filenames."
+            description: >-
+              Case convention for struct-at-file-scope module filenames. Defaults
+              to PascalCase, matching struct type names. Use snake_case for Tiger
+              Style; kebab-case or @"kebab-case" for hyphenated stems.
 
   rule_line_length_limit:
     oneOf:

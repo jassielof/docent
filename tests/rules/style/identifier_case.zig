@@ -11,7 +11,11 @@ const reachability = docent.scanning.Modes.reachability_traversal;
 const public_api = docent.scanning.Modes.public_api_surface;
 
 fn setSnakeStructFileCase(cfg: *docent.rules.style.Style) void {
-    cfg.identifier_case.options.struct_file_case = .snake_case;
+    cfg.identifier_case.options.struct_file_case = .snake;
+}
+
+fn setPascalNamespaces(cfg: *docent.rules.style.Style) void {
+    cfg.identifier_case.options.namespaces = .pascal;
 }
 
 test "concrete function should be camelCase" {
@@ -60,6 +64,12 @@ test "field-less container is a namespace and should be snake_case" {
     defer result.deinit();
     try utils.expectRuleCount(result, "identifier_case", 1);
     try std.testing.expectEqual(.namespace, result.diagnostics.items[0].subject.?.kind);
+}
+
+test "namespaces option overrides default convention" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{ "identifier_case_bad_namespace_name.zig" }, warn, reachability, null, setPascalNamespaces);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
 }
 
 test "struct fields should be snake_case" {

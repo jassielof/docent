@@ -19,7 +19,7 @@ fn lintScenario(rel: []const u8, configure: ?*const fn (*docent.rules.style.Styl
 }
 
 fn setSnakeStructFileCase(cfg: *docent.rules.style.Style) void {
-    cfg.identifier_case.options.struct_file_case = .snake_case;
+    cfg.identifier_case.options.struct_file_case = .snake;
 }
 
 test "import member re-export does not flag PascalCase binding" {

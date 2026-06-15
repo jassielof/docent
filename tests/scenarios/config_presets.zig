@@ -19,7 +19,7 @@ test "tiger style preset enforces snake_case and line length forbid" {
     defer allocator.free(config_path);
 
     const style = try docent.config.loadStyleOptions(allocator, io, config_path);
-    try std.testing.expectEqual(docent.rules.style.identifier_case.FilenameCase.snake_case, style.identifier_case.options.struct_file_case);
+    try std.testing.expectEqual(docent.naming_case.Style.snake, style.identifier_case.options.struct_file_case);
     try std.testing.expect(style.identifier_case.level == .deny);
     try std.testing.expect(style.line_length_limit.level == .forbid);
     try std.testing.expectEqual(@as(u32, 100), style.line_length_limit.options.max_length);
