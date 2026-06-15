@@ -9,7 +9,7 @@ description: >-
 type: "object"
 additionalProperties: false
 properties:
-  docs:
+  doc:
     type: "object"
     description: "Documentation comment validation rules."
     additionalProperties: false

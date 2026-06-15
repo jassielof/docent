@@ -51,8 +51,8 @@ pub const LintStep = struct {
         const allocator = step.owner.allocator;
         const io = step.owner.graph.io;
 
-        var docs_cfg = docent.config.loadDocsOptionsFromCli(allocator, io, null) catch return error.MakeFailed;
-        if (self.rules_override) |override| applyDocsOverride(&docs_cfg, override);
+        var doc_cfg = docent.config.loadDocOptionsFromCli(allocator, io, null) catch return error.MakeFailed;
+        if (self.rules_override) |override| applyDocOverride(&doc_cfg, override);
 
         var manifest_sources: std.ArrayList([]const u8) = .empty;
         defer if (manifest_sources.items.len > 0) docent.manifest.deinitOwnedPaths(allocator, &manifest_sources);
@@ -97,7 +97,7 @@ pub const LintStep = struct {
         for (sources) |source_path| {
             const stat = std.Io.Dir.cwd().statFile(io, source_path, .{}) catch |err| {
                 if (err == error.IsDir) {
-                    try lintDirectory(docs_cfg, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
+                    try lintDirectory(doc_cfg, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
                     continue;
                 }
                 step.result_error_msgs.append(
@@ -108,10 +108,10 @@ pub const LintStep = struct {
             };
 
             if (stat.kind == .directory) {
-                try lintDirectory(docs_cfg, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
+                try lintDirectory(doc_cfg, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
             } else {
                 if (docent.targeting.shouldSkipLintFile(source_path, targeting)) continue;
-                try lintSingleFile(docs_cfg, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
+                try lintSingleFile(doc_cfg, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
             }
         }
 
@@ -126,7 +126,7 @@ pub const LintStep = struct {
 };
 
 fn lintDirectory(
-    docs_cfg: docent.rules.docs.Docs,
+    doc_cfg: docent.rules.doc.Doc,
     targeting: docent.targeting.Options,
     output: OutputOptions,
     allocator: std.mem.Allocator,
@@ -153,12 +153,12 @@ fn lintDirectory(
     defer docent.targeting.deinitOwnedPaths(allocator, &targets);
 
     for (targets.items) |full_path| {
-        try lintSingleFile(docs_cfg, output, allocator, io, full_path, step, summary, total_files, path_display_root, library_entry_roots);
+        try lintSingleFile(doc_cfg, output, allocator, io, full_path, step, summary, total_files, path_display_root, library_entry_roots);
     }
 }
 
 /// Projects a build-step `RuleSeverities` override onto the resolved docs config so `addLintStep`'s `rules` option still drives severities.
-fn applyDocsOverride(cfg: *docent.rules.docs.Docs, override: docent.RuleSeverities) void {
+fn applyDocOverride(cfg: *docent.rules.doc.Doc, override: docent.RuleSeverities) void {
     cfg.missing_doc_comment.level = override.missing_doc_comment;
     cfg.blank_doc_comment.level = override.blank_doc_comment;
     cfg.trailing_blank_doc_comment.level = override.trailing_blank_doc_comment;
@@ -170,7 +170,7 @@ fn applyDocsOverride(cfg: *docent.rules.docs.Docs, override: docent.RuleSeveriti
 }
 
 fn lintSingleFile(
-    docs_cfg: docent.rules.docs.Docs,
+    doc_cfg: docent.rules.doc.Doc,
     output: OutputOptions,
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -181,7 +181,7 @@ fn lintSingleFile(
     path_display_root: ?[]const u8,
     library_entry_roots: []const []const u8,
 ) !void {
-    var result = docent.lintFile(allocator, io, path, .{}, library_entry_roots, docs_cfg) catch |err| {
+    var result = docent.lintFile(allocator, io, path, .{}, library_entry_roots, doc_cfg) catch |err| {
         step.result_error_msgs.append(
             allocator,
             std.fmt.allocPrint(allocator, "failed to lint '{s}': {}", .{ path, err }) catch @panic("OOM"),

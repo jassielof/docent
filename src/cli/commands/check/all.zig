@@ -6,7 +6,7 @@ const docent = @import("docent");
 const fangz = @import("fangz");
 
 const complexity_check = @import("complexity.zig");
-const docs_check = @import("docs.zig");
+const doc_check = @import("doc.zig");
 const check_shared = @import("../../check_shared.zig");
 const style_check = @import("style.zig");
 
@@ -27,7 +27,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const docs_options = docent.config.loadDocsOptionsFromCli(allocator, io, args.config_path) catch |err| {
+    const doc_options = docent.config.loadDocOptionsFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -69,16 +69,16 @@ fn run(ctx: *fangz.ParseContext) !void {
         allocator.free(library_entry_roots_owned);
     };
 
-    var docs_opts = docs_options;
+    var doc_opts = doc_options;
     var style_opts = style_options;
     var complexity_opts = complexity_options;
     if (plan.path_mode == .recursive) {
-        docs_opts.applyRunScanMode(.reachability_traversal);
+        doc_opts.applyRunScanMode(.reachability_traversal);
         style_opts.applyRunScanMode(.reachability_traversal);
         complexity_opts.applyRunScanMode(.reachability_traversal);
     }
 
-    const docs_lint_options: docent.LintOptions = switch (plan.path_mode) {
+    const doc_lint_options: docent.LintOptions = switch (plan.path_mode) {
         .project, .module_root => .{ .module_name = plan.package.name },
         .recursive => .{},
     };
@@ -94,7 +94,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         for (rt.files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            if (try docs_check.lintPlanFile(allocator, io, path, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try doc_check.lintPlanFile(allocator, io, path, doc_lint_options, library_entry_roots_owned, doc_opts, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
                 break;
             }
@@ -105,7 +105,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         for (plan.extra_lint_files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            if (try docs_check.lintPlanFile(allocator, io, path, docs_lint_options, library_entry_roots_owned, docs_opts, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try doc_check.lintPlanFile(allocator, io, path, doc_lint_options, library_entry_roots_owned, doc_opts, &all_diagnostics, &summary, args.fail_fast)) {
                 should_stop = true;
                 break;
             }

@@ -10,13 +10,13 @@ const rules = @import("../rules.zig");
 const config = @import("../config.zig");
 
 pub const Category = enum {
-    docs,
+    doc,
     style,
     complexity,
 
     pub fn label(self: Category) []const u8 {
         return switch (self) {
-            .docs => "documentation",
+            .doc => "documentation",
             .style => "style",
             .complexity => "complexity",
         };
@@ -24,7 +24,7 @@ pub const Category = enum {
 
     fn rules(self: Category) []const []const u8 {
         return switch (self) {
-            .docs => &.{
+            .doc => &.{
                 "missing_doc_comment",
                 "missing_doctest",
                 "private_doctest",
@@ -75,16 +75,16 @@ fn lintFile(
     io: std.Io,
     path: []const u8,
     category: Category,
-    docs_cfg: rules.docs.Docs,
+    doc_cfg: rules.doc.Doc,
     style_cfg: rules.style.Style,
     complexity_cfg: rules.complexity.Complexity,
     library_entry_roots: []const []const u8,
     module_name: ?[]const u8,
 ) !?usize {
     var result = switch (category) {
-        .docs => root.lintFile(allocator, io, path, .{
+        .doc => root.lintFile(allocator, io, path, .{
             .module_name = module_name,
-        }, library_entry_roots, docs_cfg),
+        }, library_entry_roots, doc_cfg),
         .style => root.lintStyleFile(allocator, io, path, style_cfg),
         .complexity => root.lintComplexityFile(allocator, io, path, complexity_cfg),
     } catch return null;
@@ -104,7 +104,7 @@ pub fn scorePlan(
     allocator: std.mem.Allocator,
     io: std.Io,
     plan: *const status_plan.Plan,
-    docs_cfg: rules.docs.Docs,
+    doc_cfg: rules.doc.Doc,
     style_cfg: rules.style.Style,
     complexity_cfg: rules.complexity.Complexity,
 ) !Report {
@@ -145,7 +145,7 @@ pub fn scorePlan(
         try files.append(allocator, try allocator.dupe(u8, path));
     }
 
-    const categories = [_]Category{ .docs, .style, .complexity };
+    const categories = [_]Category{ .doc, .style, .complexity };
     var reports: [categories.len]CategoryReport = undefined;
 
     for (categories, 0..) |category, idx| {
@@ -158,7 +158,7 @@ pub fn scorePlan(
                 io,
                 path,
                 category,
-                docs_cfg,
+                doc_cfg,
                 style_cfg,
                 complexity_cfg,
                 library_entry_roots_owned,
@@ -194,17 +194,17 @@ pub fn loadOptionsFromConfig(
     io: std.Io,
     config_path: ?[]const u8,
 ) struct {
-    docs: rules.docs.Docs,
+    doc: rules.doc.Doc,
     style: rules.style.Style,
     complexity: rules.complexity.Complexity,
 } {
     const cfg = config.loadConfigFromCli(allocator, io, config_path) catch return .{
-        .docs = rules.docs.Docs.defaults(),
+        .doc = rules.doc.Doc.defaults(),
         .style = rules.style.Style.defaults(),
         .complexity = rules.complexity.Complexity.defaults(),
     };
     return .{
-        .docs = cfg.docs,
+        .doc = cfg.doc,
         .style = cfg.style,
         .complexity = cfg.complexity,
     };

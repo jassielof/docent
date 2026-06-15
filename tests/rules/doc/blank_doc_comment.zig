@@ -5,7 +5,7 @@ const docent = @import("docent");
 const harness = @import("../../harness.zig");
 const utils = @import("../../utils.zig");
 
-const ns = "docs";
+const ns = "doc";
 
 test "partially_empty_doc_comment ignores blank lines in multiline docs" {
     var result = try harness.lintRuleFixture(ns, &.{ "partially_empty_doc_comment", "root.zig" }, .{
@@ -27,7 +27,7 @@ test "whole-module re-export resolves blank namespace doc on imported file" {
     const path = try harness.ruleProjectRootPath(ns, "reexport_blank_whole_namespace");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{ .blank_doc_comment = .warn }));
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .blank_doc_comment = .warn }));
     defer result.deinit();
     try utils.expectRuleCount(result, "blank_doc_comment", 1);
     try std.testing.expectEqual(.namespace, result.diagnostics.items[0].subject.?.kind);
@@ -38,7 +38,7 @@ test "member-only re-export does not require module doc on imported file" {
     const path = try harness.ruleProjectRootPath(ns, "reexport_member_only_no_module_doc");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docsConfig(.{
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{
         .missing_doc_comment = .deny,
         .blank_doc_comment = .warn,
     }));

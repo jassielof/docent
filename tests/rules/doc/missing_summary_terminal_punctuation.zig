@@ -3,7 +3,7 @@
 const harness = @import("../../harness.zig");
 const utils = @import("../../utils.zig");
 
-const ns = "docs";
+const ns = "doc";
 
 test "missing_terminal_punctuation_is_reported" {
     var result = try harness.lintRuleFixture(ns, &.{ "missing_summary_terminal_punctuation", "root.zig" }, .{

@@ -1,6 +1,6 @@
 #:schema ../schemas/docent.schema.json
 
-[docs]
+[doc]
 scan_mode = "public"
 blank_doc_comment = "warn"
 trailing_blank_doc_comment = "warn"
@@ -8,17 +8,17 @@ missing_doctest = "allow"
 private_doctest = "warn"
 doctest_naming_mismatch = "warn"
 
-[docs.missing_doc_comment]
+[doc.missing_doc_comment]
 level = "warn"
 check_parameters = false
 check_errors = true
 
-[docs.missing_summary_terminal_punctuation]
+[doc.missing_summary_terminal_punctuation]
 level = "warn"
 scope = "summary"
 accepted_marks = [".", "!", "?"]
 
-[docs.invalid_leading_phrase]
+[doc.invalid_leading_phrase]
 level = "warn"
 mode = "canonical"
 require_article = false

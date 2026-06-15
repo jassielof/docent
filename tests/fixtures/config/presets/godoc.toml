@@ -14,7 +14,7 @@
 #
 # Zig-specific notes:
 #   - `missing_doctest` stays `allow` — Go uses `Example` tests, not doctests.
-#   - `docs.scan_mode = "public"` mirrors Go's focus on exported API surface.
+#   - `doc.scan_mode = "public"` mirrors Go's focus on exported API surface.
 #   - Identifier keys below match the schema defaults for Zig's public API naming
 #     (Go's exported MixedCaps maps to PascalCase types and camelCase functions).
 #     They document intent even where the rule still uses built-in defaults today.
@@ -23,7 +23,7 @@
 #
 # Copy this file to `.config/docent.toml` or merge the sections you want.
 
-[docs]
+[doc]
 scan_mode = "public"
 blank_doc_comment = "warn"
 trailing_blank_doc_comment = "warn"
@@ -31,16 +31,16 @@ missing_doctest = "allow"
 private_doctest = "warn"
 doctest_naming_mismatch = "warn"
 
-[docs.missing_doc_comment]
+[doc.missing_doc_comment]
 level = "warn"
 check_parameters = false
 
-[docs.missing_summary_terminal_punctuation]
+[doc.missing_summary_terminal_punctuation]
 level = "warn"
 scope = "summary"
 accepted_marks = [".", "!", "?"]
 
-[docs.invalid_leading_phrase]
+[doc.invalid_leading_phrase]
 level = "warn"
 mode = "canonical"
 require_article = false

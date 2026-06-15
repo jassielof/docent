@@ -59,20 +59,20 @@ pub fn lintFixturePath(
 ) !docent.LintResult {
     const source = try readFixtureFile(allocator, io, path);
     defer allocator.free(source);
-    var docs_cfg = docent.rules.docs.Docs.defaults();
-    applyDocsSeverities(&docs_cfg, rule_set);
-    return docent.lintSource(allocator, io, source, display_path, options, &.{}, docs_cfg);
+    var doc_cfg = docent.rules.doc.Doc.defaults();
+    applyDocSeverities(&doc_cfg, rule_set);
+    return docent.lintSource(allocator, io, source, display_path, options, &.{}, doc_cfg);
 }
 
-/// Builds a docs config with severities projected from `rule_set` (other settings at defaults).
-pub fn docsConfig(rule_set: docent.RuleSeverities) docent.rules.docs.Docs {
-    var cfg = docent.rules.docs.Docs.defaults();
-    applyDocsSeverities(&cfg, rule_set);
+/// Builds a doc config with severities projected from `rule_set` (other settings at defaults).
+pub fn docConfig(rule_set: docent.RuleSeverities) docent.rules.doc.Doc {
+    var cfg = docent.rules.doc.Doc.defaults();
+    applyDocSeverities(&cfg, rule_set);
     return cfg;
 }
 
-/// Projects the docs severities from a `RuleSeverities` onto a docs config for fixture linting.
-fn applyDocsSeverities(cfg: *docent.rules.docs.Docs, rule_set: docent.RuleSeverities) void {
+/// Projects the doc severities from a `RuleSeverities` onto a doc config for fixture linting.
+fn applyDocSeverities(cfg: *docent.rules.doc.Doc, rule_set: docent.RuleSeverities) void {
     cfg.missing_doc_comment.level = rule_set.missing_doc_comment;
     cfg.blank_doc_comment.level = rule_set.blank_doc_comment;
     cfg.trailing_blank_doc_comment.level = rule_set.trailing_blank_doc_comment;

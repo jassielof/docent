@@ -128,7 +128,7 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Repor
         allocator,
         io,
         options.plan,
-        lint_options.docs,
+        lint_options.doc,
         lint_options.style,
         lint_options.complexity,
     );
@@ -138,7 +138,7 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Repor
         issues += category.issue_count;
         const pct = lint.percentage(category);
         try appendCheck(allocator, &checks, category.category.label(), switch (category.category) {
-            .docs => "Documentation comments meet project rules",
+            .doc => "Documentation comments meet project rules",
             .style => "Naming and style rules pass",
             .complexity => "Complexity rules pass",
         }, 1.0, pct, null);

@@ -196,20 +196,20 @@ pub fn printStderr(io: std.Io, comptime fmt: []const u8, fmt_args: anytype) !voi
 }
 
 pub const RuleCategory = enum {
-    docs,
+    doc,
     style,
     complexity,
 
     pub fn heading(self: RuleCategory) []const u8 {
         return switch (self) {
-            .docs => "Documentation comments",
+            .doc => "Documentation comments",
             .style => "Style",
             .complexity => "Complexity",
         };
     }
 
     pub fn fromRule(rule: []const u8) ?RuleCategory {
-        const docs_rules = [_][]const u8{
+        const doc_rules = [_][]const u8{
             "missing_doc_comment",
             "missing_doctest",
             "private_doctest",
@@ -219,8 +219,8 @@ pub const RuleCategory = enum {
             "doctest_naming_mismatch",
             "invalid_leading_phrase",
         };
-        for (docs_rules) |name| {
-            if (std.mem.eql(u8, rule, name)) return .docs;
+        for (doc_rules) |name| {
+            if (std.mem.eql(u8, rule, name)) return .doc;
         }
         if (std.mem.eql(u8, rule, "identifier_case") or std.mem.eql(u8, rule, "line_length_limit")) return .style;
         const complexity_rules = [_][]const u8{
@@ -306,7 +306,7 @@ pub fn printCategorizedEffectiveRules(
     rule_set: docent.RuleSeverities,
 ) !void {
     var any_category = false;
-    try printEffectiveRulesCategory(allocator, w, profile, rule_set, .docs, &any_category);
+    try printEffectiveRulesCategory(allocator, w, profile, rule_set, .doc, &any_category);
     try printEffectiveRulesCategory(allocator, w, profile, rule_set, .style, &any_category);
     try printEffectiveRulesCategory(allocator, w, profile, rule_set, .complexity, &any_category);
 
@@ -356,7 +356,7 @@ fn printEffectiveRulesCategory(
 
 pub fn printCategorizedSummary(allocator: std.mem.Allocator, io: std.Io, rows: []const RuleCountRow) !void {
     const profile = stderrColorProfile(io);
-    const categories = [_]RuleCategory{ .docs, .style, .complexity };
+    const categories = [_]RuleCategory{ .doc, .style, .complexity };
 
     var buf: [8192]u8 = undefined;
     var stderr = std.Io.File.stderr().writer(io, &buf);

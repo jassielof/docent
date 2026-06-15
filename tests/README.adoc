@@ -25,6 +25,6 @@ Scenarios are integration tests that don't focus strictly on a single rule, but 
 
 == Adding a rule test
 
-1. Add `tests/fixtures/rules/docs/<case_id>.zig` or a directory `tests/fixtures/rules/docs/<case_id>/` with `root.zig`.
-2. Add or extend `tests/rules/docs/<rule_id>.zig` and call `harness.lintRuleFixture("docs", &.{ ... }, rule_set, .{})`.
-3. Import the test file from `tests/rules/docs.zig` (or the matching namespace aggregator).
+1. Add `tests/fixtures/rules/doc/<case_id>.zig` or a directory `tests/fixtures/rules/doc/<case_id>/` with `root.zig`.
+2. Add or extend `tests/rules/doc/<rule_id>.zig` and call `harness.lintRuleFixture("doc", &.{ ... }, rule_set, .{})`.
+3. Import the test file from `tests/rules/doc.zig` (or the matching namespace aggregator).

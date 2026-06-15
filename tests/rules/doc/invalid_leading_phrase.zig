@@ -3,7 +3,7 @@
 const harness = @import("../../harness.zig");
 const utils = @import("../../utils.zig");
 
-const ns = "docs";
+const ns = "doc";
 
 test "summary_without_identifier_is_reported" {
     var result = try harness.lintRuleFixture(ns, &.{ "invalid_leading_phrase", "root.zig" }, .{
