@@ -5,6 +5,9 @@
 //! - For each rule category, we have `rules/<category>.zig`.
 //! - For each rule, we have `rules/<category>/<rule>.zig`.
 //! - For each scenario, we have `scenarios/<scenario>.zig`.
+//! - Fixture data lives under `fixtures/` in a flat layout, mirroring the `rules/` and `scenarios/` trees.
+//!
+//! Case ids are descriptive (for example `undocumented_pub_declarations.zig`, `reexport_undocumented_points_at_definition/`). There is no `valid/` / `invalid/` split; pass vs fail is defined by the test logic.
 
 const std = @import("std");
 const refAllDecls = std.testing.refAllDecls;

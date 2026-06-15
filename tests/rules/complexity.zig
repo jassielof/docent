@@ -1,3 +1,5 @@
+//! Test suite aggregator for complexity rules.
+
 const std = @import("std");
 const refAllDecls = std.testing.refAllDecls;
 
