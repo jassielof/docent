@@ -21,6 +21,9 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .allow;
 
+/// Title for diagnostic prose (`Warning: {prose_title} on …`).
+pub const prose_title = "Missing doctest";
+
 /// Full configuration for `missing_doctest`: severity and scan mode, with no rule-specific options.
 pub const Rule = category.Rule(default_severity, struct {}, scanning.Modes.public_api_surface);
 

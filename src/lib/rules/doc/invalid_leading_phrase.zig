@@ -91,6 +91,9 @@ pub const Options = struct {
 /// Default severity `warn`: a malformed leading phrase is a documentation-quality signal worth surfacing without failing a fresh build.
 pub const default_severity: severity.Level = .warn;
 
+/// Title for diagnostic prose (`Warning: {prose_title} on …`).
+pub const prose_title = "Invalid leading phrase";
+
 /// Full configuration for `invalid_leading_phrase`: severity, scan mode, and the documented `Options` sub-space.
 pub const Rule = category.Rule(default_severity, Options, scanning.Modes.public_api_surface);
 

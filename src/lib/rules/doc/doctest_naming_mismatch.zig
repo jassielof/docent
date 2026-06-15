@@ -25,6 +25,9 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
+/// Title for diagnostic prose (`Warning: {prose_title} on …`).
+pub const prose_title = "Doctest naming mismatch";
+
 /// Full configuration for `doctest_naming_mismatch`: severity and scan mode, with no rule-specific options.
 pub const Rule = category.Rule(default_severity, struct {}, scanning.Modes.public_api_surface);
 

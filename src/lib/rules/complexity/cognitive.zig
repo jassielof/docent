@@ -25,6 +25,9 @@ const rule_name = utils.ruleIdWithName("cognitive_complexity");
 /// Default severity `warn`: high cognitive complexity is a maintainability signal worth surfacing without failing a fresh build.
 pub const default_severity: severity.Level = .warn;
 
+/// Title for diagnostic prose (`Warning: {prose_title} on …`).
+pub const prose_title = "Cognitive complexity";
+
 /// Rule-specific knobs for `cognitive_complexity`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
     /// Maximum cognitive complexity before a function is flagged; default `default_threshold` follows the Sonar recommendation.
