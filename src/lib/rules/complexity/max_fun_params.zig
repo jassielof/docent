@@ -22,6 +22,9 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// Default severity `warn`: an overlong parameter list is an API smell worth surfacing without failing a fresh build.
 pub const default_severity: severity.Level = .warn;
 
+/// Title for diagnostic prose (`Warning: {prose_title} on …`).
+pub const prose_title = "Maximum function parameters";
+
 /// Rule-specific knobs for `max_fun_params`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
     /// Maximum parameter count before a function is flagged; default `default_threshold` allows Zig's common explicit dependencies (allocator, writer, I/O).

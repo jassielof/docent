@@ -30,6 +30,9 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// The default_severity for the rule.
 pub const default_severity: severity.Level = .warn;
 
+/// Title for diagnostic prose (`Warning: {prose_title} on …`).
+pub const prose_title = "Missing doc comment";
+
 /// Rule-specific knobs for `missing_doc_comment`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
     /// When set, also require `///` on each named function parameter; default `false` keeps parameters optional.

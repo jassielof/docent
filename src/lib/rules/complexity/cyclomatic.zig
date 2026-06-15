@@ -22,6 +22,9 @@ const rule_name = utils.ruleIdWithName("cyclomatic_complexity");
 /// Default severity `warn`: a high path count is a testability signal worth surfacing without failing a fresh build.
 pub const default_severity: severity.Level = .warn;
 
+/// Title for diagnostic prose (`Warning: {prose_title} on …`).
+pub const prose_title = "Cyclomatic complexity";
+
 /// Rule-specific knobs for `cyclomatic_complexity`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
     /// Maximum independent path count before a function is flagged; default `default_threshold` follows McCabe's limit of 10.

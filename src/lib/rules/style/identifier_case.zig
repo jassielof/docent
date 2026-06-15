@@ -68,6 +68,9 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// Default severity `warn`: naming is advisory, so a fresh checkout sees casing issues without failing the build; raise it to `deny` or `forbid` in CI config.
 pub const default_severity: severity.Level = .warn;
 
+/// Title for diagnostic prose (`Warning: {prose_title} on …`).
+pub const prose_title = "Identifier case";
+
 /// Filename case convention for struct-at-file-scope modules.
 pub const FilenameCase = enum {
     snake_case,

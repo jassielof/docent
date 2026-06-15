@@ -1,7 +1,7 @@
 //! Effective per-rule severity levels for a lint run.
 //!
 //! Defaults are sourced from each rule module's `default_severity`. Project config overrides
-//! the returned value; see `rule_metadata` for summaries.
+//! the returned value. Each rule module also exports `prose_title` for diagnostic messages.
 const severity = @import("severity.zig");
 const rules = @import("rules.zig");
 

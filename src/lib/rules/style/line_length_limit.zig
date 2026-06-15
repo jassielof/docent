@@ -17,6 +17,9 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 /// Default severity `allow`: a hard column cap is a strong opinion many projects skip, so it ships off; opt in with `level = "warn"` or stricter in config.
 pub const default_severity: severity.Level = .allow;
 
+/// Title for diagnostic prose (`Warning: {prose_title} on …`).
+pub const prose_title = "Line length limit";
+
 /// Default maximum line length in characters.
 pub const default_max_length: u32 = 100;
 
