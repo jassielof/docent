@@ -87,6 +87,7 @@ pub const FilenameCase = enum {
 /// default, so `Rule{}` is the fully-defaulted value and TOML decoding only overwrites set keys.
 /// Rule-specific knobs for `identifier_case`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
+    // TODO: The identifier case rule should allow to modify granularly each declaration kind, these being: namespaces (field-less structures) files and nested, structure files and nested, unions, enumerations, error sets/unions, functions (generic and concrete), variables/constants (global/container level and local). For each is also to be considered its fields or members, for example structure fields, union values, errors (the values of an error set), function parameters, enumerators, etc. Just as the rule documentation explains it.
     /// Expected case for struct-at-file-scope module filenames; default `PascalCase` mirrors the struct type name (`Report.zig` defines `Report`), while `snake_case` follows Tiger Style.
     struct_file_case: FilenameCase = .PascalCase,
 };
@@ -801,6 +802,7 @@ fn isExemptName(name: []const u8) bool {
     return std.mem.eql(u8, name, "_");
 }
 
+// TODO: All these is<case style> functions need to be moved to its own namespace `lib/naming_case.zig`, it should be imported with the root import `@import("root").naming_case;
 fn isSnakeCase(name: []const u8) bool {
     for (name) |c| {
         if (c >= 'A' and c <= 'Z') return false;

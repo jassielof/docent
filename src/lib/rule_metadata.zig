@@ -24,6 +24,7 @@ pub fn proseTitle(rule_name: []const u8) ?[]const u8 {
     return null;
 }
 
+// TODO: These are also redundant, when `RuleSeverities.zig` exists
 /// Severity levels documented for project config (order matches public explanations).
 pub const levels: []const struct { name: []const u8, summary: []const u8 } = &.{
     .{ .name = "allow", .summary = "Disable the rule." },
@@ -31,6 +32,8 @@ pub const levels: []const struct { name: []const u8, summary: []const u8 } = &.{
     .{ .name = "deny", .summary = "Report diagnostics and exit with an error." },
     .{ .name = "forbid", .summary = "Like deny, but cannot be relaxed by later overrides." },
 };
+
+// TODO: This is redundant. The names are already defined in each rule namespace, as well as its default level, summary it's only relevant for the CLI, on which the CLI alraedy has it, the prose title maybe it's relevant, but it should be defined in the rule namespace.
 
 /// Rule catalog in the same field order as `RuleSeverities`.
 pub const rules: []const RuleRow = &.{

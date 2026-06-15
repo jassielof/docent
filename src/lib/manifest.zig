@@ -2,6 +2,7 @@
 
 const std = @import("std");
 
+// TODO: There's no need for these types, as the stdlib provides it.
 const PathsManifest = struct {
     paths: ?[]const []const u8 = null,
 };
