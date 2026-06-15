@@ -1,142 +1,51 @@
-//! Single source for human-facing rule names, defaults, and summaries shared by CLI help, docs, and completions.
+//! Human-facing rule titles for diagnostic prose.
+//!
+//! Rule identifiers and default severities live in `RuleSeverities` and each rule module.
+//! Severity level descriptions live in `severity.Level`. This module only resolves the
+//! short title shown in messages such as `Warning: Missing doc comment on field 'x'.`
+
 const std = @import("std");
 const RuleSeverities = @import("RuleSeverities.zig");
+const rules = @import("rules.zig");
 
-/// One rule entry for CLI help, docs, and shell completions.
-pub const RuleRow = struct {
-    /// Rule identifier (matches `RuleSeverities` field names).
-    name: []const u8,
-    /// Default severity string (`allow`, `warn`, `deny`, or `forbid`).
-    default_level: []const u8,
-    /// Short one-line description shown in help output.
-    summary: []const u8,
-    /// Title used in diagnostic prose (`Warning: {prose_title} on …`).
-    prose_title: []const u8,
-    /// Optional extended help; empty when unused.
-    long: []const u8 = "",
+fn proseTitleForRule(comptime rule_name: []const u8) []const u8 {
+    if (std.mem.eql(u8, rule_name, "missing_doc_comment")) return rules.doc.missing_doc_comment.prose_title;
+    if (std.mem.eql(u8, rule_name, "missing_doctest")) return rules.doc.missing_doctest.prose_title;
+    if (std.mem.eql(u8, rule_name, "private_doctest")) return rules.doc.private_doctest.prose_title;
+    if (std.mem.eql(u8, rule_name, "blank_doc_comment")) return rules.doc.blank_doc_comment.prose_title;
+    if (std.mem.eql(u8, rule_name, "missing_summary_terminal_punctuation")) return rules.doc.missing_summary_terminal_punctuation.prose_title;
+    if (std.mem.eql(u8, rule_name, "trailing_blank_doc_comment")) return rules.doc.trailing_blank_doc_comment.prose_title;
+    if (std.mem.eql(u8, rule_name, "doctest_naming_mismatch")) return rules.doc.doctest_naming_mismatch.prose_title;
+    if (std.mem.eql(u8, rule_name, "invalid_leading_phrase")) return rules.doc.invalid_leading_phrase.prose_title;
+    if (std.mem.eql(u8, rule_name, "cognitive_complexity")) return rules.complexity.cognitive.prose_title;
+    if (std.mem.eql(u8, rule_name, "cyclomatic_complexity")) return rules.complexity.cyclomatic.prose_title;
+    if (std.mem.eql(u8, rule_name, "max_fun_params")) return rules.complexity.max_fun_params.prose_title;
+    if (std.mem.eql(u8, rule_name, "identifier_case")) return rules.style.identifier_case.prose_title;
+    if (std.mem.eql(u8, rule_name, "line_length_limit")) return rules.style.line_length_limit.prose_title;
+    @compileError("missing prose_title mapping for rule: " ++ rule_name);
+}
+
+const prose_titles = blk: {
+    const names = RuleSeverities.fieldNames();
+    var entries: [names.len]struct { []const u8, []const u8 } = undefined;
+    for (names, 0..) |name, i| {
+        entries[i] = .{ name, proseTitleForRule(name) };
+    }
+    break :blk entries;
 };
 
 /// Returns the prose title for `rule_name`, or null when unknown.
 pub fn proseTitle(rule_name: []const u8) ?[]const u8 {
-    for (rules) |row| {
-        if (std.mem.eql(u8, row.name, rule_name)) return row.prose_title;
+    for (prose_titles) |entry| {
+        if (std.mem.eql(u8, entry[0], rule_name)) return entry[1];
     }
     return null;
 }
 
-// TODO: These are also redundant, when `RuleSeverities.zig` exists
-/// Severity levels documented for project config (order matches public explanations).
-pub const levels: []const struct { name: []const u8, summary: []const u8 } = &.{
-    .{ .name = "allow", .summary = "Disable the rule." },
-    .{ .name = "warn", .summary = "Report diagnostics without failing the process." },
-    .{ .name = "deny", .summary = "Report diagnostics and exit with an error." },
-    .{ .name = "forbid", .summary = "Like deny, but cannot be relaxed by later overrides." },
-};
-
-// TODO: This is redundant. The names are already defined in each rule namespace, as well as its default level, summary it's only relevant for the CLI, on which the CLI alraedy has it, the prose title maybe it's relevant, but it should be defined in the rule namespace.
-
-/// Rule catalog in the same field order as `RuleSeverities`.
-pub const rules: []const RuleRow = &.{
-    .{
-        .name = "missing_doc_comment",
-        .default_level = "warn",
-        .summary = "Public API items, module roots, and exposed source files should have doc comments.",
-        .prose_title = "Missing doc comment",
-    },
-    .{
-        .name = "missing_doctest",
-        .default_level = "allow",
-        .summary = "Public functions may include runnable examples.",
-        .prose_title = "Missing doctest",
-    },
-    .{
-        .name = "private_doctest",
-        .default_level = "warn",
-        .summary = "Private declarations should not carry identifier-style doctests.",
-        .prose_title = "Private doctest",
-    },
-    .{
-        .name = "blank_doc_comment",
-        .default_level = "warn",
-        .summary = "Doc comments should contain useful text (not blank or whitespace-only).",
-        .prose_title = "Blank doc comment",
-    },
-    .{
-        .name = "missing_summary_terminal_punctuation",
-        .default_level = "warn",
-        .summary = "The first paragraph of a doc comment should end with `.`, `!`, or `?`.",
-        .prose_title = "Missing summary terminal punctuation",
-    },
-    .{
-        .name = "trailing_blank_doc_comment",
-        .default_level = "warn",
-        .summary = "Doc comments should not end with blank lines.",
-        .prose_title = "Trailing blank doc comment",
-    },
-    .{
-        .name = "doctest_naming_mismatch",
-        .default_level = "warn",
-        .summary = "Doctest names should match the declaration they document.",
-        .prose_title = "Doctest naming mismatch",
-    },
-    .{
-        .name = "invalid_leading_phrase",
-        .default_level = "warn",
-        .summary = "Doc comment summaries should begin with a leading phrase naming the documented identifier.",
-        .prose_title = "Invalid leading phrase",
-    },
-    .{
-        .name = "cognitive_complexity",
-        .default_level = "warn",
-        .summary = "Functions should stay below the cognitive complexity threshold (default 15).",
-        .prose_title = "Cognitive complexity",
-    },
-    .{
-        .name = "cyclomatic_complexity",
-        .default_level = "warn",
-        .summary = "Functions should stay below the cyclomatic complexity threshold (default 10).",
-        .prose_title = "Cyclomatic complexity",
-    },
-    .{
-        .name = "max_fun_params",
-        .default_level = "warn",
-        .summary = "Functions should stay within the maximum parameter count (default 7).",
-        .prose_title = "Maximum function parameters",
-    },
-    .{
-        .name = "identifier_case",
-        .default_level = "warn",
-        .summary = "Identifiers should follow the Zig naming-case conventions (snake_case, camelCase, PascalCase).",
-        .prose_title = "Identifier case",
-    },
-    .{
-        .name = "line_length_limit",
-        .default_level = "allow",
-        .summary = "Source lines should stay within the configured maximum width (default 100 columns).",
-        .prose_title = "Line length limit",
-    },
-};
-
 comptime {
-    const fnames = RuleSeverities.fieldNames();
-    if (rules.len != fnames.len)
-        @compileError("rule_metadata.rules length must match RuleSeverities fields");
-
-    for (rules, fnames) |row, n| {
-        if (!std.mem.eql(u8, row.name, n)) @compileError("rule_metadata.rules order/names must match RuleSeverities fields");
-    }
-
-    const defs: RuleSeverities = .{};
-    for (rules, std.meta.fields(RuleSeverities)) |row, f| {
-        const expected = @tagName(@field(defs, f.name));
-        if (!std.mem.eql(u8, row.default_level, expected)) {
-            @compileError("rule_metadata default_level does not match RuleSeverities field default");
+    for (prose_titles, RuleSeverities.fieldNames()) |entry, name| {
+        if (!std.mem.eql(u8, entry[0], name)) {
+            @compileError("prose title table order must match RuleSeverities fields");
         }
     }
 }
-
-/// How later config overrides interact with `forbid`.
-pub const override_behavior_note =
-    \\Override order:
-    \\  Later overrides win, except when a rule has already been set to forbid.
-;
