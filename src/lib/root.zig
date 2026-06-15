@@ -14,6 +14,7 @@ pub const reachability = @import("reachability.zig");
 pub const reexport = @import("reexport.zig");
 pub const RuleSeverities = @import("RuleSeverities.zig");
 pub const scanning = @import("scanning.zig");
+pub const scan = @import("scan.zig");
 pub const rule_metadata = @import("rule_metadata.zig");
 pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
