@@ -105,7 +105,7 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         _ = try doc_check.lintPlanFile(allocator, io, path, doc_lint_options, library_entry_roots_owned, doc_opts, &all_diagnostics, &summary, .none);
     }
 
-    var analyzed_files = docent.targeting.PathSet.init(allocator);
+    var analyzed_files = docent.scan.target.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
     _ = try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, style_opts, &all_diagnostics, &summary, .none);

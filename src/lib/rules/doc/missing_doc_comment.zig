@@ -15,9 +15,9 @@ const Ast = std.zig.Ast;
 const vereda = @import("vereda");
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
-const scanning = @import("../../scanning.zig");
+const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
-const reexport = @import("../../reexport.zig");
+const alias = @import("../../scan/alias.zig");
 const utils = @import("../utils.zig");
 const doc = @import("../../doc.zig");
 
@@ -42,7 +42,7 @@ pub const Options = struct {
 };
 
 /// Full configuration for `missing_doc_comment`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scanning.Modes.public_api_surface);
+pub const Rule = category.Rule(default_severity, Options, scan.Modes.public_api_surface);
 
 /// Walks `tree` and appends diagnostics for undocumented public items.
 ///
@@ -167,14 +167,14 @@ fn checkNode(
             const name = tree.tokenSlice(name_tok);
             const is_reexport: bool = if (public_api_only) blk: {
                 const init_node = var_decl.ast.init_node.unwrap() orelse break :blk false;
-                const info = reexport.getInfo(tree, init_node) orelse break :blk false;
+                const info = alias.getInfo(tree, init_node) orelse break :blk false;
                 var emit_ctx = ReexportEmitContext{
                     .severity_level = severity_level,
                     .allocator = allocator,
                     .msg_allocator = msg_allocator,
                     .diagnostics = diagnostics,
                 };
-                break :blk try reexport.resolveMissingDocReexport(
+                break :blk try alias.resolveMissingDocReexport(
                     info,
                     name,
                     file,

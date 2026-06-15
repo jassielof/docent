@@ -7,9 +7,9 @@ const Ast = std.zig.Ast;
 const vereda = @import("vereda");
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
-const scanning = @import("../../scanning.zig");
+const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
-const reexport = @import("../../reexport.zig");
+const alias = @import("../../scan/alias.zig");
 const utils = @import("../utils.zig");
 const doc = @import("../../doc.zig");
 
@@ -26,13 +26,13 @@ pub const default_severity: severity.Level = .warn;
 pub const prose_title = "Blank doc comment";
 
 /// Full configuration for `blank_doc_comment`: severity and scan mode, with no rule-specific options.
-pub const Rule = category.Rule(default_severity, struct {}, scanning.Modes.public_api_surface);
+pub const Rule = category.Rule(default_severity, struct {}, scan.Modes.public_api_surface);
 
 /// Walks `tree` and appends diagnostics for vacuous doc comments.
 ///
 /// When `is_module_entry` is set, blank `//!` blocks on the file are reported as module doc comments.
 /// Whole-module re-exports without a line doc comment also resolve blank `//!` on the imported file.
-/// See `docent.reexport` for resolution behavior.
+/// See `docent.scan.alias` for resolution behavior.
 pub fn check(
     tree: *const Ast,
     rule: Rule,
@@ -140,7 +140,7 @@ fn checkReexportedWholeModules(
             !hasDocComment(tree, var_decl.firstToken()))
         {
             if (var_decl.ast.init_node.unwrap()) |init_node| {
-                if (reexport.getInfo(tree, init_node)) |info| {
+                if (alias.getInfo(tree, init_node)) |info| {
                     if (info.field_name == null) {
                         var emit_ctx = BlankWholeModuleContext{
                             .severity_level = severity_level,
@@ -148,7 +148,7 @@ fn checkReexportedWholeModules(
                             .msg_allocator = msg_allocator,
                             .diagnostics = diagnostics,
                         };
-                        try reexport.resolveWholeModuleReexport(
+                        try alias.resolveWholeModuleReexport(
                             info,
                             file,
                             allocator,

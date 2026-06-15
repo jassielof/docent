@@ -16,7 +16,7 @@ const std = @import("std");
 const toml = @import("toml");
 
 const severity = @import("../severity.zig");
-const scanning = @import("../scanning.zig");
+const scan = @import("../scan.zig");
 
 /// Decode errors surfaced to config loaders and `formatError`.
 pub const Error = error{
@@ -96,6 +96,6 @@ fn decodeEnum(comptime E: type, value: toml.DynamicValue) Error!E {
 
 fn enumError(comptime E: type) Error {
     if (E == severity.Level) return error.InvalidSeverity;
-    if (E == scanning.Modes) return error.InvalidScanMode;
+    if (E == scan.Modes) return error.InvalidScanMode;
     return error.ConfigParseFailed;
 }

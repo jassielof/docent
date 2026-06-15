@@ -6,7 +6,7 @@ const std = @import("std");
 const toml = @import("toml");
 
 const RuleSeverities = @import("../RuleSeverities.zig");
-const scanning = @import("../scanning.zig");
+const scan = @import("../scan.zig");
 const severity = @import("../severity.zig");
 const rule_decode = @import("../rules/decode.zig");
 const doc_rules = @import("../rules/doc.zig");
@@ -114,7 +114,7 @@ test "decode reads nested rule tables and section options" {
     try std.testing.expectEqual(severity.Level.deny, cfg.doc.missing_doc_comment.level);
     try std.testing.expect(cfg.doc.missing_doc_comment.options.check_parameters);
     try std.testing.expectEqual(severity.Level.allow, cfg.doc.missing_doctest.level);
-    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.doc.scan_mode);
+    try std.testing.expectEqual(scan.Modes.reachability_traversal, cfg.doc.scan_mode);
     try std.testing.expectEqual(severity.Level.deny, cfg.complexity.cognitive_complexity.level);
     try std.testing.expectEqual(@as(u32, 12), cfg.complexity.cognitive_complexity.options.threshold);
 }
@@ -246,8 +246,8 @@ test "scan modes default and override" {
         \\scan_mode = "public"
     );
     const cfg = try decode(root);
-    try std.testing.expectEqual(scanning.Modes.reachability_traversal, cfg.doc.scan_mode);
-    try std.testing.expectEqual(scanning.Modes.public_api_surface, cfg.complexity.scan_mode);
+    try std.testing.expectEqual(scan.Modes.reachability_traversal, cfg.doc.scan_mode);
+    try std.testing.expectEqual(scan.Modes.public_api_surface, cfg.complexity.scan_mode);
 }
 
 test "applyRuleSeverities respects forbid and defaults" {

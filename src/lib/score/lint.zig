@@ -4,7 +4,7 @@ const std = @import("std");
 
 const RuleSeverities = @import("../RuleSeverities.zig");
 const status_plan = @import("../status_plan.zig");
-const targeting = @import("../targeting.zig");
+const targeting = @import("../scan/target.zig");
 const root = @import("../root.zig");
 const rules = @import("../rules.zig");
 const config = @import("../config.zig");

@@ -5,15 +5,15 @@ const docent = @import("docent");
 const harness = @import("../harness.zig");
 
 test "build scripts are skipped by default" {
-    try std.testing.expect(docent.targeting.shouldSkipLintFile("build.zig", .{}));
-    try std.testing.expect(docent.targeting.shouldSkipLintFile("build/helpers/steps.zig", .{}));
-    try std.testing.expect(!docent.targeting.shouldSkipLintFile("src/lib/root.zig", .{}));
+    try std.testing.expect(docent.scan.target.shouldSkipLintFile("build.zig", .{}));
+    try std.testing.expect(docent.scan.target.shouldSkipLintFile("build/helpers/steps.zig", .{}));
+    try std.testing.expect(!docent.scan.target.shouldSkipLintFile("src/lib/root.zig", .{}));
 }
 
 test "include_build_scripts overrides default skip" {
-    const opts: docent.targeting.Options = .{ .build_script = true };
-    try std.testing.expect(!docent.targeting.shouldSkipLintFile("build.zig", opts));
-    try std.testing.expect(!docent.targeting.shouldSkipLintFile("build/helpers/steps.zig", opts));
+    const opts: docent.scan.target.Options = .{ .build_script = true };
+    try std.testing.expect(!docent.scan.target.shouldSkipLintFile("build.zig", opts));
+    try std.testing.expect(!docent.scan.target.shouldSkipLintFile("build/helpers/steps.zig", opts));
 }
 
 test "collectBuildScriptLintFiles follows imports from build.zig" {
@@ -23,9 +23,9 @@ test "collectBuildScriptLintFiles follows imports from build.zig" {
     defer allocator.free(dir);
 
     var files: std.ArrayList([]const u8) = .empty;
-    defer docent.targeting.deinitOwnedPaths(allocator, &files);
+    defer docent.scan.target.deinitOwnedPaths(allocator, &files);
 
-    try docent.targeting.collectBuildScriptLintFiles(allocator, io, dir, &files);
+    try docent.scan.target.collectBuildScriptLintFiles(allocator, io, dir, &files);
 
     var has_build = false;
     var has_helper = false;
@@ -47,8 +47,8 @@ test "no-root directories use top-level modules as entrypoints" {
     const dir = try harness.scenarioProjectDir("targeting_multi_module_no_root");
     defer std.testing.allocator.free(dir);
 
-    var files = try docent.targeting.collectDirectoryLintTargets(std.testing.allocator, std.testing.io, dir, .{});
-    defer docent.targeting.deinitOwnedPaths(std.testing.allocator, &files);
+    var files = try docent.scan.target.collectDirectoryLintTargets(std.testing.allocator, std.testing.io, dir, .{});
+    defer docent.scan.target.deinitOwnedPaths(std.testing.allocator, &files);
 
     var has_re2 = false;
     var has_pcre2 = false;
@@ -76,8 +76,8 @@ test "no-root directories include build scripts when enabled" {
     const dir = try harness.scenarioProjectDir("targeting_multi_module_no_root");
     defer std.testing.allocator.free(dir);
 
-    var files = try docent.targeting.collectDirectoryLintTargets(std.testing.allocator, std.testing.io, dir, .{ .build_script = true });
-    defer docent.targeting.deinitOwnedPaths(std.testing.allocator, &files);
+    var files = try docent.scan.target.collectDirectoryLintTargets(std.testing.allocator, std.testing.io, dir, .{ .build_script = true });
+    defer docent.scan.target.deinitOwnedPaths(std.testing.allocator, &files);
 
     var has_build = false;
     for (files.items) |path| {
@@ -91,23 +91,23 @@ test "skips files under dependency root from manifest fixture" {
     const dep_file = "tests/fixtures/scenarios/manifest_with_deps/modules/dep/lib.zig";
     const dep_root = "tests/fixtures/scenarios/manifest_with_deps/modules/dep";
 
-    try std.testing.expect(docent.targeting.isUnderExcludedRoot(dep_file, dep_root));
-    try std.testing.expect(docent.targeting.shouldSkipLintFile(dep_file, .{ .exclude_roots = &.{dep_root} }));
+    try std.testing.expect(docent.scan.target.isUnderExcludedRoot(dep_file, dep_root));
+    try std.testing.expect(docent.scan.target.shouldSkipLintFile(dep_file, .{ .exclude_roots = &.{dep_root} }));
 }
 
 test "lint_dependencies includes dependency files" {
     const dep_file = "tests/fixtures/scenarios/manifest_with_deps/modules/dep/lib.zig";
     const dep_root = "tests/fixtures/scenarios/manifest_with_deps/modules/dep";
 
-    try std.testing.expect(!docent.targeting.shouldSkipLintFile(dep_file, .{
+    try std.testing.expect(!docent.scan.target.shouldSkipLintFile(dep_file, .{
         .deps = true,
         .exclude_roots = &.{dep_root},
     }));
 }
 
 test "explicit exclude_roots" {
-    try std.testing.expect(docent.targeting.shouldSkipLintFile("vendor/pkg/util.zig", .{ .exclude_roots = &.{"vendor"} }));
-    try std.testing.expect(!docent.targeting.shouldSkipLintFile("src/app.zig", .{ .exclude_roots = &.{"vendor"} }));
+    try std.testing.expect(docent.scan.target.shouldSkipLintFile("vendor/pkg/util.zig", .{ .exclude_roots = &.{"vendor"} }));
+    try std.testing.expect(!docent.scan.target.shouldSkipLintFile("src/app.zig", .{ .exclude_roots = &.{"vendor"} }));
 }
 
 test "collectDirectoryLintTargets excludes dependency tree by default" {
@@ -120,8 +120,8 @@ test "collectDirectoryLintTargets excludes dependency tree by default" {
     defer docent.manifest.deinitOwnedPaths(allocator, &roots);
 
     const project_root = "tests/fixtures/scenarios/manifest_with_deps";
-    var files = try docent.targeting.collectDirectoryLintTargets(allocator, io, project_root, .{ .exclude_roots = roots.items });
-    defer docent.targeting.deinitOwnedPaths(allocator, &files);
+    var files = try docent.scan.target.collectDirectoryLintTargets(allocator, io, project_root, .{ .exclude_roots = roots.items });
+    defer docent.scan.target.deinitOwnedPaths(allocator, &files);
 
     var has_app = false;
     var has_dep_lib = false;

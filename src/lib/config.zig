@@ -3,7 +3,7 @@
 const std = @import("std");
 
 const RuleSeverities = @import("RuleSeverities.zig");
-const scanning = @import("scanning.zig");
+const scan = @import("scan.zig");
 const rules = @import("rules.zig");
 const Config = @import("schemas/Config.zig");
 
@@ -123,19 +123,19 @@ pub fn loadStyleOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_
 }
 
 /// Returns the declaration scan mode for documentation rules.
-pub fn loadDocScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scanning.Modes {
+pub fn loadDocScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.Modes {
     const cfg = try loadConfigFromCli(allocator, io, config_path);
     return cfg.doc.scan_mode;
 }
 
 /// Returns the declaration scan mode for complexity rules.
-pub fn loadComplexityScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scanning.Modes {
+pub fn loadComplexityScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.Modes {
     const cfg = try loadConfigFromCli(allocator, io, config_path);
     return cfg.complexity.scan_mode;
 }
 
 /// Returns the declaration scan mode for style rules.
-pub fn loadStyleScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scanning.Modes {
+pub fn loadStyleScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.Modes {
     const cfg = try loadConfigFromCli(allocator, io, config_path);
     return cfg.style.scan_mode;
 }

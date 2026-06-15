@@ -1,7 +1,7 @@
 //! `zig fmt --check` formatting score.
 
 const std = @import("std");
-const targeting = @import("../targeting.zig");
+const targeting = @import("../scan/target.zig");
 
 pub const Report = struct {
     total_files: usize = 0,

@@ -60,7 +60,7 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
-const scanning = @import("../../scanning.zig");
+const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 const doc = @import("../../doc.zig");
@@ -95,7 +95,7 @@ pub const default_severity: severity.Level = .warn;
 pub const prose_title = "Invalid leading phrase";
 
 /// Full configuration for `invalid_leading_phrase`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scanning.Modes.public_api_surface);
+pub const Rule = category.Rule(default_severity, Options, scan.Modes.public_api_surface);
 
 /// The article_words set contains the words considered as articles for leading phrases.
 pub const article_words: []const []const u8 = &.{ "a", "an", "the" };

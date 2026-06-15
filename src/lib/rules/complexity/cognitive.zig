@@ -16,7 +16,7 @@ const Ast = std.zig.Ast;
 
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
-const scanning = @import("../../scanning.zig");
+const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 
@@ -35,7 +35,7 @@ pub const Options = struct {
 };
 
 /// Full configuration for `cognitive_complexity`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scanning.Modes.reachability_traversal);
+pub const Rule = category.Rule(default_severity, Options, scan.Modes.reachability_traversal);
 
 /// Default cognitive-complexity threshold recommended by Sonar Source; see <https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103/3>.
 pub const default_threshold: u32 = 15;

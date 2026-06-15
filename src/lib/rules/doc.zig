@@ -8,11 +8,11 @@
 //!
 //! - **Missing module doc comment** — file-level `//!` on module entry roots (`root.zig` and library `root_source_file` paths from `build.zig`).
 //! - **Missing source-file doc comment** — file-level `//!` on implicit structure files and namespaces (files without struct fields at file scope).
-const scanning = @import("../scanning.zig");
+const scan = @import("../scan.zig");
 const category = @import("category.zig");
 
 /// Default scan mode for documentation rules; `public_api_surface` because doc comments are enforced on the public API by default.
-pub const default_scan_mode: scanning.Modes = .public_api_surface;
+pub const default_scan_mode: scan.Modes = .public_api_surface;
 
 pub const missing_doc_comment = @import("doc/missing_doc_comment.zig");
 pub const blank_doc_comment = @import("doc/blank_doc_comment.zig");
@@ -26,7 +26,7 @@ pub const invalid_leading_phrase = @import("doc/invalid_leading_phrase.zig");
 /// The `doc` configuration: the category-wide scan mode plus each rule's config, decoded generically and resolved in place.
 pub const Doc = struct {
     /// Category-wide scan mode; rules with a `null` scan mode inherit this value.
-    scan_mode: scanning.Modes = default_scan_mode,
+    scan_mode: scan.Modes = default_scan_mode,
     missing_doc_comment: missing_doc_comment.Rule = .{},
     blank_doc_comment: blank_doc_comment.Rule = .{},
     trailing_blank_doc_comment: trailing_blank_doc_comment.Rule = .{},
@@ -49,7 +49,7 @@ pub const Doc = struct {
     }
 
     /// Overrides every rule's scan mode for a single lint invocation, such as explicit path targets.
-    pub fn applyRunScanMode(self: *Doc, mode: scanning.Modes) void {
+    pub fn applyRunScanMode(self: *Doc, mode: scan.Modes) void {
         category.applyRunScanMode(self, mode);
     }
 };
