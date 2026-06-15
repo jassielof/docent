@@ -204,7 +204,7 @@ pub fn printStatusReport(
         try w.print("  (none; use --deps to include path dependencies)\n\n", .{});
     } else {
         for (plan.targeting.exclude_roots) |dep| {
-            const rel = try docent.targeting.pathRelativeTo(allocator, plan.package.project_root, dep);
+            const rel = try docent.scan.target.pathRelativeTo(allocator, plan.package.project_root, dep);
             defer allocator.free(rel);
             try w.print("  - {s}\n", .{rel});
         }
@@ -228,7 +228,7 @@ pub fn printStatusReport(
 }
 
 fn formatDisplayPath(allocator: std.mem.Allocator, project_root: []const u8, path: []const u8) ![]const u8 {
-    return docent.targeting.pathRelativeTo(allocator, project_root, path);
+    return docent.scan.target.pathRelativeTo(allocator, project_root, path);
 }
 
 fn printResolvedTarget(w: *std.Io.Writer, profile: carnaval.ColorProfile, rt: docent.status_plan.ResolvedTarget) !void {
@@ -295,7 +295,7 @@ fn printDependencyTargets(
     try sectionHeading(w, profile, "Dependency targets");
 
     for (plan.targeting.exclude_roots) |dep_root| {
-        const rel = try docent.targeting.pathRelativeTo(allocator, plan.package.project_root, dep_root);
+        const rel = try docent.scan.target.pathRelativeTo(allocator, plan.package.project_root, dep_root);
         defer allocator.free(rel);
 
         try w.writeAll("  ");
@@ -320,8 +320,8 @@ fn printDependencyTargets(
         }
 
         var entrypoints: std.ArrayList([]const u8) = .empty;
-        defer docent.targeting.deinitOwnedPaths(allocator, &entrypoints);
-        try docent.targeting.collectDirectoryEntrypoints(allocator, io, dep_root, plan.targeting, &entrypoints);
+        defer docent.scan.target.deinitOwnedPaths(allocator, &entrypoints);
+        try docent.scan.target.collectDirectoryEntrypoints(allocator, io, dep_root, plan.targeting, &entrypoints);
 
         if (entrypoints.items.len == 0) {
             try w.print("    (no module roots found)\n\n", .{});
@@ -329,7 +329,7 @@ fn printDependencyTargets(
         }
 
         for (entrypoints.items) |entry| {
-            const entry_rel = try docent.targeting.pathRelativeTo(allocator, dep_root, entry);
+            const entry_rel = try docent.scan.target.pathRelativeTo(allocator, dep_root, entry);
             defer allocator.free(entry_rel);
             try w.print("    - module root: {s}\n", .{entry_rel});
         }

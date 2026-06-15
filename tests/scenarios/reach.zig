@@ -9,8 +9,8 @@ test "collects only public reachable files from reachability_public_api" {
     const root = try harness.scenarioProjectPath("reachability_public_api", "root.zig");
     defer std.testing.allocator.free(root);
 
-    var files = try docent.reachability.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
-    defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
+    var files = try docent.scan.reach.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
+    defer docent.scan.reach.deinitOwnedPaths(std.testing.allocator, &files);
 
     var has_root = false;
     var has_vision = false;
@@ -33,8 +33,8 @@ test "linting reachability_public_api files emits no missing_doc_comment" {
     const root = try harness.scenarioProjectPath("reachability_public_api", "root.zig");
     defer std.testing.allocator.free(root);
 
-    var files = try docent.reachability.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
-    defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
+    var files = try docent.scan.reach.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
+    defer docent.scan.reach.deinitOwnedPaths(std.testing.allocator, &files);
 
     for (files.items) |path| {
         var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .warn }));
@@ -47,8 +47,8 @@ test "recursively follows multi-hop public imports in reachability_public_api_de
     const root = try harness.scenarioProjectPath("reachability_public_api_deep", "root.zig");
     defer std.testing.allocator.free(root);
 
-    var files = try docent.reachability.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
-    defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
+    var files = try docent.scan.reach.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
+    defer docent.scan.reach.deinitOwnedPaths(std.testing.allocator, &files);
 
     var has_root = false;
     var has_api = false;
@@ -74,8 +74,8 @@ test "collectReachableFiles follows private imports from the public API surface"
     const root = try harness.scenarioProjectPath("reachability_public_api_deep", "root.zig");
     defer std.testing.allocator.free(root);
 
-    var files = try docent.reachability.collectReachableFiles(std.testing.allocator, std.testing.io, root);
-    defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
+    var files = try docent.scan.reach.collectReachableFiles(std.testing.allocator, std.testing.io, root);
+    defer docent.scan.reach.deinitOwnedPaths(std.testing.allocator, &files);
 
     var has_private_only = false;
     for (files.items) |path| {
@@ -90,8 +90,8 @@ test "private-only file is excluded from linted deep set" {
     const root = try harness.scenarioProjectPath("reachability_public_api_deep", "root.zig");
     defer std.testing.allocator.free(root);
 
-    var files = try docent.reachability.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
-    defer docent.reachability.deinitOwnedPaths(std.testing.allocator, &files);
+    var files = try docent.scan.reach.collectReachablePublicFiles(std.testing.allocator, std.testing.io, root);
+    defer docent.scan.reach.deinitOwnedPaths(std.testing.allocator, &files);
 
     for (files.items) |path| {
         var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .warn }));

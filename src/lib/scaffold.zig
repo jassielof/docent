@@ -12,7 +12,7 @@ pub const LintStep = struct {
     /// When set, overrides `.config/docent.toml` and defaults.
     rules_override: ?docent.RuleSeverities,
     /// Target filters (library vs binaries vs tests, dependency roots, etc.).
-    targeting: docent.targeting.Options,
+    targeting: docent.scan.target.Options,
     /// Diagnostic output formatting for stderr.
     output: OutputOptions,
 
@@ -110,7 +110,7 @@ pub const LintStep = struct {
             if (stat.kind == .directory) {
                 try lintDirectory(doc_cfg, targeting, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
             } else {
-                if (docent.targeting.shouldSkipLintFile(source_path, targeting)) continue;
+                if (docent.scan.target.shouldSkipLintFile(source_path, targeting)) continue;
                 try lintSingleFile(doc_cfg, self.output, allocator, io, source_path, step, &summary, &total_files, path_display_root, library_entry_roots);
             }
         }
@@ -127,7 +127,7 @@ pub const LintStep = struct {
 
 fn lintDirectory(
     doc_cfg: docent.rules.doc.Doc,
-    targeting: docent.targeting.Options,
+    targeting: docent.scan.target.Options,
     output: OutputOptions,
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -138,7 +138,7 @@ fn lintDirectory(
     path_display_root: ?[]const u8,
     library_entry_roots: []const []const u8,
 ) !void {
-    var targets = docent.targeting.collectDirectoryLintTargets(
+    var targets = docent.scan.target.collectDirectoryLintTargets(
         allocator,
         io,
         dir_path,
@@ -150,7 +150,7 @@ fn lintDirectory(
         ) catch @panic("OOM");
         return error.MakeFailed;
     };
-    defer docent.targeting.deinitOwnedPaths(allocator, &targets);
+    defer docent.scan.target.deinitOwnedPaths(allocator, &targets);
 
     for (targets.items) |full_path| {
         try lintSingleFile(doc_cfg, output, allocator, io, full_path, step, summary, total_files, path_display_root, library_entry_roots);
@@ -215,7 +215,7 @@ pub const Options = struct {
     /// When null, uses `.config/docent.toml` or `RuleSeverities` defaults.
     rules: ?docent.RuleSeverities = null,
     /// Full targeting options; when null, the other options are used.
-    targeting: ?docent.targeting.Options = null,
+    targeting: ?docent.scan.target.Options = null,
     /// Lint library targets only (used when `targeting` is null).
     lib: bool = false,
     /// Lint all binary targets (used when `targeting` is null).

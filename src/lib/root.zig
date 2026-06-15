@@ -10,11 +10,8 @@ const Ast = std.zig.Ast;
 pub const Diagnostic = @import("Diagnostic.zig");
 pub const LintResult = @import("LintResult.zig");
 pub const output = @import("output.zig");
-pub const reachability = @import("reachability.zig");
-pub const reexport = @import("reexport.zig");
-pub const RuleSeverities = @import("RuleSeverities.zig");
-pub const scanning = @import("scanning.zig");
 pub const scan = @import("scan.zig");
+pub const RuleSeverities = @import("RuleSeverities.zig");
 pub const rule_metadata = @import("rule_metadata.zig");
 pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
@@ -23,7 +20,7 @@ pub const SeverityLevel = severity.Level;
 pub const manifest = @import("manifest.zig");
 pub const config = @import("config.zig");
 pub const Config = @import("schemas/Config.zig");
-pub const targeting = @import("targeting.zig");
+
 pub const status_plan = @import("status_plan.zig");
 pub const build_scan = @import("build_scan.zig");
 pub const LintOptions = @import("LintOptions.zig");
@@ -38,7 +35,7 @@ pub const doc = @import("doc.zig");
 /// Enabled when `path` is a known module entry root or the basename is `root.zig`.
 pub fn resolveRequireModuleDoc(path: []const u8, library_entry_roots: []const []const u8) bool {
     for (library_entry_roots) |root| {
-        if (targeting.pathsEqual(path, root)) return true;
+        if (scan.target.pathsEqual(path, root)) return true;
     }
 
     return std.mem.eql(u8, std.fs.path.basename(path), "root.zig");
@@ -52,20 +49,20 @@ fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8)
 
 /// Collects canonical `root_source_file` paths for library targets from `build.zig`.
 ///
-/// Caller owns the returned slice and each path string; free with `targeting.deinitOwnedPaths`.
+/// Caller owns the returned slice and each path string; free with `scan.target.deinitOwnedPaths`.
 pub fn collectLibraryEntryRoots(
     allocator: std.mem.Allocator,
     io: std.Io,
     project_root: []const u8,
 ) ![]const []const u8 {
     var roots: std.ArrayList([]const u8) = .empty;
-    errdefer targeting.deinitOwnedPaths(allocator, &roots);
+    errdefer scan.target.deinitOwnedPaths(allocator, &roots);
 
     var scanned = try build_scan.scanProjectBuildScript(allocator, io, project_root);
-    defer if (scanned) |*scan| scan.deinit(allocator);
+    defer if (scanned) |*sc| sc.deinit(allocator);
 
-    if (scanned) |scan| {
-        for (scan.targets) |t| {
+    if (scanned) |sc| {
+        for (sc.targets) |t| {
             if (t.kind != .lib) continue;
 
             const joined = if (std.fs.path.isAbsolute(t.root_source_file))

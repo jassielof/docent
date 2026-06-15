@@ -46,7 +46,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         all_diagnostics.deinit(allocator);
     }
 
-    var analyzed_files = docent.targeting.PathSet.init(allocator);
+    var analyzed_files = docent.scan.target.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
     _ = try analyzeReachableTargets(allocator, io, &plan, &analyzed_files, style_cfg, &all_diagnostics, &summary, args.fail_fast);
@@ -60,7 +60,7 @@ pub fn analyzeReachableTargets(
     allocator: std.mem.Allocator,
     io: std.Io,
     plan: *const docent.status_plan.Plan,
-    analyzed_files: *docent.targeting.PathSet,
+    analyzed_files: *docent.scan.target.PathSet,
     style_cfg: docent.rules.style.Style,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
@@ -75,14 +75,14 @@ pub fn analyzeReachableTargets(
             try std.fs.path.join(allocator, &.{ plan.package.project_root, rt.root_source_file });
         defer allocator.free(abs_root);
 
-        var reachable = docent.reachability.collectReachableFiles(allocator, io, abs_root) catch |err| {
+        var reachable = docent.scan.reach.collectReachableFiles(allocator, io, abs_root) catch |err| {
             try check_shared.printStderr(io, "error: failed to resolve reachable files for '{s}': {}\n", .{ rt.root_source_file, err });
             continue;
         };
-        defer docent.reachability.deinitOwnedPaths(allocator, &reachable);
+        defer docent.scan.reach.deinitOwnedPaths(allocator, &reachable);
 
         for (reachable.items) |path| {
-            if (docent.targeting.shouldSkipLintFile(path, plan.targeting)) continue;
+            if (docent.scan.target.shouldSkipLintFile(path, plan.targeting)) continue;
             if (try analyzed_files.put(allocator, io, path)) continue;
             if (try analyzeFile(allocator, io, path, style_cfg, all_diagnostics, summary, fail_fast)) return true;
         }

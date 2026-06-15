@@ -6,7 +6,7 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
-const scanning = @import("../../scanning.zig");
+const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 
@@ -23,7 +23,7 @@ pub const default_severity: severity.Level = .warn;
 pub const prose_title = "Private doctest";
 
 /// Full configuration for `private_doctest`: severity and scan mode, with no rule-specific options.
-pub const Rule = category.Rule(default_severity, struct {}, scanning.Modes.public_api_surface);
+pub const Rule = category.Rule(default_severity, struct {}, scan.Modes.public_api_surface);
 
 /// Walks `tree` and appends diagnostics when private items use public-style doctests.
 pub fn check(

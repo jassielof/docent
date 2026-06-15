@@ -4,9 +4,9 @@ const std = @import("std");
 const carnaval = @import("carnaval");
 
 const manifest = @import("manifest.zig");
-const targeting = @import("targeting.zig");
+const targeting = @import("scan/target.zig");
 const build_scan = @import("build_scan.zig");
-const reachability = @import("reachability.zig");
+const reach = @import("scan/reach.zig");
 
 /// One build target after applying lint filters, with the files that would be checked.
 pub const ResolvedTarget = struct {
@@ -273,8 +273,8 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
                                 .files = &.{},
                             });
                         } else {
-                            var reachable = try reachability.collectReachablePublicFiles(allocator, io, abs_root);
-                            defer reachability.deinitOwnedPaths(allocator, &reachable);
+                            var reachable = try reach.collectReachablePublicFiles(allocator, io, abs_root);
+                            defer reach.deinitOwnedPaths(allocator, &reachable);
 
                             var filtered: std.ArrayList([]const u8) = .empty;
                             errdefer {
@@ -461,8 +461,8 @@ fn collectModuleRootLintFiles(
     errdefer allocator.free(abs);
     try module_roots.append(allocator, abs);
 
-    var reachable = try reachability.collectReachablePublicFiles(allocator, io, abs);
-    defer reachability.deinitOwnedPaths(allocator, &reachable);
+    var reachable = try reach.collectReachablePublicFiles(allocator, io, abs);
+    defer reach.deinitOwnedPaths(allocator, &reachable);
 
     for (reachable.items) |path| {
         if (targeting.shouldSkipLintFile(path, options)) continue;

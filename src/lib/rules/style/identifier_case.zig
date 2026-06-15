@@ -47,7 +47,7 @@ const vereda = @import("vereda");
 
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
-const scanning = @import("../../scanning.zig");
+const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 const doc = @import("../../doc.zig");
@@ -86,7 +86,7 @@ pub const Options = struct {
 };
 
 /// Full configuration for `identifier_case`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scanning.Modes.reachability_traversal);
+pub const Rule = category.Rule(default_severity, Options, scan.Modes.reachability_traversal);
 
 /// The expected case plus the diagnostic subject kind for a classified declaration.
 const Classification = struct {

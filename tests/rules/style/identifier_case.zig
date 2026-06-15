@@ -7,8 +7,8 @@ const utils = @import("../../utils.zig");
 
 const ns = "style";
 const warn = docent.RuleSeverities{ .identifier_case = .warn };
-const reachability = docent.scanning.Modes.reachability_traversal;
-const public_api = docent.scanning.Modes.public_api_surface;
+const reachability = docent.scan.Modes.reachability_traversal;
+const public_api = docent.scan.Modes.public_api_surface;
 
 fn setSnakeStructFileCase(cfg: *docent.rules.style.Style) void {
     cfg.identifier_case.options.struct_file_case = .snake;
