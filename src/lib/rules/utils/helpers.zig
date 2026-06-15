@@ -1,15 +1,8 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
-const vereda = @import("vereda");
 
 const Diagnostic = @import("../../Diagnostic.zig");
 const RuleSeverities = @import("../../RuleSeverities.zig");
-
-// TODO: Remove this function, and just use the Vereda one.
-/// Normalizes `\` to `/` so diagnostic paths match Zig source import style on every platform.
-pub fn normalizePathSeparators(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
-    return vereda.path.toPosixSeparators(allocator, path);
-}
 
 /// Extracts a copy of the source line containing `token`, trimmed of trailing
 /// CR/LF. Allocates from `allocator` — caller is responsible for freeing.

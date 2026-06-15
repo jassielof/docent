@@ -49,6 +49,7 @@
 
 const std = @import("std");
 const Ast = std.zig.Ast;
+const vereda = @import("vereda");
 
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
@@ -594,7 +595,7 @@ fn resolveImportedFileKind(
     const joined = try std.fs.path.join(allocator, &.{ base_dir, import_path });
     defer allocator.free(joined);
 
-    const abs = utils.normalizePathSeparators(allocator, joined) catch return null;
+    const abs = vereda.path.toPosixSeparators(allocator, joined) catch return null;
     defer allocator.free(abs);
 
     if (cache.get(abs)) |cached| return if (cached) .namespace else .structure;

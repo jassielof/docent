@@ -12,6 +12,7 @@
 //!   - Individual errors inside a set (or merged set) are checked when `check_errors` is enabled.
 const std = @import("std");
 const Ast = std.zig.Ast;
+const vereda = @import("vereda");
 const Diagnostic = @import("../../Diagnostic.zig");
 const severity = @import("../../severity.zig");
 const scanning = @import("../../scanning.zig");
@@ -353,7 +354,7 @@ fn onUndocumentedReexportMember(
         .severity_level = ctx.severity_level,
         .subject = try utils.ownedSubject(ctx.msg_allocator, .function, display_symbol),
         .detail = "re-exported without documentation",
-        .file = try utils.normalizePathSeparators(ctx.msg_allocator, file_path),
+        .file = try vereda.path.toPosixSeparators(ctx.msg_allocator, file_path),
         .line = loc.line + 1,
         .column = loc.column + 1,
         .source_line = try utils.dupSourceLine(tree, name_tok, ctx.msg_allocator),
@@ -380,7 +381,7 @@ fn onUndocumentedReexportWholeModule(
         .rule = rule_name,
         .severity_level = ctx.severity_level,
         .subject = try utils.ownedSubject(ctx.msg_allocator, subject_kind, source_basename),
-        .file = try utils.normalizePathSeparators(ctx.msg_allocator, file_path),
+        .file = try vereda.path.toPosixSeparators(ctx.msg_allocator, file_path),
         .line = line + 1,
         .column = column + 1,
         .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(tree, 0, ctx.msg_allocator) else "",
