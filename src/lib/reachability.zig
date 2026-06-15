@@ -1,5 +1,7 @@
 //! Traverses local `pub` import graphs to discover which Zig files belong to a library's public API surface.
 
+// TODO: Investigate if it's possible to increase efficiency in parsing modules and its crawling by using parallelism, or simply improve scanning speed overall.
+
 const std = @import("std");
 
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
