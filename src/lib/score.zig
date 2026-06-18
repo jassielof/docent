@@ -10,5 +10,4 @@ pub const Report = report.Report;
 pub const Check = report.Check;
 pub const Options = report.Options;
 
-/// Builds a weighted score report for a lint plan.
 pub const gather = report.gather;

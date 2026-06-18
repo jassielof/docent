@@ -1,0 +1,4 @@
+#:schema ../schemas/docent.schema.json
+
+[doc]
+invalid_leading_phrase = "allow"
