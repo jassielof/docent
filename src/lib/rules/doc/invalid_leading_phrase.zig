@@ -71,16 +71,19 @@ inline fn srcLoc() std.builtin.SourceLocation {
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
-/// Leading-phrase strictness for this rule.
+/// Mode enumeration for leading phrase strictness.
 pub const Mode = enum {
+    /// The relaxed enumerator accepts identifier-first summaries.
     relaxed,
+    /// The canonical enumerator also allows kind-before-identifier phrases.
     canonical,
+    /// The strict enumerator requires kind-before-identifier when phrases exist for the declaration type.
     strict,
 };
 
 /// Rule-specific knobs for `invalid_leading_phrase`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
-    /// Leading-phrase strictness; `relaxed` accepts identifier-first summaries, `canonical` (default) also allows kind-before-identifier, and `strict` requires kind-before-identifier when phrases exist for the declaration type.
+    /// The mode for leading phrase strictness.
     mode: Mode = .canonical,
     /// When set, the summary must begin with an English article (`a`, `an`, `the`); default `false`.
     require_article: bool = false,
@@ -88,6 +91,7 @@ pub const Options = struct {
     require_backticks: bool = false,
 };
 
+// TODO: Following the Zig style conventions, this should mostly be allowed, but in my case, for my repository, it'll be set as warn, as it becomes too noisy for the average codebase, and Zig's own style guide isn't too strict about this type of rule.
 /// Default severity `warn`: a malformed leading phrase is a documentation-quality signal worth surfacing without failing a fresh build.
 pub const default_severity: severity.Level = .warn;
 
@@ -248,6 +252,7 @@ fn matchKindPhrase(words: []const []const u8, kind: Diagnostic.SubjectKind) usiz
         }
         if (ok) best = phrase.len;
     }
+
     return best;
 }
 
@@ -268,12 +273,14 @@ fn kindPhrases(kind: Diagnostic.SubjectKind) []const KindPhrase {
         .@"union" => &.{&.{"union"}},
         .error_value => &.{ &.{ "error", "value" }, &.{ "error", "tag" }, &.{ "error", "member" }, &.{"value"} },
         .type_alias => &.{ &.{"type"}, &.{"alias"} },
+        // TODO: This is being counted as 2 complexity points, but supposedly, according to McCabe, it should be just 1, as for switch statements, the complexity is determined by its branches, not by enumerators handled.
         .doc_comment, .doctest => &.{},
     };
 }
 
 fn identifierMatches(word: []const u8, subject: Diagnostic.Subject) bool {
     const core = wordCore(word);
+
     return switch (subject.kind) {
         .module, .source_file => std.ascii.eqlIgnoreCase(core, subject.name),
         else => std.mem.eql(u8, core, subject.name),

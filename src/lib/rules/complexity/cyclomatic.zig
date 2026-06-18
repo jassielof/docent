@@ -25,9 +25,9 @@ pub const default_severity: severity.Level = .warn;
 /// Title for diagnostic prose (`Warning: {prose_title} on …`).
 pub const prose_title = "Cyclomatic complexity";
 
-/// Rule-specific knobs for `cyclomatic_complexity`, held in the `options` sub-space of `Rule`.
+/// The Options for the rule.
 pub const Options = struct {
-    /// Maximum independent path count before a function is flagged; default `default_threshold` follows McCabe's limit of 10.
+    /// The threshold for triggering the rule.
     threshold: u32 = default_threshold,
 };
 
@@ -38,8 +38,13 @@ pub const Rule = category.Rule(default_severity, Options, scan.Modes.reachabilit
 pub const Complexity = u32;
 
 /// McCabe cyclomatic complexity from control-flow graph dimensions: *V(G) = E − N + 2P*.
-pub fn formula(edges: u32, nodes: u32, connected_components: u32) Complexity {
+pub fn formula(
+    edges: u32,
+    nodes: u32,
+    connected_components: u32,
+) Complexity {
     const result = @as(i64, edges) - @as(i64, nodes) + 2 * @as(i64, connected_components);
+
     return @intCast(result);
 }
 
@@ -211,6 +216,7 @@ fn complexityOfFirstFn(source: [:0]const u8) !Complexity {
     for (tree.rootDecls()) |decl| {
         if (tree.nodeTag(decl) == .fn_decl) return functionComplexity(&tree, decl);
     }
+
     return error.NoFunction;
 }
 
@@ -220,6 +226,7 @@ test "formula computes V(G) = E - N + 2P" {
     try std.testing.expectEqual(@as(Complexity, 5), formula(8, 5, 1));
 }
 
+// TODO: This code-based tests need to be moved as integration tests.
 test "empty function scores 1" {
     const score = try complexityOfFirstFn(
         \\fn f() void {}
