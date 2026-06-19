@@ -274,7 +274,6 @@ fn kindPhrases(kind: Diagnostic.SubjectKind) []const KindPhrase {
         .@"union" => &.{&.{"union"}},
         .error_value => &.{ &.{ "error", "value" }, &.{ "error", "tag" }, &.{ "error", "member" }, &.{"value"} },
         .type_alias => &.{ &.{"type"}, &.{"alias"} },
-        // TODO: This (`.doc_comment, .doctest => &.{},`) is being counted as 2 complexity points, but supposedly, according to McCabe, it should be just 1, as for switch statements, the complexity is determined by its branches, not by enumerators handled.
         .doc_comment, .doctest => &.{},
     };
 }
