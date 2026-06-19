@@ -226,7 +226,7 @@ test "formula computes V(G) = E - N + 2P" {
     try std.testing.expectEqual(@as(Complexity, 5), formula(8, 5, 1));
 }
 
-// TODO: This code-based tests need to be moved as integration tests.
+// TODO: These code-based tests need to be moved as integration tests.
 test "empty function scores 1" {
     const score = try complexityOfFirstFn(
         \\fn f() void {}
