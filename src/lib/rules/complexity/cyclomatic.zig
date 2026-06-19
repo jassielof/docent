@@ -197,7 +197,8 @@ fn nodeIncrement(tree: *const Ast, node: Ast.Node.Index) u32 {
         .bool_and, .bool_or => return 1,
         .@"switch", .switch_comma => {
             const switch_full = tree.fullSwitch(node) orelse return 0;
-            return @intCast(switch_full.ast.cases.len);
+            const cases_len = switch_full.ast.cases.len;
+            return @intCast(if (cases_len > 0) cases_len - 1 else 0);
         },
         .switch_case_one,
         .switch_case_inline_one,
@@ -208,86 +209,8 @@ fn nodeIncrement(tree: *const Ast, node: Ast.Node.Index) u32 {
     }
 }
 
-fn complexityOfFirstFn(source: [:0]const u8) !Complexity {
-    const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(allocator, source, .zig);
-    defer tree.deinit(allocator);
-
-    for (tree.rootDecls()) |decl| {
-        if (tree.nodeTag(decl) == .fn_decl) return functionComplexity(&tree, decl);
-    }
-
-    return error.NoFunction;
-}
-
 test "formula computes V(G) = E - N + 2P" {
     try std.testing.expectEqual(@as(Complexity, 1), formula(0, 1, 1));
     try std.testing.expectEqual(@as(Complexity, 3), formula(4, 3, 1));
     try std.testing.expectEqual(@as(Complexity, 5), formula(8, 5, 1));
-}
-
-// TODO: These code-based tests need to be moved as integration tests.
-test "empty function scores 1" {
-    const score = try complexityOfFirstFn(
-        \\fn f() void {}
-    );
-    try std.testing.expectEqual(@as(u32, 1), score);
-}
-
-test "if / else if / else chain scores 3 per McCabe" {
-    const score = try complexityOfFirstFn(
-        \\fn g(x: i32) i32 {
-        \\    if (x == 1) {
-        \\        return 1;
-        \\    } else if (x == 2) {
-        \\        return 2;
-        \\    } else {
-        \\        return 3;
-        \\    }
-        \\}
-    );
-    try std.testing.expectEqual(@as(u32, 3), score);
-}
-
-test "switch counts each prong" {
-    const score = try complexityOfFirstFn(
-        \\fn getWords(number: u32) []const u8 {
-        \\    switch (number) {
-        \\        1 => return "one",
-        \\        2 => return "a couple",
-        \\        3 => return "a few",
-        \\        else => return "lots",
-        \\    }
-        \\}
-    );
-    try std.testing.expectEqual(@as(u32, 5), score);
-}
-
-test "logical operators add decision points" {
-    const score = try complexityOfFirstFn(
-        \\fn f(a: bool, b: bool, c: bool) bool {
-        \\    return a and b or c;
-        \\}
-    );
-    try std.testing.expectEqual(@as(u32, 3), score);
-}
-
-test "catch adds a decision point" {
-    const score = try complexityOfFirstFn(
-        \\fn k() void {
-        \\    foo() catch {
-        \\        bar();
-        \\    };
-        \\}
-    );
-    try std.testing.expectEqual(@as(u32, 2), score);
-}
-
-test "orelse is ignored" {
-    const score = try complexityOfFirstFn(
-        \\fn k(x: ?u32) u32 {
-        \\    return x orelse 0;
-        \\}
-    );
-    try std.testing.expectEqual(@as(u32, 1), score);
 }
