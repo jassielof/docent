@@ -10,7 +10,33 @@
 
 const std = @import("std");
 
-// TODO: Rename modes, as the documentation explains it. While it mainly mentions 2, the first one (reachability) has 2 flavors (public API only vs. including internal declarations).
+// TODO(refactor): Split `Modes` into `ScanMode` + `Visibility` — current flat enum conflates
+// discovery strategy with visibility filtering, which will break down once filesystem scan is added.
+//
+// Target shape:
+//
+//   ScanMode = enum { reachability, filesystem }
+//     - `reachability`: traversal from module root, following reachable declarations only.
+//     - `filesystem`: recursive walk over every .zig file on disk, including orphaned files.
+//
+//   Visibility = enum { public_only, include_internal }
+//     - Only meaningful when paired with `.reachability`.
+//     - Filesystem scans always inspect all declarations; pub/internal has no bearing on
+//       whether a file gets walked, so this field is N/A for `.filesystem`.
+//
+//   RuleScanConfig = struct { mode: ScanMode, visibility: Visibility }
+//     - Flat config string ("public", "all", "filesystem") parsed into both fields at once,
+//       preserving current TOML surface for users.
+//     - "public"   -> .{ .reachability, .public_only }
+//     - "all"      -> .{ .reachability, .include_internal }
+//     - "filesystem" -> .{ .filesystem, .include_internal }
+//
+// Migration:
+//   - Replace all `Modes` references with `RuleScanConfig` or the individual types as appropriate.
+//   - `publicApiOnly()` moves to `Visibility.isPublicOnly()`.
+//   - `fromConfigString` / `configString` move to `RuleScanConfig`.
+//   - Update doc comments on the `scan` namespace to reflect 2 modes + visibility as a filter.
+
 /// One way to choose which declarations a category of rules inspects.
 pub const Modes = enum {
     /// Only `pub` declarations on the publicly reachable API surface.
