@@ -83,6 +83,7 @@ pub const Mode = enum {
 
 /// Rule-specific knobs for `invalid_leading_phrase`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
+    // TODO: Modes should be removed, and instead add a `require_kind` field, this should allow the kind to be either before or after the identifier, but not in both places.
     /// The mode for leading phrase strictness.
     mode: Mode = .canonical,
     /// When set, the summary must begin with an English article (`a`, `an`, `the`); default `false`.
