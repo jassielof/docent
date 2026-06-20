@@ -112,3 +112,31 @@ test "orelse is ignored (complexity 1)" {
     defer above_threshold.deinit();
     try utils.expectRuleCount(above_threshold, "cyclomatic_complexity", 1);
 }
+
+test "robustFetch has try, catch, switch, nested if, loop (complexity 9)" {
+    const expected_score = 9;
+
+    // Threshold = 9 (equal to expected score): should not emit any diagnostic.
+    var equal_to_threshold = try harness.lintComplexityRuleFixture(ns, &.{"cyclomatic_try_catch.zig"}, warn, null, configureThreshold(expected_score));
+    defer equal_to_threshold.deinit();
+    try utils.expectRuleAbsent(equal_to_threshold, "cyclomatic_complexity");
+
+    // Threshold = 8 (less than expected score): should emit exactly 1 diagnostic.
+    var above_threshold = try harness.lintComplexityRuleFixture(ns, &.{"cyclomatic_try_catch.zig"}, warn, null, configureThreshold(expected_score - 1));
+    defer above_threshold.deinit();
+    try utils.expectRuleCount(above_threshold, "cyclomatic_complexity", 1);
+}
+
+test "processData has nested loops, unwrapping, complex logical expression (complexity 11)" {
+    const expected_score = 11;
+
+    // Threshold = 11 (equal to expected score): should not emit any diagnostic.
+    var equal_to_threshold = try harness.lintComplexityRuleFixture(ns, &.{"cyclomatic_complex.zig"}, warn, null, configureThreshold(expected_score));
+    defer equal_to_threshold.deinit();
+    try utils.expectRuleAbsent(equal_to_threshold, "cyclomatic_complexity");
+
+    // Threshold = 10 (less than expected score): should emit exactly 1 diagnostic.
+    var above_threshold = try harness.lintComplexityRuleFixture(ns, &.{"cyclomatic_complex.zig"}, warn, null, configureThreshold(expected_score - 1));
+    defer above_threshold.deinit();
+    try utils.expectRuleCount(above_threshold, "cyclomatic_complexity", 1);
+}
