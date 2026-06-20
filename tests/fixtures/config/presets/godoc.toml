@@ -42,7 +42,7 @@ accepted_marks = [".", "!", "?"]
 
 [doc.invalid_leading_phrase]
 level = "warn"
-mode = "canonical"
+require_kind = false
 require_article = false
 require_backticks = false
 

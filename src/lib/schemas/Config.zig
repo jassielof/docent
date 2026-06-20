@@ -173,14 +173,14 @@ test "resolved docs options read invalid_leading_phrase settings" {
 
     const root = try parseRoot(arena.allocator(),
         \\[doc.invalid_leading_phrase]
-        \\mode = "strict"
+        \\require_kind = true
         \\require_article = true
         \\require_backticks = true
     );
 
     const cfg = try decode(root);
     const phrase = cfg.doc.invalid_leading_phrase.options;
-    try std.testing.expectEqual(doc_rules.invalid_leading_phrase.Mode.strict, phrase.mode);
+    try std.testing.expect(phrase.require_kind);
     try std.testing.expect(phrase.require_article);
     try std.testing.expect(phrase.require_backticks);
 }

@@ -226,11 +226,10 @@ definitions:
           scan_mode:
             $ref: "#/definitions/scan_mode"
             description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
-          mode:
-            type: "string"
-            enum: ["relaxed", "canonical", "strict"]
-            default: "canonical"
-            description: "Strictness of leading phrase validation."
+          require_kind:
+            type: "boolean"
+            default: false
+            description: "Require a kind word matching the identifier's kind."
           require_article:
             type: "boolean"
             default: false

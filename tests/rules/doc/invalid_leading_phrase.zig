@@ -31,8 +31,8 @@ fn expectLeadingPhraseSubject(result: docent.LintResult, kind: docent.Diagnostic
     return error.TestExpectedEqual;
 }
 
-fn setStrictMode(cfg: *docent.rules.doc.Doc) void {
-    cfg.invalid_leading_phrase.options.mode = .strict;
+fn setRequireKind(cfg: *docent.rules.doc.Doc) void {
+    cfg.invalid_leading_phrase.options.require_kind = true;
 }
 
 fn setRequireArticle(cfg: *docent.rules.doc.Doc) void {
@@ -135,16 +135,28 @@ test "private function checked when public_api_only is false" {
     try utils.expectRuleCount(result, "invalid_leading_phrase", 1);
 }
 
-test "strict mode rejects identifier-first function summary" {
-    var result = try lint("leading_phrase_identifier_first.zig", warn, public_surface, setStrictMode);
+test "require_kind rejects identifier-first function summary without kind" {
+    var result = try lint("leading_phrase_identifier_first.zig", warn, public_surface, setRequireKind);
     defer result.deinit();
     try utils.expectRuleCount(result, "invalid_leading_phrase", 1);
 }
 
-test "strict mode accepts kind-before identifier summary" {
-    var result = try lint("leading_phrase_strict_accept.zig", warn, public_surface, setStrictMode);
+test "require_kind accepts kind-before identifier summary" {
+    var result = try lint("leading_phrase_strict_accept.zig", warn, public_surface, setRequireKind);
     defer result.deinit();
     try utils.expectRuleAbsent(result, "invalid_leading_phrase");
+}
+
+test "require_kind accepts kind-after identifier summary" {
+    var result = try lint("leading_phrase_struct_article_kind.zig", warn, public_surface, setRequireKind);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "invalid_leading_phrase");
+}
+
+test "rejects kind in both places" {
+    var result = try lint("leading_phrase_both_kinds.zig", warn, public_surface, null);
+    defer result.deinit();
+    try utils.expectRuleCount(result, "invalid_leading_phrase", 1);
 }
 
 test "require_article rejects summary without article" {
@@ -172,13 +184,13 @@ test "require_backticks accepts backticked identifier" {
 }
 
 test "summary_with_leading_identifier_is_accepted via fixture path" {
-    var result = try harness.lintRuleFixture(ns, &.{ "leading_phrase_ok.zig" }, warn, .{});
+    var result = try harness.lintRuleFixture(ns, &.{"leading_phrase_ok.zig"}, warn, .{});
     defer result.deinit();
     try utils.expectRuleAbsent(result, "invalid_leading_phrase");
 }
 
 test "summary_without_identifier_is_reported via fixture path" {
-    var result = try harness.lintRuleFixture(ns, &.{ "invalid_leading_phrase.zig" }, warn, .{});
+    var result = try harness.lintRuleFixture(ns, &.{"invalid_leading_phrase.zig"}, warn, .{});
     defer result.deinit();
     try utils.expectRuleCount(result, "invalid_leading_phrase", 1);
 }
