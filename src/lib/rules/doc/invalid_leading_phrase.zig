@@ -71,30 +71,19 @@ inline fn srcLoc() std.builtin.SourceLocation {
 
 const rule_name = utils.ruleIdFromSrc(srcLoc());
 
-/// Mode enumeration for leading phrase strictness.
-pub const Mode = enum {
-    /// The relaxed enumerator accepts identifier-first summaries.
-    relaxed,
-    /// The canonical enumerator also allows kind-before-identifier phrases.
-    canonical,
-    /// The strict enumerator requires kind-before-identifier when phrases exist for the declaration type.
-    strict,
-};
-
 /// Rule-specific knobs for `invalid_leading_phrase`, held in the `options` sub-space of `Rule`.
 pub const Options = struct {
-    // TODO: Modes should be removed, and instead add a `require_kind` field, this should allow the kind to be either before or after the identifier, but not in both places.
-    /// The mode for leading phrase strictness.
-    mode: Mode = .canonical,
+    /// When set, the summary must contain the declaration's kind word (e.g. "struct", "function"),
+    /// either before or after the identifier. Default `false`.
+    require_kind: bool = false,
     /// When set, the summary must begin with an English article (`a`, `an`, `the`); default `false`.
     require_article: bool = false,
     /// When set, the documented identifier must appear wrapped in backticks; default `false`.
     require_backticks: bool = false,
 };
 
-// TODO: Following the Zig style conventions, this should mostly be allowed, but in my case, for my repository, it'll be set as warn, as it becomes too noisy for the average codebase, and Zig's own style guide isn't too strict about this type of rule.
-/// Default severity `warn`: a malformed leading phrase is a documentation-quality signal worth surfacing without failing a fresh build.
-pub const default_severity: severity.Level = .warn;
+/// Default severity `allow`: by default, this style check is not enforced.
+pub const default_severity: severity.Level = .allow;
 
 /// Title for diagnostic prose (`Warning: {prose_title} on …`).
 pub const prose_title = "Invalid leading phrase";
@@ -181,47 +170,36 @@ fn hasLeadingPhrase(words: []const []const u8, subject: Diagnostic.Subject, opti
     if (options.require_article and !has_article) return false;
     if (i >= words.len) return false;
 
-    const namespace_requires_kind = subject.kind == .namespace;
-    return switch (options.mode) {
-        .relaxed => leadingPhraseRelaxed(words[i..], subject, options),
-        .canonical => leadingPhraseCanonical(words[i..], subject, options, namespace_requires_kind),
-        .strict => leadingPhraseStrict(words[i..], subject, options, namespace_requires_kind),
-    };
-}
+    const rest = words[i..];
 
-/// Identifier-first or kind-then-identifier; kind phrases are optional.
-fn leadingPhraseRelaxed(words: []const []const u8, subject: Diagnostic.Subject, options: Options) bool {
-    const consumed = matchKindPhrase(words, subject.kind);
-    if (consumed < words.len and wordMatchesIdentifier(words[consumed], subject, options)) return true;
-    if (words.len > 0 and wordMatchesIdentifier(words[0], subject, options)) return true;
+    // Case 1: Kind before identifier.
+    // e.g. "Function `add` ..."
+    const consumed_before = matchKindPhrase(rest, subject.kind);
+    if (consumed_before > 0 and consumed_before < rest.len) {
+        if (wordMatchesIdentifier(rest[consumed_before], subject, options)) {
+            // Check that we don't have a kind phrase in both places.
+            // e.g. "Function `add` function ..."
+            const post_id = rest[consumed_before + 1 ..];
+            if (matchKindPhrase(post_id, subject.kind) == 0) {
+                return true;
+            }
+        }
+    }
+
+    // Case 2: Identifier first, with optional/required kind after.
+    // e.g. "`add` function ..." or just "`add` ..."
+    if (rest.len > 0 and wordMatchesIdentifier(rest[0], subject, options)) {
+        const consumed_after = matchKindPhrase(rest[1..], subject.kind);
+        if (consumed_after > 0) {
+            // Kind is after the identifier (e.g. "`add` function ...")
+            return true;
+        } else if (!options.require_kind and subject.kind != .namespace) {
+            // Kind is absent and not required (and not a namespace which always requires it)
+            return true;
+        }
+    }
+
     return false;
-}
-
-/// Kind-before or identifier-first; namespaces must include a kind word.
-fn leadingPhraseCanonical(
-    words: []const []const u8,
-    subject: Diagnostic.Subject,
-    options: Options,
-    namespace_requires_kind: bool,
-) bool {
-    const consumed = matchKindPhrase(words, subject.kind);
-    const id_after_kind = consumed < words.len and wordMatchesIdentifier(words[consumed], subject, options);
-    const id_first = words.len > 0 and wordMatchesIdentifier(words[0], subject, options);
-    if (namespace_requires_kind and consumed == 0) return false;
-    return id_after_kind or id_first;
-}
-
-/// Kind-before-identifier when kind phrases exist; identifier-first only as a fallback.
-fn leadingPhraseStrict(
-    words: []const []const u8,
-    subject: Diagnostic.Subject,
-    options: Options,
-    namespace_requires_kind: bool,
-) bool {
-    const consumed = matchKindPhrase(words, subject.kind);
-    if (consumed > 0) return consumed < words.len and wordMatchesIdentifier(words[consumed], subject, options);
-    if (namespace_requires_kind or kindPhrases(subject.kind).len > 0) return false;
-    return words.len > 0 and wordMatchesIdentifier(words[0], subject, options);
 }
 
 fn wordMatchesIdentifier(word: []const u8, subject: Diagnostic.Subject, options: Options) bool {
