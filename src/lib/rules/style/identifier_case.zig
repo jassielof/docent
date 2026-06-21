@@ -86,7 +86,7 @@ pub const Options = struct {
 };
 
 /// Full configuration for `identifier_case`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.Modes.reachability_traversal);
+pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.reachability_traversal);
 
 /// The expected case plus the diagnostic subject kind for a classified declaration.
 const Classification = struct {

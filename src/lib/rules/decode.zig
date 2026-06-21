@@ -71,7 +71,14 @@ fn decodeField(comptime F: type, value: toml.DynamicValue, out: *F) Error!void {
             try decodeField(opt.child, value, &child);
             out.* = child;
         },
-        .@"struct" => try decodeInto(F, value, out),
+        .@"struct" => {
+            if (comptime @hasDecl(F, "fromConfigString")) {
+                const text = value.stringSlice() orelse return error.ConfigParseFailed;
+                out.* = F.fromConfigString(text) orelse return error.InvalidScanMode;
+            } else {
+                try decodeInto(F, value, out);
+            }
+        },
         .@"enum" => out.* = try decodeEnum(F, value),
         .bool => out.* = switch (value) {
             .boolean => |b| b,
@@ -96,6 +103,5 @@ fn decodeEnum(comptime E: type, value: toml.DynamicValue) Error!E {
 
 fn enumError(comptime E: type) Error {
     if (E == severity.Level) return error.InvalidSeverity;
-    if (E == scan.Modes) return error.InvalidScanMode;
     return error.ConfigParseFailed;
 }

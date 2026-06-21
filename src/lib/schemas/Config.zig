@@ -114,7 +114,7 @@ test "decode reads nested rule tables and section options" {
     try std.testing.expectEqual(severity.Level.deny, cfg.doc.missing_doc_comment.level);
     try std.testing.expect(cfg.doc.missing_doc_comment.options.check_parameters);
     try std.testing.expectEqual(severity.Level.allow, cfg.doc.missing_doctest.level);
-    try std.testing.expectEqual(scan.Modes.reachability_traversal, cfg.doc.scan_mode);
+    try std.testing.expect(std.meta.eql(scan.RuleScanConfig.reachability_traversal, cfg.doc.scan_mode));
     try std.testing.expectEqual(severity.Level.deny, cfg.complexity.cognitive_complexity.level);
     try std.testing.expectEqual(@as(u32, 12), cfg.complexity.cognitive_complexity.options.threshold);
 }
@@ -236,7 +236,7 @@ test "scan modes default and override" {
 
     const empty = try parseRoot(arena.allocator(), "");
     const empty_cfg = try decode(empty);
-    try std.testing.expectEqual(doc_rules.default_scan_mode, empty_cfg.doc.scan_mode);
+    try std.testing.expect(std.meta.eql(doc_rules.default_scan_mode, empty_cfg.doc.scan_mode));
 
     const root = try parseRoot(arena.allocator(),
         \\[doc]
@@ -246,8 +246,8 @@ test "scan modes default and override" {
         \\scan_mode = "public"
     );
     const cfg = try decode(root);
-    try std.testing.expectEqual(scan.Modes.reachability_traversal, cfg.doc.scan_mode);
-    try std.testing.expectEqual(scan.Modes.public_api_surface, cfg.complexity.scan_mode);
+    try std.testing.expect(std.meta.eql(scan.RuleScanConfig.reachability_traversal, cfg.doc.scan_mode));
+    try std.testing.expect(std.meta.eql(scan.RuleScanConfig.public_api_surface, cfg.complexity.scan_mode));
 }
 
 test "applyRuleSeverities respects forbid and defaults" {

@@ -32,7 +32,7 @@ pub const Options = struct {
 };
 
 /// Full configuration for `cyclomatic_complexity`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.Modes.reachability_traversal);
+pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.reachability_traversal);
 
 /// Number of linearly independent paths through a function control-flow graph (McCabe *V(G)*).
 pub const Complexity = u32;

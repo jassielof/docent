@@ -23,7 +23,7 @@ pub const default_severity: severity.Level = .warn;
 pub const prose_title = "Private doctest";
 
 /// Full configuration for `private_doctest`: severity and scan mode, with no rule-specific options.
-pub const Rule = category.Rule(default_severity, struct {}, scan.Modes.public_api_surface);
+pub const Rule = category.Rule(default_severity, struct {}, scan.RuleScanConfig.public_api_surface);
 
 /// Walks `tree` and appends diagnostics when private items use public-style doctests.
 pub fn check(

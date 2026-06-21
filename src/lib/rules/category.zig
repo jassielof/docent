@@ -9,12 +9,12 @@ const severity = @import("../severity.zig");
 /// Builds a rule's full config type: a `level` severity, an optional `scan_mode`, and an `options` sub-space.
 ///
 /// `default_severity` seeds `level`, `OptionsType` is the rule's granular knobs, and `default_scan` is the category scan mode applied when `scan_mode` is still `null`. Each rule keeps its own documented `OptionsType`; only this universal envelope is shared.
-pub fn Rule(comptime default_severity: severity.Level, comptime OptionsType: type, comptime default_scan: scan.Modes) type {
+pub fn Rule(comptime default_severity: severity.Level, comptime OptionsType: type, comptime default_scan: scan.RuleScanConfig) type {
     return struct {
         /// Severity at which violations are reported; the TOML key is `level`.
         level: severity.Level = default_severity,
         /// Declarations this rule inspects; `null` inherits the category scan mode.
-        scan_mode: ?scan.Modes = null,
+        scan_mode: ?scan.RuleScanConfig = null,
         /// Granular knobs, read as direct keys under the rule's config table.
         options: OptionsType = .{},
 
@@ -39,7 +39,7 @@ pub fn resolveScanModes(self: anytype) void {
 }
 
 /// Overrides the category and every rule's scan mode for a single lint invocation, such as explicit path targets.
-pub fn applyRunScanMode(self: anytype, mode: scan.Modes) void {
+pub fn applyRunScanMode(self: anytype, mode: scan.RuleScanConfig) void {
     self.scan_mode = mode;
     inline for (std.meta.fields(@TypeOf(self.*))) |field| {
         if (comptime std.mem.eql(u8, field.name, "scan_mode")) continue;

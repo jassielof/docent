@@ -195,7 +195,7 @@ pub fn relativeFixtureDisplay(allocator: std.mem.Allocator, absolute: []const u8
     return allocator.dupe(u8, absolute[tests_idx + offset ..]);
 }
 
-fn styleConfig(rule_set: docent.RuleSeverities, scan_mode: docent.scan.Modes) docent.rules.style.Style {
+fn styleConfig(rule_set: docent.RuleSeverities, scan_mode: docent.scan.RuleScanConfig) docent.rules.style.Style {
     var cfg = docent.rules.style.Style.defaults();
     cfg.identifier_case.level = rule_set.identifier_case;
     cfg.line_length_limit.level = rule_set.line_length_limit;
@@ -207,7 +207,7 @@ pub fn lintStyleRuleFixture(
     namespace: []const u8,
     parts: []const []const u8,
     rule_set: docent.RuleSeverities,
-    scan_mode: docent.scan.Modes,
+    scan_mode: docent.scan.RuleScanConfig,
     display_path: ?[]const u8,
     configure: ?*const fn (*docent.rules.style.Style) void,
 ) !docent.LintResult {
@@ -228,7 +228,7 @@ pub fn lintStyleRuleFixtureOptions(
     namespace: []const u8,
     parts: []const []const u8,
     rule_set: docent.RuleSeverities,
-    scan_mode: docent.scan.Modes,
+    scan_mode: docent.scan.RuleScanConfig,
     display_path: ?[]const u8,
     line_length_options: docent.rules.style.line_length_limit.Options,
 ) !docent.LintResult {

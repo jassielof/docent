@@ -42,7 +42,7 @@ pub const Options = struct {
 };
 
 /// Full configuration for `missing_doc_comment`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.Modes.public_api_surface);
+pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.public_api_surface);
 
 /// Walks `tree` and appends diagnostics for undocumented public items.
 ///
@@ -419,6 +419,6 @@ test "private function parameters are not checked under public_api_only" {
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
 
-    try check(&tree, .{ .scan_mode = .public_api_surface, .options = .{ .check_parameters = true } }, "<test>", false, null, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(&tree, .{ .scan_mode = scan.RuleScanConfig.public_api_surface, .options = .{ .check_parameters = true } }, "<test>", false, null, base, std.testing.io, msg_arena.allocator(), &diagnostics);
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

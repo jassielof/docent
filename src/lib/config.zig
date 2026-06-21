@@ -123,19 +123,19 @@ pub fn loadStyleOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_
 }
 
 /// Returns the declaration scan mode for documentation rules.
-pub fn loadDocScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.Modes {
+pub fn loadDocScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.RuleScanConfig {
     const cfg = try loadConfigFromCli(allocator, io, config_path);
     return cfg.doc.scan_mode;
 }
 
 /// Returns the declaration scan mode for complexity rules.
-pub fn loadComplexityScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.Modes {
+pub fn loadComplexityScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.RuleScanConfig {
     const cfg = try loadConfigFromCli(allocator, io, config_path);
     return cfg.complexity.scan_mode;
 }
 
 /// Returns the declaration scan mode for style rules.
-pub fn loadStyleScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.Modes {
+pub fn loadStyleScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.RuleScanConfig {
     const cfg = try loadConfigFromCli(allocator, io, config_path);
     return cfg.style.scan_mode;
 }

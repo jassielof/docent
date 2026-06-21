@@ -29,7 +29,7 @@ pub const default_severity: severity.Level = .warn;
 pub const prose_title = "Doctest naming mismatch";
 
 /// Full configuration for `doctest_naming_mismatch`: severity and scan mode, with no rule-specific options.
-pub const Rule = category.Rule(default_severity, struct {}, scan.Modes.public_api_surface);
+pub const Rule = category.Rule(default_severity, struct {}, scan.RuleScanConfig.public_api_surface);
 
 /// Walks `tree` and appends diagnostics when doctest names disagree with declarations.
 pub fn check(
