@@ -24,7 +24,7 @@ pub const default_severity: severity.Level = .warn;
 pub const prose_title = "Missing summary terminal punctuation";
 
 /// Full configuration for `missing_summary_terminal_punctuation`: severity and scan mode, with no rule-specific options.
-pub const Rule = category.Rule(default_severity, struct {}, scan.Modes.public_api_surface);
+pub const Rule = category.Rule(default_severity, struct {}, scan.RuleScanConfig.public_api_surface);
 
 /// Walks `tree` and appends diagnostics when the first doc-comment paragraph lacks `.`, `!`, or `?`.
 pub fn check(

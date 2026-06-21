@@ -34,7 +34,7 @@ pub const Options = struct {
 };
 
 /// Full configuration for `line_length_limit`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.Modes.reachability_traversal);
+pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.reachability_traversal);
 
 /// Walks `source` line by line and appends a diagnostic for every line wider than `options.max_length`.
 pub fn check(

@@ -89,7 +89,7 @@ pub const default_severity: severity.Level = .allow;
 pub const prose_title = "Invalid leading phrase";
 
 /// Full configuration for `invalid_leading_phrase`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.Modes.public_api_surface);
+pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.public_api_surface);
 
 /// The article_words set contains the words considered as articles for leading phrases.
 pub const article_words: []const []const u8 = &.{ "a", "an", "the" };

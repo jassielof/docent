@@ -32,7 +32,7 @@ pub const Options = struct {
 };
 
 /// Full configuration for `max_fun_params`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.Modes.reachability_traversal);
+pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.reachability_traversal);
 
 /// Default maximum parameter count; functions with more parameters are flagged.
 pub const default_threshold: u32 = 7;
