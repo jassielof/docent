@@ -160,6 +160,16 @@ pub fn lintSource(
         msg,
         &result.diagnostics,
     );
+    try rules.doc.redundant_doc_comment.check(
+        &tree,
+        doc_cfg.redundant_doc_comment,
+        file_owned,
+        options.module_name,
+        allocator,
+        io,
+        msg,
+        &result.diagnostics,
+    );
 
     try applySuppressions(allocator, &tree, &result);
 
