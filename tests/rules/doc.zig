@@ -11,4 +11,5 @@ comptime {
     refAllDecls(@import("doc/trailing_blank_doc_comment.zig"));
     refAllDecls(@import("doc/missing_summary_terminal_punctuation.zig"));
     refAllDecls(@import("doc/invalid_leading_phrase.zig"));
+    refAllDecls(@import("doc/redundant_doc_comment.zig"));
 }

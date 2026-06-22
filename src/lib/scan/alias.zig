@@ -178,6 +178,62 @@ pub fn resolveMissingDocReexport(
     return true;
 }
 
+fn dummyOnUndocumentedMember(
+    ctx: *anyopaque,
+    tree: *const Ast,
+    name_tok: Ast.TokenIndex,
+    display_symbol: []const u8,
+    file_path: []const u8,
+) anyerror!void {
+    _ = ctx;
+    _ = tree;
+    _ = name_tok;
+    _ = display_symbol;
+    _ = file_path;
+}
+
+fn dummyOnUndocumentedWholeModule(
+    ctx: *anyopaque,
+    tree: *const Ast,
+    file_path: []const u8,
+) anyerror!void {
+    _ = ctx;
+    _ = tree;
+    _ = file_path;
+}
+
+/// Follows a re-export chain and returns true if the target definition is documented.
+/// Returns false if target is undocumented, unresolved, or failed to parse.
+pub fn isTargetDocumented(
+    info: Info,
+    decl_name: []const u8,
+    current_file: []const u8,
+    allocator: std.mem.Allocator,
+    io: std.Io,
+) std.mem.Allocator.Error!bool {
+    const imported_path = try resolveImportedPath(allocator, current_file, info.import_path);
+    defer allocator.free(imported_path);
+
+    const outcome = resolveDocForSymbolInFile(
+        imported_path,
+        info.field_name,
+        info.field_name orelse decl_name,
+        allocator,
+        io,
+        undefined,
+        .{
+            .on_undocumented_member = dummyOnUndocumentedMember,
+            .on_undocumented_whole_module = dummyOnUndocumentedWholeModule,
+        },
+        0,
+    ) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return false,
+    };
+    return outcome == .documented;
+}
+
+
 /// When `info.field_name == null`, evaluates `predicate` on the imported module's container doc block.
 ///
 /// Only `OutOfMemory` is propagated; other resolution failures are silently ignored.

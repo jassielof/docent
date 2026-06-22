@@ -17,6 +17,7 @@ fn proseTitleForRule(comptime rule_name: []const u8) []const u8 {
     if (std.mem.eql(u8, rule_name, "trailing_blank_doc_comment")) return rules.doc.trailing_blank_doc_comment.prose_title;
     if (std.mem.eql(u8, rule_name, "doctest_naming_mismatch")) return rules.doc.doctest_naming_mismatch.prose_title;
     if (std.mem.eql(u8, rule_name, "invalid_leading_phrase")) return rules.doc.invalid_leading_phrase.prose_title;
+    if (std.mem.eql(u8, rule_name, "redundant_doc_comment")) return rules.doc.redundant_doc_comment.prose_title;
     if (std.mem.eql(u8, rule_name, "cognitive_complexity")) return rules.complexity.cognitive.prose_title;
     if (std.mem.eql(u8, rule_name, "cyclomatic_complexity")) return rules.complexity.cyclomatic.prose_title;
     if (std.mem.eql(u8, rule_name, "max_fun_params")) return rules.complexity.max_fun_params.prose_title;

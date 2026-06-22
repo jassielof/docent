@@ -13,6 +13,7 @@ missing_summary_terminal_punctuation: severity.Level = rules.doc.missing_summary
 trailing_blank_doc_comment: severity.Level = rules.doc.trailing_blank_doc_comment.default_severity,
 doctest_naming_mismatch: severity.Level = rules.doc.doctest_naming_mismatch.default_severity,
 invalid_leading_phrase: severity.Level = rules.doc.invalid_leading_phrase.default_severity,
+redundant_doc_comment: severity.Level = rules.doc.redundant_doc_comment.default_severity,
 cognitive_complexity: severity.Level = rules.complexity.cognitive.default_severity,
 cyclomatic_complexity: severity.Level = rules.complexity.cyclomatic.default_severity,
 max_fun_params: severity.Level = rules.complexity.max_fun_params.default_severity,

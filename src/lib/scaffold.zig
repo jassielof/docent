@@ -167,6 +167,7 @@ fn applyDocOverride(cfg: *docent.rules.doc.Doc, override: docent.RuleSeverities)
     cfg.private_doctest.level = override.private_doctest;
     cfg.doctest_naming_mismatch.level = override.doctest_naming_mismatch;
     cfg.invalid_leading_phrase.level = override.invalid_leading_phrase;
+    cfg.redundant_doc_comment.level = override.redundant_doc_comment;
 }
 
 fn lintSingleFile(

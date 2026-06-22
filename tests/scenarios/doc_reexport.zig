@@ -89,3 +89,30 @@ test "member-only re-export does not require module doc on imported file" {
     try utils.expectRuleAbsent(result, "missing_doc_comment");
     try utils.expectRuleAbsent(result, "blank_doc_comment");
 }
+
+test "redundant_doc_comment flags redundant doc comments on whole-module and member re-exports" {
+    const path = try harness.scenarioProjectRootPath("reexport_redundant_doc_comments");
+    defer std.testing.allocator.free(path);
+
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .redundant_doc_comment = .warn }));
+    defer result.deinit();
+
+    try utils.expectRuleCount(result, "redundant_doc_comment", 2);
+
+    try testing.expectEqual(@as(usize, 3), result.diagnostics.items[0].line);
+    try testing.expectEqualStrings("helpers", result.diagnostics.items[0].subject.?.name);
+
+    try testing.expectEqual(@as(usize, 6), result.diagnostics.items[1].line);
+    try testing.expectEqualStrings("greet", result.diagnostics.items[1].subject.?.name);
+}
+
+test "redundant_doc_comment does not flag non-redundant doc comments" {
+    const path = try harness.scenarioProjectRootPath("reexport_non_redundant_doc_comments");
+    defer std.testing.allocator.free(path);
+
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .redundant_doc_comment = .warn }));
+    defer result.deinit();
+
+    try utils.expectRuleAbsent(result, "redundant_doc_comment");
+}
+

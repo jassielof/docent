@@ -33,6 +33,7 @@ pub const Category = enum {
                 "trailing_blank_doc_comment",
                 "doctest_naming_mismatch",
                 "invalid_leading_phrase",
+                "redundant_doc_comment",
             },
             .style => &.{
                 "identifier_case",

@@ -2,6 +2,8 @@
 //!
 //! Struct shapes mirror `schemas/docent.schema.yaml`. `decode` turns parsed TOML into these
 //! types; `applyRuleSeverities` projects severity levels into `RuleSeverities`.
+
+// NOTE: It'll be ideal to migrate to Ziggy once it's more stable.
 const std = @import("std");
 const toml = @import("toml");
 
@@ -71,6 +73,7 @@ fn applyDocSeverities(section: Doc, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.private_doctest, section.private_doctest.level);
     try applyLevel(&rule_set.doctest_naming_mismatch, section.doctest_naming_mismatch.level);
     try applyLevel(&rule_set.invalid_leading_phrase, section.invalid_leading_phrase.level);
+    try applyLevel(&rule_set.redundant_doc_comment, section.redundant_doc_comment.level);
 }
 
 fn applyComplexitySeverities(section: Complexity, rule_set: *RuleSeverities) Error!void {
