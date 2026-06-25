@@ -92,6 +92,10 @@ pub fn registerTargetFlags(cmd: *fangz.Command, options: RegisterTargetFlagsOpti
         .default = false,
         .persistent = options.persistent,
     });
+
+    // TODO: Add a manifest path flag option, just like Clippy's. It should work as if Docent's current working directory were in that project directory. It should accept both a directory containing the manifest, and the manifest file directly.
+    // TODO: Make the include deps flag option more explicit in what it checks, it'll only strictly check project path-based dependencies, not URL-based ones. Verify against the library and implementation if that's how it works.
+    // TODO: The config path to accept only a file strictly, that way people can freely choose any (obvioulsy compliant) config file. Verify.
 }
 
 /// Registers the variadic `paths` positional on a category subcommand.

@@ -1,7 +1,4 @@
 //! Shared prose formatting for diagnostics (TTY, tests, and JSON).
-// TODO: Reformat the "minimal" diagnostic message as follows.
-// The current format `file:line:column: severity[rule_id]`  has an issue, the file path causes the severities to be somewhat misaligned since the paths are relative, causing a wavy effect.
-// The proposed format would try to align this and make it more pleasant and readable. Which would look like this: `severity [rule_id] file:line:column`, it should be grid aligned, so the severity and rule ID aren't wavy or misaligned.
 const std = @import("std");
 
 const Diagnostic = @import("Diagnostic.zig");
