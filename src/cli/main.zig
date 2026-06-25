@@ -5,6 +5,7 @@ const fangz = @import("fangz");
 const check_command = @import("commands/check.zig");
 const init_command = @import("commands/init.zig");
 const status_command = @import("commands/status.zig");
+const fmt = @import("commands/fmt.zig");
 pub const rule_config = @import("rule_config.zig");
 
 pub const registerStatusSubcommand = status_command.register;
@@ -33,5 +34,7 @@ pub fn main(init: std.process.Init) !void {
     try status_command.register(root);
     try init_command.register(root);
     try check_command.register(root);
+    try fmt.register(root);
+
     try app.executeProcess(init.minimal.args);
 }
