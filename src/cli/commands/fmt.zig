@@ -2,7 +2,7 @@ const std = @import("std");
 
 const fangz = @import("fangz");
 const docent = @import("docent");
-const fmt = docent.fmt;
+const Fmt = docent.Fmt;
 
 // TODO: Add an option to enforce braces on single line statements.
 // TODO: Add an option to enforce blank newlins after braces or return statements.
@@ -74,20 +74,20 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
     const excluded_files = ctx.stringListFlag("exclude") orelse &.{};
     const input_files = ctx.positionals.items;
 
-    const opts: fmt.Options = .{
+    const opts: Fmt.Options = .{
         .check = check_flag,
         .ast_check = ast_check_flag,
         .zon = zon_flag,
         .color = color,
     };
 
-    const config = fmt.loadConfig(gpa, io);
+    const config = Fmt.loadConfig(gpa, io);
 
     if (stdin_flag) {
         if (input_files.len != 0) {
             std.process.fatal("cannot use --stdin with positional arguments", .{});
         }
-        return fmt.formatStdin(gpa, io, opts, config);
+        return Fmt.formatStdin(gpa, io, opts, config);
     }
 
     if (input_files.len == 0) {
@@ -97,8 +97,8 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buffer);
 
-    var fmt_check = fmt.Fmt.init(gpa, io, &stdout_writer, opts, config);
-    defer fmt_check.deinit();
+    var formatter = Fmt.init(gpa, io, &stdout_writer, opts, config);
+    defer formatter.deinit();
 
-    try fmt.formatPaths(&fmt_check, input_files, excluded_files);
+    try formatter.formatPaths(input_files, excluded_files);
 }

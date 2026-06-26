@@ -28,7 +28,7 @@ pub const rules = @import("rules.zig");
 pub const Suppressions = suppressions.Table;
 pub const naming_case = @import("naming_case.zig");
 pub const doc = @import("doc.zig");
-pub const fmt = @import("fmt.zig");
+pub const Fmt = @import("Fmt.zig");
 
 /// Returns whether the file-level `//!` check applies to `path`.
 ///
