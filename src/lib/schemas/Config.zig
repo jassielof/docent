@@ -27,7 +27,6 @@ style: Style = .{},
 complexity: Complexity = .{},
 fmt: Fmt = .{},
 
-// TODO: Rename the `fmt` namespace as a struct namespace `Fmt`
 pub const Fmt = struct {
     brace_style: BraceStyle = .k_r,
 
