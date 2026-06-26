@@ -11,6 +11,7 @@ const cli_types = @import("types.zig");
 pub const TargetArgs = struct {
     positionals: []const []const u8 = &.{},
     config_path: ?[]const u8 = null,
+    manifest_path: ?[]const u8 = null,
     lib: bool = false,
     bins: bool = false,
     bin: []const []const u8 = &.{},
@@ -40,8 +41,16 @@ pub fn registerTargetFlags(cmd: *fangz.Command, options: RegisterTargetFlagsOpti
 
     try cmd.addFlag(?[]const u8, .{
         .name = "config-path",
-        .brief = "Path to docent.toml",
-        .description = "When omitted, Docent searches upward from the working directory for `.config/docent.toml`.",
+        .brief = "Path to a docent.toml configuration file",
+        .description = "Must point to a file, not a directory. When omitted, Docent searches upward from the working directory for `.config/docent.toml`.",
+        .value_hint = "FILE",
+        .persistent = options.persistent,
+    });
+
+    try cmd.addFlag(?[]const u8, .{
+        .name = "manifest-path",
+        .brief = "Path to a build.zig.zon manifest or its parent directory",
+        .description = "Operates as if Docent were invoked from the manifest's directory. Accepts the manifest file directly or a directory containing it. When omitted, searches upward from the working directory.",
         .value_hint = "PATH",
         .persistent = options.persistent,
     });
@@ -81,7 +90,7 @@ pub fn registerTargetFlags(cmd: *fangz.Command, options: RegisterTargetFlagsOpti
 
     try cmd.addFlag(bool, .{
         .name = "deps",
-        .brief = "Also analyze files under path dependencies from build.zig.zon",
+        .brief = "Also analyze local path dependencies from build.zig.zon (.path entries only, not URL-based)",
         .default = false,
         .persistent = options.persistent,
     });
@@ -93,9 +102,6 @@ pub fn registerTargetFlags(cmd: *fangz.Command, options: RegisterTargetFlagsOpti
         .persistent = options.persistent,
     });
 
-    // TODO: Add a manifest path flag option, just like Clippy's. It should work as if Docent's current working directory were in that project directory. It should accept both a directory containing the manifest, and the manifest file directly.
-    // TODO: Make the include deps flag option more explicit in what it checks, it'll only strictly check project path-based dependencies, not URL-based ones. Verify against the library and implementation if that's how it works.
-    // TODO: The config path to accept only a file strictly, that way people can freely choose any (obvioulsy compliant) config file. Verify.
 }
 
 /// Registers the variadic `paths` positional on a category subcommand.
@@ -180,6 +186,9 @@ pub fn printCheckResults(
 }
 
 pub fn gatherPlan(allocator: std.mem.Allocator, io: std.Io, args: TargetArgs) !docent.status_plan.Plan {
+    const resolved_manifest = try resolveManifestPath(allocator, io, args.manifest_path);
+    defer if (resolved_manifest) |p| allocator.free(p);
+
     return docent.status_plan.gather(allocator, io, .{
         .lib = args.lib,
         .bins = args.bins,
@@ -189,7 +198,29 @@ pub fn gatherPlan(allocator: std.mem.Allocator, io: std.Io, args: TargetArgs) !d
         .deps = args.deps,
         .build_script = args.build_script,
         .positionals = args.positionals,
+        .manifest_path = resolved_manifest,
     });
+}
+
+fn resolveManifestPath(allocator: std.mem.Allocator, io: std.Io, raw: ?[]const u8) !?[]u8 {
+    const path = raw orelse return null;
+
+    var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const abs_len = std.Io.Dir.cwd().realPathFile(io, path, &buffer) catch
+        return error.FileNotFound;
+    const abs = buffer[0..abs_len];
+
+    if (std.mem.endsWith(u8, abs, "build.zig.zon")) {
+        return try allocator.dupe(u8, abs);
+    }
+
+    const candidate = try std.fs.path.join(allocator, &.{ abs, "build.zig.zon" });
+    const stat = std.Io.Dir.cwd().statFile(io, candidate, .{}) catch {
+        allocator.free(candidate);
+        return error.FileNotFound;
+    };
+    _ = stat;
+    return candidate;
 }
 
 pub fn printStderr(io: std.Io, comptime fmt: []const u8, fmt_args: anytype) !void {
