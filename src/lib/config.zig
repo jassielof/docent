@@ -98,6 +98,12 @@ pub fn loadDocOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_pa
     return cfg.doc;
 }
 
+/// Loads fmt options from an explicit `config_path`, or searches for the default file when null.
+pub fn loadFmtOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!Config.Fmt {
+    const cfg = try loadConfigFromCli(allocator, io, config_path);
+    return cfg.fmt;
+}
+
 /// Loads resolved complexity rule config from a `docent.toml` file.
 pub fn loadComplexityOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.complexity.Complexity {
     const cfg = try loadConfig(allocator, io, config_path);

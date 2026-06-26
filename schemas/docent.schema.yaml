@@ -62,6 +62,17 @@ properties:
         $ref: "#/definitions/rule_line_length_limit"
         description: "Physical line columns must stay within length limits."
 
+  fmt:
+    type: "object"
+    description: "Formatter options for docent fmt."
+    additionalProperties: false
+    properties:
+      brace_style:
+        type: "string"
+        enum: ["k_r", "k&r", "allman"]
+        default: "k_r"
+        description: "Brace placement style. k_r (default) keeps opening braces on the same line; allman places them on a new line."
+
   complexity:
     type: "object"
     description: "Threshold-based complexity rules."

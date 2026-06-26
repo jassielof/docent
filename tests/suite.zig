@@ -18,4 +18,5 @@ comptime {
     refAllDecls(@import("rules/style.zig"));
     refAllDecls(@import("rules/suppressions.zig"));
     refAllDecls(@import("scenarios.zig"));
+    refAllDecls(@import("fmt.zig"));
 }
