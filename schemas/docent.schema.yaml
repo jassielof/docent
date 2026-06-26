@@ -72,6 +72,16 @@ properties:
         enum: ["k_r", "k&r", "allman"]
         default: "k_r"
         description: "Brace placement style. k_r (default) keeps opening braces on the same line; allman places them on a new line."
+      single_line_braces:
+        type: "boolean"
+        default: false
+        description: "Wrap single-line control-flow bodies in braces. Converts `if (x) return;` to a braced block."
+      indent_width:
+        type: "integer"
+        minimum: 1
+        maximum: 16
+        default: 4
+        description: "Number of spaces per indentation level. The Zig standard is 4."
 
   complexity:
     type: "object"

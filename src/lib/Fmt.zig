@@ -111,17 +111,15 @@ pub fn formatStdin(gpa: Allocator, io: Io, opts: Options, config: Config) !void 
     const rendered = try tree.renderAlloc(gpa);
     defer gpa.free(rendered);
 
-    const formatted = if (config.brace_style == .allman) blk: {
-        break :blk try convertToAllman(gpa, rendered);
-    } else rendered;
-    defer if (config.brace_style == .allman) gpa.free(formatted);
+    const pp = try applyPostProcessing(gpa, rendered, config);
+    defer if (pp.allocated) gpa.free(pp.output);
 
     if (opts.check) {
-        const code: u8 = @intFromBool(!mem.eql(u8, formatted, source_code));
+        const code: u8 = @intFromBool(!mem.eql(u8, pp.output, source_code));
         std.process.exit(code);
     }
 
-    return Io.File.stdout().writeStreamingAll(io, formatted);
+    return Io.File.stdout().writeStreamingAll(io, pp.output);
 }
 
 pub fn formatPaths(self: *Fmt, input_files: []const []const u8, excluded_files: []const []const u8) !void {
@@ -287,12 +285,10 @@ fn fmtPathFile(
     };
 
     const rendered = self.out_buffer.written();
-    const formatted: []const u8 = if (self.config.brace_style == .allman) blk: {
-        break :blk try convertToAllman(gpa, rendered);
-    } else rendered;
-    defer if (self.config.brace_style == .allman) gpa.free(formatted);
+    const pp = try applyPostProcessing(gpa, rendered, self.config);
+    defer if (pp.allocated) gpa.free(pp.output);
 
-    if (mem.eql(u8, formatted, source_code))
+    if (mem.eql(u8, pp.output, source_code))
         return;
 
     if (self.check_mode) {
@@ -302,7 +298,7 @@ fn fmtPathFile(
         var af = try dir.createFileAtomic(io, sub_path, .{ .permissions = stat.permissions, .replace = true });
         defer af.deinit(io);
 
-        try af.file.writeStreamingAll(io, formatted);
+        try af.file.writeStreamingAll(io, pp.output);
         try af.replace(io);
         try self.stdout_writer.interface.print("{s}\n", .{file_path});
     }
@@ -310,3 +306,37 @@ fn fmtPathFile(
 
 pub const brace_style = @import("fmt/brace_style.zig");
 pub const convertToAllman = brace_style.convertToAllman;
+pub const single_line_braces = @import("fmt/single_line_braces.zig");
+pub const enforceBraces = single_line_braces.enforceBraces;
+pub const indent_width = @import("fmt/indent_width.zig");
+pub const reindent = indent_width.reindent;
+
+/// Applies all configured post-processing passes to rendered source.
+/// Caller owns the returned slice when it differs from `input`.
+fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Allocator.Error!struct { output: []const u8, allocated: bool } {
+    var current: []const u8 = input;
+    var current_allocated = false;
+
+    if (config.single_line_braces) {
+        const result = try enforceBraces(gpa, current);
+        if (current_allocated) gpa.free(current);
+        current = result;
+        current_allocated = true;
+    }
+
+    if (config.brace_style == .allman) {
+        const result = try convertToAllman(gpa, current);
+        if (current_allocated) gpa.free(current);
+        current = result;
+        current_allocated = true;
+    }
+
+    if (config.indent_width != 4) {
+        const result = try reindent(gpa, current, config.indent_width);
+        if (current_allocated) gpa.free(current);
+        current = result;
+        current_allocated = true;
+    }
+
+    return .{ .output = current, .allocated = current_allocated };
+}
