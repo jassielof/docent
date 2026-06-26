@@ -343,21 +343,9 @@ fn writeMinimalDiagnostic(
 ) !void {
     var path_bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
     const file_shown = pathForDisplay(path_display_root, diagnostic.file, &path_bufs[0], &path_bufs[1]);
-    // TODO: Padding is inconsistent, as it's only applied to the severity tag and the rule ID, but not for the file path:
-    // ```
-    // error   [invalid_leading_phrase] src/lib/naming_case.zig:136:1
-    // warning [doctest_naming_mismatch] src/lib/doc.zig:214:6
-    // warning [doctest_naming_mismatch] src/lib/doc.zig:229:6
-    // ```
     const style = resolveStyle();
-    const tag = severityDisplayTag(diagnostic.severity_level);
-    try severityLevelStyle(style, diagnostic.severity_level).renderWithProfile(tag, writer, color_profile);
-    // Pad to 7 (length of "warning") so the rule column is grid-aligned.
-    var pad: usize = 7 - tag.len;
-    while (pad > 0) : (pad -= 1) {
-        try writer.writeByte(' ');
-    }
-    try writer.writeAll(" [");
+    try severityLevelStyle(style, diagnostic.severity_level).renderWithProfile(severityDisplayTag(diagnostic.severity_level), writer, color_profile);
+    try writer.writeAll("[");
     try style.rule_style.renderWithProfile(diagnostic.rule, writer, color_profile);
     try writer.writeAll("] ");
     try writer.print("{s}:{d}:{d}\n", .{ file_shown, diagnostic.line, diagnostic.column });
@@ -584,7 +572,7 @@ test "minimal formatter shortens absolute paths under display root" {
     });
     out = writer.toArrayList();
 
-    try std.testing.expect(std.mem.indexOf(u8, out.items, "warning [missing_doc_comment] src/lib/root.zig:27:11") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "warning[missing_doc_comment] src/lib/root.zig:27:11") != null);
     try std.testing.expect(std.mem.indexOf(u8, out.items, "\x1b") == null);
 }
 
@@ -609,7 +597,7 @@ test "minimal formatter renders one line without prose" {
     out = writer.toArrayList();
 
     try std.testing.expectEqualStrings(
-        "warning [missing_doc_comment] src/main.zig:5:8\n",
+        "warning[missing_doc_comment] src/main.zig:5:8\n",
         out.items,
     );
 }
