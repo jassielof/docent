@@ -1,6 +1,6 @@
 const std = @import("std");
 const docent = @import("docent");
-const convertToAllman = docent.fmt.convertToAllman;
+const convertToAllman = docent.Fmt.convertToAllman;
 
 test "allman brace style" {
     const gpa = std.testing.allocator;
