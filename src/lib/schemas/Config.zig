@@ -29,6 +29,8 @@ fmt: Fmt = .{},
 
 pub const Fmt = struct {
     brace_style: BraceStyle = .k_r,
+    single_line_braces: bool = false,
+    indent_width: u8 = 4,
 
     pub const BraceStyle = enum {
         k_r,
@@ -113,6 +115,20 @@ fn decodeFmt(value: toml.DynamicValue, out: *Fmt) Error!void {
     if (table.get("brace_style")) |bs_value| {
         const text = bs_value.stringSlice() orelse return error.ConfigParseFailed;
         out.brace_style = Fmt.BraceStyle.fromConfigString(text) orelse return error.ConfigParseFailed;
+    }
+    if (table.get("single_line_braces")) |v| {
+        out.single_line_braces = switch (v) {
+            .boolean => |b| b,
+            else => return error.ConfigParseFailed,
+        };
+    }
+    if (table.get("indent_width")) |v| {
+        const n = switch (v) {
+            .integer => |i| i,
+            else => return error.ConfigParseFailed,
+        };
+        if (n < 1 or n > 16) return error.ConfigParseFailed;
+        out.indent_width = @intCast(n);
     }
 }
 
@@ -281,20 +297,26 @@ test "scan modes default and override" {
     try std.testing.expect(std.meta.eql(scan.RuleScanConfig.public_api_surface, cfg.complexity.scan_mode));
 }
 
-test "decode reads fmt brace_style" {
+test "decode reads fmt options" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
     const root = try parseRoot(arena.allocator(),
         \\[fmt]
         \\brace_style = "allman"
+        \\single_line_braces = true
+        \\indent_width = 2
     );
     const cfg = try decode(root);
     try std.testing.expectEqual(Fmt.BraceStyle.allman, cfg.fmt.brace_style);
+    try std.testing.expect(cfg.fmt.single_line_braces);
+    try std.testing.expectEqual(@as(u8, 2), cfg.fmt.indent_width);
 
     const empty = try parseRoot(arena.allocator(), "");
     const empty_cfg = try decode(empty);
     try std.testing.expectEqual(Fmt.BraceStyle.k_r, empty_cfg.fmt.brace_style);
+    try std.testing.expect(!empty_cfg.fmt.single_line_braces);
+    try std.testing.expectEqual(@as(u8, 4), empty_cfg.fmt.indent_width);
 }
 
 test "applyRuleSeverities respects forbid and defaults" {
