@@ -25,6 +25,23 @@ pub const Complexity = complexity_rules.Complexity;
 doc: Doc = .{},
 style: Style = .{},
 complexity: Complexity = .{},
+fmt: Fmt = .{},
+
+// TODO: Rename the `fmt` namespace as a struct namespace `Fmt`
+pub const Fmt = struct {
+    brace_style: BraceStyle = .k_r,
+
+    pub const BraceStyle = enum {
+        k_r,
+        allman,
+
+        pub fn fromConfigString(text: []const u8) ?BraceStyle {
+            if (std.mem.eql(u8, text, "k_r") or std.mem.eql(u8, text, "k&r")) return .k_r;
+            if (std.mem.eql(u8, text, "allman")) return .allman;
+            return null;
+        }
+    };
+};
 
 /// Parses TOML config text into the dynamic value tree.
 pub fn parseRoot(allocator: std.mem.Allocator, text: []const u8) Error!toml.DynamicValue {
@@ -49,6 +66,7 @@ pub fn decode(root: toml.DynamicValue) Error!@This() {
     cfg.style.resolveScanModes();
     if (table.get("complexity")) |value| try rule_decode.decodeInto(Complexity, value, &cfg.complexity);
     cfg.complexity.resolveScanModes();
+    if (table.get("fmt")) |value| try decodeFmt(value, &cfg.fmt);
     return cfg;
 }
 
@@ -86,6 +104,17 @@ fn applyLevel(slot: *severity.Level, configured: ?severity.Level) Error!void {
     const level = configured orelse return;
     if (slot.* == .forbid and level != .forbid) return;
     slot.* = level;
+}
+
+fn decodeFmt(value: toml.DynamicValue, out: *Fmt) Error!void {
+    const table = switch (value) {
+        .table => |t| t,
+        else => return,
+    };
+    if (table.get("brace_style")) |bs_value| {
+        const text = bs_value.stringSlice() orelse return error.ConfigParseFailed;
+        out.brace_style = Fmt.BraceStyle.fromConfigString(text) orelse return error.ConfigParseFailed;
+    }
 }
 
 fn rootTable(root: toml.DynamicValue) ?*const toml.Table {
@@ -251,6 +280,22 @@ test "scan modes default and override" {
     const cfg = try decode(root);
     try std.testing.expect(std.meta.eql(scan.RuleScanConfig.reachability_traversal, cfg.doc.scan_mode));
     try std.testing.expect(std.meta.eql(scan.RuleScanConfig.public_api_surface, cfg.complexity.scan_mode));
+}
+
+test "decode reads fmt brace_style" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const root = try parseRoot(arena.allocator(),
+        \\[fmt]
+        \\brace_style = "allman"
+    );
+    const cfg = try decode(root);
+    try std.testing.expectEqual(Fmt.BraceStyle.allman, cfg.fmt.brace_style);
+
+    const empty = try parseRoot(arena.allocator(), "");
+    const empty_cfg = try decode(empty);
+    try std.testing.expectEqual(Fmt.BraceStyle.k_r, empty_cfg.fmt.brace_style);
 }
 
 test "applyRuleSeverities respects forbid and defaults" {

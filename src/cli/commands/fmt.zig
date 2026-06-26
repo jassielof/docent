@@ -81,7 +81,7 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
         .color = color,
     };
 
-    const config = fmt.Config.load(gpa, io);
+    const config = fmt.loadConfig(gpa, io);
 
     if (stdin_flag) {
         if (input_files.len != 0) {

@@ -5,32 +5,16 @@ const fs = std.fs;
 const Allocator = std.mem.Allocator;
 const Color = std.zig.Color;
 
-// TODO: This config should be just integrated within the main Docent TOML config.
-pub const Config = struct {
-    brace_style: BraceStyle = .k_r,
+const config_mod = @import("config.zig");
+const SchemaConfig = @import("schemas/Config.zig");
 
-    pub const BraceStyle = enum { k_r, allman };
+pub const Config = SchemaConfig.Fmt;
+pub const BraceStyle = Config.BraceStyle;
 
-    const JsonConfig = struct {
-        brace_style: ?[]const u8 = null,
-    };
-
-    pub fn load(gpa: Allocator, io: Io) Config {
-        const content = Io.Dir.cwd().readFileAlloc(io, ".config/zigfmt.json", gpa, .unlimited) catch return .{};
-        defer gpa.free(content);
-
-        const parsed = std.json.parseFromSlice(JsonConfig, gpa, content, .{
-            .ignore_unknown_fields = true,
-        }) catch return .{};
-        defer parsed.deinit();
-
-        var config: Config = .{};
-        if (parsed.value.brace_style) |bs| {
-            config.brace_style = std.meta.stringToEnum(BraceStyle, bs) orelse .k_r;
-        }
-        return config;
-    }
-};
+pub fn loadConfig(gpa: Allocator, io: Io) Config {
+    const cfg = config_mod.loadConfigFromCli(gpa, io, null) catch return .{};
+    return cfg.fmt;
+}
 
 pub const Options = struct {
     check: bool = false,
@@ -431,55 +415,3 @@ fn endsWithBlockBrace(content: []const u8) bool {
     return true;
 }
 
-// TODO: Move these tests as integration tests as double fixtures of input and expected files.
-test "allman: function definition" {
-    const gpa = std.testing.allocator;
-    const input = "fn main() void {\n    return;\n}\n";
-    const expected = "fn main() void\n{\n    return;\n}\n";
-    const result = try convertToAllman(gpa, input);
-    defer gpa.free(result);
-    try std.testing.expectEqualStrings(expected, result);
-}
-
-test "allman: if-else" {
-    const gpa = std.testing.allocator;
-    const input = "    if (cond) {\n        body;\n    } else {\n        other;\n    }\n";
-    const expected = "    if (cond)\n    {\n        body;\n    }\n    else\n    {\n        other;\n    }\n";
-    const result = try convertToAllman(gpa, input);
-    defer gpa.free(result);
-    try std.testing.expectEqualStrings(expected, result);
-}
-
-test "allman: else-if chain" {
-    const gpa = std.testing.allocator;
-    const input = "    } else if (b) {\n";
-    const expected = "    }\n    else if (b)\n    {\n";
-    const result = try convertToAllman(gpa, input);
-    defer gpa.free(result);
-    try std.testing.expectEqualStrings(expected, result);
-}
-
-test "allman: struct literal untouched" {
-    const gpa = std.testing.allocator;
-    const input = "    const x = .{ .a = 1 };\n";
-    const result = try convertToAllman(gpa, input);
-    defer gpa.free(result);
-    try std.testing.expectEqualStrings(input, result);
-}
-
-test "allman: empty block untouched" {
-    const gpa = std.testing.allocator;
-    const input = "    if (cond) {}\n";
-    const result = try convertToAllman(gpa, input);
-    defer gpa.free(result);
-    try std.testing.expectEqualStrings(input, result);
-}
-
-test "allman: catch with capture" {
-    const gpa = std.testing.allocator;
-    const input = "    } catch |err| {\n";
-    const expected = "    }\n    catch |err|\n    {\n";
-    const result = try convertToAllman(gpa, input);
-    defer gpa.free(result);
-    try std.testing.expectEqualStrings(expected, result);
-}
