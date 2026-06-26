@@ -327,9 +327,7 @@ fn fmtPathFile(
 
 /// Converts K&R brace style to Allman style by post-processing rendered output.
 ///
-/// Moves opening braces to their own line and separates `} else`/`} catch`
-/// clauses onto individual lines. Struct/tuple literals (`.{`) and empty
-/// blocks (`{}`) are left unchanged.
+/// Moves opening braces to their own line and separates `} else`/`} catch` clauses onto individual lines. Struct/tuple literals (`.{`) and empty blocks (`{}`) are left unchanged.
 pub fn convertToAllman(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     var output: std.ArrayList(u8) = .empty;
     errdefer output.deinit(gpa);
