@@ -13,7 +13,7 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "Format Zig source code",
     });
 
-// TODO: Standard input might be removed,
+    // TODO: Standard input might be removed, if there's no real usage outside of testing.
     try fmt_cmd.addFlag(bool, .{
         .name = "stdin",
         .brief = "Format code from stdin; output to stdout",
@@ -24,6 +24,7 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "List non-conforming files and exit with an error if the list is non-empty",
     });
 
+    // TODO: Similar to the stdin TODO, if there's no real usage outside of testing, this might be removed. In both cases, if there's testing usage, then keep it just for testing.
     try fmt_cmd.addFlag(bool, .{
         .name = "ast-check",
         .brief = "Run zig ast-check on every file",
@@ -41,7 +42,7 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "Treat all input files as ZON, regardless of file extension",
     });
 
-// TODO: 
+    // TODO: Color will always be enabled, there's no reason to not want color, if someone wants to disable it, their terminal will do so.
     try fmt_cmd.addFlag(std.zig.Color, .{
         .name = "color",
         .brief = "Enable or disable colored error messages",
@@ -49,6 +50,7 @@ pub fn register(root: *fangz.Command) !void {
         .value_hint = "WHEN",
     });
 
+    // TODO: Rename to paths instead of files, as paths can be files or directories.
     try fmt_cmd.addPositional(.{
         .name = "files",
         .brief = "Files or directories to format",
