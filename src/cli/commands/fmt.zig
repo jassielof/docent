@@ -4,7 +4,7 @@ const fangz = @import("fangz");
 const docent = @import("docent");
 const Fmt = docent.Fmt;
 
-// TODO: Add an option to sort imports. Only top-level ones. Needs research.
+// TODO: Output diagnostics should have a similar style to Docent checks
 // TODO: Add an option to auto-wrap (or max line length). Needs research.
 
 pub fn register(root: *fangz.Command) !void {
@@ -13,6 +13,7 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "Format Zig source code",
     });
 
+// TODO: Standard input might be removed,
     try fmt_cmd.addFlag(bool, .{
         .name = "stdin",
         .brief = "Format code from stdin; output to stdout",
@@ -40,6 +41,7 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "Treat all input files as ZON, regardless of file extension",
     });
 
+// TODO: 
     try fmt_cmd.addFlag(std.zig.Color, .{
         .name = "color",
         .brief = "Enable or disable colored error messages",

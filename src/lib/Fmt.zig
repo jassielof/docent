@@ -312,6 +312,8 @@ pub const trailing_comma = @import("fmt/trailing_comma.zig");
 pub const addTrailingCommas = trailing_comma.addTrailingCommas;
 pub const logical_blank_lines = @import("fmt/logical_blank_lines.zig");
 pub const enforceLogicalBlankLines = logical_blank_lines.enforceLogicalBlankLines;
+pub const sort_imports = @import("fmt/sort_imports.zig");
+pub const sortImports = sort_imports.sortImports;
 pub const indent_width = @import("fmt/indent_width.zig");
 pub const reindent = indent_width.reindent;
 
@@ -320,6 +322,13 @@ pub const reindent = indent_width.reindent;
 fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Allocator.Error!struct { output: []const u8, allocated: bool } {
     var current: []const u8 = input;
     var current_allocated = false;
+
+    if (config.sort_imports) {
+        const result = try sortImports(gpa, current);
+        if (current_allocated) gpa.free(current);
+        current = result;
+        current_allocated = true;
+    }
 
     if (config.trailing_comma) {
         const result = try addTrailingCommas(gpa, current);
