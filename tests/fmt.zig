@@ -20,6 +20,15 @@ test "single line braces" {
     try std.testing.expectEqualStrings(expected, result);
 }
 
+test "trailing comma" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/fmt/input/trailing_comma.zig");
+    const expected = @embedFile("fixtures/fmt/expected/trailing_comma.zig");
+    const result = try Fmt.addTrailingCommas(gpa, input);
+    defer gpa.free(result);
+    try std.testing.expectEqualStrings(expected, result);
+}
+
 test "indent width 2" {
     const gpa = std.testing.allocator;
     const input = @embedFile("fixtures/fmt/input/indent_width.zig");
