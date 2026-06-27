@@ -304,17 +304,17 @@ fn fmtPathFile(
     }
 }
 
-pub const brace_style = @import("fmt/brace_style.zig");
+pub const brace_style = @import("Fmt/brace_style.zig");
 pub const convertToAllman = brace_style.convertToAllman;
-pub const single_line_braces = @import("fmt/single_line_braces.zig");
+pub const single_line_braces = @import("Fmt/single_line_braces.zig");
 pub const enforceBraces = single_line_braces.enforceBraces;
-pub const trailing_comma = @import("fmt/trailing_comma.zig");
+pub const trailing_comma = @import("Fmt/trailing_comma.zig");
 pub const addTrailingCommas = trailing_comma.addTrailingCommas;
-pub const logical_blank_lines = @import("fmt/logical_blank_lines.zig");
+pub const logical_blank_lines = @import("Fmt/logical_blank_lines.zig");
 pub const enforceLogicalBlankLines = logical_blank_lines.enforceLogicalBlankLines;
-pub const sort_imports = @import("fmt/sort_imports.zig");
+pub const sort_imports = @import("Fmt/sort_imports.zig");
 pub const sortImports = sort_imports.sortImports;
-pub const indent_width = @import("fmt/indent_width.zig");
+pub const indent_width = @import("Fmt/indent_width.zig");
 pub const reindent = indent_width.reindent;
 
 /// Applies all configured post-processing passes to rendered source.
