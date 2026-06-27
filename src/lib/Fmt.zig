@@ -1,3 +1,11 @@
+//! The Fmt structure contains the source code formatting main logic.
+//!
+//! The formatter is designed to apply, by default, a superset of Zig's formatting rules, just like Go's [`gofumpt`](https://github.com/mvdan/gofumpt), while still providing the ability to configure it to be more strict or more lenient than Zig's defaults.
+//!
+//! ## References
+//!
+//! - [Zig's main formatting implementation](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/fmt.zig)
+
 const std = @import("std");
 const Io = std.Io;
 const mem = std.mem;
