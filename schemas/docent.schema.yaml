@@ -87,6 +87,13 @@ properties:
           Enforce logical blank line separation: one blank line after closing braces
           and flow terminators (return, continue, break), no blank lines immediately
           inside braces, and never two consecutive blank lines.
+      sort_imports:
+        type: "boolean"
+        default: false
+        description: >-
+          Sort the leading top-level import block by const identifier, regrouped into
+          std/builtin, dependencies, and local (relative paths and root) categories.
+          Import aliases are placed beneath the import they derive from.
       indent_width:
         type: "integer"
         minimum: 1
