@@ -4,8 +4,6 @@ const fangz = @import("fangz");
 const docent = @import("docent");
 const Fmt = docent.Fmt;
 
-// TODO: Add an option to automatically add trailing comma. As said in the Zig guide "If a list of things is longer than 2, put each item on its own line and exercise the ability to put an extra comma at the end.", so basically on 3 and more items for say parameters, list elements, etc. it should add a trailing comma automatically, and the formatter would automatically put each item on its own line.
-
 // TODO: Add an option to enforce blank newlines after braces or return statements. Needs some research
 // TODO: Add an option to sort imports. Only top-level ones. Needs research.
 // TODO: Add an option to auto-wrap (or max line length). Needs research.

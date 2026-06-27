@@ -30,6 +30,7 @@ fmt: Fmt = .{},
 pub const Fmt = struct {
     brace_style: BraceStyle = .k_r,
     single_line_braces: bool = false,
+    trailing_comma: bool = false,
     indent_width: u8 = 4,
 
     pub const BraceStyle = enum {
@@ -118,6 +119,12 @@ fn decodeFmt(value: toml.DynamicValue, out: *Fmt) Error!void {
     }
     if (table.get("single_line_braces")) |v| {
         out.single_line_braces = switch (v) {
+            .boolean => |b| b,
+            else => return error.ConfigParseFailed,
+        };
+    }
+    if (table.get("trailing_comma")) |v| {
+        out.trailing_comma = switch (v) {
             .boolean => |b| b,
             else => return error.ConfigParseFailed,
         };
@@ -305,17 +312,20 @@ test "decode reads fmt options" {
         \\[fmt]
         \\brace_style = "allman"
         \\single_line_braces = true
+        \\trailing_comma = true
         \\indent_width = 2
     );
     const cfg = try decode(root);
     try std.testing.expectEqual(Fmt.BraceStyle.allman, cfg.fmt.brace_style);
     try std.testing.expect(cfg.fmt.single_line_braces);
+    try std.testing.expect(cfg.fmt.trailing_comma);
     try std.testing.expectEqual(@as(u8, 2), cfg.fmt.indent_width);
 
     const empty = try parseRoot(arena.allocator(), "");
     const empty_cfg = try decode(empty);
     try std.testing.expectEqual(Fmt.BraceStyle.k_r, empty_cfg.fmt.brace_style);
     try std.testing.expect(!empty_cfg.fmt.single_line_braces);
+    try std.testing.expect(!empty_cfg.fmt.trailing_comma);
     try std.testing.expectEqual(@as(u8, 4), empty_cfg.fmt.indent_width);
 }
 

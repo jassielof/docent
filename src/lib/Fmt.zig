@@ -308,6 +308,8 @@ pub const brace_style = @import("fmt/brace_style.zig");
 pub const convertToAllman = brace_style.convertToAllman;
 pub const single_line_braces = @import("fmt/single_line_braces.zig");
 pub const enforceBraces = single_line_braces.enforceBraces;
+pub const trailing_comma = @import("fmt/trailing_comma.zig");
+pub const addTrailingCommas = trailing_comma.addTrailingCommas;
 pub const indent_width = @import("fmt/indent_width.zig");
 pub const reindent = indent_width.reindent;
 
@@ -316,6 +318,13 @@ pub const reindent = indent_width.reindent;
 fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Allocator.Error!struct { output: []const u8, allocated: bool } {
     var current: []const u8 = input;
     var current_allocated = false;
+
+    if (config.trailing_comma) {
+        const result = try addTrailingCommas(gpa, current);
+        if (current_allocated) gpa.free(current);
+        current = result;
+        current_allocated = true;
+    }
 
     if (config.single_line_braces) {
         const result = try enforceBraces(gpa, current);

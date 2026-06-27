@@ -76,6 +76,10 @@ properties:
         type: "boolean"
         default: false
         description: "Wrap single-line control-flow bodies in braces. Converts `if (x) return;` to a braced block."
+      trailing_comma:
+        type: "boolean"
+        default: false
+        description: "Add trailing commas to single-line lists with 3 or more items. On the next format pass, zig fmt expands them to one item per line."
       indent_width:
         type: "integer"
         minimum: 1
