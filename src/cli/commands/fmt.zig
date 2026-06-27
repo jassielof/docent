@@ -4,7 +4,6 @@ const fangz = @import("fangz");
 const docent = @import("docent");
 const Fmt = docent.Fmt;
 
-// TODO: Add an option to enforce blank newlines after braces or return statements. Needs some research
 // TODO: Add an option to sort imports. Only top-level ones. Needs research.
 // TODO: Add an option to auto-wrap (or max line length). Needs research.
 

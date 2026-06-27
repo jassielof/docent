@@ -310,6 +310,8 @@ pub const single_line_braces = @import("fmt/single_line_braces.zig");
 pub const enforceBraces = single_line_braces.enforceBraces;
 pub const trailing_comma = @import("fmt/trailing_comma.zig");
 pub const addTrailingCommas = trailing_comma.addTrailingCommas;
+pub const logical_blank_lines = @import("fmt/logical_blank_lines.zig");
+pub const enforceLogicalBlankLines = logical_blank_lines.enforceLogicalBlankLines;
 pub const indent_width = @import("fmt/indent_width.zig");
 pub const reindent = indent_width.reindent;
 
@@ -335,6 +337,13 @@ fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Alloca
 
     if (config.brace_style == .allman) {
         const result = try convertToAllman(gpa, current);
+        if (current_allocated) gpa.free(current);
+        current = result;
+        current_allocated = true;
+    }
+
+    if (config.logical_blank_lines) {
+        const result = try enforceLogicalBlankLines(gpa, current);
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;

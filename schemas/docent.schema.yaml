@@ -80,6 +80,13 @@ properties:
         type: "boolean"
         default: false
         description: "Add trailing commas to single-line lists with 3 or more items. On the next format pass, zig fmt expands them to one item per line."
+      logical_blank_lines:
+        type: "boolean"
+        default: false
+        description: >-
+          Enforce logical blank line separation: one blank line after closing braces
+          and flow terminators (return, continue, break), no blank lines immediately
+          inside braces, and never two consecutive blank lines.
       indent_width:
         type: "integer"
         minimum: 1

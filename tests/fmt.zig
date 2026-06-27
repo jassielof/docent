@@ -29,6 +29,15 @@ test "trailing comma" {
     try std.testing.expectEqualStrings(expected, result);
 }
 
+test "logical blank lines" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/fmt/input/logical_blank_lines.zig");
+    const expected = @embedFile("fixtures/fmt/expected/logical_blank_lines.zig");
+    const result = try Fmt.enforceLogicalBlankLines(gpa, input);
+    defer gpa.free(result);
+    try std.testing.expectEqualStrings(expected, result);
+}
+
 test "indent width 2" {
     const gpa = std.testing.allocator;
     const input = @embedFile("fixtures/fmt/input/indent_width.zig");
