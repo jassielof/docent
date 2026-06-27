@@ -1,0 +1,3 @@
+# Test fixtures must use LF line endings on all platforms.
+# The formatter code splits on \n; CRLF would leave \r attached to each line.
+tests/fixtures/**/*.zig text eol=lf
