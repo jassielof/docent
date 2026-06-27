@@ -1,3 +1,5 @@
+//! [Go's rationale on respecting author's source blank newlines](https://github.com/golang/go/issues/22337#issuecomment-337943177).
+
 const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
