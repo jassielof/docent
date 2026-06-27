@@ -558,17 +558,20 @@ test "minimal formatter shortens absolute paths under display root" {
     var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
     defer writer.deinit();
 
+    const file_path = if (builtin.os.tag == .windows) "C:\\proj\\src\\lib\\root.zig" else "/proj/src/lib/root.zig";
+    const display_root = if (builtin.os.tag == .windows) "C:\\proj" else "/proj";
+
     try writeDiagnostic(&writer.writer, .{
         .rule = "missing_doc_comment",
         .severity_level = .warn,
         .subject = .{ .kind = .function, .name = "main" },
-        .file = "C:\\proj\\src\\lib\\root.zig",
+        .file = file_path,
         .line = 27,
         .column = 11,
     }, .{
         .format = .minimal,
         .color = .never,
-        .path_display_root = "C:\\proj",
+        .path_display_root = display_root,
     });
     out = writer.toArrayList();
 
