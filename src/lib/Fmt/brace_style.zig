@@ -1,7 +1,10 @@
+//! The brace_style namespace contains the logic to reformat brace styles.
+
 const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
+// TODO: The convertToAllman function, while it works fine, it shouldn't be hardcoded to just convert from K&R to Allman. As eventually, there could be requests for other brace styles.
 /// Converts K&R brace style to Allman style by post-processing rendered output.
 ///
 /// Moves opening braces to their own line and separates `} else`/`} catch` clauses onto individual lines. Struct/tuple literals (`.{`) and empty blocks (`{}`) are left unchanged.

@@ -1,8 +1,10 @@
+//! The single_line_braces namespace contains the logic to wrap single-line control-flow bodies in braces.
+
 const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-/// Wraps single-line control-flow bodies in braces.
+/// The enforceBraces function wraps single-line control-flow bodies in braces.
 ///
 /// Converts patterns like `if (cond) return;` into multi-line braced blocks.
 /// Handles `if`, `else`, `while`, `for`, and their chained variants.

@@ -1,13 +1,14 @@
+//! The trailing_comma namespace contains the logic to add trailing commas to lists.
+//!
+//! This is based on the that Zig suggests to add trailing commas, or basically break the list elements into one-per-line, when there are 3 or more items in a single-line list. See <https://ziglang.org/documentation/0.16.0/#Whitespace>.
+
 const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-/// Adds trailing commas to single-line lists with 3 or more items.
+/// The addTrailingCommas function adds trailing commas to single-line lists with 3 or more items.
 ///
-/// Scans for balanced `(...)` and `{...}` groups that fit on one line,
-/// counts top-level commas inside, and inserts a trailing comma when
-/// there are 3+ items. On a subsequent `zig fmt` run the trailing comma
-/// causes the formatter to expand the list to one-item-per-line.
+/// Scans for balanced `(...)` and `{...}` groups that fit on one line, counts top-level commas inside, and inserts a trailing comma when there are 3+ items. On a subsequent `zig fmt` run the trailing comma causes the formatter to expand the list to one-item-per-line.
 pub fn addTrailingCommas(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     var output: std.ArrayList(u8) = .empty;
     errdefer output.deinit(gpa);
