@@ -59,7 +59,7 @@ fn renderPublicGroup(arena: Allocator, output: *std.ArrayList(u8), sg: *const Su
         fn lessThan(ctx: @This(), a: usize, b: usize) bool {
             return cmpIgnoreCase(ctx.entries[a].right, ctx.entries[b].right) == .lt or
                 (cmpIgnoreCase(ctx.entries[a].right, ctx.entries[b].right) == .eq and
-                cmpIgnoreCase(ctx.entries[a].left, ctx.entries[b].left) == .lt);
+                    cmpIgnoreCase(ctx.entries[a].left, ctx.entries[b].left) == .lt);
         }
     };
     mem.sort(usize, pub_direct.items, S{ .entries = entries }, S.lessThan);
