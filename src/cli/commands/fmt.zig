@@ -4,7 +4,7 @@ const fangz = @import("fangz");
 const docent = @import("docent");
 const Fmt = docent.Fmt;
 
-// TODO: Output diagnostics should have a similar style to Docent check diagnostics.
+// TODO: Output diagnostics should be similar to Deno formatter, where it shows a diff of the changes, when the check flag is used. This should be similar to check modes, if minimal, just like the normal `zig fmt`, but by default in "prettier" mode, it'll show a diff.
 
 pub fn register(root: *fangz.Command) !void {
     const fmt_cmd = try root.addSubcommand(.{
