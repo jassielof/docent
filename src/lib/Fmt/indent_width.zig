@@ -1,12 +1,12 @@
+//! The indent_width namespace contains the logic to re-indent source code to a different width.
+
 const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
 /// Re-indents source from the standard 4-space width to the target width.
 ///
-/// Only leading whitespace is affected. Each group of 4 consecutive leading
-/// spaces is replaced with `target_width` spaces. Partial groups (trailing
-/// spaces that don't complete a full indent level) are preserved as-is.
+/// Only leading whitespace is affected. Each group of 4 consecutive leading spaces is replaced with `target_width` spaces. Partial groups (trailing spaces that don't complete a full indent level) are preserved as-is.
 pub fn reindent(gpa: Allocator, input: []const u8, target_width: u8) Allocator.Error![]u8 {
     std.debug.assert(target_width > 0);
     if (target_width == 4) {
