@@ -4,6 +4,44 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
+// FIXME: Add a test for this invalid transformation.
+// The formatter currently rewrites a valid if-expression argument into
+// a block-form if-statement, which is not legal in expression position.
+//
+// Before formatting (valid) (this is src/lib/Fmt.zig):
+// ```zig
+// var tree = std.zig.Ast.parse(
+//     gpa,
+//     source_code,
+//     if (opts.zon) .zon else .zig,
+// ) catch |err| {
+//     std.process.fatal("error parsing stdin: {}", .{err});
+// };
+// defer tree.deinit(gpa);
+// ```
+//
+// After formatting (invalid):
+// ```zig
+// var tree = std.zig.Ast.parse(
+//     gpa,
+//     source_code,
+//     if (opts.zon) {
+//         .zon;
+//     } else {
+//         .zig;
+//     },
+// ) catch |err| {
+//     std.process.fatal("error parsing stdin: {}", .{err});
+// };
+// defer tree.deinit(gpa);
+// ```
+//
+// In this form, the `if` is a statement and the branch expressions
+// (`.zon;` / `.zig;`) are bare values whose result is ignored, causing
+// the Zig compiler to emit "value of type '... ignored" / "all non-void
+// values must be used". The formatter must preserve the expression form
+// `if (opts.zon) .zon else .zig` when used as a function argument.
+
 /// The enforceBraces function wraps single-line control-flow bodies in braces.
 ///
 /// Converts patterns like `if (cond) return;` into multi-line braced blocks.
