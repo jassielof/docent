@@ -17,6 +17,8 @@ const fs = std.fs;
 const Allocator = std.mem.Allocator;
 const Color = std.zig.Color;
 
+const carnaval = @import("carnaval");
+
 const config_mod = @import("config.zig");
 const SchemaConfig = @import("schemas/Config.zig");
 
@@ -303,6 +305,11 @@ fn fmtPathFile(
         return;
 
     if (self.check_mode) {
+        var stderr_buf: [8192]u8 = undefined;
+        var stderr = Io.File.stderr().writer(self.io, &stderr_buf);
+        const profile = carnaval.colorProfileForHandle(Io.File.stderr().handle);
+        diff.writeDiff(&stderr.interface, file_path, source_code, pp.output, profile) catch {};
+        stderr.interface.flush() catch {};
         try self.stdout_writer.interface.print("{s}\n", .{file_path});
         self.any_error = true;
     } else {
@@ -327,6 +334,7 @@ pub const sort_imports = @import("Fmt/sort_imports.zig");
 pub const sortImports = sort_imports.sortImports;
 pub const indent_width = @import("Fmt/indent_width.zig");
 pub const reindent = indent_width.reindent;
+pub const diff = @import("Fmt/diff.zig");
 
 /// Applies all configured post-processing passes to rendered source.
 /// Caller owns the returned slice when it differs from `input`.
