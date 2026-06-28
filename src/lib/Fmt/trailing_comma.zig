@@ -6,14 +6,12 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-/// The addTrailingCommas function adds trailing commas to single-line lists with 3 or more items.
-///
-/// Scans for balanced `(...)` and `{...}` groups that fit on one line, counts top-level commas inside, and inserts a trailing comma when there are 3+ items. On a subsequent `zig fmt` run the trailing comma causes the formatter to expand the list to one-item-per-line.
+/// Expands single-line lists with 3 or more items to one-per-line with trailing commas.
 pub fn addTrailingCommas(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     var output: std.ArrayList(u8) = .empty;
     errdefer output.deinit(gpa);
 
-    try output.ensureTotalCapacity(gpa, input.len + input.len / 8);
+    try output.ensureTotalCapacity(gpa, input.len * 2);
 
     var line_start: usize = 0;
     while (line_start < input.len) {
@@ -21,14 +19,15 @@ pub fn addTrailingCommas(gpa: Allocator, input: []const u8) Allocator.Error![]u8
         const full_line = input[line_start .. line_start + line_end];
         line_start += line_end + 1;
 
-        try processLine(gpa, &output, full_line);
+        const indent_len = leadingSpaces(full_line);
+        try expandLine(gpa, &output, full_line, indent_len);
         if (line_start <= input.len) try output.append(gpa, '\n');
     }
 
     return output.toOwnedSlice(gpa);
 }
 
-fn processLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8) !void {
+fn expandLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8, base_indent: usize) !void {
     var pos: usize = 0;
 
     while (pos < line.len) {
@@ -51,13 +50,25 @@ fn processLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8) !vo
             if (findMatchingClose(line, pos, c, close)) |close_pos| {
                 const inner = line[pos + 1 .. close_pos];
                 const commas = countTopLevelCommas(inner);
+                const threshold: usize = if (c == '(' and isFnDecl(line, pos)) 1 else 2;
 
-                if (commas >= 2 and !hasTrailingComma(inner)) {
+                if (commas >= threshold and !hasTrailingComma(inner)) {
+                    const items = splitTopLevel(gpa, inner) catch return error.OutOfMemory;
+                    defer gpa.free(items);
+
+                    const item_indent = base_indent + 4;
                     try output.append(gpa, c);
-                    try processLine(gpa, output, inner);
-                    const out_len = output.items.len;
-                    const trailing_spaces = trailingSpaceCount(output.items);
-                    try output.insertSlice(gpa, out_len - trailing_spaces, ",");
+                    try output.append(gpa, '\n');
+
+                    for (items) |item| {
+                        const trimmed = mem.trimStart(u8, mem.trimEnd(u8, item, " "), " ");
+                        try appendSpaces(gpa, output, item_indent);
+                        try expandLine(gpa, output, trimmed, item_indent);
+                        try output.append(gpa, ',');
+                        try output.append(gpa, '\n');
+                    }
+
+                    try appendSpaces(gpa, output, base_indent);
                     try output.append(gpa, close);
                     pos = close_pos + 1;
                     continue;
@@ -68,6 +79,70 @@ fn processLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8) !vo
         try output.append(gpa, c);
         pos += 1;
     }
+}
+
+fn isFnDecl(line: []const u8, paren_pos: usize) bool {
+    if (paren_pos < 3) return false;
+    const before = mem.trimEnd(u8, line[0..paren_pos], " ");
+    if (before.len < 3) return false;
+    const trimmed = mem.trimStart(u8, before, " ");
+    if (mem.startsWith(u8, trimmed, "fn ") or mem.startsWith(u8, trimmed, "pub fn ")) return true;
+    return false;
+}
+
+fn splitTopLevel(gpa: Allocator, inner: []const u8) ![][]const u8 {
+    var items: std.ArrayList([]const u8) = .empty;
+    defer items.deinit(gpa);
+
+    var depth_paren: usize = 0;
+    var depth_brace: usize = 0;
+    var start: usize = 0;
+    var i: usize = 0;
+
+    while (i < inner.len) : (i += 1) {
+        const c = inner[i];
+        if (c == '\'' or c == '"') {
+            i = skipStringLiteral(inner, i) - 1;
+            continue;
+        }
+        switch (c) {
+            '(' => depth_paren += 1,
+            ')' => {
+                if (depth_paren > 0) depth_paren -= 1;
+            },
+            '{' => depth_brace += 1,
+            '}' => {
+                if (depth_brace > 0) depth_brace -= 1;
+            },
+            ',' => {
+                if (depth_paren == 0 and depth_brace == 0) {
+                    try items.append(gpa, inner[start..i]);
+                    start = i + 1;
+                }
+            },
+            else => {},
+        }
+    }
+
+    if (start < inner.len) {
+        try items.append(gpa, inner[start..]);
+    }
+
+    return items.toOwnedSlice(gpa);
+}
+
+fn appendSpaces(gpa: Allocator, output: *std.ArrayList(u8), count: usize) !void {
+    var j: usize = 0;
+    while (j < count) : (j += 1) {
+        try output.append(gpa, ' ');
+    }
+}
+
+fn leadingSpaces(line: []const u8) usize {
+    for (line, 0..) |c, i| {
+        if (c != ' ') return i;
+    }
+    return line.len;
 }
 
 fn findMatchingClose(line: []const u8, start: usize, open: u8, close: u8) ?usize {
@@ -121,18 +196,6 @@ fn countTopLevelCommas(inner: []const u8) usize {
 fn hasTrailingComma(inner: []const u8) bool {
     const trimmed = mem.trimEnd(u8, inner, " ");
     return trimmed.len > 0 and trimmed[trimmed.len - 1] == ',';
-}
-
-fn trailingSpaceCount(items: []const u8) usize {
-    var count: usize = 0;
-    var i = items.len;
-    while (i > 0) {
-        i -= 1;
-        if (items[i] == ' ') {
-            count += 1;
-        } else break;
-    }
-    return count;
 }
 
 fn skipStringLiteral(line: []const u8, start: usize) usize {
