@@ -43,4 +43,17 @@ fn example() void {
         "lesser";
 
     _ = conditional_value;
+
+    const mode: i32 = if (a > b) 1 else 0;
+    _ = mode;
+
+    consume(
+        a,
+        if (a > b) 1 else 0,
+    );
+}
+
+fn consume(v: i32, w: i32) void {
+    _ = v;
+    _ = w;
 }

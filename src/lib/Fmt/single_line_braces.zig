@@ -4,44 +4,6 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-// FIXME: Add a test for this invalid transformation.
-// The formatter currently rewrites a valid if-expression argument into
-// a block-form if-statement, which is not legal in expression position.
-//
-// Before formatting (valid) (this is src/lib/Fmt.zig):
-// ```zig
-// var tree = std.zig.Ast.parse(
-//     gpa,
-//     source_code,
-//     if (opts.zon) .zon else .zig,
-// ) catch |err| {
-//     std.process.fatal("error parsing stdin: {}", .{err});
-// };
-// defer tree.deinit(gpa);
-// ```
-//
-// After formatting (invalid):
-// ```zig
-// var tree = std.zig.Ast.parse(
-//     gpa,
-//     source_code,
-//     if (opts.zon) {
-//         .zon;
-//     } else {
-//         .zig;
-//     },
-// ) catch |err| {
-//     std.process.fatal("error parsing stdin: {}", .{err});
-// };
-// defer tree.deinit(gpa);
-// ```
-//
-// In this form, the `if` is a statement and the branch expressions
-// (`.zon;` / `.zig;`) are bare values whose result is ignored, causing
-// the Zig compiler to emit "value of type '... ignored" / "all non-void
-// values must be used". The formatter must preserve the expression form
-// `if (opts.zon) .zon else .zig` when used as a function argument.
-
 /// The enforceBraces function wraps single-line control-flow bodies in braces.
 ///
 /// Converts patterns like `if (cond) return;` into multi-line braced blocks.
@@ -105,6 +67,7 @@ const keywords = [_][]const u8{ "if ", "while ", "for " };
 
 fn tryExpandSingleLine(gpa: Allocator, output: *std.ArrayList(u8), indent: []const u8, content: []const u8) !bool {
     if (content.len == 0) return false;
+    if (content[content.len - 1] == ',') return false;
 
     if (mem.startsWith(u8, content, "} else ")) {
         const after_else = content[7..];
@@ -175,6 +138,44 @@ fn tryExpandSingleLine(gpa: Allocator, output: *std.ArrayList(u8), indent: []con
         try output.appendSlice(gpa, indent);
         try output.append(gpa, '}');
         return true;
+    }
+
+    if (mem.indexOf(u8, content, " = if (")) |eq_if_pos| {
+        const if_start = eq_if_pos + 3;
+        const after_if = content[if_start..];
+        const body_start = findBodyStart(after_if) orelse return false;
+        const body = after_if[body_start..];
+        if (body.len == 0 or body[0] == '{') return false;
+
+        if (findInlineElse(body)) |else_offset| {
+            const if_body = body[0..else_offset];
+            const after_else_off = else_offset + 5;
+            const else_body_start = if (after_else_off < body.len and body[after_else_off] == ' ') after_else_off + 1 else after_else_off;
+            const else_body_raw = body[else_body_start..];
+            const else_body = if (mem.endsWith(u8, else_body_raw, ";"))
+                else_body_raw[0 .. else_body_raw.len - 1]
+            else
+                else_body_raw;
+            const if_needs_semi = if_body.len > 0 and if_body[if_body.len - 1] != ';';
+
+            try output.appendSlice(gpa, indent);
+            try output.appendSlice(gpa, content[0 .. if_start + body_start]);
+            try output.appendSlice(gpa, "{\n");
+            try output.appendSlice(gpa, indent);
+            try output.appendSlice(gpa, "    ");
+            try output.appendSlice(gpa, if_body);
+            if (if_needs_semi) try output.append(gpa, ';');
+            try output.appendSlice(gpa, "\n");
+            try output.appendSlice(gpa, indent);
+            try output.appendSlice(gpa, "} else {\n");
+            try output.appendSlice(gpa, indent);
+            try output.appendSlice(gpa, "    ");
+            try output.appendSlice(gpa, else_body);
+            try output.appendSlice(gpa, ";\n");
+            try output.appendSlice(gpa, indent);
+            try output.appendSlice(gpa, "};");
+            return true;
+        }
     }
 
     return false;
