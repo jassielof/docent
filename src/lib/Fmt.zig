@@ -7,6 +7,8 @@
 //! - [Zig's main formatting implementation](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/fmt.zig)
 
 // TODO: Add an option to auto-wrap (or max line length). Needs research.
+// TODO: Add an option to configure indent type (by default spaces, but to allow tabs as well to be configured).
+// TODO: Add an option to do grid alignment (like for struct fields, or function parameters, etc), similar to Go formatter. Needs research.
 
 const std = @import("std");
 const Io = std.Io;
@@ -202,7 +204,6 @@ fn fmtPathDir(
         }
     }
 }
-
 fn fmtPathFile(
     self: *Fmt,
     file_path: []const u8,

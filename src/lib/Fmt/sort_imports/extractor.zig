@@ -28,8 +28,8 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
     const root_decls = tree.rootDecls();
 
     for (root_decls) |decl| {
-        const var_decl = tree.fullVarDecl(decl) orelse continue;
-        const init_node = var_decl.ast.init_node.unwrap() orelse continue;
+        const var_decl = tree.fullVarDecl(decl) orelse break;
+        const init_node = var_decl.ast.init_node.unwrap() orelse break;
 
         const name_tok = var_decl.ast.mut_token + 1;
         const left = tree.tokenSlice(name_tok);
@@ -115,6 +115,8 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
             block_end = decl_end;
             continue;
         }
+
+        break;
     }
 
     const bs = block_start orelse 0;
