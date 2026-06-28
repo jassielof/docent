@@ -10,22 +10,31 @@ const Allocator = std.mem.Allocator;
 /// Handles `if`, `else`, `while`, `for`, and their chained variants.
 /// Already-braced bodies and `else if` chains are left unchanged.
 pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
+    var all_lines: std.ArrayList([]const u8) = .empty;
+    defer all_lines.deinit(gpa);
+    {
+        var pos: usize = 0;
+        while (pos < input.len) {
+            const end = mem.indexOfScalar(u8, input[pos..], '\n') orelse input.len - pos;
+            try all_lines.append(gpa, input[pos .. pos + end]);
+            pos += end + 1;
+        }
+    }
+
     var output: std.ArrayList(u8) = .empty;
     errdefer output.deinit(gpa);
-
     try output.ensureTotalCapacity(gpa, input.len + input.len / 4);
 
-    var line_start: usize = 0;
-    while (line_start < input.len) {
-        const line_end = mem.indexOfScalar(u8, input[line_start..], '\n') orelse input.len - line_start;
-        const full_line = input[line_start .. line_start + line_end];
-        line_start += line_end + 1;
-
+    var li: usize = 0;
+    while (li < all_lines.items.len) {
+        const full_line = all_lines.items[li];
         const indent_len = leadingSpaces(full_line);
         const trimmed = mem.trimEnd(u8, full_line, " ");
+
         if (trimmed.len == 0) {
             try output.appendSlice(gpa, full_line);
-            if (line_start <= input.len) try output.append(gpa, '\n');
+            try output.append(gpa, '\n');
+            li += 1;
             continue;
         }
 
@@ -34,13 +43,21 @@ pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
 
         if (tryExpandSingleLine(gpa, &output, indent, content)) |expanded| {
             if (expanded) {
-                if (line_start <= input.len) try output.append(gpa, '\n');
+                try output.append(gpa, '\n');
+                li += 1;
                 continue;
             }
         } else |_| return error.OutOfMemory;
 
+        const consumed = try tryExpandMultiLine(gpa, &output, all_lines.items, li);
+        if (consumed > 0) {
+            li += consumed;
+            continue;
+        }
+
         try output.appendSlice(gpa, full_line);
-        if (line_start <= input.len) try output.append(gpa, '\n');
+        try output.append(gpa, '\n');
+        li += 1;
     }
 
     return output.toOwnedSlice(gpa);
@@ -85,6 +102,7 @@ fn tryExpandSingleLine(gpa: Allocator, output: *std.ArrayList(u8), indent: []con
                 const after_else = else_offset + 5;
                 const else_body_start = if (after_else < body.len and body[after_else] == ' ') after_else + 1 else after_else;
                 const else_body = body[else_body_start..];
+                const needs_semi = if_body.len > 0 and if_body[if_body.len - 1] != ';';
 
                 try output.appendSlice(gpa, indent);
                 try output.appendSlice(gpa, content[0..body_start]);
@@ -93,6 +111,7 @@ fn tryExpandSingleLine(gpa: Allocator, output: *std.ArrayList(u8), indent: []con
                 try output.appendSlice(gpa, indent);
                 try output.appendSlice(gpa, "    ");
                 try output.appendSlice(gpa, if_body);
+                if (needs_semi) try output.append(gpa, ';');
                 try output.append(gpa, '\n');
                 try output.appendSlice(gpa, indent);
                 try output.appendSlice(gpa, "} else {");
@@ -121,6 +140,88 @@ fn tryExpandSingleLine(gpa: Allocator, output: *std.ArrayList(u8), indent: []con
     }
 
     return false;
+}
+
+/// Handles multi-line unbraced control flow, e.g.:
+/// ```
+///   const x = if (CONDITION)
+///       BODY
+///   else
+///       OTHER_BODY;
+/// ```
+fn tryExpandMultiLine(gpa: Allocator, output: *std.ArrayList(u8), lines: []const []const u8, start: usize) !usize {
+    const first = lines[start];
+    const indent_len = leadingSpaces(first);
+    const trimmed = mem.trimEnd(u8, first, " ");
+    const content = first[indent_len..trimmed.len];
+    const indent = first[0..indent_len];
+
+    const has_assign = mem.indexOf(u8, content, " = ") != null;
+    if (!has_assign) return 0;
+
+    const if_pos = mem.indexOf(u8, content, "if (") orelse return 0;
+    const after_if = content[if_pos..];
+
+    const body_start_opt = findBodyStart(after_if);
+    if (body_start_opt) |bs| {
+        if (bs < after_if.len) return 0;
+    }
+    const header_end = if_pos + (body_start_opt orelse after_if.len);
+
+    if (start + 1 >= lines.len) return 0;
+
+    const body_line_raw = lines[start + 1];
+    const body_trimmed = mem.trimStart(u8, mem.trimEnd(u8, body_line_raw, " "), " ");
+    if (body_trimmed.len == 0 or body_trimmed[0] == '{') return 0;
+
+    var consumed: usize = 2;
+
+    var else_line_raw: ?[]const u8 = null;
+    var else_body_raw: ?[]const u8 = null;
+
+    if (start + 2 < lines.len) {
+        const candidate = mem.trimStart(u8, mem.trimEnd(u8, lines[start + 2], " "), " ");
+        if (mem.eql(u8, candidate, "else")) {
+            else_line_raw = lines[start + 2];
+            consumed = 3;
+            if (start + 3 < lines.len) {
+                else_body_raw = lines[start + 3];
+                consumed = 4;
+            }
+        }
+    }
+
+    try output.appendSlice(gpa, indent);
+    try output.appendSlice(gpa, content[0..header_end]);
+    try output.appendSlice(gpa, " {\n");
+
+    try output.appendSlice(gpa, indent);
+    try output.appendSlice(gpa, "    ");
+    const body_needs_semi = body_trimmed.len > 0 and body_trimmed[body_trimmed.len - 1] != ';' and else_line_raw != null;
+    try output.appendSlice(gpa, body_trimmed);
+    if (body_needs_semi) try output.append(gpa, ';');
+    try output.append(gpa, '\n');
+
+    if (else_line_raw != null) {
+        try output.appendSlice(gpa, indent);
+        try output.appendSlice(gpa, "} else {\n");
+
+        if (else_body_raw) |eb| {
+            const eb_trimmed = mem.trimStart(u8, mem.trimEnd(u8, eb, " "), " ");
+            try output.appendSlice(gpa, indent);
+            try output.appendSlice(gpa, "    ");
+            try output.appendSlice(gpa, eb_trimmed);
+            try output.append(gpa, '\n');
+        }
+
+        try output.appendSlice(gpa, indent);
+        try output.appendSlice(gpa, "};\n");
+    } else {
+        try output.appendSlice(gpa, indent);
+        try output.appendSlice(gpa, "}\n");
+    }
+
+    return consumed;
 }
 
 /// Finds where the body starts after a control-flow condition.
