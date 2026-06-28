@@ -1,4 +1,9 @@
 #:schema ../schemas/docent.schema.json
 
+[fmt]
+sort_imports = false
+single_line_braces = false
+logical_blank_lines = false
+
 [doc]
 invalid_leading_phrase = "allow"

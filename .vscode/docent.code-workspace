@@ -26,5 +26,6 @@
     "git.detectSubmodules": false,
     "git.scanRepositories": ["modules", "dependencies"],
     "better-todo-tree.filtering.excludeGlobs": ["**/references/*/**"],
+    "zig.formattingProvider": "off"
   },
 }
