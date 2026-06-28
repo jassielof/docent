@@ -21,6 +21,14 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "List non-conforming files and exit with an error if the list is non-empty",
     });
 
+    try fmt_cmd.addFlag(Fmt.CheckFormat, .{
+        .name = "format",
+        .short = 'f',
+        .brief = "Output format for --check mode",
+        .default = .pretty,
+        .value_hint = "FORMAT",
+    });
+
     // TODO: Similar to the stdin TODO, if there's no real usage outside of testing, this might be removed. In both cases, if there's testing usage, then keep it just for testing.
     try fmt_cmd.addFlag(bool, .{
         .name = "ast-check",
@@ -65,6 +73,7 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
 
     const stdin_flag = ctx.boolFlag("stdin") orelse false;
     const check_flag = ctx.boolFlag("check") orelse false;
+    const check_format = ctx.enumFlag(Fmt.CheckFormat, "format") orelse .pretty;
     const ast_check_flag = ctx.boolFlag("ast-check") orelse false;
     const zon_flag = ctx.boolFlag("zon") orelse false;
     const color = ctx.enumFlag(std.zig.Color, "color") orelse .auto;
@@ -73,6 +82,7 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
 
     const opts: Fmt.Options = .{
         .check = check_flag,
+        .check_format = check_format,
         .ast_check = ast_check_flag,
         .zon = zon_flag,
         .color = color,

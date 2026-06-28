@@ -25,8 +25,11 @@ const SchemaConfig = @import("schemas/Config.zig");
 pub const Config = SchemaConfig.Fmt;
 pub const BraceStyle = Config.BraceStyle;
 
+pub const CheckFormat = enum { pretty, minimal };
+
 pub const Options = struct {
     check: bool = false,
+    check_format: CheckFormat = .pretty,
     ast_check: bool = false,
     zon: bool = false,
     color: Color = .auto,
@@ -36,6 +39,7 @@ seen: SeenMap,
 any_error: bool,
 check_ast: bool,
 check_mode: bool,
+check_format: CheckFormat,
 force_zon: bool,
 color: Color,
 config: Config,
@@ -60,6 +64,7 @@ pub fn init(gpa: Allocator, io: Io, stdout_writer: *Io.File.Writer, opts: Option
         .any_error = false,
         .check_ast = opts.ast_check,
         .check_mode = opts.check,
+        .check_format = opts.check_format,
         .force_zon = opts.zon,
         .color = opts.color,
         .config = config,
@@ -305,11 +310,13 @@ fn fmtPathFile(
         return;
 
     if (self.check_mode) {
-        var stderr_buf: [8192]u8 = undefined;
-        var stderr = Io.File.stderr().writer(self.io, &stderr_buf);
-        const profile = carnaval.colorProfileForHandle(Io.File.stderr().handle);
-        diff.writeDiff(&stderr.interface, file_path, source_code, pp.output, profile) catch {};
-        stderr.interface.flush() catch {};
+        if (self.check_format == .pretty) {
+            var stderr_buf: [8192]u8 = undefined;
+            var stderr = Io.File.stderr().writer(self.io, &stderr_buf);
+            const profile = carnaval.colorProfileForHandle(Io.File.stderr().handle);
+            diff.writeDiff(&stderr.interface, file_path, source_code, pp.output, profile) catch {};
+            stderr.interface.flush() catch {};
+        }
         try self.stdout_writer.interface.print("{s}\n", .{file_path});
         self.any_error = true;
     } else {
