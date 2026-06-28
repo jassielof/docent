@@ -38,7 +38,6 @@ pub const Doc = struct {
     invalid_leading_phrase: invalid_leading_phrase.Rule = .{},
     redundant_doc_comment: redundant_doc_comment.Rule = .{},
 
-
     /// Returns the library defaults with scan-mode inheritance already applied.
     pub fn defaults() Doc {
         var doc: Doc = .{};
