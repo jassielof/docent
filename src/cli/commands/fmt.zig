@@ -4,8 +4,7 @@ const fangz = @import("fangz");
 const docent = @import("docent");
 const Fmt = docent.Fmt;
 
-// TODO: Output diagnostics should have a similar style to Docent checks
-// TODO: Add an option to auto-wrap (or max line length). Needs research.
+// TODO: Output diagnostics should have a similar style to Docent check diagnostics.
 
 pub fn register(root: *fangz.Command) !void {
     const fmt_cmd = try root.addSubcommand(.{

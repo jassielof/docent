@@ -6,6 +6,8 @@
 //!
 //! - [Zig's main formatting implementation](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/fmt.zig)
 
+// TODO: Add an option to auto-wrap (or max line length). Needs research.
+
 const std = @import("std");
 const Io = std.Io;
 const mem = std.mem;
