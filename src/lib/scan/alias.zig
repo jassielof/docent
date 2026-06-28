@@ -233,7 +233,6 @@ pub fn isTargetDocumented(
     return outcome == .documented;
 }
 
-
 /// When `info.field_name == null`, evaluates `predicate` on the imported module's container doc block.
 ///
 /// Only `OutOfMemory` is propagated; other resolution failures are silently ignored.

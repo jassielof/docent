@@ -58,7 +58,7 @@ const Crawler = struct {
 
         while (i < imports.items.len) {
             const candidate = imports.items[i];
-            
+
             try self.mutex.lock(self.io);
             if (self.err != null) {
                 self.mutex.unlock(self.io);

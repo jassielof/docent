@@ -101,7 +101,6 @@ pub fn registerTargetFlags(cmd: *fangz.Command, options: RegisterTargetFlagsOpti
         .default = false,
         .persistent = options.persistent,
     });
-
 }
 
 /// Registers the variadic `paths` positional on a category subcommand.
