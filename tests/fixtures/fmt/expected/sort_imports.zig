@@ -15,8 +15,8 @@ const Command = fangz.Command;
 const Flag = fangz.Flag;
 
 const vereda = @import("vereda");
-const Walker = vereda.Walker;
 const WalkEntry = vereda.WalkEntry;
+const Walker = vereda.Walker;
 
 const root = @import("root");
 const version = root.version;
@@ -41,11 +41,11 @@ pub const rule_config = @import("rule_config.zig");
 pub const scan = @import("scan.zig");
 pub const severity = @import("severity.zig");
 
+pub const registerConfigPathFlag = @import("flags.zig").registerConfigPath;
+
 pub const default_fail_fast = @import("types.zig").default_fail_fast;
 pub const FailFast = @import("types.zig").FailFast;
 pub const OutputMode = @import("types.zig").OutputMode;
 
-pub const registerConfigPathFlag = @import("flags.zig").registerConfigPath;
-
-pub const Suppressions = suppressions.Table;
 pub const registerStatusSubcommand = status_command.register;
+pub const Suppressions = suppressions.Table;
