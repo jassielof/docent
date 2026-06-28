@@ -131,8 +131,8 @@ fn findSync(orig: []const []const u8, formatted: []const []const u8) SyncResult 
     var best_fi: usize = formatted.len;
     var best_cost: usize = orig.len + formatted.len;
 
-    for (1..max_look + 1) |fi| {
-        for (0..@min(orig.len, max_look + 1)) |oi| {
+    for (1..max_look) |fi| {
+        for (0..@min(orig.len, max_look)) |oi| {
             if (mem.eql(u8, orig[oi], formatted[fi])) {
                 const cost = oi + fi;
                 if (cost < best_cost) {
@@ -145,8 +145,8 @@ fn findSync(orig: []const []const u8, formatted: []const []const u8) SyncResult 
         }
     }
 
-    for (1..@min(orig.len, max_look + 1)) |oi| {
-        for (0..@min(formatted.len, max_look + 1)) |fi| {
+    for (1..@min(orig.len, max_look)) |oi| {
+        for (0..@min(formatted.len, max_look)) |fi| {
             if (mem.eql(u8, orig[oi], formatted[fi])) {
                 const cost = oi + fi;
                 if (cost < best_cost) {
