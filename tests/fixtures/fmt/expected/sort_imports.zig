@@ -2,18 +2,13 @@
 
 const builtin = @import("builtin");
 const std = @import("std");
-const Ast = std.zig.Ast;
-
-const carnaval = @import("carnaval");
-const vereda = @import("vereda");
-
-pub const config = @import("config.zig");
-pub const Diagnostic = @import("Diagnostic.zig");
-const root = @import("root");
-const suppressions = @import("suppressions.zig");
-pub const Suppressions = suppressions.Table;
+const Allocator = std.mem.Allocator;
+const Target = std.Target;
 
 pub fn main() void {
-    const x = foo();
-    return x;
+    const x: Allocator = undefined;
+    _ = x;
+    const t: Target = undefined;
+    _ = t;
+    _ = builtin.os;
 }

@@ -1,8 +1,11 @@
-fn example() void {
+fn example(cond: bool) void {
     if (cond) {
         const x = 1;
-        if (nested) {
+        _ = x;
+        if (!cond) {
             doSomething();
         }
     }
 }
+
+fn doSomething() void {}

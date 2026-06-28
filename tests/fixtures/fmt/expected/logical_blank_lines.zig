@@ -1,50 +1,57 @@
-fn example() void {
-    const mode: std.zig.Ast.Mode = .zig;
-    var tree = try std.zig.Ast.parse(gpa, source_code, mode);
+const std = @import("std");
+
+fn example(gpa: std.mem.Allocator) void {
+    const source_code = "test";
+    var tree = std.zig.Ast.parse(gpa, source_code, .zig) catch return;
     defer tree.deinit(gpa);
     if (tree.errors.len != 0) {
-        try printErrors(tree);
+        std.debug.print("errors", .{});
         return;
     }
 
-    const rendered = try tree.renderAlloc(gpa);
+    const rendered = tree.renderAlloc(gpa) catch return;
     defer gpa.free(rendered);
 
-    if (check_mode) {
+    if (rendered.len == 0) {
         return;
     }
 
-    try writeFile(rendered);
+    std.debug.print("{s}", .{rendered});
 }
 
-fn dense() void {
-    const x = 1;
+fn dense(x: i32) void {
     if (x > 0) {
         doSomething();
     }
 
     const y = 2;
+    _ = y;
     return;
-
-    unreachable;
 }
 
 fn already_spaced() void {
     const a = 1;
 
     const b = 2;
+    _ = a;
+    _ = b;
 }
 
 fn double_blanks() void {
     const a = 1;
 
     const b = 2;
+    _ = a;
+    _ = b;
 }
 
-fn nested() void {
+fn nested(cond: bool) void {
     if (cond) {
-        doA();
+        doSomething();
     }
 
     doB();
 }
+
+fn doSomething() void {}
+fn doB() void {}

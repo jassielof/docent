@@ -1,37 +1,43 @@
+const std = @import("std");
+
 fn main() void
 {
     return;
 }
 
-fn example() void
+fn example(cond: bool, a: bool, b: bool) void
 {
     if (cond)
     {
-        body;
+        std.debug.print("body", .{});
     }
     else
     {
-        other;
+        std.debug.print("other", .{});
     }
 
     if (a)
     {
-        x;
+        std.debug.print("x", .{});
     }
     else if (b)
     {
-        y;
+        std.debug.print("y", .{});
     }
     else
     {
-        z;
+        std.debug.print("z", .{});
     }
 
     const val = doSomething() catch |err|
     {
-        handleError(err);
+        _ = err;
     };
+    _ = val;
 
     const x = .{ .a = 1 };
+    _ = x;
     if (cond) {}
 }
+
+fn doSomething() !void {}
