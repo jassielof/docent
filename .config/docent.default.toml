@@ -1,5 +1,13 @@
 #:schema ../schemas/docent.schema.json
 
+[fmt]
+brace_style = "k&r"
+indent_width = 4
+logical_blank_lines = true
+single_line_braces = true
+sort_imports = true
+trailing_comma = true
+
 [doc]
 scan_mode = "public"
 blank_doc_comment = "warn"
