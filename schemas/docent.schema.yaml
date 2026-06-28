@@ -74,22 +74,22 @@ properties:
         description: "Brace placement style. k_r (default) keeps opening braces on the same line; allman places them on a new line."
       single_line_braces:
         type: "boolean"
-        default: false
+        default: true
         description: "Wrap single-line control-flow bodies in braces. Converts `if (x) return;` to a braced block."
       trailing_comma:
         type: "boolean"
-        default: false
+        default: true
         description: "Add trailing commas to single-line lists with 3 or more items. On the next format pass, zig fmt expands them to one item per line."
       logical_blank_lines:
         type: "boolean"
-        default: false
+        default: true
         description: >-
           Enforce logical blank line separation: one blank line after closing braces
           and flow terminators (return, continue, break), no blank lines immediately
           inside braces, and never two consecutive blank lines.
       sort_imports:
         type: "boolean"
-        default: false
+        default: true
         description: >-
           Sort the leading top-level import block by const identifier, regrouped into
           std/builtin, dependencies, and local (relative paths and root) categories.

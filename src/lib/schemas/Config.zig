@@ -29,10 +29,10 @@ fmt: Fmt = .{},
 
 pub const Fmt = struct {
     brace_style: BraceStyle = .k_r,
-    single_line_braces: bool = false,
-    trailing_comma: bool = false,
-    logical_blank_lines: bool = false,
-    sort_imports: bool = false,
+    single_line_braces: bool = true,
+    trailing_comma: bool = true,
+    logical_blank_lines: bool = true,
+    sort_imports: bool = true,
     indent_width: u8 = 4,
 
     pub const BraceStyle = enum {
@@ -342,10 +342,10 @@ test "decode reads fmt options" {
     const empty = try parseRoot(arena.allocator(), "");
     const empty_cfg = try decode(empty);
     try std.testing.expectEqual(Fmt.BraceStyle.k_r, empty_cfg.fmt.brace_style);
-    try std.testing.expect(!empty_cfg.fmt.single_line_braces);
-    try std.testing.expect(!empty_cfg.fmt.trailing_comma);
-    try std.testing.expect(!empty_cfg.fmt.logical_blank_lines);
-    try std.testing.expect(!empty_cfg.fmt.sort_imports);
+    try std.testing.expect(empty_cfg.fmt.single_line_braces);
+    try std.testing.expect(empty_cfg.fmt.trailing_comma);
+    try std.testing.expect(empty_cfg.fmt.logical_blank_lines);
+    try std.testing.expect(empty_cfg.fmt.sort_imports);
     try std.testing.expectEqual(@as(u8, 4), empty_cfg.fmt.indent_width);
 }
 
