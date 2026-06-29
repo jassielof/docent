@@ -34,9 +34,9 @@ pub const Fmt = @import("Fmt.zig");
 ///
 /// Enabled when `path` is a known module entry root or the basename is `root.zig`.
 pub fn resolveRequireModuleDoc(path: []const u8, library_entry_roots: []const []const u8) bool {
-    for (library_entry_roots) |root| {
-        if (scan.target.pathsEqual(path, root)) return true;
-    }
+    for (library_entry_roots) |root|
+        if (scan.target.pathsEqual(path, root))
+            return true;
 
     return std.mem.eql(u8, std.fs.path.basename(path), "root.zig");
 }
@@ -44,6 +44,7 @@ pub fn resolveRequireModuleDoc(path: []const u8, library_entry_roots: []const []
 fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
     const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+
     return allocator.dupe(u8, buffer[0..len]);
 }
 
@@ -63,7 +64,8 @@ pub fn collectLibraryEntryRoots(
 
     if (scanned) |sc| {
         for (sc.targets) |t| {
-            if (t.kind != .lib) continue;
+            if (t.kind != .lib)
+                continue;
 
             const joined = if (std.fs.path.isAbsolute(t.root_source_file))
                 try allocator.dupe(u8, t.root_source_file)
@@ -71,7 +73,9 @@ pub fn collectLibraryEntryRoots(
                 try std.fs.path.join(allocator, &.{ project_root, t.root_source_file });
             defer allocator.free(joined);
 
-            const abs = realPathFileAlloc(allocator, io, joined) catch try allocator.dupe(u8, joined);
+            const abs = realPathFileAlloc(allocator, io, joined) catch
+                try allocator.dupe(u8, joined);
+
             try roots.append(allocator, abs);
         }
     }
