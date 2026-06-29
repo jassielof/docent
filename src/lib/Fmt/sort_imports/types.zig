@@ -4,8 +4,6 @@ const Ast = std.zig.Ast;
 pub const Visibility = enum { internal, public };
 
 pub const SourceKind = enum {
-    // TODO: `builtin` will be renamed to `lang` in a future Zig version.
-    // Track the upstream rename and update the classifier accordingly.
     builtin_mod,
     stdlib,
     dependency,
