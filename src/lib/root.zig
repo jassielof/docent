@@ -29,6 +29,7 @@ pub const Suppressions = suppressions.Table;
 pub const naming_case = @import("naming_case.zig");
 pub const doc = @import("doc.zig");
 pub const Fmt = @import("Fmt.zig");
+pub const typeset = @import("typeset.zig");
 
 /// Returns whether the file-level `//!` check applies to `path`.
 ///

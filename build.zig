@@ -85,6 +85,43 @@ pub fn build(b: *std.Build) void {
 
     docs_step.dependOn(&docs_cli.step);
 
+    // `zig build docs-pdf` walks docent's own public API surface
+    // (src/lib/root.zig, following every `pub const X = @import(...)`
+    // re-export transitively), emits docs.json, and renders it to a PDF via
+    // the local `docent-docs` Typst package. See src/lib/typeset.zig and
+    // typst/docent-docs/.
+    const docs_pdf_step = b.step("docs-pdf", "Generate PDF documentation for docent's public API via Typst");
+
+    const typeset_json_path = "zig-out/docs/typeset/docs.json";
+
+    const typeset_cli = b.addRunArtifact(cli);
+    typeset_cli.step.dependOn(b.getInstallStep());
+    typeset_cli.addArgs(&.{
+        "typeset",
+        "src/lib/root.zig",
+        "--module-name",
+        mod_name,
+        "--output",
+        typeset_json_path,
+    });
+
+    const typst_compile = b.addSystemCommand(&.{
+        "typst",
+        "compile",
+        "--pdf-standard",
+        "2.0",
+        "--root",
+        ".",
+        "--input",
+        // Leading "/" resolves relative to --root, not to lib.typ's directory.
+        b.fmt("docs-json=/{s}", .{typeset_json_path}),
+        "typst/docent-docs/lib.typ",
+        "zig-out/docs/typeset/docent.pdf",
+    });
+    typst_compile.step.dependOn(&typeset_cli.step);
+
+    docs_pdf_step.dependOn(&typst_compile.step);
+
     const test_step = b.step("test", "Run the test suite");
 
     const unit_tests = b.addTest(.{
