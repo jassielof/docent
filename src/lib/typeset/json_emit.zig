@@ -34,6 +34,7 @@ const comment = @import("../doc/comment.zig");
 const markdown = @import("vendor/markdown.zig");
 const markdown_renderer = @import("vendor/markdown/renderer.zig");
 const markdown_typst = @import("markdown_typst.zig");
+const external_refs = @import("external_refs.zig");
 const schema = @import("schema.zig");
 const walker = @import("walker.zig");
 
@@ -58,6 +59,7 @@ pub fn emitPackage(
     allocator: std.mem.Allocator,
     modules: []const Module,
     include_private: bool,
+    external_refs_table: ?*const external_refs.Table,
     zig_version: []const u8,
     tool_version: []const u8,
     generated_at: []const u8,
@@ -69,6 +71,8 @@ pub fn emitPackage(
         var ctx: Ctx = .{
             .expanded = .init(allocator),
             .include_private = include_private,
+            .zig_version = zig_version,
+            .refs = external_refs_table,
         };
         defer ctx.expanded.deinit();
 
@@ -164,6 +168,11 @@ const Ctx = struct {
     expanded: std.AutoHashMap(Decl.Index, void),
     /// When true, `emitChildren` also emits non-public members.
     include_private: bool,
+    /// Drives `std.*` cross-reference link URLs; see `markdown_typst.zig`.
+    zig_version: []const u8,
+    /// Loaded `--external-refs` sidecars, consulted by `markdown_typst.zig`
+    /// for dependency cross-references. Null when none were given.
+    refs: ?*const external_refs.Table,
 };
 
 fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, ctx: *Ctx) anyerror!schema.DeclNode {
@@ -243,7 +252,7 @@ fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, ctx: *Ctx) any
         .field => unreachable, // `classify` never produces `.field`; struct/enum/union members surface as `FieldNode`, not `DeclNode`.
     }
 
-    const doc_pair = try renderDocComment(allocator, original.file.get_ast(), info.first_doc_comment, decl_index);
+    const doc_pair = try renderDocComment(allocator, original.file.get_ast(), info.first_doc_comment, decl_index, ctx);
 
     return .{
         .id = id,
@@ -436,6 +445,7 @@ fn renderDocComment(
     ast: *const Ast,
     first_doc_comment: Ast.OptionalTokenIndex,
     origin: Decl.Index,
+    ctx: *Ctx,
 ) !DocPair {
     const first = first_doc_comment.unwrap() orelse return .{ .doc = null, .summary = null, .link_targets = null };
     // `Decl.findFirstDocComment` (vendor/Decl.zig) returns the boundary
@@ -461,7 +471,7 @@ fn renderDocComment(
     var doc = try parser.endInput();
     defer doc.deinit(allocator);
 
-    const render_result = try markdown_typst.renderToTypst(allocator, doc, origin);
+    const render_result = try markdown_typst.renderToTypst(allocator, doc, origin, ctx.zig_version, ctx.refs);
     defer allocator.free(render_result.markup);
     const rendered = try allocator.dupe(u8, std.mem.trimEnd(u8, render_result.markup, " \t\r\n"));
     const summary = try firstParagraphPlainText(allocator, doc);

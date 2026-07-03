@@ -16,6 +16,10 @@
 //! - One or more positional paths: each is its own explicit module (for
 //!   ad-hoc use and the fixtures under tests/fixtures/typeset/), named via
 //!   `--module-name` (single-path only) or its file stem.
+//!
+//! Cross-package references (`std.*` and named dependencies) are resolved
+//! without walking their source -- see `src/lib/typeset/external_refs.zig`
+//! for the design and `--external-refs`/`--refs-output` below.
 
 const std = @import("std");
 
@@ -87,6 +91,24 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "Path to write docs.json to",
         .default = "docs.json",
         .value_hint = "PATH",
+    });
+
+    try typeset_cmd.addFlag([]const []const u8, .{
+        .name = "external-refs",
+        .brief = "Load a dependency's published reference sidecar (repeatable). See --refs-output.",
+        .value_hint = "PATH",
+    });
+
+    try typeset_cmd.addFlag(?[]const u8, .{
+        .name = "refs-output",
+        .brief = "Also write a reference sidecar (id -> --refs-doc-url) for dependents to consume via --external-refs",
+        .value_hint = "PATH",
+    });
+
+    try typeset_cmd.addFlag([]const u8, .{
+        .name = "refs-doc-url",
+        .brief = "URL recorded in the sidecar for every id (required with --refs-output)",
+        .value_hint = "URL",
     });
 
     typeset_cmd.hooks.run = &run;
@@ -170,6 +192,13 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         std.process.fatal("no modules found to document (nothing matched --lib/--bins/--tests, and no explicit paths given)", .{});
     }
 
+    var refs_table: docent.typeset.external_refs.Table = .{};
+    for (ctx.stringListFlag("external-refs") orelse &.{}) |path| {
+        refs_table.loadFile(allocator, io, path) catch |err| {
+            std.process.fatal("failed to load external refs '{s}': {t}", .{ path, err });
+        };
+    }
+
     var timestamp_buf: [32]u8 = undefined;
     const generated_at = isoTimestamp(io, &timestamp_buf) catch "unknown";
 
@@ -177,6 +206,7 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         allocator,
         modules.items,
         include_private,
+        &refs_table,
         @import("builtin").zig_version_string,
         "docent-typeset-0.1.0",
         generated_at,
@@ -187,6 +217,22 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
     docent.typeset.json_emit.writeToFile(allocator, io, docs_file, output) catch |err| {
         std.process.fatal("failed to write '{s}': {t}", .{ output, err });
     };
+
+    if (ctx.stringFlag("refs-output")) |refs_output| {
+        const doc_url = ctx.stringFlag("refs-doc-url") orelse
+            std.process.fatal("--refs-output requires --refs-doc-url", .{});
+        const package_name = if (modules.items.len == 1) modules.items[0].name else "package";
+        docent.typeset.external_refs.writeRefsFile(
+            allocator,
+            io,
+            package_name,
+            doc_url,
+            docs_file.modules,
+            refs_output,
+        ) catch |err| {
+            std.process.fatal("failed to write '{s}': {t}", .{ refs_output, err });
+        };
+    }
 }
 
 fn isoTimestamp(io: std.Io, buf: []u8) ![]const u8 {
