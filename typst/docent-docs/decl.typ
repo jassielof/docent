@@ -31,9 +31,16 @@
 )
 
 /// Renders a decl (heading, signature, params/fields tables, doc comment)
-/// and recurses into `decls` for containers, incrementing the heading level
-/// each time -- this is the only nesting-aware piece of the template; the
-/// docs.json shape it walks was already fully populated in v0.1.
+/// and recurses into `decls`, always at the *same* fixed heading level --
+/// deeper Zig nesting (module -> namespace -> struct -> nested struct -> fn)
+/// does not translate into deeper Typst headings. Instead every entry's
+/// heading text is its full absolute id (e.g.
+/// `docent.scan.reach.collectReachablePublicFiles`), so hierarchy reads from
+/// the path itself rather than from heading depth/numbering, which stops
+/// scaling once real code nests more than 4-5 levels deep. Only structs and
+/// the module root ever populate `decls` in the first place (see
+/// json_emit.zig's `is_namespace_kind` check) -- enums/unions/opaques are
+/// value-shaped and always render as a single flat entry.
 ///
 /// The heading carries `#label(decl.id)`, directly adjacent with no
 /// whitespace so Typst attaches it to the heading itself. This is the
@@ -43,9 +50,11 @@
 /// into a `decls` array in the first place (see json_emit.zig's
 /// `emitChildren`), so every link target this template could receive is
 /// guaranteed to resolve.
-#let render-decl(decl, depth: 2) = [
-  #heading(level: depth)[
-    #raw(decl.name, lang: "zig")
+#let entry-level = 2
+
+#let render-decl(decl) = [
+  #heading(level: entry-level)[
+    #raw(decl.id, lang: "zig")
     #text(size: 0.7em, style: "italic")[(#decl.kind#if decl.container_kind != none [ #decl.container_kind])]
   ]#label(decl.id)
 
@@ -67,7 +76,7 @@
 
   #if decl.decls != none [
     #for child in decl.decls [
-      #render-decl(child, depth: depth + 1)
+      #render-decl(child)
     ]
   ]
 ]
