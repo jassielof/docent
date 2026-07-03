@@ -184,6 +184,14 @@ fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, expanded: *std
             };
             fields = try emitContainerFields(allocator, target_ast, node, cls.container_kind);
 
+            // Only structs and the module root act as namespaces that can
+            // hold further sub-decls; enums/unions/opaques are value-shaped
+            // -- their members are already fully captured as `fields`
+            // (tags/variants), and any `pub fn` attached directly to one is
+            // an edge case not surfaced as a flattened id in v1 (rather than
+            // silently pretending they're organizational containers).
+            const is_namespace_kind = cls.container_kind == .@"struct" or cls.container_kind == .module;
+
             // Multiple `pub const X = @import("Y.zig")` re-exports of the
             // *same* underlying file (e.g. `docent.typeset` re-exporting
             // `walker`/`json_emit`/`markdown_typst`, all of which alias the
@@ -194,9 +202,11 @@ fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, expanded: *std
             // Expand a given target's subtree only the first time it's
             // reached; later re-export sites still get their own (unique)
             // DeclNode, just without a duplicated `decls` listing.
-            const gop = try expanded.getOrPut(cls.resolved);
-            if (!gop.found_existing) {
-                decls = try emitChildren(allocator, cls.resolved, expanded);
+            if (is_namespace_kind) {
+                const gop = try expanded.getOrPut(cls.resolved);
+                if (!gop.found_existing) {
+                    decls = try emitChildren(allocator, cls.resolved, expanded);
+                }
             }
         },
         .field => unreachable, // `classify` never produces `.field`; struct/enum/union members surface as `FieldNode`, not `DeclNode`.
