@@ -85,12 +85,14 @@ pub fn build(b: *std.Build) void {
 
     docs_step.dependOn(&docs_cli.step);
 
-    // `zig build docs-pdf` walks docent's own public API surface
-    // (src/lib/root.zig, following every `pub const X = @import(...)`
-    // re-export transitively), emits docs.json, and renders it to a PDF via
-    // the local `docent-docs` Typst package. See src/lib/typeset.zig and
-    // typst/docent-docs/.
-    const docs_pdf_step = b.step("docs-pdf", "Generate PDF documentation for docent's public API via Typst");
+    // `zig build docs-pdf` discovers every module in this package (the
+    // `docent` library plus the `docent` CLI executable, via the same
+    // build.zig target discovery `docent status`/`docent check` use),
+    // follows every `pub const X = @import(...)` re-export transitively
+    // within each, emits one docs.json covering all of them, and renders it
+    // to a single PDF via the local `docent-docs` Typst package. See
+    // src/lib/typeset.zig and typst/docent-docs/.
+    const docs_pdf_step = b.step("docs-pdf", "Generate PDF documentation for docent's modules via Typst");
 
     const typeset_json_path = "zig-out/docs/typeset/docs.json";
 
@@ -98,9 +100,8 @@ pub fn build(b: *std.Build) void {
     typeset_cli.step.dependOn(b.getInstallStep());
     typeset_cli.addArgs(&.{
         "typeset",
-        "src/lib/root.zig",
-        "--module-name",
-        mod_name,
+        "--lib",
+        "--bins",
         "--output",
         typeset_json_path,
     });
