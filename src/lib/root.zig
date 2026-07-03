@@ -1,4 +1,6 @@
 //! The Docent module serves as the core library for the Docent CLI for documentation, style, and complexity checks for Zig projects.
+//!
+//! $ a = b $
 
 const std = @import("std");
 const vereda = @import("vereda");

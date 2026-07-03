@@ -18,7 +18,8 @@ pub const Buffer = struct {
     /// Number of bytes currently in use.
     len: usize = 0,
 
-    /// Appends `byte` to the buffer.
+    /// Appends `byte` to the buffer. Unlike `std.mem.Allocator`-backed
+    /// containers, this never actually allocates.
     pub fn append(self: *Buffer, byte: u8) ResizeError!void {
         if (self.len >= self.data.len) return ResizeError.TooLarge;
         self.data[self.len] = byte;

@@ -9,3 +9,4 @@ pub const schema = @import("typeset/schema.zig");
 pub const walker = @import("typeset/walker.zig");
 pub const json_emit = @import("typeset/json_emit.zig");
 pub const markdown_typst = @import("typeset/markdown_typst.zig");
+pub const external_refs = @import("typeset/external_refs.zig");

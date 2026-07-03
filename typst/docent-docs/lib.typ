@@ -24,6 +24,7 @@
 #set heading(numbering: "1.1.1")
 #set text(size: 10.5pt, font: "IBM Plex Sans")
 #show heading: set text(font: "IBM Plex Serif")
+#show raw: set text(font: "IBM Plex Mono")
 #set par(justify: true)
 
 // Inline code: shaded background, tight padding.
