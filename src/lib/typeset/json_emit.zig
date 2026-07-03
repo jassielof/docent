@@ -1,5 +1,5 @@
 //! Walks a `Decl` tree produced by `walker.zig` and emits a `schema.DocsFile`
-//! per the locked schema in `schema.zig`.
+//! per `schema.zig`.
 //!
 //! Ports the plain-Zig logic the old WASM `main.zig` computed on demand via
 //! JS-exported functions (`decl_fqn`, `decl_category_name`,
@@ -11,7 +11,7 @@
 //!   (`Walk.Category`). Aliases (`.alias`) are resolved eagerly by following
 //!   to the aliased decl for shape purposes (signature/fields/params/kind),
 //!   while `id`/`name`/`doc` stay tied to the original declaration site --
-//!   there is no `alias` `DeclKind` in the locked schema (see the planning
+//!   there is no `alias` `DeclKind` in the schema (see the planning
 //!   session's schema review).
 //! - `fields` / `params`: port of `decl_fields_fallible` / `decl_params_fallible`.
 //! - `doc` / `doc_summary`: doc-comment token range parsed once via
@@ -19,9 +19,12 @@
 //!   for `doc`, and to plain text (first paragraph only) via
 //!   `vendor/markdown/renderer.zig`'s inline-text renderer for `doc_summary`.
 //! - `source`: `std.zig.findLineColumn` against the decl's first token.
-//! - `link_targets`: left `null` for v1 -- capturing raw ids from
-//!   `Walk.File.ident_decls` is deferred to the v0.3 cross-reference
-//!   milestone, per the schema's own "unresolved/unused in v1 rendering" note.
+//! - `link_targets`: cross-reference ids resolved by `markdown_typst.zig`
+//!   while rendering `doc`; see its module doc comment.
+//! - Multiple modules: `emitPackage` builds one `DeclNode` per discovered
+//!   build target (see `Module`), matching `schema.DocsFile.modules`.
+//! - Private decls: `emitChildren` includes non-public members when
+//!   `include_private` is set (see `Ctx`), otherwise public-only.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -37,32 +40,51 @@ const walker = @import("walker.zig");
 const Walk = walker.Walk;
 const Decl = walker.Decl;
 
-/// Builds the full `schema.DocsFile` for the module rooted at `root_decl`.
-///
-/// `module_name` overrides the root node's name, since `Decl.extra_info()`
-/// reports an empty name for a file's root struct (see `vendor/Decl.zig`).
-pub fn emit(
-    allocator: std.mem.Allocator,
+/// One module to emit into a package's `docs.json`: a walked root `Decl`
+/// paired with the name it should be reported under (`Decl.extra_info()`
+/// reports an empty name for a file's root struct, see `vendor/Decl.zig`).
+pub const Module = struct {
     root_decl: Decl.Index,
-    module_name: []const u8,
+    name: []const u8,
+};
+
+/// Builds the full `schema.DocsFile` for a package's discovered modules
+/// (see `../../cli/commands/typeset.zig` for how `modules` is assembled via
+/// `status_plan.gather`). Each module gets its own `expanded`-dedup scope --
+/// see `Ctx` -- since walking two modules never shares `Decl.Index` values
+/// (each `walkModule` call registers files under its own module-name
+/// prefix), so cross-module dedup would be a no-op anyway.
+pub fn emitPackage(
+    allocator: std.mem.Allocator,
+    modules: []const Module,
+    include_private: bool,
     zig_version: []const u8,
     tool_version: []const u8,
     generated_at: []const u8,
 ) !schema.DocsFile {
-    var expanded: std.AutoHashMap(Decl.Index, void) = .init(allocator);
-    defer expanded.deinit();
+    var module_nodes: std.ArrayList(schema.DeclNode) = .empty;
+    errdefer module_nodes.deinit(allocator);
 
-    var root_node = try emitDecl(allocator, root_decl, &expanded);
-    if (root_node.name.len == 0) root_node.name = try allocator.dupe(u8, module_name);
+    for (modules) |m| {
+        var ctx: Ctx = .{
+            .expanded = .init(allocator),
+            .include_private = include_private,
+        };
+        defer ctx.expanded.deinit();
+
+        var node = try emitDecl(allocator, m.root_decl, &ctx);
+        if (node.name.len == 0) node.name = try allocator.dupe(u8, m.name);
+        try module_nodes.append(allocator, node);
+    }
 
     return .{
-        .schema_version = 1,
+        .schema_version = 2,
         .generator = .{
             .zig_version = zig_version,
             .tool_version = tool_version,
             .generated_at = generated_at,
         },
-        .root = root_node,
+        .modules = try module_nodes.toOwnedSlice(allocator),
     };
 }
 
@@ -135,7 +157,16 @@ fn containerKindOfNode(ast: *const Ast, node: Ast.Node.Index) ?schema.ContainerK
     };
 }
 
-fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, expanded: *std.AutoHashMap(Decl.Index, void)) anyerror!schema.DeclNode {
+/// Per-`emitPackage`-call scratch state threaded through `emitDecl`/`emitChildren`.
+const Ctx = struct {
+    /// Guards against re-expanding the same target's `decls` twice when
+    /// multiple re-export sites alias it (see the `.container` case below).
+    expanded: std.AutoHashMap(Decl.Index, void),
+    /// When true, `emitChildren` also emits non-public members.
+    include_private: bool,
+};
+
+fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, ctx: *Ctx) anyerror!schema.DeclNode {
     const original = decl_index.get();
     const info = original.extra_info();
 
@@ -203,9 +234,9 @@ fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, expanded: *std
             // reached; later re-export sites still get their own (unique)
             // DeclNode, just without a duplicated `decls` listing.
             if (is_namespace_kind) {
-                const gop = try expanded.getOrPut(cls.resolved);
+                const gop = try ctx.expanded.getOrPut(cls.resolved);
                 if (!gop.found_existing) {
-                    decls = try emitChildren(allocator, cls.resolved, expanded);
+                    decls = try emitChildren(allocator, cls.resolved, ctx);
                 }
             }
         },
@@ -232,21 +263,21 @@ fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, expanded: *std
     };
 }
 
-/// Emits every public direct member of the container at `container_index`.
-/// Per the schema's note, v1 only ever emits public decls.
+/// Emits every direct member of the container at `container_index`,
+/// restricted to public members unless `ctx.include_private` is set.
 fn emitChildren(
     allocator: std.mem.Allocator,
     container_index: Decl.Index,
-    expanded: *std.AutoHashMap(Decl.Index, void),
+    ctx: *Ctx,
 ) ![]const schema.DeclNode {
     var list: std.ArrayList(schema.DeclNode) = .empty;
     errdefer list.deinit(allocator);
 
     for (Walk.decls.items, 0..) |*d, i| {
         if (d.parent != container_index) continue;
-        if (!d.is_pub()) continue;
+        if (!d.is_pub() and !ctx.include_private) continue;
         const child_index: Decl.Index = @enumFromInt(i);
-        try list.append(allocator, try emitDecl(allocator, child_index, expanded));
+        try list.append(allocator, try emitDecl(allocator, child_index, ctx));
     }
 
     return try list.toOwnedSlice(allocator);

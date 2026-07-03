@@ -1,18 +1,26 @@
-//! `docs.json` schema v1 — locked, do not redesign without re-opening the
-//! planning discussion. Mirrors the TS interfaces in Appendix A exactly.
+//! `docs.json` schema — the contract between `json_emit.zig` (the writer)
+//! and the Typst template under `typst/docent-docs/` (the reader).
+//! `doc`/`doc_summary` fields hold pre-rendered Typst markup, not Markdown —
+//! conversion happens in `markdown_typst.zig` at emit time, not at
+//! Typst-compile time.
 //!
-//! These types are the contract between `json_emit.zig` (the writer) and the
-//! Typst template under `typst/docent-docs/` (the reader). `doc`/`doc_summary`
-//! fields hold pre-rendered Typst markup, not Markdown — conversion happens
-//! in `markdown_typst.zig` at emit time, not at Typst-compile time.
+//! Package-level (multiple modules per `docs.json`): a Zig package can
+//! define several build targets -- typically one public library module plus
+//! one or more (often private) executable/test modules -- so `DocsFile`
+//! holds a `modules` array rather than a single `root`, one `DeclNode` per
+//! discovered target (see `../../cli/commands/typeset.zig`, which reuses
+//! `status_plan.gather` for target discovery, the same machinery
+//! `docent status`/`docent check` already use).
 
 const std = @import("std");
 
 /// Top-level `docs.json` document.
 pub const DocsFile = struct {
-    schema_version: u32 = 1,
+    schema_version: u32 = 2,
     generator: Generator,
-    root: DeclNode,
+    /// One entry per documented build target (library/executable/test
+    /// module), in discovery order.
+    modules: []const DeclNode,
 };
 
 pub const Generator = struct {
