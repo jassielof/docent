@@ -10,12 +10,6 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "Format Zig source code",
     });
 
-    // TODO: Standard input might be removed, if there's no real usage outside of testing.
-    try fmt_cmd.addFlag(bool, .{
-        .name = "stdin",
-        .brief = "Format code from stdin; output to stdout",
-    });
-
     try fmt_cmd.addFlag(bool, .{
         .name = "check",
         .brief = "List non-conforming files and exit with an error if the list is non-empty",
@@ -27,12 +21,6 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "Output format for --check mode",
         .default = .pretty,
         .value_hint = "FORMAT",
-    });
-
-    // TODO: Similar to the stdin TODO, if there's no real usage outside of testing, this might be removed. In both cases, if there's testing usage, then keep it just for testing.
-    try fmt_cmd.addFlag(bool, .{
-        .name = "ast-check",
-        .brief = "Run zig ast-check on every file",
     });
 
     try fmt_cmd.addFlag([]const []const u8, .{
@@ -47,22 +35,11 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "Treat all input files as ZON, regardless of file extension",
     });
 
-    // TODO: Color will always be enabled, there's no reason to not want color, if someone wants to disable it, their terminal will do so.
-    try fmt_cmd.addFlag(std.zig.Color, .{
-        .name = "color",
-        .brief = "Enable or disable colored error messages",
-        .default = .auto,
-        .value_hint = "WHEN",
-    });
-
-    // TODO: Rename to paths instead of files, as paths can be files or directories.
     try fmt_cmd.addPositional(.{
-        .name = "files",
+        .name = "paths",
         .brief = "Files or directories to format",
         .variadic = true,
     });
-
-    // fmt_cmd.setHooks(.{ .run = &runFmt });
 
     fmt_cmd.hooks.run = &runFmt;
 }
@@ -71,35 +48,23 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
     const gpa = ctx.allocator;
     const io = ctx.io;
 
-    const stdin_flag = ctx.boolFlag("stdin") orelse false;
     const check_flag = ctx.boolFlag("check") orelse false;
     const check_format = ctx.enumFlag(Fmt.CheckFormat, "format") orelse .pretty;
-    const ast_check_flag = ctx.boolFlag("ast-check") orelse false;
     const zon_flag = ctx.boolFlag("zon") orelse false;
-    const color = ctx.enumFlag(std.zig.Color, "color") orelse .auto;
     const excluded_files = ctx.stringListFlag("exclude") orelse &.{};
-    const input_files = ctx.positionals.items;
+    const input_paths = ctx.positionals.items;
+
+    if (input_paths.len == 0) {
+        std.process.fatal("expected at least one file or directory argument", .{});
+    }
 
     const opts: Fmt.Options = .{
         .check = check_flag,
         .check_format = check_format,
-        .ast_check = ast_check_flag,
         .zon = zon_flag,
-        .color = color,
     };
 
     const config = Fmt.loadConfig(gpa, io);
-
-    if (stdin_flag) {
-        if (input_files.len != 0) {
-            std.process.fatal("cannot use --stdin with positional arguments", .{});
-        }
-        return Fmt.formatStdin(gpa, io, opts, config);
-    }
-
-    if (input_files.len == 0) {
-        std.process.fatal("expected at least one file or directory argument", .{});
-    }
 
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buffer);
@@ -107,5 +72,5 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
     var formatter = Fmt.init(gpa, io, &stdout_writer, opts, config);
     defer formatter.deinit();
 
-    try formatter.formatPaths(input_files, excluded_files);
+    try formatter.formatPaths(input_paths, excluded_files);
 }
