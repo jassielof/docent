@@ -8,6 +8,12 @@
 // two further heading levels regardless of true nesting depth -- see
 // decl.typ's module doc comment.
 //
+// `docs.appendix` (populated via `--deps`) holds bundled `.path`
+// dependencies, rendered after `modules` under an "Appendix" divider using
+// the same `render-namespace` -- everything shares one Typst compilation,
+// so a reference from a primary module into an appendix dependency (or vice
+// versa) resolves as an ordinary internal link, not an external URL.
+//
 // Cross-reference links are baked into `doc` markup by json_emit.zig /
 // markdown_typst.zig as `#link(label("..."))`, which resolves against the
 // `#label(decl.id)` decl.typ attaches to every rendered heading.
@@ -62,4 +68,14 @@
 
 #for module in docs.modules [
   #render-namespace(module, level: 1)
+]
+
+#if docs.appendix.len() > 0 [
+  #pagebreak(weak: true)
+  #heading(level: 1, numbering: none, outlined: true)[Appendix: Bundled Dependencies]
+  #v(1em)
+
+  #for module in docs.appendix [
+    #render-namespace(module, level: 1)
+  ]
 ]

@@ -111,6 +111,12 @@ pub fn register(root: *fangz.Command) !void {
         .value_hint = "URL",
     });
 
+    try typeset_cmd.addFlag(bool, .{
+        .name = "bundle-std",
+        .brief = "Bundle referenced std.* declarations into the appendix instead of linking to ziglang.org (requires `zig` on PATH)",
+        .default = false,
+    });
+
     typeset_cmd.hooks.run = &run;
 }
 
@@ -129,6 +135,7 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
     const include_private = ctx.boolFlag("include-private") orelse false;
 
     var modules: std.ArrayList(docent.typeset.json_emit.Module) = .empty;
+    var appendix: std.ArrayList(docent.typeset.json_emit.Module) = .empty;
 
     if (paths.len > 0) {
         const module_name_flag = ctx.stringFlag("module-name") orelse "";
@@ -186,6 +193,43 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
             };
             try modules.append(allocator, .{ .root_decl = root_decl, .name = name });
         }
+
+        // `--deps`: bundle each `.path` build.zig.zon dependency as an
+        // appendix module in this *same* docs.json/PDF, rather than linking
+        // out to it -- see path_deps.zig's module doc comment for why this
+        // is restricted to `.path` (vendored) dependencies.
+        if ((ctx.boolFlag("deps") orelse false) and plan.package.manifest_path != null) {
+            var deps = docent.typeset.path_deps.discover(allocator, io, plan.package.manifest_path.?) catch |err| {
+                std.process.fatal("failed to read dependencies from '{s}': {t}", .{ plan.package.manifest_path.?, err });
+            };
+            defer docent.typeset.path_deps.deinitEntries(allocator, &deps);
+
+            for (deps.items) |dep| {
+                const root = docent.typeset.path_deps.findRootModule(allocator, io, dep.root_dir) catch |err| {
+                    std.process.fatal("failed to inspect dependency '{s}': {t}", .{ dep.name, err });
+                } orelse {
+                    var stderr_buf: [256]u8 = undefined;
+                    var stderr = std.Io.File.stderr().writer(io, &stderr_buf);
+                    stderr.interface.print(
+                        "warning: skipping dependency '{s}': no root.zig-style module root found under '{s}'\n",
+                        .{ dep.name, dep.root_dir },
+                    ) catch {};
+                    stderr.interface.flush() catch {};
+                    continue;
+                };
+
+                const name = if (used_names.contains(dep.name))
+                    try std.fmt.allocPrint(allocator, "{s}-dep", .{dep.name})
+                else
+                    try allocator.dupe(u8, dep.name);
+                try used_names.put(name, {});
+
+                const root_decl = docent.typeset.walker.walkModule(allocator, io, root, name) catch |err| {
+                    std.process.fatal("failed to walk dependency '{s}' ({s}): {t}", .{ dep.name, root, err });
+                };
+                try appendix.append(allocator, .{ .root_decl = root_decl, .name = name });
+            }
+        }
     }
 
     if (modules.items.len == 0) {
@@ -199,14 +243,29 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         };
     }
 
+    var std_collector: ?docent.typeset.std_bundle.Collector = null;
+    if (ctx.boolFlag("bundle-std") orelse false) {
+        if (docent.typeset.std_bundle.discover(allocator, io)) |root| {
+            std_collector = .{ .root = root };
+        } else {
+            var stderr_buf: [256]u8 = undefined;
+            var stderr = std.Io.File.stderr().writer(io, &stderr_buf);
+            stderr.interface.print("warning: --bundle-std requires `zig` on PATH; falling back to ziglang.org links\n", .{}) catch {};
+            stderr.interface.flush() catch {};
+        }
+    }
+
     var timestamp_buf: [32]u8 = undefined;
     const generated_at = isoTimestamp(io, &timestamp_buf) catch "unknown";
 
     const docs_file = docent.typeset.json_emit.emitPackage(
         allocator,
+        io,
         modules.items,
+        appendix.items,
         include_private,
         &refs_table,
+        if (std_collector) |*c| c else null,
         @import("builtin").zig_version_string,
         "docent-typeset-0.1.0",
         generated_at,

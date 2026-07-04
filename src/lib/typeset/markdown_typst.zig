@@ -33,11 +33,16 @@
 //!    because only public decls get a rendered heading (and thus a label)
 //!    in `typst/docent-docs/decl.typ`; linking to a private target would
 //!    produce an unresolved-label compile error in Typst.
-//! 2. `std.*` paths -> an external link straight to
+//! 2. `std.*` paths, when `--bundle-std` gave a `std_bundle.Collector`:
+//!    resolved and walked locally (see `std_bundle.zig`'s module doc
+//!    comment for the file-resolution heuristic and its explosion-bounding
+//!    rule) -> `#link(label("<fqn>"))[...]`, an internal jump into the
+//!    appendix, same as tier 1. Without `--bundle-std`, falls through to:
+//! 3. `std.*` paths -> an external link straight to
 //!    `https://ziglang.org/documentation/{version}/std/#<path>`, no lookup
 //!    needed. See `external_refs.zig`'s module doc comment for why this
-//!    isn't a local walk of the stdlib.
-//! 3. `external_refs` table: an exact-match id from a dependency's own
+//!    isn't a local walk of the stdlib by default.
+//! 4. `external_refs` table: an exact-match id from a dependency's own
 //!    published sidecar (`--external-refs`, see `external_refs.zig`) -> an
 //!    external link to that dependency's whole doc URL (not a specific
 //!    anchor within it -- see `external_refs.zig` for why).
@@ -54,6 +59,7 @@ const Document = markdown.Document;
 const walker = @import("walker.zig");
 const Decl = walker.Decl;
 const external_refs = @import("external_refs.zig");
+const std_bundle = @import("std_bundle.zig");
 
 const RenderError = Writer.Error || std.mem.Allocator.Error;
 
@@ -66,14 +72,19 @@ pub const Result = struct {
 
 /// Renders `doc` to Typst markup, resolving code-span cross-references
 /// relative to `origin` (the decl whose doc comment `doc` came from).
-/// `zig_version` drives `std.*` link URLs; `refs` (optional) resolves
-/// dependency ids published via `--external-refs`.
+/// `zig_version` drives the fallback `std.*` link URL; `refs` (optional)
+/// resolves dependency ids published via `--external-refs`; `std_collector`
+/// (optional, only set for `--bundle-std` and only on the `Ctx` used for
+/// primary/deps content -- see `std_bundle.zig`'s bounding rule) resolves
+/// `std.*` paths to a local bundle instead of that fallback URL.
 pub fn renderToTypst(
     allocator: std.mem.Allocator,
+    io: std.Io,
     doc: Document,
     origin: Decl.Index,
     zig_version: []const u8,
     refs: ?*const external_refs.Table,
+    std_collector: ?*std_bundle.Collector,
 ) !Result {
     var out: std.ArrayList(u8) = .empty;
     errdefer out.deinit(allocator);
@@ -84,10 +95,12 @@ pub fn renderToTypst(
     var allocating = Writer.Allocating.fromArrayList(allocator, &out);
     var renderer: Renderer = .{
         .allocator = allocator,
+        .io = io,
         .origin = origin,
         .link_targets = &link_targets,
         .zig_version = zig_version,
         .refs = refs,
+        .std_collector = std_collector,
     };
     try renderer.renderNode(doc, .root, &allocating.writer);
     out = allocating.toArrayList();
@@ -100,10 +113,12 @@ pub fn renderToTypst(
 
 const Renderer = struct {
     allocator: std.mem.Allocator,
+    io: std.Io,
     origin: Decl.Index,
     link_targets: *std.ArrayList([]const u8),
     zig_version: []const u8,
     refs: ?*const external_refs.Table,
+    std_collector: ?*std_bundle.Collector,
 
     fn renderNode(self: *Renderer, doc: Document, node: Document.Node.Index, writer: *Writer) RenderError!void {
         const data = doc.nodes.items(.data)[@intFromEnum(node)];
@@ -204,34 +219,34 @@ const Renderer = struct {
     fn renderCodeSpan(self: *Renderer, content: []const u8, writer: *Writer) RenderError!void {
         if (resolveDeclPath(self.origin, content)) |target| {
             if (target.get().is_pub()) {
-                var fqn_buf: std.ArrayList(u8) = .empty;
-                defer fqn_buf.deinit(std.heap.page_allocator);
-                try target.get().fqn(&fqn_buf);
-                const fqn = try self.allocator.dupe(u8, fqn_buf.items);
-                try self.link_targets.append(self.allocator, fqn);
-
-                try writer.writeAll("#link(label(\"");
-                try writeEscapedString(fqn, writer);
-                try writer.writeAll("\"))[`");
-                try writer.writeAll(content);
-                try writer.writeAll("`]");
+                try self.writeInternalLink(target, content, writer);
                 return;
             }
         }
 
         if (looksLikeDottedPath(content)) {
             if (isStdPath(content)) {
-                const url = try std.fmt.allocPrint(
-                    self.allocator,
-                    "https://ziglang.org/documentation/{s}/std/#{s}",
-                    .{ self.zig_version, content },
-                );
-                try self.link_targets.append(self.allocator, content);
-                try writeExternalLink(url, content, writer);
-                return;
-            }
-
-            if (self.refs) |table| {
+                if (self.std_collector) |collector| {
+                    if (collector.resolve(self.allocator, self.io, content) catch null) |target| {
+                        try self.writeInternalLink(target, content, writer);
+                        return;
+                    }
+                    // Unresolvable even with local bundling on: per the
+                    // design discussion, this falls back to plain text, not
+                    // the ziglang.org URL -- `--bundle-std` means "no
+                    // external links for std", not "external links when
+                    // bundling happens to miss."
+                } else {
+                    const url = try std.fmt.allocPrint(
+                        self.allocator,
+                        "https://ziglang.org/documentation/{s}/std/#{s}",
+                        .{ self.zig_version, content },
+                    );
+                    try self.link_targets.append(self.allocator, content);
+                    try writeExternalLink(url, content, writer);
+                    return;
+                }
+            } else if (self.refs) |table| {
                 if (table.get(content)) |url| {
                     try self.link_targets.append(self.allocator, content);
                     try writeExternalLink(url, content, writer);
@@ -243,6 +258,22 @@ const Renderer = struct {
         try writer.writeByte('`');
         try writer.writeAll(content);
         try writer.writeByte('`');
+    }
+
+    /// Writes an internal same-document link to `target`'s label, used for
+    /// both same-module resolution and `--bundle-std` hits.
+    fn writeInternalLink(self: *Renderer, target: Decl.Index, content: []const u8, writer: *Writer) RenderError!void {
+        var fqn_buf: std.ArrayList(u8) = .empty;
+        defer fqn_buf.deinit(std.heap.page_allocator);
+        try target.get().fqn(&fqn_buf);
+        const fqn = try self.allocator.dupe(u8, fqn_buf.items);
+        try self.link_targets.append(self.allocator, fqn);
+
+        try writer.writeAll("#link(label(\"");
+        try writeEscapedString(fqn, writer);
+        try writer.writeAll("\"))[`");
+        try writer.writeAll(content);
+        try writer.writeAll("`]");
     }
 
     /// Renders a `list_item`'s block children, collapsing a tight list's sole
