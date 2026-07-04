@@ -11,6 +11,13 @@
 //! discovered target (see `../../cli/commands/typeset.zig`, which reuses
 //! `status_plan.gather` for target discovery, the same machinery
 //! `docent status`/`docent check` already use).
+//!
+//! `appendix`: `.path` build.zig.zon dependencies (`--deps`), bundled into
+//! the *same* docs.json/PDF rather than linked externally -- see
+//! `../../lib/typeset/path_deps.zig`. Since everything shares one `Walk`
+//! process, cross-references between `modules` and `appendix` (or between
+//! appendix entries) resolve as ordinary internal links, exactly like
+//! same-package modules already do.
 
 const std = @import("std");
 
@@ -21,6 +28,9 @@ pub const DocsFile = struct {
     /// One entry per documented build target (library/executable/test
     /// module), in discovery order.
     modules: []const DeclNode,
+    /// One entry per bundled `.path` dependency (see `--deps`), rendered
+    /// after `modules` under an "Appendix" heading. Empty unless `--deps`.
+    appendix: []const DeclNode = &.{},
 };
 
 pub const Generator = struct {

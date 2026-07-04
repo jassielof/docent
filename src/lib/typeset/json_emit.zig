@@ -35,6 +35,7 @@ const markdown = @import("vendor/markdown.zig");
 const markdown_renderer = @import("vendor/markdown/renderer.zig");
 const markdown_typst = @import("markdown_typst.zig");
 const external_refs = @import("external_refs.zig");
+const std_bundle = @import("std_bundle.zig");
 const schema = @import("schema.zig");
 const walker = @import("walker.zig");
 
@@ -49,36 +50,55 @@ pub const Module = struct {
     name: []const u8,
 };
 
-/// Builds the full `schema.DocsFile` for a package's discovered modules
-/// (see `../../cli/commands/typeset.zig` for how `modules` is assembled via
-/// `status_plan.gather`). Each module gets its own `expanded`-dedup scope --
-/// see `Ctx` -- since walking two modules never shares `Decl.Index` values
-/// (each `walkModule` call registers files under its own module-name
-/// prefix), so cross-module dedup would be a no-op anyway.
+/// Builds the full `schema.DocsFile` for a package's discovered modules and
+/// bundled `.path` dependencies (see `../../cli/commands/typeset.zig` for
+/// how `modules`/`appendix` are assembled via `status_plan.gather` and
+/// `path_deps.zig`). Each module gets its own `expanded`-dedup scope -- see
+/// `Ctx` -- since walking two modules never shares `Decl.Index` values (each
+/// `walkModule` call registers files under its own module-name prefix), so
+/// cross-module dedup would be a no-op anyway.
 pub fn emitPackage(
     allocator: std.mem.Allocator,
+    io: std.Io,
     modules: []const Module,
+    appendix: []const Module,
     include_private: bool,
     external_refs_table: ?*const external_refs.Table,
+    std_collector: ?*std_bundle.Collector,
     zig_version: []const u8,
     tool_version: []const u8,
     generated_at: []const u8,
 ) !schema.DocsFile {
-    var module_nodes: std.ArrayList(schema.DeclNode) = .empty;
-    errdefer module_nodes.deinit(allocator);
+    const module_nodes = try emitModuleList(allocator, io, modules, include_private, external_refs_table, std_collector, zig_version);
 
-    for (modules) |m| {
-        var ctx: Ctx = .{
-            .expanded = .init(allocator),
-            .include_private = include_private,
-            .zig_version = zig_version,
-            .refs = external_refs_table,
-        };
-        defer ctx.expanded.deinit();
+    var appendix_nodes: std.ArrayList(schema.DeclNode) = .empty;
+    errdefer appendix_nodes.deinit(allocator);
+    try appendix_nodes.appendSlice(
+        allocator,
+        try emitModuleList(allocator, io, appendix, include_private, external_refs_table, std_collector, zig_version),
+    );
 
-        var node = try emitDecl(allocator, m.root_decl, &ctx);
-        if (node.name.len == 0) node.name = try allocator.dupe(u8, m.name);
-        try module_nodes.append(allocator, node);
+    // Drain `std.*` references discovered while emitting `modules`/`appendix`
+    // above (see `std_bundle.zig`). Uses a `std_bundle`-less `Ctx` for each
+    // one's own emission, so a std file's own doc comments can't trigger a
+    // second hop -- see std_bundle.zig's module doc comment for why that's
+    // the one rule that keeps this bounded.
+    if (std_collector) |collector| {
+        for (collector.pending.items) |p| {
+            var ctx: Ctx = .{
+                .expanded = .init(allocator),
+                .include_private = false,
+                .zig_version = zig_version,
+                .refs = null,
+                .std_bundle = null,
+                .io = io,
+            };
+            defer ctx.expanded.deinit();
+
+            var node = try emitDecl(allocator, p.root_decl, &ctx);
+            if (node.name.len == 0) node.name = try allocator.dupe(u8, p.name);
+            try appendix_nodes.append(allocator, node);
+        }
     }
 
     return .{
@@ -88,8 +108,40 @@ pub fn emitPackage(
             .tool_version = tool_version,
             .generated_at = generated_at,
         },
-        .modules = try module_nodes.toOwnedSlice(allocator),
+        .modules = module_nodes,
+        .appendix = try appendix_nodes.toOwnedSlice(allocator),
     };
+}
+
+fn emitModuleList(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    modules: []const Module,
+    include_private: bool,
+    external_refs_table: ?*const external_refs.Table,
+    std_collector: ?*std_bundle.Collector,
+    zig_version: []const u8,
+) ![]const schema.DeclNode {
+    var nodes: std.ArrayList(schema.DeclNode) = .empty;
+    errdefer nodes.deinit(allocator);
+
+    for (modules) |m| {
+        var ctx: Ctx = .{
+            .expanded = .init(allocator),
+            .include_private = include_private,
+            .zig_version = zig_version,
+            .refs = external_refs_table,
+            .std_bundle = std_collector,
+            .io = io,
+        };
+        defer ctx.expanded.deinit();
+
+        var node = try emitDecl(allocator, m.root_decl, &ctx);
+        if (node.name.len == 0) node.name = try allocator.dupe(u8, m.name);
+        try nodes.append(allocator, node);
+    }
+
+    return try nodes.toOwnedSlice(allocator);
 }
 
 /// Serializes `docs_file` as pretty-printed JSON to `output_path`, creating
@@ -168,11 +220,19 @@ const Ctx = struct {
     expanded: std.AutoHashMap(Decl.Index, void),
     /// When true, `emitChildren` also emits non-public members.
     include_private: bool,
-    /// Drives `std.*` cross-reference link URLs; see `markdown_typst.zig`.
+    /// Drives the fallback `std.*` link URL when `std_bundle` is null; see
+    /// `markdown_typst.zig`.
     zig_version: []const u8,
     /// Loaded `--external-refs` sidecars, consulted by `markdown_typst.zig`
     /// for dependency cross-references. Null when none were given.
     refs: ?*const external_refs.Table,
+    /// `--bundle-std`'s collector, consulted by `markdown_typst.zig` to
+    /// resolve `std.*` locally instead of linking to ziglang.org. Left
+    /// `null` on the `Ctx` used to emit a std-bundled entry's own subtree
+    /// (see `emitPackage`'s draining loop) -- that's the structural
+    /// enforcement of `std_bundle.zig`'s "only one hop" rule.
+    std_bundle: ?*std_bundle.Collector,
+    io: std.Io,
 };
 
 fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, ctx: *Ctx) anyerror!schema.DeclNode {
@@ -471,7 +531,7 @@ fn renderDocComment(
     var doc = try parser.endInput();
     defer doc.deinit(allocator);
 
-    const render_result = try markdown_typst.renderToTypst(allocator, doc, origin, ctx.zig_version, ctx.refs);
+    const render_result = try markdown_typst.renderToTypst(allocator, ctx.io, doc, origin, ctx.zig_version, ctx.refs, ctx.std_bundle);
     defer allocator.free(render_result.markup);
     const rendered = try allocator.dupe(u8, std.mem.trimEnd(u8, render_result.markup, " \t\r\n"));
     const summary = try firstParagraphPlainText(allocator, doc);
