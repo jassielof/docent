@@ -4,7 +4,42 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-// TODO: The convertToAllman function, while it works fine, it shouldn't be hardcoded to just convert from K&R to Allman. As eventually, there could be requests for other brace styles.
+/// Target brace placement style. Zig's own AST renderer (`tree.render()`)
+/// always emits K&R, so every style here describes a post-processing
+/// transform *from* that canonical output -- `.k_r` is the identity case,
+/// needing no rewrite. Adding a new style (e.g. Whitesmiths, Stroustrup)
+/// means adding a variant here and a branch in `convert`; callers never
+/// hardcode a specific style by name (see `Fmt.zig`'s `applyPostProcessing`,
+/// which just calls `convert(gpa, current, config.brace_style)`).
+pub const Style = enum {
+    k_r,
+    allman,
+
+    /// Config / diagnostic label for this style.
+    pub fn label(self: Style) []const u8 {
+        return switch (self) {
+            .k_r => "K&R",
+            .allman => "Allman",
+        };
+    }
+
+    /// Parses TOML / schema spellings (`k_r`, `k&r`, `allman`).
+    pub fn fromConfigString(text: []const u8) ?Style {
+        if (mem.eql(u8, text, "k_r") or mem.eql(u8, text, "k&r")) return .k_r;
+        if (mem.eql(u8, text, "allman")) return .allman;
+        return null;
+    }
+};
+
+/// Converts Zig's rendered (K&R) output to `style`. Caller owns the
+/// returned slice.
+pub fn convert(gpa: Allocator, input: []const u8, style: Style) Allocator.Error![]u8 {
+    return switch (style) {
+        .k_r => gpa.dupe(u8, input),
+        .allman => convertToAllman(gpa, input),
+    };
+}
+
 /// Converts K&R brace style to Allman style by post-processing rendered output.
 ///
 /// Moves opening braces to their own line and separates `} else`/`} catch` clauses onto individual lines. Struct/tuple literals (`.{`) and empty blocks (`{}`) are left unchanged.

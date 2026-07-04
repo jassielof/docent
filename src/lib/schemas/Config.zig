@@ -15,6 +15,7 @@ const doc_rules = @import("../rules/doc.zig");
 const style_rules = @import("../rules/style.zig");
 const complexity_rules = @import("../rules/complexity.zig");
 const naming_case = @import("../naming_case.zig");
+const brace_style = @import("../Fmt/brace_style.zig");
 
 pub const Error = rule_decode.Error;
 
@@ -35,16 +36,12 @@ pub const Fmt = struct {
     sort_imports: bool = true,
     indent_width: u8 = 4,
 
-    pub const BraceStyle = enum {
-        k_r,
-        allman,
-
-        pub fn fromConfigString(text: []const u8) ?BraceStyle {
-            if (std.mem.eql(u8, text, "k_r") or std.mem.eql(u8, text, "k&r")) return .k_r;
-            if (std.mem.eql(u8, text, "allman")) return .allman;
-            return null;
-        }
-    };
+    /// The brace style enum and its `fromConfigString` live in
+    /// `Fmt/brace_style.zig`, next to the transform logic that consumes it
+    /// (same convention as `naming_case.Style`) -- kept as `BraceStyle` here
+    /// for backward compatibility with existing `Config.Fmt.BraceStyle` /
+    /// `Fmt.BraceStyle` references.
+    pub const BraceStyle = brace_style.Style;
 };
 
 /// Parses TOML config text into the dynamic value tree.
