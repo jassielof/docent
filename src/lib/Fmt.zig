@@ -7,8 +7,7 @@
 //! - [Zig's main formatting implementation](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/fmt.zig)
 
 // TODO: Add an option to auto-wrap (or max line length). Needs research.
-// TODO: Add an option to configure indent type (by default spaces, but to allow tabs as well to be configured).
-// TODO: Add an option to do grid alignment (like for struct fields, or function parameters, etc), similar to Go formatter. Needs research.
+// TODO: Add an option to do grid alignment (like for struct fields, or function parameters, etc), similar to Go formatter. Needs research. This can't be enabled by default as Zig fmt will not respect grid alignment, it'll just flush everything to the left.
 
 const std = @import("std");
 const Io = std.Io;
@@ -24,6 +23,7 @@ const SchemaConfig = @import("schemas/Config.zig");
 
 pub const Config = SchemaConfig.Fmt;
 pub const BraceStyle = Config.BraceStyle;
+pub const IndentStyle = Config.IndentStyle;
 
 pub const CheckFormat = enum { pretty, minimal };
 
@@ -384,8 +384,8 @@ fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Alloca
         current_allocated = true;
     }
 
-    if (config.indent_width != 4) {
-        const result = try reindent(gpa, current, config.indent_width);
+    if (config.indent_style != .space or config.indent_width != 4) {
+        const result = try reindent(gpa, current, config.indent_style, config.indent_width);
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;

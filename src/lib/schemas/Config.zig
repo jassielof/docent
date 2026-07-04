@@ -16,6 +16,7 @@ const style_rules = @import("../rules/style.zig");
 const complexity_rules = @import("../rules/complexity.zig");
 const naming_case = @import("../naming_case.zig");
 const brace_style = @import("../Fmt/brace_style.zig");
+const indent_width = @import("../Fmt/indent_width.zig");
 
 pub const Error = rule_decode.Error;
 
@@ -34,6 +35,7 @@ pub const Fmt = struct {
     trailing_comma: bool = true,
     logical_blank_lines: bool = true,
     sort_imports: bool = true,
+    indent_style: IndentStyle = .space,
     indent_width: u8 = 4,
 
     /// The brace style enum and its `fromConfigString` live in
@@ -42,6 +44,10 @@ pub const Fmt = struct {
     /// for backward compatibility with existing `Config.Fmt.BraceStyle` /
     /// `Fmt.BraceStyle` references.
     pub const BraceStyle = brace_style.Style;
+
+    /// See `BraceStyle` above -- same convention, owned by
+    /// `Fmt/indent_width.zig`.
+    pub const IndentStyle = indent_width.Style;
 };
 
 /// Parses TOML config text into the dynamic value tree.
@@ -139,6 +145,10 @@ fn decodeFmt(value: toml.DynamicValue, out: *Fmt) Error!void {
             .boolean => |b| b,
             else => return error.ConfigParseFailed,
         };
+    }
+    if (table.get("indent_style")) |v| {
+        const text = v.stringSlice() orelse return error.ConfigParseFailed;
+        out.indent_style = Fmt.IndentStyle.fromConfigString(text) orelse return error.ConfigParseFailed;
     }
     if (table.get("indent_width")) |v| {
         const n = switch (v) {

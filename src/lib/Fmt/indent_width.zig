@@ -1,22 +1,51 @@
-//! The indent_width namespace contains the logic to re-indent source code to a different width.
+//! The indent_width namespace contains the logic to re-indent source code to a different width or character.
 
 const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-/// Re-indents source from the standard 4-space width to the target width.
+/// Leading-whitespace character used per indentation level. Zig's own AST
+/// renderer (`tree.render()`) always emits 4-space indentation, so `.space`
+/// at width 4 is the identity case (see `reindent`).
+pub const Style = enum {
+    space,
+    tab,
+
+    /// Config / diagnostic label for this style.
+    pub fn label(self: Style) []const u8 {
+        return switch (self) {
+            .space => "space",
+            .tab => "tab",
+        };
+    }
+
+    /// Parses TOML / schema spellings (`space`, `tab`).
+    pub fn fromConfigString(text: []const u8) ?Style {
+        if (mem.eql(u8, text, "space")) return .space;
+        if (mem.eql(u8, text, "tab")) return .tab;
+        return null;
+    }
+};
+
+/// Re-indents source from the standard 4-space width to `style`/`width`.
 ///
-/// Only leading whitespace is affected. Each group of 4 consecutive leading spaces is replaced with `target_width` spaces. Partial groups (trailing spaces that don't complete a full indent level) are preserved as-is.
-pub fn reindent(gpa: Allocator, input: []const u8, target_width: u8) Allocator.Error![]u8 {
-    std.debug.assert(target_width > 0);
-    if (target_width == 4) {
+/// Only leading whitespace is affected. Each group of 4 consecutive leading
+/// spaces (one indent level) becomes either `width` spaces or a single tab,
+/// depending on `style`. `width` is ignored when `style == .tab` -- a tab
+/// has no meaningful "width" in the emitted bytes, only in how a reader's
+/// editor chooses to display it. A partial group (leftover spaces that
+/// don't complete a full indent level) can't be represented as a fractional
+/// tab, so it's always preserved as plain spaces, regardless of `style`.
+pub fn reindent(gpa: Allocator, input: []const u8, style: Style, width: u8) Allocator.Error![]u8 {
+    std.debug.assert(width > 0);
+    if (style == .space and width == 4) {
         return gpa.dupe(u8, input);
     }
 
     var output: std.ArrayList(u8) = .empty;
     errdefer output.deinit(gpa);
 
-    const estimate: usize = if (target_width > 4)
+    const estimate: usize = if (style == .space and width > 4)
         input.len + input.len / 4
     else
         input.len;
@@ -34,9 +63,14 @@ pub fn reindent(gpa: Allocator, input: []const u8, target_width: u8) Allocator.E
 
         var i: usize = 0;
         while (i < levels) : (i += 1) {
-            var j: u8 = 0;
-            while (j < target_width) : (j += 1) {
-                try output.append(gpa, ' ');
+            switch (style) {
+                .space => {
+                    var j: u8 = 0;
+                    while (j < width) : (j += 1) {
+                        try output.append(gpa, ' ');
+                    }
+                },
+                .tab => try output.append(gpa, '\t'),
             }
         }
 

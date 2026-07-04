@@ -66,7 +66,16 @@ test "indent width 2" {
     const gpa = std.testing.allocator;
     const input = @embedFile("fixtures/fmt/input/indent_width.zig");
     const expected = @embedFile("fixtures/fmt/expected/indent_width_2.zig");
-    const result = try Fmt.reindent(gpa, input, 2);
+    const result = try Fmt.reindent(gpa, input, .space, 2);
+    defer gpa.free(result);
+    try std.testing.expectEqualStrings(expected, result);
+}
+
+test "indent style tabs" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/fmt/input/indent_width.zig");
+    const expected = @embedFile("fixtures/fmt/expected/indent_width_tabs.zig");
+    const result = try Fmt.reindent(gpa, input, .tab, 4);
     defer gpa.free(result);
     try std.testing.expectEqualStrings(expected, result);
 }
