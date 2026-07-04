@@ -94,12 +94,17 @@ properties:
           Sort the leading top-level import block by const identifier, regrouped into
           std/builtin, dependencies, and local (relative paths and root) categories.
           Import aliases are placed beneath the import they derive from.
+      indent_style:
+        type: "string"
+        enum: ["space", "tab"]
+        default: "space"
+        description: "Leading-whitespace character per indentation level. tab ignores indent_width -- each level becomes a single tab."
       indent_width:
         type: "integer"
         minimum: 1
         maximum: 16
         default: 4
-        description: "Number of spaces per indentation level. The Zig standard is 4."
+        description: "Number of spaces per indentation level when indent_style is space. The Zig standard is 4."
 
   complexity:
     type: "object"
