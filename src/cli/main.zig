@@ -6,7 +6,6 @@ const check_command = @import("commands/check.zig");
 const fmt = @import("commands/fmt.zig");
 const init_command = @import("commands/init.zig");
 const status_command = @import("commands/status.zig");
-const typeset_command = @import("commands/typeset.zig");
 const types = @import("types.zig");
 
 pub const rule_config = @import("rule_config.zig");
@@ -36,7 +35,6 @@ pub fn main(init: std.process.Init) !void {
     try init_command.register(root);
     try check_command.register(root);
     try fmt.register(root);
-    try typeset_command.register(root);
 
     try app.executeProcess(init.minimal.args);
 }
