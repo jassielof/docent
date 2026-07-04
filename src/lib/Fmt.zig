@@ -370,8 +370,8 @@ fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Alloca
         current_allocated = true;
     }
 
-    if (config.brace_style == .allman) {
-        const result = try convertToAllman(gpa, current);
+    if (config.brace_style != .k_r) {
+        const result = try brace_style.convert(gpa, current, config.brace_style);
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;

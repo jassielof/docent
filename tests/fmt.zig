@@ -11,6 +11,21 @@ test "allman brace style" {
     try std.testing.expectEqualStrings(expected, result);
 }
 
+test "brace_style.convert dispatches by style" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/fmt/input/allman.zig");
+
+    const k_r_result = try Fmt.brace_style.convert(gpa, input, .k_r);
+    defer gpa.free(k_r_result);
+    try std.testing.expectEqualStrings(input, k_r_result);
+
+    const allman_result = try Fmt.brace_style.convert(gpa, input, .allman);
+    defer gpa.free(allman_result);
+    const expected_allman = try Fmt.convertToAllman(gpa, input);
+    defer gpa.free(expected_allman);
+    try std.testing.expectEqualStrings(expected_allman, allman_result);
+}
+
 test "single line braces" {
     const gpa = std.testing.allocator;
     const input = @embedFile("fixtures/fmt/input/single_line_braces.zig");
