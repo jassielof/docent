@@ -1,13 +1,19 @@
 const std = @import("std");
+const testing = std.testing;
+const allocator = std.testing.allocator;
+
 const docent = @import("docent");
+
 const Fmt = docent.Fmt;
+
+const FIXTURES = "fixtures/fmt";
 
 /// Confirms a formatting pass's output is still syntactically valid Zig
 /// (zero AST errors) -- guards against a post-processing transform
 /// (brace_style, indent_width, trailing_comma, etc.) corrupting otherwise
 /// well-formed source.
 fn expectValidZig(source: []const u8) !void {
-    const gpa = std.testing.allocator;
+    const gpa = allocator;
     const source_z = try gpa.dupeZ(u8, source);
     defer gpa.free(source_z);
 
@@ -18,9 +24,9 @@ fn expectValidZig(source: []const u8) !void {
 }
 
 test "allman brace style" {
-    const gpa = std.testing.allocator;
-    const input = @embedFile("fixtures/fmt/input/allman.zig");
-    const expected = @embedFile("fixtures/fmt/expected/allman.zig");
+    const gpa = allocator;
+    const input = @embedFile(FIXTURES ++ "/input/allman.zig");
+    const expected = @embedFile(FIXTURES ++ "/expected/allman.zig");
     const result = try Fmt.convertToAllman(gpa, input);
     defer gpa.free(result);
     try std.testing.expectEqualStrings(expected, result);
