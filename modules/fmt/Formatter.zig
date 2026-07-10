@@ -1,13 +1,4 @@
-//! The Fmt structure contains the source code formatting main logic.
-//!
-//! The formatter is designed to apply, by default, a superset of Zig's formatting rules, just like Go's [`gofumpt`](https://github.com/mvdan/gofumpt), while still providing the ability to configure it to be more strict or more lenient than Zig's defaults.
-//!
-//! ## References
-//!
-//! - [Zig's main formatting implementation](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/fmt.zig)
-
-// TODO: Add an option to auto-wrap (or max line length). Needs research.
-// TODO: Add an option to do grid alignment (like for struct fields, or function parameters, etc), similar to Go formatter. Needs research. This can't be enabled by default as Zig fmt will not respect grid alignment, it'll just flush everything to the left.
+//! Stateful formatter: walk paths, render with Zig's AST, apply post-passes.
 
 const std = @import("std");
 const Io = std.Io;
@@ -19,21 +10,31 @@ const Color = std.zig.Color;
 const carnaval = @import("carnaval");
 
 const config_mod = @import("config.zig");
-const SchemaConfig = @import("schemas/Config.zig");
 
-pub const Config = SchemaConfig.Fmt;
+pub const Config = config_mod.Config;
+pub const Options = config_mod.Options;
+pub const CheckFormat = config_mod.CheckFormat;
 pub const BraceStyle = Config.BraceStyle;
 pub const IndentStyle = Config.IndentStyle;
 
-pub const CheckFormat = enum { pretty, minimal };
+pub const brace_style = @import("brace_style.zig");
+pub const single_line_braces = @import("single_line_braces.zig");
+pub const trailing_comma = @import("trailing_comma.zig");
+pub const logical_blank_lines = @import("logical_blank_lines.zig");
+pub const sort_imports = @import("sort_imports.zig");
+pub const indent_width = @import("indent_width.zig");
+pub const auto_wrap = @import("auto_wrap.zig");
+pub const grid_alignment = @import("grid_alignment.zig");
+pub const diff = @import("diff.zig");
 
-pub const Options = struct {
-    check: bool = false,
-    check_format: CheckFormat = .pretty,
-    ast_check: bool = false,
-    zon: bool = false,
-    color: Color = .auto,
-};
+pub const convertToAllman = brace_style.convertToAllman;
+pub const enforceBraces = single_line_braces.enforceBraces;
+pub const addTrailingCommas = trailing_comma.addTrailingCommas;
+pub const enforceLogicalBlankLines = logical_blank_lines.enforceLogicalBlankLines;
+pub const sortImports = sort_imports.sortImports;
+pub const reindent = indent_width.reindent;
+pub const autoWrap = auto_wrap.autoWrap;
+pub const alignGrid = grid_alignment.alignGrid;
 
 seen: SeenMap,
 any_error: bool,
@@ -48,15 +49,10 @@ io: Io,
 out_buffer: Io.Writer.Allocating,
 stdout_writer: *Io.File.Writer,
 
-const Fmt = @This();
+const Formatter = @This();
 const SeenMap = std.AutoHashMap(Io.File.INode, void);
 
-pub fn loadConfig(gpa: Allocator, io: Io) Config {
-    const cfg = config_mod.loadConfigFromCli(gpa, io, null) catch return .{};
-    return cfg.fmt;
-}
-
-pub fn init(gpa: Allocator, io: Io, stdout_writer: *Io.File.Writer, opts: Options, config: Config) Fmt {
+pub fn init(gpa: Allocator, io: Io, stdout_writer: *Io.File.Writer, opts: Options, config: Config) Formatter {
     return .{
         .gpa = gpa,
         .io = io,
@@ -73,7 +69,7 @@ pub fn init(gpa: Allocator, io: Io, stdout_writer: *Io.File.Writer, opts: Option
     };
 }
 
-pub fn deinit(self: *Fmt) void {
+pub fn deinit(self: *Formatter) void {
     self.seen.deinit();
     self.out_buffer.deinit();
 }
@@ -141,7 +137,7 @@ pub fn formatStdin(gpa: Allocator, io: Io, opts: Options, config: Config) !void 
     return Io.File.stdout().writeStreamingAll(io, pp.output);
 }
 
-pub fn formatPaths(self: *Fmt, input_files: []const []const u8, excluded_files: []const []const u8) !void {
+pub fn formatPaths(self: *Formatter, input_files: []const []const u8, excluded_files: []const []const u8) !void {
     for (excluded_files) |file_path| {
         const stat = Io.Dir.cwd().statFile(self.io, file_path, .{}) catch |err| switch (err) {
             error.FileNotFound => continue,
@@ -164,7 +160,7 @@ pub fn formatPaths(self: *Fmt, input_files: []const []const u8, excluded_files: 
     }
 }
 
-fn fmtPath(self: *Fmt, file_path: []const u8, dir: Io.Dir, sub_path: []const u8) !void {
+fn fmtPath(self: *Formatter, file_path: []const u8, dir: Io.Dir, sub_path: []const u8) !void {
     self.fmtPathFile(file_path, dir, sub_path) catch |err| switch (err) {
         error.IsDir, error.AccessDenied => return self.fmtPathDir(file_path, dir, sub_path),
         else => {
@@ -176,7 +172,7 @@ fn fmtPath(self: *Fmt, file_path: []const u8, dir: Io.Dir, sub_path: []const u8)
 }
 
 fn fmtPathDir(
-    self: *Fmt,
+    self: *Formatter,
     file_path: []const u8,
     parent_dir: Io.Dir,
     parent_sub_path: []const u8,
@@ -211,8 +207,9 @@ fn fmtPathDir(
         }
     }
 }
+
 fn fmtPathFile(
-    self: *Fmt,
+    self: *Formatter,
     file_path: []const u8,
     dir: Io.Dir,
     sub_path: []const u8,
@@ -329,42 +326,35 @@ fn fmtPathFile(
     }
 }
 
-pub const brace_style = @import("Fmt/brace_style.zig");
-pub const convertToAllman = brace_style.convertToAllman;
-pub const single_line_braces = @import("Fmt/single_line_braces.zig");
-pub const enforceBraces = single_line_braces.enforceBraces;
-pub const trailing_comma = @import("Fmt/trailing_comma.zig");
-pub const addTrailingCommas = trailing_comma.addTrailingCommas;
-pub const logical_blank_lines = @import("Fmt/logical_blank_lines.zig");
-pub const enforceLogicalBlankLines = logical_blank_lines.enforceLogicalBlankLines;
-pub const sort_imports = @import("Fmt/sort_imports.zig");
-pub const sortImports = sort_imports.sortImports;
-pub const indent_width = @import("Fmt/indent_width.zig");
-pub const reindent = indent_width.reindent;
-pub const diff = @import("Fmt/diff.zig");
-
 /// Applies all configured post-processing passes to rendered source.
 /// Caller owns the returned slice when it differs from `input`.
-fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Allocator.Error!struct { output: []const u8, allocated: bool } {
+pub fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Allocator.Error!struct { output: []const u8, allocated: bool } {
     var current: []const u8 = input;
     var current_allocated = false;
 
     if (config.sort_imports) {
-        const result = try sortImports(gpa, current);
+        const result = try sort_imports.sortImports(gpa, current);
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;
     }
 
     if (config.trailing_comma) {
-        const result = try addTrailingCommas(gpa, current);
+        const result = try trailing_comma.addTrailingCommas(gpa, current);
+        if (current_allocated) gpa.free(current);
+        current = result;
+        current_allocated = true;
+    }
+
+    if (config.auto_wrap) {
+        const result = try auto_wrap.autoWrap(gpa, current, config.max_line_length);
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;
     }
 
     if (config.single_line_braces) {
-        const result = try enforceBraces(gpa, current);
+        const result = try single_line_braces.enforceBraces(gpa, current);
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;
@@ -378,14 +368,21 @@ fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Alloca
     }
 
     if (config.logical_blank_lines) {
-        const result = try enforceLogicalBlankLines(gpa, current);
+        const result = try logical_blank_lines.enforceLogicalBlankLines(gpa, current);
+        if (current_allocated) gpa.free(current);
+        current = result;
+        current_allocated = true;
+    }
+
+    if (config.grid_alignment) {
+        const result = try grid_alignment.alignGrid(gpa, current);
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;
     }
 
     if (config.indent_style != .space or config.indent_width != 4) {
-        const result = try reindent(gpa, current, config.indent_style, config.indent_width);
+        const result = try indent_width.reindent(gpa, current, config.indent_style, config.indent_width);
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;

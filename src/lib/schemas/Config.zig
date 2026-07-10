@@ -15,8 +15,7 @@ const doc_rules = @import("../rules/doc.zig");
 const style_rules = @import("../rules/style.zig");
 const complexity_rules = @import("../rules/complexity.zig");
 const naming_case = @import("../naming_case.zig");
-const brace_style = @import("../Fmt/brace_style.zig");
-const indent_width = @import("../Fmt/indent_width.zig");
+const fmt_mod = @import("fmt");
 
 pub const Error = rule_decode.Error;
 
@@ -29,26 +28,9 @@ style: Style = .{},
 complexity: Complexity = .{},
 fmt: Fmt = .{},
 
-pub const Fmt = struct {
-    brace_style: BraceStyle = .k_r,
-    single_line_braces: bool = true,
-    trailing_comma: bool = true,
-    logical_blank_lines: bool = true,
-    sort_imports: bool = true,
-    indent_style: IndentStyle = .space,
-    indent_width: u8 = 4,
-
-    /// The brace style enum and its `fromConfigString` live in
-    /// `Fmt/brace_style.zig`, next to the transform logic that consumes it
-    /// (same convention as `naming_case.Style`) -- kept as `BraceStyle` here
-    /// for backward compatibility with existing `Config.Fmt.BraceStyle` /
-    /// `Fmt.BraceStyle` references.
-    pub const BraceStyle = brace_style.Style;
-
-    /// See `BraceStyle` above -- same convention, owned by
-    /// `Fmt/indent_width.zig`.
-    pub const IndentStyle = indent_width.Style;
-};
+/// Formatter options — owned by the `fmt` module; aliased here so TOML decode
+/// and `Config.fmt` stay in the schema surface.
+pub const Fmt = fmt_mod.Config;
 
 /// Parses TOML config text into the dynamic value tree.
 pub fn parseRoot(allocator: std.mem.Allocator, text: []const u8) Error!toml.DynamicValue {
@@ -157,6 +139,26 @@ fn decodeFmt(value: toml.DynamicValue, out: *Fmt) Error!void {
         };
         if (n < 1 or n > 16) return error.ConfigParseFailed;
         out.indent_width = @intCast(n);
+    }
+    if (table.get("auto_wrap")) |v| {
+        out.auto_wrap = switch (v) {
+            .boolean => |b| b,
+            else => return error.ConfigParseFailed,
+        };
+    }
+    if (table.get("max_line_length")) |v| {
+        const n = switch (v) {
+            .integer => |i| i,
+            else => return error.ConfigParseFailed,
+        };
+        if (n < 1 or n > 10000) return error.ConfigParseFailed;
+        out.max_line_length = @intCast(n);
+    }
+    if (table.get("grid_alignment")) |v| {
+        out.grid_alignment = switch (v) {
+            .boolean => |b| b,
+            else => return error.ConfigParseFailed,
+        };
     }
 }
 
@@ -337,6 +339,9 @@ test "decode reads fmt options" {
         \\logical_blank_lines = true
         \\sort_imports = true
         \\indent_width = 2
+        \\auto_wrap = true
+        \\max_line_length = 80
+        \\grid_alignment = true
     );
     const cfg = try decode(root);
     try std.testing.expectEqual(Fmt.BraceStyle.allman, cfg.fmt.brace_style);
@@ -345,6 +350,9 @@ test "decode reads fmt options" {
     try std.testing.expect(cfg.fmt.logical_blank_lines);
     try std.testing.expect(cfg.fmt.sort_imports);
     try std.testing.expectEqual(@as(u8, 2), cfg.fmt.indent_width);
+    try std.testing.expect(cfg.fmt.auto_wrap);
+    try std.testing.expectEqual(@as(u32, 80), cfg.fmt.max_line_length);
+    try std.testing.expect(cfg.fmt.grid_alignment);
 
     const empty = try parseRoot(arena.allocator(), "");
     const empty_cfg = try decode(empty);
@@ -354,6 +362,9 @@ test "decode reads fmt options" {
     try std.testing.expect(empty_cfg.fmt.logical_blank_lines);
     try std.testing.expect(empty_cfg.fmt.sort_imports);
     try std.testing.expectEqual(@as(u8, 4), empty_cfg.fmt.indent_width);
+    try std.testing.expect(!empty_cfg.fmt.auto_wrap);
+    try std.testing.expectEqual(@as(u32, 100), empty_cfg.fmt.max_line_length);
+    try std.testing.expect(!empty_cfg.fmt.grid_alignment);
 }
 
 test "applyRuleSeverities respects forbid and defaults" {
