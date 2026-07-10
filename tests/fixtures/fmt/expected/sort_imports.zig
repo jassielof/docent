@@ -34,7 +34,6 @@ const platform = if (builtin.os.tag == .windows)
 else
     @import("platform/posix.zig");
 
-
 pub const Config = @import("Config.zig");
 pub const Diagnostic = @import("Diagnostic.zig");
 pub const rule_config = @import("rule_config.zig");
