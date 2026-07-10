@@ -15,10 +15,10 @@ pub fn render(arena: Allocator, groups: SortedGroups, entries: []const ImportEnt
     var any = false;
     try renderSuperGroup(arena, &output, &groups.internal, entries, &any);
 
+    // Single blank line before the public block — same gap as between
+    // categories. An extra newline here would create a double blank line,
+    // which Zig's AST renderer collapses back to one.
     if (superGroupHasEntries(&groups.public)) {
-        if (any) {
-            try output.append(arena, '\n');
-        }
         try renderPublicGroup(arena, &output, &groups.public, entries, &any);
     }
 

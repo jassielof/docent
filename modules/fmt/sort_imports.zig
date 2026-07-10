@@ -8,8 +8,6 @@ pub const classifier = @import("sort_imports/classifier.zig");
 pub const sorter = @import("sort_imports/sorter.zig");
 pub const renderer = @import("sort_imports/renderer.zig");
 
-// TODO: For some reason, Zig formatter doesn't like double blank lines, it only allows for a single or no blank lines as separation, it'll collapse more than one blank line into a single blank line, and it'll expand no new line into a single new line, it won't add automatically a single blank line between two blocks of code. So this formatter will sadly need to respect that.
-
 /// Sorts the leading top-level import block using AST-based extraction.
 ///
 /// Imports are regrouped into categories (builtin, std, dependencies, root,
@@ -17,7 +15,9 @@ pub const renderer = @import("sort_imports/renderer.zig");
 /// imports are sorted case-insensitively by const identifier. Aliases are
 /// placed directly beneath the import they derive from.
 ///
-/// Internal and public imports are separated by a double blank line.
+/// Internal and public imports are separated by a single blank line (Zig's
+/// formatter collapses consecutive blank lines, so a double gap would not
+/// survive a subsequent `zig fmt` / AST render pass).
 /// Only the contiguous leading import block is touched.
 pub fn sortImports(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     var arena_state = std.heap.ArenaAllocator.init(gpa);
