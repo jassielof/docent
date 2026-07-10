@@ -64,7 +64,7 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
         .zon = zon_flag,
     };
 
-    const config = docent.config.loadFmtOptionsFromCli(gpa, io, null) catch .{};
+    const config: fmt.Config = docent.config.loadFmtOptionsFromCli(gpa, io, null) catch .{};
 
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buffer);
