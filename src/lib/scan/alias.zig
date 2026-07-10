@@ -23,7 +23,7 @@ const Ast = std.zig.Ast;
 const vereda = @import("vereda");
 
 const helpers = @import("../rules/utils/helpers.zig");
-const doc = @import("../doc.zig");
+const doc_comment = @import("doc_comment");
 
 /// Extracted info about a potential re-export expression.
 pub const Info = struct {
@@ -359,7 +359,7 @@ fn resolveDocForSymbolInFile(
         return .unresolved;
     }
 
-    if (doc.hasContainerDocComment(&imported_tree, 0)) {
+    if (doc_comment.hasContainerDocComment(&imported_tree, 0)) {
         return .documented;
     }
 

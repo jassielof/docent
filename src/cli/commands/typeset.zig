@@ -2,8 +2,8 @@
 //! package's modules via Typst, instead of `zig build docs`'s HTML/WASM
 //! viewer.
 //!
-//! Pipeline (see `src/lib/typeset.zig` for the supporting library):
-//!   module discovery -> walker.walkModule (per module) -> json_emit.emitPackage
+//! Pipeline (see `modules/typeset.zig` for the supporting library):
+//!   module discovery -> walker.walkModule (per module) -> serialize.emitPackage
 //!   -> docs.json -> `typst compile` (shelled out, see build.zig's
 //!   `docs-pdf` step) -> PDF
 //!
@@ -18,13 +18,22 @@
 //!   `--module-name` (single-path only) or its file stem.
 //!
 //! Cross-package references (`std.*` and named dependencies) are resolved
-//! without walking their source -- see `src/lib/typeset/external_refs.zig`
+//! without walking their source -- see `modules/typeset/external_refs.zig`
 //! for the design and `--external-refs`/`--refs-output` below.
+//!
+//! Dependency bundling (PDF size strategy):
+//! - Default: primary modules only.
+//! - `--deps`: direct `.path` dependencies from build.zig.zon as appendix.
+//! - `--deps-recursive`: also nest into those deps' own `.path` deps
+//!   (e.g. vereda → xdg). Still `.path`-only; never URL/hash cache packages.
+//! - `--bundle-std`: one-hop referenced std files only (see std_bundle.zig).
+//! - Otherwise `std.*` / unbundled deps use ziglang.org / `--external-refs`.
 
 const std = @import("std");
 
 const fangz = @import("fangz");
 const docent = @import("docent");
+const typeset = @import("typeset");
 
 pub fn register(root: *fangz.Command) !void {
     const typeset_cmd = try root.addSubcommand(.{
@@ -69,7 +78,13 @@ pub fn register(root: *fangz.Command) !void {
 
     try typeset_cmd.addFlag(bool, .{
         .name = "deps",
-        .brief = "Also document local path dependencies from build.zig.zon",
+        .brief = "Also document direct local .path dependencies from build.zig.zon as appendix modules",
+        .default = false,
+    });
+
+    try typeset_cmd.addFlag(bool, .{
+        .name = "deps-recursive",
+        .brief = "With --deps, also recurse into nested .path dependencies (e.g. vereda -> xdg)",
         .default = false,
     });
 
@@ -122,7 +137,7 @@ pub fn register(root: *fangz.Command) !void {
 
 fn run(ctx: *fangz.ParseContext) anyerror!void {
     // The typeset pipeline builds a large, short-lived decl/schema tree with
-    // no need for fine-grained frees -- an arena keeps json_emit.zig free of
+    // no need for fine-grained frees -- an arena keeps serialize.zig free of
     // per-node cleanup bookkeeping and avoids tripping ctx.allocator's leak
     // detection for what is, by design, "leak until process exit" tree data.
     var arena_state = std.heap.ArenaAllocator.init(ctx.allocator);
@@ -133,9 +148,11 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
     const paths = ctx.positionals.items;
     const output = ctx.stringFlag("output") orelse "docs.json";
     const include_private = ctx.boolFlag("include-private") orelse false;
+    const want_deps = ctx.boolFlag("deps") orelse false;
+    const deps_recursive = ctx.boolFlag("deps-recursive") orelse false;
 
-    var modules: std.ArrayList(docent.typeset.json_emit.Module) = .empty;
-    var appendix: std.ArrayList(docent.typeset.json_emit.Module) = .empty;
+    var modules: std.ArrayList(typeset.serialize.Module) = .empty;
+    var appendix: std.ArrayList(typeset.serialize.Module) = .empty;
 
     if (paths.len > 0) {
         const module_name_flag = ctx.stringFlag("module-name") orelse "";
@@ -145,7 +162,7 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
             else
                 std.fs.path.stem(path);
 
-            const root_decl = docent.typeset.walker.walkModule(allocator, io, path, name) catch |err| {
+            const root_decl = typeset.walker.walkModule(allocator, io, path, name) catch |err| {
                 std.process.fatal("failed to walk '{s}': {t}", .{ path, err });
             };
             try modules.append(allocator, .{ .root_decl = root_decl, .name = name });
@@ -157,7 +174,7 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
             .bin_names = ctx.stringListFlag("bin") orelse &.{},
             .tests = ctx.boolFlag("tests") orelse false,
             .test_names = ctx.stringListFlag("test") orelse &.{},
-            .deps = ctx.boolFlag("deps") orelse false,
+            .deps = want_deps,
         }) catch |err| {
             std.process.fatal("failed to discover modules: {t}", .{err});
         };
@@ -188,24 +205,28 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
                 try allocator.dupe(u8, rt.name);
             try used_names.put(name, {});
 
-            const root_decl = docent.typeset.walker.walkModule(allocator, io, abs_root, name) catch |err| {
+            const root_decl = typeset.walker.walkModule(allocator, io, abs_root, name) catch |err| {
                 std.process.fatal("failed to walk '{s}' ({s}): {t}", .{ abs_root, name, err });
             };
             try modules.append(allocator, .{ .root_decl = root_decl, .name = name });
         }
 
         // `--deps`: bundle each `.path` build.zig.zon dependency as an
-        // appendix module in this *same* docs.json/PDF, rather than linking
-        // out to it -- see path_deps.zig's module doc comment for why this
-        // is restricted to `.path` (vendored) dependencies.
-        if ((ctx.boolFlag("deps") orelse false) and plan.package.manifest_path != null) {
-            var deps = docent.typeset.path_deps.discover(allocator, io, plan.package.manifest_path.?) catch |err| {
-                std.process.fatal("failed to read dependencies from '{s}': {t}", .{ plan.package.manifest_path.?, err });
-            };
-            defer docent.typeset.path_deps.deinitEntries(allocator, &deps);
+        // appendix module in this *same* docs.json/PDF. With `--deps-recursive`,
+        // also walk nested `.path` deps (vereda → xdg).
+        if (want_deps and plan.package.manifest_path != null) {
+            var deps = if (deps_recursive)
+                typeset.path_deps.discoverRecursive(allocator, io, plan.package.manifest_path.?) catch |err| {
+                    std.process.fatal("failed to read dependencies from '{s}': {t}", .{ plan.package.manifest_path.?, err });
+                }
+            else
+                typeset.path_deps.discover(allocator, io, plan.package.manifest_path.?) catch |err| {
+                    std.process.fatal("failed to read dependencies from '{s}': {t}", .{ plan.package.manifest_path.?, err });
+                };
+            defer typeset.path_deps.deinitEntries(allocator, &deps);
 
             for (deps.items) |dep| {
-                const root = docent.typeset.path_deps.findRootModule(allocator, io, dep.root_dir) catch |err| {
+                const root = typeset.path_deps.findRootModule(allocator, io, dep.root_dir) catch |err| {
                     std.process.fatal("failed to inspect dependency '{s}': {t}", .{ dep.name, err });
                 } orelse {
                     var stderr_buf: [256]u8 = undefined;
@@ -224,7 +245,7 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
                     try allocator.dupe(u8, dep.name);
                 try used_names.put(name, {});
 
-                const root_decl = docent.typeset.walker.walkModule(allocator, io, root, name) catch |err| {
+                const root_decl = typeset.walker.walkModule(allocator, io, root, name) catch |err| {
                     std.process.fatal("failed to walk dependency '{s}' ({s}): {t}", .{ dep.name, root, err });
                 };
                 try appendix.append(allocator, .{ .root_decl = root_decl, .name = name });
@@ -236,16 +257,16 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         std.process.fatal("no modules found to document (nothing matched --lib/--bins/--tests, and no explicit paths given)", .{});
     }
 
-    var refs_table: docent.typeset.external_refs.Table = .{};
+    var refs_table: typeset.external_refs.Table = .{};
     for (ctx.stringListFlag("external-refs") orelse &.{}) |path| {
         refs_table.loadFile(allocator, io, path) catch |err| {
             std.process.fatal("failed to load external refs '{s}': {t}", .{ path, err });
         };
     }
 
-    var std_collector: ?docent.typeset.std_bundle.Collector = null;
+    var std_collector: ?typeset.std_bundle.Collector = null;
     if (ctx.boolFlag("bundle-std") orelse false) {
-        if (docent.typeset.std_bundle.discover(allocator, io)) |root| {
+        if (typeset.std_bundle.discover(allocator, io)) |root| {
             std_collector = .{ .root = root };
         } else {
             var stderr_buf: [256]u8 = undefined;
@@ -258,7 +279,7 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
     var timestamp_buf: [32]u8 = undefined;
     const generated_at = isoTimestamp(io, &timestamp_buf) catch "unknown";
 
-    const docs_file = docent.typeset.json_emit.emitPackage(
+    const docs_file = typeset.serialize.emitPackage(
         allocator,
         io,
         modules.items,
@@ -273,7 +294,7 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         std.process.fatal("failed to build docs.json: {t}", .{err});
     };
 
-    docent.typeset.json_emit.writeToFile(allocator, io, docs_file, output) catch |err| {
+    typeset.serialize.writeToFile(allocator, io, docs_file, output) catch |err| {
         std.process.fatal("failed to write '{s}': {t}", .{ output, err });
     };
 
@@ -281,7 +302,7 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         const doc_url = ctx.stringFlag("refs-doc-url") orelse
             std.process.fatal("--refs-output requires --refs-doc-url", .{});
         const package_name = if (modules.items.len == 1) modules.items[0].name else "package";
-        docent.typeset.external_refs.writeRefsFile(
+        typeset.external_refs.writeRefsFile(
             allocator,
             io,
             package_name,

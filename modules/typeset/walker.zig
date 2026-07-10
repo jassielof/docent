@@ -39,8 +39,9 @@ const std = @import("std");
 pub const Walk = @import("vendor/Walk.zig");
 pub const Decl = Walk.Decl;
 
-const reach = @import("../scan/reach.zig");
-const target = @import("../scan/target.zig");
+const docent = @import("docent");
+const reach = docent.scan.reach;
+const target = docent.scan.target;
 
 /// Maps each synthetic `Walk.files` key (see the module doc comment) back to
 /// the real, cwd-relative filesystem path it was read from, so

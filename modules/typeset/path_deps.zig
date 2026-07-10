@@ -1,6 +1,6 @@
 //! Discovers `.path`-based dependencies from `build.zig.zon`, for bundling
 //! into a package's own `docs.json` as appendix modules -- see
-//! `../../cli/commands/typeset.zig`'s `--deps` flag.
+//! `src/cli/commands/typeset.zig`'s `--deps` / `--deps-recursive` flags.
 //!
 //! Deliberately `.path`-only, matching the same restriction `docent`'s own
 //! lint-target `--deps` flag already uses elsewhere (`status_plan.zig`,
@@ -9,16 +9,11 @@
 //! dependency lives in the global package cache under a hash-derived path
 //! that isn't resolvable without replicating the build system's fetch/lock
 //! resolution -- out of scope here.
-//!
-//! Kept separate from `../manifest.zig`'s own dependency-path scanning
-//! (which only needs the resolved directory, for lint-file exclusion) since
-//! this needs the dependency *name* too (`.toml`, `.carnaval`, ...), to
-//! register each one under its own module name -- new, single-purpose
-//! parsing, rather than changing manifest.zig's well-exercised behavior.
 
 const std = @import("std");
 
-const target = @import("../scan/target.zig");
+const docent = @import("docent");
+const target = docent.scan.target;
 
 pub const Entry = struct {
     /// The `.dependencies.<name>` key from build.zig.zon.
@@ -124,9 +119,62 @@ pub fn discover(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const
     return out;
 }
 
+/// Like `discover`, but also walks each dependency's own `build.zig.zon`
+/// for nested `.path` deps (e.g. vereda → xdg). Deduplicates by resolved
+/// `root_dir`. Still never follows URL/hash dependencies.
+pub fn discoverRecursive(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const u8) !std.ArrayList(Entry) {
+    var out: std.ArrayList(Entry) = .empty;
+    errdefer deinitEntries(allocator, &out);
+
+    var seen_dirs: std.StringHashMap(void) = .init(allocator);
+    defer seen_dirs.deinit();
+
+    var queue: std.ArrayList([]const u8) = .empty;
+    defer {
+        for (queue.items) |p| allocator.free(p);
+        queue.deinit(allocator);
+    }
+
+    try queue.append(allocator, try allocator.dupe(u8, manifest_path));
+
+    while (queue.items.len > 0) {
+        const current = queue.orderedRemove(0);
+        defer allocator.free(current);
+
+        var direct = try discover(allocator, io, current);
+        defer deinitEntries(allocator, &direct);
+
+        for (direct.items) |dep| {
+            if (seen_dirs.contains(dep.root_dir)) continue;
+
+            const name = try allocator.dupe(u8, dep.name);
+            errdefer allocator.free(name);
+            const root_dir = try allocator.dupe(u8, dep.root_dir);
+            errdefer allocator.free(root_dir);
+
+            try seen_dirs.put(root_dir, {});
+            try out.append(allocator, .{ .name = name, .root_dir = root_dir });
+
+            const nested_manifest = try std.fs.path.join(allocator, &.{ root_dir, "build.zig.zon" });
+            defer allocator.free(nested_manifest);
+            if (fileExists(io, nested_manifest)) {
+                try queue.append(allocator, try allocator.dupe(u8, nested_manifest));
+            }
+        }
+    }
+
+    return out;
+}
+
+fn fileExists(io: std.Io, path: []const u8) bool {
+    const file = std.Io.Dir.cwd().openFile(io, path, .{}) catch return false;
+    file.close(io);
+    return true;
+}
+
 /// Finds the conventional module root inside a dependency's directory
 /// (`root.zig`, `src/lib/root.zig`, or `src/root.zig` -- see
-/// `../scan/target.zig`'s `collectDirectoryEntrypoints`). Returns `null`
+/// `docent.scan.target`'s `collectDirectoryEntrypoints`). Returns `null`
 /// when none of those conventions match, rather than guessing from
 /// whatever `.zig` files happen to sit at the top level.
 pub fn findRootModule(allocator: std.mem.Allocator, io: std.Io, dir: []const u8) !?[]const u8 {

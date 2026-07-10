@@ -9,7 +9,7 @@ const severity = @import("../../severity.zig");
 const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
-const doc = @import("../../doc.zig");
+const doc_comment = @import("doc_comment");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();
@@ -53,10 +53,10 @@ pub fn check(
         const block_end = i;
         const documented_first: Ast.TokenIndex = @intCast(block_end);
 
-        const summary = try doc.comment.firstParagraph(tree, block_start, block_end, msg_allocator);
+        const summary = try doc_comment.comment.firstParagraph(tree, block_start, block_end, msg_allocator);
         defer msg_allocator.free(summary.text);
         if (summary.text.len == 0) continue;
-        if (doc.comment.endsWithTerminalPunctuation(summary.text)) continue;
+        if (doc_comment.comment.endsWithTerminalPunctuation(summary.text)) continue;
 
         const report_tok = summary.last_line_token orelse @as(Ast.TokenIndex, @intCast(block_start));
         const slice = tree.tokenSlice(report_tok);
@@ -64,7 +64,7 @@ pub fn check(
         const subject = if (tag == .container_doc_comment)
             try utils.ownedSubject(msg_allocator, .module, utils.moduleDisplayName(file, module_name))
         else
-            try doc.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator);
+            utils.diagnosticSubjectFromDoc(try doc_comment.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator));
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,

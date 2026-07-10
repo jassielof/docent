@@ -30,10 +30,10 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Writer = std.Io.Writer;
 
-const comment = @import("../doc/comment.zig");
-const markdown = @import("vendor/markdown.zig");
-const markdown_renderer = @import("vendor/markdown/renderer.zig");
-const markdown_typst = @import("markdown_typst.zig");
+const doc_comment = @import("doc_comment");
+const comment = doc_comment.comment;
+const markdown = doc_comment.markup;
+const typst = @import("typst.zig");
 const external_refs = @import("external_refs.zig");
 const std_bundle = @import("std_bundle.zig");
 const schema = @import("schema.zig");
@@ -531,7 +531,7 @@ fn renderDocComment(
     var doc = try parser.endInput();
     defer doc.deinit(allocator);
 
-    const render_result = try markdown_typst.renderToTypst(allocator, ctx.io, doc, origin, ctx.zig_version, ctx.refs, ctx.std_bundle);
+    const render_result = try typst.renderToTypst(allocator, ctx.io, doc, origin, ctx.zig_version, ctx.refs, ctx.std_bundle);
     defer allocator.free(render_result.markup);
     const rendered = try allocator.dupe(u8, std.mem.trimEnd(u8, render_result.markup, " \t\r\n"));
     const summary = try firstParagraphPlainText(allocator, doc);
@@ -560,7 +560,7 @@ fn firstParagraphPlainText(allocator: std.mem.Allocator, doc: markdown.Document)
 
     const para_data = doc.nodes.items(.data)[@intFromEnum(first)];
     for (doc.extraChildren(para_data.container.children)) |child| {
-        markdown_renderer.renderInlineNodeText(doc, child, &allocating.writer) catch |err| switch (err) {
+        markdown.renderInlineNodeText(doc, child, &allocating.writer) catch |err| switch (err) {
             error.WriteFailed => return error.OutOfMemory,
         };
     }

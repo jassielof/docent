@@ -1,5 +1,6 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
+const doc_comment = @import("doc_comment");
 
 const Diagnostic = @import("../../Diagnostic.zig");
 const RuleSeverities = @import("../../RuleSeverities.zig");
@@ -9,6 +10,41 @@ const RuleSeverities = @import("../../RuleSeverities.zig");
 /// Copies `name` into `allocator` for use in `Diagnostic.subject`.
 pub fn ownedSubject(allocator: std.mem.Allocator, kind: Diagnostic.SubjectKind, name: []const u8) !Diagnostic.Subject {
     return .{ .kind = kind, .name = try allocator.dupe(u8, name) };
+}
+
+/// Maps a `doc_comment.Subject` onto a lint `Diagnostic.Subject` (same name pointer).
+pub fn diagnosticSubjectFromDoc(subject: doc_comment.Subject) Diagnostic.Subject {
+    return .{
+        .kind = switch (subject.kind) {
+            .function => .function,
+            .constant => .constant,
+            .variable => .variable,
+            .error_set => .error_set,
+            .enumeration => .enumeration,
+            .field => .field,
+            .enumerator => .enumerator,
+            .doc_comment => .doc_comment,
+            .structure => .structure,
+            .namespace => .namespace,
+        },
+        .name = subject.name,
+    };
+}
+
+/// Maps `doc_comment.SubjectKind` for exposed source files onto diagnostic kinds.
+pub fn diagnosticSubjectKindFromDoc(kind: doc_comment.SubjectKind) Diagnostic.SubjectKind {
+    return switch (kind) {
+        .function => .function,
+        .constant => .constant,
+        .variable => .variable,
+        .error_set => .error_set,
+        .enumeration => .enumeration,
+        .field => .field,
+        .enumerator => .enumerator,
+        .doc_comment => .doc_comment,
+        .structure => .structure,
+        .namespace => .namespace,
+    };
 }
 
 /// Display name for module-level diagnostics (`root.zig`, package name, or file stem).

@@ -11,7 +11,7 @@ const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
 const alias = @import("../../scan/alias.zig");
 const utils = @import("../utils.zig");
-const doc = @import("../../doc.zig");
+const doc_comment = @import("doc_comment");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();
@@ -63,7 +63,7 @@ pub fn check(
         while (i < tags.len and tags[i] == tag) : (i += 1) {
             const tok: Ast.TokenIndex = @intCast(i);
             const slice = tree.tokenSlice(tok);
-            if (!doc.comment.isEmptyLine(slice)) all_empty = false;
+            if (!doc_comment.comment.isEmptyLine(slice)) all_empty = false;
         }
 
         if (all_empty) {
@@ -73,7 +73,7 @@ pub fn check(
             const subject = if (tag == .container_doc_comment)
                 try containerDocSubject(tree, file, module_name, is_module_entry, msg_allocator)
             else
-                try doc.resolveDocCommentSubject(tree, @intCast(i), file, module_name, msg_allocator);
+                utils.diagnosticSubjectFromDoc(try doc_comment.resolveDocCommentSubject(tree, @intCast(i), file, module_name, msg_allocator));
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity_level = severity_level,
@@ -104,7 +104,7 @@ fn containerDocSubject(
     }
     return try utils.ownedSubject(
         msg_allocator,
-        doc.exposedSourceFileSubjectKind(tree),
+        utils.diagnosticSubjectKindFromDoc(doc_comment.exposedSourceFileSubjectKind(tree)),
         std.fs.path.basename(file),
     );
 }
@@ -154,7 +154,7 @@ fn checkReexportedWholeModules(
                             allocator,
                             io,
                             &emit_ctx,
-                            doc.containerDocBlockIsFullyBlank,
+                            doc_comment.containerDocBlockIsFullyBlank,
                             onBlankWholeModuleReexport,
                         );
                     }
@@ -195,7 +195,7 @@ const BlankWholeModuleContext = struct {
 fn onBlankWholeModuleReexport(ctx_ptr: *anyopaque, tree: *const Ast, file_path: []const u8) !void {
     const ctx: *BlankWholeModuleContext = @ptrCast(@alignCast(ctx_ptr));
     const source_basename = std.fs.path.basename(file_path);
-    const subject_kind = doc.exposedSourceFileSubjectKind(tree);
+    const subject_kind = utils.diagnosticSubjectKindFromDoc(doc_comment.exposedSourceFileSubjectKind(tree));
     var line: usize = 0;
     var column: usize = 0;
     if (tree.tokens.len > 0) {

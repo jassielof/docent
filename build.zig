@@ -13,6 +13,21 @@ pub fn build(b: *std.Build) void {
     const carnaval_mod = b.dependency("carnaval", .{}).module("carnaval");
     const toml_mod = b.dependency("toml", .{}).module("toml");
 
+    const doc_comment_mod = b.addModule("doc_comment", .{
+        .root_source_file = b.path("modules/doc_comment.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const typeset_mod = b.addModule("typeset", .{
+        .root_source_file = b.path("modules/typeset.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "doc_comment", .module = doc_comment_mod },
+        },
+    });
+
     const mod = b.addModule(
         mod_name,
         .{
@@ -23,9 +38,14 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "carnaval", .module = carnaval_mod },
                 .{ .name = "vereda", .module = vereda_mod },
                 .{ .name = "toml", .module = toml_mod },
+                .{ .name = "doc_comment", .module = doc_comment_mod },
             },
         },
     );
+
+    // typeset needs docent.scan for reachability / entrypoint discovery.
+    // docent does not import typeset, so this is not a cycle.
+    typeset_mod.addImport("docent", mod);
 
     const docs_lib = b.addLibrary(.{
         .name = mod_name,
@@ -43,6 +63,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "fangz", .module = fangz_mod },
             .{ .name = "carnaval", .module = carnaval_mod },
             .{ .name = "toml", .module = toml_mod },
+            .{ .name = "typeset", .module = typeset_mod },
+            .{ .name = "doc_comment", .module = doc_comment_mod },
         },
     });
 
@@ -91,7 +113,11 @@ pub fn build(b: *std.Build) void {
     // follows every `pub const X = @import(...)` re-export transitively
     // within each, emits one docs.json covering all of them, and renders it
     // to a single PDF via the local `docent-docs` Typst package. See
-    // src/lib/typeset.zig and typst/docent-docs/.
+    // modules/typeset.zig and typst/docent-docs/.
+    //
+    // Default is primary targets only (no --deps / --bundle-std) to keep
+    // PDF size bounded; pass those flags to `docent typeset` for appendix
+    // fidelity when needed.
     const docs_pdf_step = b.step("docs-pdf", "Generate PDF documentation for docent's modules via Typst");
 
     const typeset_json_path = "zig-out/docs/typeset/docs.json";
@@ -155,7 +181,7 @@ pub fn build(b: *std.Build) void {
 
     const fmt = b.addFmt(.{
         .check = true,
-        .paths = &.{"src/"},
+        .paths = &.{ "src/", "modules/" },
     });
     check_step.dependOn(&fmt.step);
 
