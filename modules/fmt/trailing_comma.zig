@@ -49,10 +49,12 @@ fn expandLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8, base
             const close: u8 = if (c == '(') ')' else '}';
             if (findMatchingClose(line, pos, c, close)) |close_pos| {
                 const inner = line[pos + 1 .. close_pos];
+                // Zig style: expand when there are 3+ items (2+ top-level commas).
+                // Function decls use the same threshold as calls and aggregates —
+                // a 2-parameter `fn` stays on one line.
                 const commas = countTopLevelCommas(inner);
-                const threshold: usize = if (c == '(' and isFnDecl(line, pos)) 1 else 2;
 
-                if (commas >= threshold and !hasTrailingComma(inner)) {
+                if (commas >= 2 and !hasTrailingComma(inner)) {
                     const items = splitTopLevel(gpa, inner) catch return error.OutOfMemory;
                     defer gpa.free(items);
 
@@ -79,15 +81,6 @@ fn expandLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8, base
         try output.append(gpa, c);
         pos += 1;
     }
-}
-
-fn isFnDecl(line: []const u8, paren_pos: usize) bool {
-    if (paren_pos < 3) return false;
-    const before = mem.trimEnd(u8, line[0..paren_pos], " ");
-    if (before.len < 3) return false;
-    const trimmed = mem.trimStart(u8, before, " ");
-    if (mem.startsWith(u8, trimmed, "fn ") or mem.startsWith(u8, trimmed, "pub fn ")) return true;
-    return false;
 }
 
 fn splitTopLevel(gpa: Allocator, inner: []const u8) ![][]const u8 {

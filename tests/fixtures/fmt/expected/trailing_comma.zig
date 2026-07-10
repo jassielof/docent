@@ -8,10 +8,7 @@ fn foo(
     _ = c;
 }
 
-fn bar(
-    x: u8,
-    y: u8,
-) void {
+fn bar(x: u8, y: u8) void {
     _ = x;
     _ = y;
 }

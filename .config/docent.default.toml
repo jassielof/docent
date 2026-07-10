@@ -4,7 +4,7 @@
 # including orphan .zig files. Check/typeset use build.zig module roots instead.
 [fmt]
 # include = ["src/", "modules/"]
-# exclude = ["vendor/"]
+# exclude = ["dependencies/", "vendor/"]
 brace_style = "k&r"
 indent_style = "space"
 indent_width = 4

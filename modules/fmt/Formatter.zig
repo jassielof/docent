@@ -171,6 +171,13 @@ fn fmtPath(self: *Formatter, file_path: []const u8, dir: Io.Dir, sub_path: []con
     };
 }
 
+/// Directory basenames skipped during recursive walks (always, even without
+/// `--exclude`). Matches lint's cache/output skips; path deps / vendor are
+/// left to `[fmt].exclude` so projects can opt in to formatting them.
+fn shouldSkipWalkDir(name: []const u8) bool {
+    return mem.eql(u8, name, "zig-out") or mem.eql(u8, name, "zig-cache");
+}
+
 fn fmtPathDir(
     self: *Formatter,
     file_path: []const u8,
@@ -189,7 +196,9 @@ fn fmtPathDir(
     while (try dir_it.next(io)) |entry| {
         const is_dir = entry.kind == .directory;
 
+        // Dotdirs (e.g. .git, .zig-cache) and build/cache output trees.
         if (mem.startsWith(u8, entry.name, ".")) continue;
+        if (is_dir and shouldSkipWalkDir(entry.name)) continue;
 
         if (is_dir or entry.kind == .file and (mem.endsWith(u8, entry.name, ".zig") or mem.endsWith(u8, entry.name, ".zon"))) {
             const full_path = try fs.path.join(self.gpa, &[_][]const u8{ file_path, entry.name });
