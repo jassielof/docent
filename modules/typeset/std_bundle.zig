@@ -18,7 +18,7 @@
 //! there's no `../scan/reach.zig`-style closure to draw from, and walking
 //! one shouldn't recursively pull in std's own `@import` graph either (that
 //! would silently reintroduce the exact explosion this module exists to
-//! avoid -- `vendor/Walk.zig`'s `categorize()` only resolves an `@import` if
+//! avoid -- `Walk.zig`'s `categorize()` only resolves an `@import` if
 //! the target file *happens* to already be registered, so a plain
 //! single-file `Walk.add_file` call is inherently safe: unresolvable
 //! references inside it just degrade to plain text, nothing gets fetched
@@ -204,7 +204,7 @@ pub const Collector = struct {
 
             const key = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ module_name, std.fs.path.basename(abs) });
             const decl = Walk.add_file(key, source) catch continue;
-            try Walk.modules.put(std.heap.page_allocator, module_name, decl);
+            try Walk.active.modules.put(std.heap.page_allocator, module_name, decl);
             try self.walked.put(allocator, module_name, Walk.File.Index.findRootDecl(decl));
             const root_decl = Walk.File.Index.findRootDecl(decl);
             try self.pending.append(allocator, .{ .root_decl = root_decl, .name = module_name });

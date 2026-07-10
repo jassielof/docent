@@ -5,16 +5,32 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const assert = std.debug.assert;
 const log = std.log;
-// PATCHED for native use: upstream uses std.heap.wasm_allocator, which does not
-// compile for non-wasm32 targets. See ../VENDORED.md.
+// Native allocator: originally wasm_allocator in ziglang/zig lib/docs/wasm.
 const gpa = std.heap.page_allocator;
 const Oom = error{OutOfMemory};
 
 pub const Decl = @import("Decl.zig");
 
-pub var files: std.StringArrayHashMapUnmanaged(File) = .empty;
-pub var decls: std.ArrayList(Decl) = .empty;
-pub var modules: std.StringArrayHashMapUnmanaged(File.Index) = .empty;
+/// Per-walk declaration graph. Process-default session is used for sequential
+/// CLI runs; parallel workers should `activate` a stack-local `Session` so
+/// module walks never share `files` / `decls` / `modules`.
+pub const Session = struct {
+    files: std.StringArrayHashMapUnmanaged(File) = .empty,
+    decls: std.ArrayList(Decl) = .empty,
+    modules: std.StringArrayHashMapUnmanaged(File.Index) = .empty,
+};
+
+var process_session: Session = .{};
+
+/// Active session for this thread. Defaults to `process_session`.
+pub threadlocal var active: *Session = &process_session;
+
+/// Installs `s` as the active session for this thread; returns the previous one.
+pub fn activate(s: *Session) *Session {
+    const prev = active;
+    active = s;
+    return prev;
+}
 
 file: File.Index,
 
@@ -65,18 +81,18 @@ pub const File = struct {
         _,
 
         fn add_decl(i: Index, node: Ast.Node.Index, parent_decl: Decl.Index) Oom!Decl.Index {
-            try decls.append(gpa, .{
+            try active.decls.append(gpa, .{
                 .ast_node = node,
                 .file = i,
                 .parent = parent_decl,
             });
-            const decl_index: Decl.Index = @enumFromInt(decls.items.len - 1);
+            const decl_index: Decl.Index = @enumFromInt(active.decls.items.len - 1);
             try i.get().node_decls.put(gpa, node, decl_index);
             return decl_index;
         }
 
         pub fn get(i: File.Index) *File {
-            return &files.values()[@intFromEnum(i)];
+            return &active.files.values()[@intFromEnum(i)];
         }
 
         pub fn get_ast(i: File.Index) *Ast {
@@ -84,7 +100,7 @@ pub const File = struct {
         }
 
         pub fn path(i: File.Index) []const u8 {
-            return files.keys()[@intFromEnum(i)];
+            return active.files.keys()[@intFromEnum(i)];
         }
 
         pub fn findRootDecl(file_index: File.Index) Decl.Index {
@@ -319,7 +335,7 @@ pub const File = struct {
                 const str_bytes = ast.tokenSlice(str_lit_token);
                 const file_path = std.zig.string_literal.parseAlloc(gpa, str_bytes) catch @panic("OOM");
                 defer gpa.free(file_path);
-                if (modules.get(file_path)) |imported_file_index| {
+                if (active.modules.get(file_path)) |imported_file_index| {
                     return .{ .alias = File.Index.findRootDecl(imported_file_index) };
                 }
                 const base_path = file_index.path();
@@ -330,7 +346,7 @@ pub const File = struct {
                 log.debug("from '{s}' @import '{s}' resolved='{s}'", .{
                     base_path, file_path, resolved_path,
                 });
-                if (files.getIndex(resolved_path)) |imported_file_index| {
+                if (active.files.getIndex(resolved_path)) |imported_file_index| {
                     return .{ .alias = File.Index.findRootDecl(@enumFromInt(imported_file_index)) };
                 } else {
                     log.warn("import target '{s}' did not resolve to any file", .{resolved_path});
@@ -390,8 +406,8 @@ pub const ModuleIndex = enum(u32) {
 pub fn add_file(file_name: []const u8, bytes: []u8) !File.Index {
     const ast = try parse(file_name, bytes);
     assert(ast.errors.len == 0);
-    const file_index: File.Index = @enumFromInt(files.entries.len);
-    try files.put(gpa, file_name, .{ .ast = ast });
+    const file_index: File.Index = @enumFromInt(active.files.entries.len);
+    try active.files.put(gpa, file_name, .{ .ast = ast });
 
     var w: Walk = .{
         .file = file_index,

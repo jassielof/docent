@@ -61,6 +61,10 @@ pub const Options = struct {
     /// When true, include `build.zig` and `build/*.zig` in the plan.
     build_script: bool = false,
 
+    /// Build-step names to skip (exact match). From `[check].exclude_targets` /
+    /// `[typeset].exclude_targets` — filters the module graph, not filesystem paths.
+    exclude_targets: []const []const u8 = &.{},
+
     /// Explicit file or directory paths from the command line (empty uses project discovery).
     positionals: []const []const u8 = &.{},
     /// When set, use this manifest instead of searching upward from cwd.
@@ -246,6 +250,17 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
         if (scanned) |scan| {
             if (scan.targets.len > 0) {
                 for (scan.targets) |t| {
+                    if (targetNameExcluded(options.exclude_targets, t.name)) {
+                        try resolved_targets.append(allocator, .{
+                            .name = try allocator.dupe(u8, t.name),
+                            .kind = t.kind,
+                            .root_source_file = try allocator.dupe(u8, t.root_source_file),
+                            .status = .skipped,
+                            .reason = try allocator.dupe(u8, "Excluded by config exclude_targets"),
+                            .files = &.{},
+                        });
+                        continue;
+                    }
                     const matches = targeting.matchesTarget(targeting_options, t.name, t.kind);
                     if (!matches) {
                         try resolved_targets.append(allocator, .{
@@ -493,4 +508,11 @@ fn collectRecursiveLintFiles(
         return;
     }
     try extra.append(allocator, abs);
+}
+
+fn targetNameExcluded(exclude_targets: []const []const u8, name: []const u8) bool {
+    for (exclude_targets) |excluded| {
+        if (std.mem.eql(u8, excluded, name)) return true;
+    }
+    return false;
 }

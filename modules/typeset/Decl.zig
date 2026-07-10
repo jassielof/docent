@@ -2,8 +2,7 @@ const Decl = @This();
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Walk = @import("Walk.zig");
-// PATCHED for native use: upstream uses std.heap.wasm_allocator, which does not
-// compile for non-wasm32 targets. See ../VENDORED.md.
+// Native allocator: originally wasm_allocator in ziglang/zig lib/docs/wasm.
 const gpa = std.heap.page_allocator;
 const assert = std.debug.assert;
 const log = std.log;
@@ -26,7 +25,7 @@ pub const Index = enum(u32) {
     _,
 
     pub fn get(i: Index) *Decl {
-        return &Walk.decls.items[@intFromEnum(i)];
+        return &Walk.active.decls.items[@intFromEnum(i)];
     }
 };
 
@@ -130,7 +129,7 @@ pub fn get_child(decl: *const Decl, name: []const u8) ?Decl.Index {
         },
         .type_function => {
             // Find a decl with this function as the parent, with a name matching `name`
-            for (Walk.decls.items, 0..) |*candidate, i| {
+            for (Walk.active.decls.items, 0..) |*candidate, i| {
                 if (candidate.parent != .none and candidate.parent.get() == decl and std.mem.eql(u8, candidate.extra_info().name, name)) {
                     return @enumFromInt(i);
                 }
@@ -210,7 +209,7 @@ pub fn reset_with_path(decl: *const Decl, list: *ArrayList(u8)) Oom!void {
 pub fn append_path(decl: *const Decl, list: *ArrayList(u8)) Oom!void {
     const start = list.items.len;
     // Prefer the module name alias.
-    for (Walk.modules.keys(), Walk.modules.values()) |pkg_name, pkg_file| {
+    for (Walk.active.modules.keys(), Walk.active.modules.values()) |pkg_name, pkg_file| {
         if (pkg_file == decl.file) {
             try list.ensureUnusedCapacity(gpa, pkg_name.len + 1);
             list.appendSliceAssumeCapacity(pkg_name);
@@ -257,7 +256,7 @@ pub fn findFirstDocComment(ast: *const Ast, token: Ast.TokenIndex) Ast.OptionalT
 /// Successively looks up each component.
 pub fn find(search_string: []const u8) Decl.Index {
     var path_components = std.mem.splitScalar(u8, search_string, '.');
-    const file = Walk.modules.get(path_components.first()) orelse return .none;
+    const file = Walk.active.modules.get(path_components.first()) orelse return .none;
     var current_decl_index = file.findRootDecl();
     while (path_components.next()) |component| {
         while (true) switch (current_decl_index.get().categorize()) {

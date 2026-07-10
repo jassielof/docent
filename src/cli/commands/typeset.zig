@@ -145,11 +145,24 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
     const allocator = arena_state.allocator();
     const io = ctx.io;
 
+    // Isolate this typeset run's declaration graph from any prior Walk state.
+    var walk_session: typeset.Walk.Session = .{};
+    const prev_session = typeset.Walk.activate(&walk_session);
+    defer _ = typeset.Walk.activate(prev_session);
+
+    var cfg: docent.Config = docent.config.loadConfigFromCli(ctx.allocator, io, null) catch .{};
+    defer cfg.deinit(ctx.allocator);
+
     const paths = ctx.positionals.items;
-    const output = ctx.stringFlag("output") orelse "docs.json";
-    const include_private = ctx.boolFlag("include-private") orelse false;
-    const want_deps = ctx.boolFlag("deps") orelse false;
+    const cli_output = ctx.stringFlag("output") orelse "docs.json";
+    const output = if (std.mem.eql(u8, cli_output, "docs.json") and cfg.typeset.output_owned)
+        cfg.typeset.output
+    else
+        cli_output;
+    const include_private = (ctx.boolFlag("include-private") orelse false) or cfg.typeset.include_private;
+    const want_deps = (ctx.boolFlag("deps") orelse false) or cfg.typeset.deps;
     const deps_recursive = ctx.boolFlag("deps-recursive") orelse false;
+    const want_bundle_std = (ctx.boolFlag("bundle-std") orelse false) or cfg.typeset.bundle_std;
 
     var modules: std.ArrayList(typeset.serialize.Module) = .empty;
     var appendix: std.ArrayList(typeset.serialize.Module) = .empty;
@@ -169,12 +182,13 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         }
     } else {
         var plan = docent.status_plan.gather(allocator, io, .{
-            .lib = ctx.boolFlag("lib") orelse false,
-            .bins = ctx.boolFlag("bins") orelse false,
+            .lib = (ctx.boolFlag("lib") orelse false) or cfg.typeset.lib,
+            .bins = (ctx.boolFlag("bins") orelse false) or cfg.typeset.bins,
             .bin_names = ctx.stringListFlag("bin") orelse &.{},
-            .tests = ctx.boolFlag("tests") orelse false,
+            .tests = (ctx.boolFlag("tests") orelse false) or cfg.typeset.tests,
             .test_names = ctx.stringListFlag("test") orelse &.{},
             .deps = want_deps,
+            .exclude_targets = cfg.typeset.exclude_targets,
         }) catch |err| {
             std.process.fatal("failed to discover modules: {t}", .{err});
         };
@@ -265,7 +279,7 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
     }
 
     var std_collector: ?typeset.std_bundle.Collector = null;
-    if (ctx.boolFlag("bundle-std") orelse false) {
+    if (want_bundle_std) {
         if (typeset.std_bundle.discover(allocator, io)) |root| {
             std_collector = .{ .root = root };
         } else {

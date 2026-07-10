@@ -1,4 +1,4 @@
-//! Native filesystem driver for the vendored `Walk`/`Decl` machinery.
+//! Native filesystem driver for the typeset `Walk`/`Decl` machinery.
 //!
 //! Replaces the WASM entry point's `unpack()` (tar-over-JS-boundary ingestion)
 //! with plain `std.Io.Dir` reads. Discovery of which files belong to the
@@ -7,21 +7,21 @@
 //! Docent's own lint-target selection already relies on, so it's exercised
 //! by that code path too rather than being new, single-purpose logic.
 //!
-//! Each discovered file is registered with `vendor.Walk.add_file` under a
+//! Each discovered file is registered with `Walk.add_file` under a
 //! `<module_name>/<path relative to the module root's directory>` key.
 //! This mirrors the upstream WASM tool's own convention: it unpacks a tar
 //! archive whose entries are naturally namespaced under a package-name
 //! folder (`std/mem.zig`, `std/mem/Allocator.zig`, ...), and registers only
 //! the *package root* file in `Walk.modules` -- every other file's `Decl.fqn`
 //! falls back to deriving its prefix straight from that namespaced file key
-//! (`vendor/Decl.zig`'s `append_path`), not from a `Walk.modules` lookup.
+//! (`Decl.append_path`), not from a `Walk.modules` lookup.
 //! Confirmed empirically: without the `module_name/` prefix, a decl nested
 //! inside a re-exported file (e.g. `ScanMode` inside `scan.zig`, re-exported
 //! from `root.zig` as `pub const scan = @import("scan.zig");`) gets an id
 //! like `"src.lib.scan.ScanMode"` (derived from the raw filesystem path)
 //! instead of `"docent.scan.ScanMode"`.
 //!
-//! The key also has to stay consistent with `vendor/Walk.zig`'s own
+//! The key also has to stay consistent with `Walk.zig`'s own
 //! `@import` resolution formula (`resolvePosix(current_file_key, "..",
 //! raw_import_string)`, see `categorize_builtin_call`) so that once every
 //! file in the closure is registered, `Decl.categorize()` resolves
@@ -30,13 +30,13 @@
 //! doesn't matter, only that every reachable file ends up registered under
 //! the *right* key before anything asks to categorize a decl.
 //!
-//! `Walk`'s global tables (`files`/`decls`/`modules`) are process-lifetime
-//! state, matching the vendored allocator patch (`std.heap.page_allocator`,
-//! never freed) -- this is fine for a one-shot CLI invocation.
+//! `Walk`'s session tables (`files`/`decls`/`modules`) live on `Walk.Session`.
+//! The process-default session is fine for sequential CLI use; activate a
+//! private session per worker before parallel module walks.
 
 const std = @import("std");
 
-pub const Walk = @import("vendor/Walk.zig");
+pub const Walk = @import("Walk.zig");
 pub const Decl = Walk.Decl;
 
 const docent = @import("docent");
@@ -63,7 +63,7 @@ pub fn realPathForKey(key: []const u8) []const u8 {
 /// `allocator` is used both for path/bookkeeping allocations and to read
 /// each source file into memory; all of it is retained for the process
 /// lifetime because the resulting `Ast`s borrow from it directly (see
-/// `vendor/Walk.zig`'s `parse`) and because `Walk.add_file` stores each path
+/// `Walk.zig`'s `parse`) and because `Walk.add_file` stores each path
 /// key by reference, not by copy.
 pub fn walkModule(
     allocator: std.mem.Allocator,
@@ -94,7 +94,7 @@ pub fn walkModule(
         else
             try moduleRelativeKey(allocator, module_name, root_dir_abs, root_dir_arg, abs_path);
 
-        if (Walk.files.contains(paths.key)) continue;
+        if (Walk.active.files.contains(paths.key)) continue;
 
         const source = try std.Io.Dir.cwd().readFileAllocOptions(
             io,
@@ -111,7 +111,7 @@ pub fn walkModule(
     }
 
     const found_root = root_file_index orelse return error.ModuleRootNotFound;
-    try Walk.modules.put(std.heap.page_allocator, module_name, found_root);
+    try Walk.active.modules.put(std.heap.page_allocator, module_name, found_root);
     return Walk.File.Index.findRootDecl(found_root);
 }
 

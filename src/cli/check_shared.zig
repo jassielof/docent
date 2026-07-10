@@ -23,6 +23,30 @@ pub const TargetArgs = struct {
     fail_fast: cli_types.FailFast = cli_types.default_fail_fast,
 };
 
+/// Merges CLI target flags with `[check]` from `.config/docent.toml`.
+/// CLI bools OR with config (either may enable a target class). `exclude_targets`
+/// comes from config only.
+pub fn gatherPlan(allocator: std.mem.Allocator, io: std.Io, args: TargetArgs) !docent.status_plan.Plan {
+    var cfg: docent.Config = docent.config.loadConfigFromCli(allocator, io, args.config_path) catch .{};
+    defer cfg.deinit(allocator);
+
+    const resolved_manifest = try resolveManifestPath(allocator, io, args.manifest_path);
+    defer if (resolved_manifest) |p| allocator.free(p);
+
+    return docent.status_plan.gather(allocator, io, .{
+        .lib = args.lib or cfg.check.lib,
+        .bins = args.bins or cfg.check.bins,
+        .bin_names = args.bin,
+        .tests = args.tests or cfg.check.tests,
+        .test_names = args.@"test",
+        .deps = args.deps or cfg.check.deps,
+        .build_script = args.build_script or cfg.check.build_script,
+        .exclude_targets = cfg.check.exclude_targets,
+        .positionals = args.positionals,
+        .manifest_path = resolved_manifest,
+    });
+}
+
 pub const RegisterTargetFlagsOptions = struct {
     /// When true, flags are inherited by category subcommands (register on `check` only).
     persistent: bool = false,
@@ -182,23 +206,6 @@ pub fn printCheckResults(
     try docent.output.printDiagnosticsStderr(io, diagnostics, text_options);
     const had_diagnostics = summary.errors > 0 or summary.warnings > 0;
     try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, summary_label, .auto), had_diagnostics);
-}
-
-pub fn gatherPlan(allocator: std.mem.Allocator, io: std.Io, args: TargetArgs) !docent.status_plan.Plan {
-    const resolved_manifest = try resolveManifestPath(allocator, io, args.manifest_path);
-    defer if (resolved_manifest) |p| allocator.free(p);
-
-    return docent.status_plan.gather(allocator, io, .{
-        .lib = args.lib,
-        .bins = args.bins,
-        .bin_names = args.bin,
-        .tests = args.tests,
-        .test_names = args.@"test",
-        .deps = args.deps,
-        .build_script = args.build_script,
-        .positionals = args.positionals,
-        .manifest_path = resolved_manifest,
-    });
 }
 
 fn resolveManifestPath(allocator: std.mem.Allocator, io: std.Io, raw: ?[]const u8) !?[]u8 {

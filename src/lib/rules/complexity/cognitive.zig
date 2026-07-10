@@ -137,6 +137,10 @@ fn collectFunctions(
 }
 
 /// Computes the cognitive complexity score of a single function declaration.
+///
+/// Collects nesting regions inside the function body first, then scores each
+/// body node against that region list (O(n·r) in the body, not O(n²) over the
+/// whole file AST).
 fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
     const body = tree.nodeData(fn_node).node_and_node[1];
     const body_first = tree.firstToken(body);
@@ -146,7 +150,11 @@ fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
     const proto = tree.fullFnProto(&buf, fn_node) orelse return 0;
     const fn_name: []const u8 = if (proto.name_token) |nt| tree.tokenSlice(nt) else "";
 
-    var score: u32 = 0;
+    var sf = std.heap.stackFallback(4096, std.heap.page_allocator);
+    const scratch = sf.get();
+    var regions: std.ArrayList(Ast.Node.Index) = .empty;
+    defer regions.deinit(scratch);
+
     const node_count: u32 = @intCast(tree.nodes.len);
     var raw: u32 = 0;
     while (raw < node_count) : (raw += 1) {
@@ -155,9 +163,40 @@ fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
         const first = tree.firstToken(node);
         const last = tree.lastToken(node);
         if (first < body_first or last > body_last) continue;
-        score += nodeIncrement(tree, node, body_first, body_last, fn_name);
+        if (isNestingRegionTag(tree.nodeTag(node))) {
+            regions.append(scratch, node) catch {};
+        }
+    }
+
+    var score: u32 = 0;
+    raw = 0;
+    while (raw < node_count) : (raw += 1) {
+        const node: Ast.Node.Index = @enumFromInt(raw);
+        if (node == body) continue;
+        const first = tree.firstToken(node);
+        const last = tree.lastToken(node);
+        if (first < body_first or last > body_last) continue;
+        score += nodeIncrement(tree, node, body_first, body_last, fn_name, regions.items);
     }
     return score;
+}
+
+fn isNestingRegionTag(tag: Ast.Node.Tag) bool {
+    return switch (tag) {
+        .if_simple,
+        .@"if",
+        .while_simple,
+        .while_cont,
+        .@"while",
+        .for_simple,
+        .@"for",
+        .@"switch",
+        .switch_comma,
+        .@"catch",
+        .fn_decl,
+        => true,
+        else => false,
+    };
 }
 
 /// Returns the increment a single node contributes to its enclosing function's score.
@@ -167,6 +206,7 @@ fn nodeIncrement(
     body_first: Ast.TokenIndex,
     body_last: Ast.TokenIndex,
     fn_name: []const u8,
+    regions: []const Ast.Node.Index,
 ) u32 {
     switch (tree.nodeTag(node)) {
         .if_simple, .@"if" => {
@@ -174,7 +214,7 @@ fn nodeIncrement(
             var inc: u32 = if (isElseIf(tree, if_full))
                 1
             else
-                1 + nestingLevel(tree, node, body_first, body_last);
+                1 + nestingLevel(tree, node, regions);
 
             if (if_full.ast.else_expr.unwrap()) |else_node| {
                 if (!isIfTag(tree.nodeTag(else_node))) inc += 1;
@@ -189,7 +229,7 @@ fn nodeIncrement(
         .@"switch",
         .switch_comma,
         .@"catch",
-        => return 1 + nestingLevel(tree, node, body_first, body_last),
+        => return 1 + nestingLevel(tree, node, regions),
         .bool_and, .bool_or => return if (isLogicalSequenceStart(tree, node, body_first, body_last)) 1 else 0,
         .@"break", .@"continue" => return if (isLoopLabelJump(tree, node, body_first, body_last)) 1 else 0,
         .call, .call_comma, .call_one, .call_one_comma => return if (isDirectRecursion(tree, node, fn_name)) 1 else 0,
@@ -197,25 +237,18 @@ fn nodeIncrement(
     }
 }
 
-/// Counts how many control-flow body regions strictly enclose `node` (its nesting level).
+/// Counts how many control-flow body regions strictly enclose `node`.
 fn nestingLevel(
     tree: *const Ast,
     node: Ast.Node.Index,
-    body_first: Ast.TokenIndex,
-    body_last: Ast.TokenIndex,
+    regions: []const Ast.Node.Index,
 ) u32 {
     const first = tree.firstToken(node);
     const last = tree.lastToken(node);
 
     var level: u32 = 0;
-    const node_count: u32 = @intCast(tree.nodes.len);
-    var raw: u32 = 0;
-    while (raw < node_count) : (raw += 1) {
-        const ancestor: Ast.Node.Index = @enumFromInt(raw);
+    for (regions) |ancestor| {
         if (ancestor == node) continue;
-        const af = tree.firstToken(ancestor);
-        const al = tree.lastToken(ancestor);
-        if (af < body_first or al > body_last) continue;
         if (regionContains(tree, ancestor, first, last)) level += 1;
     }
     return level;

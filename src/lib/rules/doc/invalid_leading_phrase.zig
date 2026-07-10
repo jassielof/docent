@@ -1,10 +1,23 @@
 //! The `invalid_leading_phrase` namespace offers implementations and utilities for invalid leading phrases on doc comment summaries.
 //!
-//! This rule is inspired by [Go's documentation style guidelines](https://go.dev/doc/comment).
+//! This rule is inspired by [Go's documentation style guidelines](https://go.dev/doc/comment),
+//! adapted to Zig declaration kinds (functions, structs, error sets, namespaces, modules).
+//!
+//! ## Go → Zig mapping
+//!
+//! | Go convention | Docent rule / behavior |
+//! |---|---|
+//! | Doc comment starts with the name | `invalid_leading_phrase` (optional article/kind/`backticks`) |
+//! | Package comment | Module `//!` / file-root docs via `missing_doc_comment` |
+//! | Exported identifiers documented | `scan_mode = "public"` on the module reachability graph |
+//! | Complete sentences | `missing_summary_terminal_punctuation` |
+//! | No empty comments | `blank_doc_comment` / `trailing_blank_doc_comment` |
+//! | Examples in docs | doctest rules (`missing_doctest`, …) |
+//!
+//! Zig-specific: kind words (`function`, `struct`, `error set`, `namespace`),
+//! `Library` vs `Module` for roots, and namespaces requiring an explicit kind word.
 //!
 //! ## Grammar
-//!
-//! The leading phrase grammar is:
 //!
 //! ```txt
 //! [<article>] [<identifier kind>] <identifier> [<identifier kind>]...

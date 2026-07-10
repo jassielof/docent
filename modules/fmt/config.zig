@@ -12,7 +12,18 @@ const indent_width = @import("indent_width.zig");
 /// where it helps consistency (`single_line_braces`, `trailing_comma`,
 /// `logical_blank_lines`, `sort_imports`), while leaving controversial or
 /// zig-fmt-hostile transforms (`auto_wrap`, `grid_alignment`) off by default.
+///
+/// Path filters (`include` / `exclude`) apply to the **filesystem** scan used
+/// by `docent fmt` (orphans included). They are not used by check/typeset,
+/// which discover module roots from `build.zig` instead.
+///
+/// When `include` / `exclude` are non-empty, they are owned by the allocator
+/// passed to config decode; free with `deinit`.
 pub const Config = struct {
+    /// Filesystem roots to format when the CLI omits positional paths.
+    include: []const []const u8 = &.{},
+    /// Filesystem paths to skip; merged with CLI `--exclude`.
+    exclude: []const []const u8 = &.{},
     brace_style: BraceStyle = .k_r,
     single_line_braces: bool = true,
     trailing_comma: bool = true,
@@ -40,7 +51,21 @@ pub const Config = struct {
 
     /// See `BraceStyle` above -- same convention, owned by `indent_width.zig`.
     pub const IndentStyle = indent_width.Style;
+
+    /// Frees owned `include` / `exclude` path lists.
+    pub fn deinit(self: *Config, allocator: std.mem.Allocator) void {
+        freePathList(allocator, self.include);
+        freePathList(allocator, self.exclude);
+        self.include = &.{};
+        self.exclude = &.{};
+    }
 };
+
+fn freePathList(allocator: std.mem.Allocator, list: []const []const u8) void {
+    if (list.len == 0) return;
+    for (list) |path| allocator.free(path);
+    allocator.free(list);
+}
 
 pub const CheckFormat = enum { pretty, minimal };
 

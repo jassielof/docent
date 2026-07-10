@@ -1,6 +1,10 @@
 #:schema ../schemas/docent.schema.json
 
+# Filesystem scan (fmt): include/exclude apply to recursive directory walks,
+# including orphan .zig files. Check/typeset use build.zig module roots instead.
 [fmt]
+# include = ["src/", "modules/"]
+# exclude = ["vendor/"]
 brace_style = "k&r"
 indent_style = "space"
 indent_width = 4
@@ -11,6 +15,21 @@ trailing_comma = true
 auto_wrap = false
 max_line_length = 100
 grid_alignment = false
+
+# Module-API scan (check): target selection from build.zig. Category scan_mode
+# values are visibility inside the reachable graph (public vs all), not a
+# filesystem orphan walk.
+[check]
+# bins = false
+# tests = false
+# deps = false
+# exclude_targets = ["bench"]
+
+[typeset]
+# include_private = false
+# bundle_std = false
+# output = "docs.json"
+# exclude_targets = []
 
 [doc]
 scan_mode = "public"

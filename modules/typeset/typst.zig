@@ -1,20 +1,17 @@
 //! Renders a parsed `markdown.Document` (from a Zig doc comment) to Typst
 //! markup, instead of the HTML that `html_render.zig` produced upstream.
 //!
-//! Mechanical 1:1 mapping, mirroring `vendor/markdown/renderer.zig`'s
-//! `Renderer.renderDefault` node-tag switch:
+//! Mechanical mapping (markup stays in `doc_comment`; Typst emission stays here):
 //!
-//!   HTML                      Typst
-//!   ------------------------  ------------------------------
-//!   <strong>...</strong>      *...*
-//!   <em>...</em>              _..._
-//!   <code>...</code>          `...`
-//!   <a href="U">T</a>         #link("U")[T]
-//!   <h1..6>...</h1..6>        =, ==, ... heading markers
-//!   <ul>/<ol><li>...          - item / + item
-//!   <pre><code>...            ``` ... ```
-//!   <blockquote>...           #quote(block: true)[...]
-//!   <hr />                    #line(length: 100%)
+//!   Markup                      Typst
+//!   ------------------------    ------------------------------
+//!   strong / emphasis           *...* / _..._
+//!   code span                   `...` or #link(label(...))[...]
+//!   fenced code                 ```lang ... ``` (Codly in lib.typ)
+//!   fenced math/latex/tex       #mitex(`...`)
+//!   $...$ / $$...$$             #mi("...") / #mitex(`...`)
+//!   link / heading / list       #link / = heading / - item
+//!   blockquote / hr             #quote / #line
 //!
 //! Tables are flattened to " | "-joined plain text -- real Typst
 //! `#table(...)` rendering of doc-comment tables (as opposed to the
@@ -181,11 +178,18 @@ const Renderer = struct {
             .code_block => {
                 const tag = doc.string(data.code_block.tag);
                 const content = doc.string(data.code_block.content);
-                try writer.writeAll("```");
-                try writer.writeAll(tag);
-                try writer.writeByte('\n');
-                try writer.writeAll(content);
-                try writer.writeAll("```\n\n");
+                if (isMathFenceTag(tag)) {
+                    try writer.writeAll("#mitex(`");
+                    try writeMitexRaw(content, writer);
+                    try writer.writeAll("`)\n\n");
+                } else {
+                    // Codly (see typst/docent-docs/lib.typ) styles fenced raw blocks.
+                    try writer.writeAll("```");
+                    try writer.writeAll(normalizeCodeFenceTag(tag));
+                    try writer.writeByte('\n');
+                    try writer.writeAll(content);
+                    try writer.writeAll("```\n\n");
+                }
             },
             .blockquote => {
                 try writer.writeAll("#quote(block: true)[\n");
@@ -227,7 +231,7 @@ const Renderer = struct {
                 try writer.writeByte('_');
             },
             .code_span => try self.renderCodeSpan(doc.string(data.text.content), writer),
-            .text => try writeEscapedTypstText(doc.string(data.text.content), writer),
+            .text => try writeTextWithInlineMath(doc.string(data.text.content), writer),
             .line_break => try writer.writeAll(" \\\n"),
         }
     }
@@ -297,7 +301,7 @@ const Renderer = struct {
     /// Renders a `list_item`'s block children, collapsing a tight list's sole
     /// paragraph child down to its inline content (no blank-line gap) --
     /// mirrors `Renderer.renderDefault`'s `.list_item` handling in
-    /// `vendor/markdown/renderer.zig`.
+    /// `doc_comment` markup's HTML renderer.
     fn renderListItemBody(self: *Renderer, doc: Document, item: Document.Node.Index, writer: *Writer) RenderError!void {
         const item_data = doc.nodes.items(.data)[@intFromEnum(item)];
         for (doc.extraChildren(item_data.list_item.children)) |child| {
@@ -368,6 +372,67 @@ fn writeEscapedTypstText(text: []const u8, writer: *Writer) Writer.Error!void {
         },
         else => try writer.writeByte(c),
     };
+}
+
+/// Writes text, converting `$...$` to `#mi("...")` and `$$...$$` to `#mitex(...)`
+/// via MiTeX (see typst/docent-docs/lib.typ). Unmatched `$` is escaped.
+fn writeTextWithInlineMath(text: []const u8, writer: *Writer) Writer.Error!void {
+    var i: usize = 0;
+    while (i < text.len) {
+        if (text[i] == '$') {
+            const block = i + 1 < text.len and text[i + 1] == '$';
+            const open_len: usize = if (block) 2 else 1;
+            const close = if (block) "$$" else "$";
+            const start = i + open_len;
+            if (std.mem.indexOfPos(u8, text, start, close)) |end| {
+                const latex = text[start..end];
+                if (block) {
+                    try writer.writeAll("#mitex(`");
+                    try writeMitexRaw(latex, writer);
+                    try writer.writeAll("`)");
+                } else {
+                    try writer.writeAll("#mi(\"");
+                    try writeEscapedString(latex, writer);
+                    try writer.writeAll("\")");
+                }
+                i = end + open_len;
+                continue;
+            }
+        }
+        // Emit one character (with Typst escaping) and advance.
+        const rest = text[i..];
+        const next_dollar = std.mem.indexOfScalar(u8, rest, '$') orelse rest.len;
+        try writeEscapedTypstText(rest[0..next_dollar], writer);
+        i += next_dollar;
+        if (i < text.len and text[i] == '$') {
+            // Unmatched `$` — escape and continue.
+            try writer.writeAll("\\$");
+            i += 1;
+        }
+    }
+}
+
+fn isMathFenceTag(tag: []const u8) bool {
+    const t = std.mem.trim(u8, tag, " \t");
+    return std.mem.eql(u8, t, "math") or std.mem.eql(u8, t, "latex") or std.mem.eql(u8, t, "tex");
+}
+
+/// Codly language keys are single tokens; collapse `zig test` → `zig`.
+fn normalizeCodeFenceTag(tag: []const u8) []const u8 {
+    const t = std.mem.trim(u8, tag, " \t");
+    if (std.mem.indexOfScalar(u8, t, ' ')) |sp| return t[0..sp];
+    return t;
+}
+
+/// Content inside Typst raw `` `...` `` for MiTeX — avoid terminating the raw string.
+fn writeMitexRaw(text: []const u8, writer: *Writer) Writer.Error!void {
+    for (text) |c| {
+        if (c == '`') {
+            try writer.writeAll("` + \"`\" + `");
+        } else {
+            try writer.writeByte(c);
+        }
+    }
 }
 
 /// Escapes a string destined for a Typst string literal (link/image targets,

@@ -66,6 +66,12 @@ pub fn analyzeReachableTargets(
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
 ) !bool {
+    var paths: std.ArrayList([]const u8) = .empty;
+    defer {
+        for (paths.items) |p| allocator.free(p);
+        paths.deinit(allocator);
+    }
+
     for (plan.resolved_targets) |rt| {
         if (rt.status != .linted) continue;
 
@@ -84,39 +90,66 @@ pub fn analyzeReachableTargets(
         for (reachable.items) |path| {
             if (docent.scan.target.shouldSkipLintFile(path, plan.targeting)) continue;
             if (try analyzed_files.put(allocator, io, path)) continue;
-            if (try analyzeFile(allocator, io, path, complexity_cfg, all_diagnostics, summary, fail_fast)) return true;
+            try paths.append(allocator, try allocator.dupe(u8, path));
         }
     }
 
     for (plan.extra_lint_files) |path| {
         if (try analyzed_files.put(allocator, io, path)) continue;
-        if (try analyzeFile(allocator, io, path, complexity_cfg, all_diagnostics, summary, fail_fast)) return true;
+        try paths.append(allocator, try allocator.dupe(u8, path));
     }
 
-    return false;
+    if (paths.items.len == 0) return false;
+
+    // Parallel per-file analysis via Io.Group (same pattern as scan/reach.zig).
+    // Diagnostics are merged under a mutex; fail-fast is checked after the group awaits.
+    var state = ParallelLintState{
+        .allocator = allocator,
+        .io = io,
+        .complexity_cfg = complexity_cfg,
+        .all_diagnostics = all_diagnostics,
+        .summary = summary,
+        .fail_fast = fail_fast,
+    };
+
+    for (paths.items) |path| {
+        state.group.async(io, ParallelLintState.analyzeTask, .{ &state, path });
+    }
+    try state.group.await(io);
+
+    return state.hit_fail_fast;
 }
 
-fn analyzeFile(
+const ParallelLintState = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
-    path: []const u8,
     complexity_cfg: docent.rules.complexity.Complexity,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
-) !bool {
-    var result = docent.lintComplexityFile(allocator, io, path, complexity_cfg) catch |err| {
-        try check_shared.printStderr(io, "error: failed to analyze '{s}': {}\n", .{ path, err });
-        return false;
-    };
-    defer result.deinit();
+    mutex: std.Io.Mutex = .init,
+    group: std.Io.Group = .init,
+    hit_fail_fast: bool = false,
 
-    for (result.diagnostics.items) |d| {
-        summary.observe(d);
-        try all_diagnostics.append(allocator, try docent.Diagnostic.cloneAlloc(d, allocator));
+    fn analyzeTask(self: *ParallelLintState, path: []const u8) std.Io.Cancelable!void {
+        var result = docent.lintComplexityFile(self.allocator, self.io, path, self.complexity_cfg) catch |err| {
+            try self.mutex.lock(self.io);
+            defer self.mutex.unlock(self.io);
+            check_shared.printStderr(self.io, "error: failed to analyze '{s}': {}\n", .{ path, err }) catch {};
+            return;
+        };
+        defer result.deinit();
 
-        if (check_shared.failFastMatches(fail_fast, d.severity_level)) return true;
+        try self.mutex.lock(self.io);
+        defer self.mutex.unlock(self.io);
+
+        for (result.diagnostics.items) |d| {
+            self.summary.observe(d);
+            const cloned = docent.Diagnostic.cloneAlloc(d, self.allocator) catch return;
+            self.all_diagnostics.append(self.allocator, cloned) catch return;
+            if (check_shared.failFastMatches(self.fail_fast, d.severity_level)) {
+                self.hit_fail_fast = true;
+            }
+        }
     }
-
-    return false;
-}
+};
