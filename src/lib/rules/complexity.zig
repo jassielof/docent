@@ -7,7 +7,6 @@ pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
 
 pub const cognitive = @import("complexity/cognitive.zig");
 pub const cyclomatic = @import("complexity/cyclomatic.zig");
-pub const max_fun_params = @import("complexity/max_fun_params.zig");
 
 /// The `complexity` configuration: the category-wide scan mode plus each rule's config, decoded generically and resolved in place.
 pub const Complexity = struct {
@@ -15,7 +14,6 @@ pub const Complexity = struct {
     scan_mode: scan.RuleScanConfig = default_scan_mode,
     cognitive_complexity: cognitive.Rule = .{},
     cyclomatic_complexity: cyclomatic.Rule = .{},
-    max_function_parameters: max_fun_params.Rule = .{},
 
     /// Returns the library defaults with scan-mode inheritance already applied.
     pub fn defaults() Complexity {

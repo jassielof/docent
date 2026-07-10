@@ -14,6 +14,7 @@ const rule_decode = @import("../rules/decode.zig");
 const doc_rules = @import("../rules/doc.zig");
 const style_rules = @import("../rules/style.zig");
 const complexity_rules = @import("../rules/complexity.zig");
+const size_rules = @import("../rules/size.zig");
 const naming_case = @import("../naming_case.zig");
 const fmt_mod = @import("fmt");
 
@@ -22,10 +23,12 @@ pub const Error = rule_decode.Error;
 pub const Doc = doc_rules.Doc;
 pub const Style = style_rules.Style;
 pub const Complexity = complexity_rules.Complexity;
+pub const Size = size_rules.Size;
 
 doc: Doc = .{},
 style: Style = .{},
 complexity: Complexity = .{},
+size: Size = .{},
 fmt: Fmt = .{},
 
 /// Formatter options — owned by the `fmt` module; aliased here so TOML decode
@@ -55,6 +58,8 @@ pub fn decode(root: toml.DynamicValue) Error!@This() {
     cfg.style.resolveScanModes();
     if (table.get("complexity")) |value| try rule_decode.decodeInto(Complexity, value, &cfg.complexity);
     cfg.complexity.resolveScanModes();
+    if (table.get("size")) |value| try rule_decode.decodeInto(Size, value, &cfg.size);
+    cfg.size.resolveScanModes();
     if (table.get("fmt")) |value| try decodeFmt(value, &cfg.fmt);
     return cfg;
 }
@@ -64,6 +69,7 @@ pub fn applyRuleSeverities(cfg: @This(), rule_set: *RuleSeverities) Error!void {
     try applyDocSeverities(cfg.doc, rule_set);
     try applyStyleSeverities(cfg.style, rule_set);
     try applyComplexitySeverities(cfg.complexity, rule_set);
+    try applySizeSeverities(cfg.size, rule_set);
 }
 
 fn applyStyleSeverities(section: Style, rule_set: *RuleSeverities) Error!void {
@@ -86,6 +92,9 @@ fn applyDocSeverities(section: Doc, rule_set: *RuleSeverities) Error!void {
 fn applyComplexitySeverities(section: Complexity, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.cognitive_complexity, section.cognitive_complexity.level);
     try applyLevel(&rule_set.cyclomatic_complexity, section.cyclomatic_complexity.level);
+}
+
+fn applySizeSeverities(section: Size, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.max_fun_params, section.max_function_parameters.level);
 }
 
@@ -297,13 +306,13 @@ test "resolved complexity options read thresholds" {
         \\[complexity.cognitive_complexity]
         \\threshold = 12
         \\
-        \\[complexity.max_function_parameters]
+        \\[size.max_function_parameters]
         \\threshold = 5
     );
 
     const cfg = try decode(root);
     try std.testing.expectEqual(@as(u32, 12), cfg.complexity.cognitive_complexity.options.threshold);
-    try std.testing.expectEqual(@as(u32, 5), cfg.complexity.max_function_parameters.options.threshold);
+    try std.testing.expectEqual(@as(u32, 5), cfg.size.max_function_parameters.options.threshold);
     try std.testing.expectEqual(@as(u32, 10), cfg.complexity.cyclomatic_complexity.options.threshold);
 }
 

@@ -116,6 +116,18 @@ pub fn loadComplexityOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, co
     return cfg.complexity;
 }
 
+/// Loads resolved size rule config from a `docent.toml` file.
+pub fn loadSizeOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.size.Size {
+    const cfg = try loadConfig(allocator, io, config_path);
+    return cfg.size;
+}
+
+/// Loads size config from an explicit `config_path`, or searches for the default file when null.
+pub fn loadSizeOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!rules.size.Size {
+    const cfg = try loadConfigFromCli(allocator, io, config_path);
+    return cfg.size;
+}
+
 /// Loads resolved style rule config from a `docent.toml` file.
 pub fn loadStyleOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.style.Style {
     const cfg = try loadConfig(allocator, io, config_path);
@@ -138,6 +150,12 @@ pub fn loadDocScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_p
 pub fn loadComplexityScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.RuleScanConfig {
     const cfg = try loadConfigFromCli(allocator, io, config_path);
     return cfg.complexity.scan_mode;
+}
+
+/// Returns the declaration scan mode for size rules.
+pub fn loadSizeScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.RuleScanConfig {
+    const cfg = try loadConfigFromCli(allocator, io, config_path);
+    return cfg.size.scan_mode;
 }
 
 /// Returns the declaration scan mode for style rules.

@@ -15,6 +15,7 @@ const refAllDecls = std.testing.refAllDecls;
 comptime {
     refAllDecls(@import("rules/doc.zig"));
     refAllDecls(@import("rules/complexity.zig"));
+    refAllDecls(@import("rules/size.zig"));
     refAllDecls(@import("rules/style.zig"));
     refAllDecls(@import("rules/suppressions.zig"));
     refAllDecls(@import("scenarios.zig"));

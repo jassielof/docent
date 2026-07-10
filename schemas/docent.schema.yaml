@@ -140,6 +140,16 @@ properties:
       cyclomatic_complexity:
         $ref: "#/definitions/rule_threshold"
         description: "Functions should stay below the cyclomatic complexity threshold."
+
+  size:
+    type: "object"
+    description: "Threshold-based size rules (parameter counts and similar limits)."
+    additionalProperties: false
+    properties:
+      scan_mode:
+        $ref: "#/definitions/scan_mode"
+        description: "Whether to enforce size rules on all declarations or public only. Default: all."
+        default: "all"
       max_function_parameters:
         $ref: "#/definitions/rule_threshold"
         description: "Functions should not exceed the parameter count threshold."

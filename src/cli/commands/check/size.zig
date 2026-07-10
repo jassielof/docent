@@ -1,4 +1,4 @@
-//! `docent check complexity` — cognitive and cyclomatic complexity rules.
+//! `docent check size` — function size limits such as parameter counts.
 
 const std = @import("std");
 
@@ -9,15 +9,15 @@ const cli_types = @import("../../types.zig");
 const check_shared = @import("../../check_shared.zig");
 
 pub fn register(check: *fangz.Command) !void {
-    const complexity_cmd = try check.addSubcommand(.{
-        .name = "complexity",
-        .brief = "Check function complexity",
-        .description = "Measure cognitive and cyclomatic complexity for every function reachable from the project's module roots. Thresholds are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
+    const size_cmd = try check.addSubcommand(.{
+        .name = "size",
+        .brief = "Check function size limits",
+        .description = "Measure size limits such as parameter counts for every function reachable from the project's module roots. Thresholds are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
     });
 
-    try check_shared.registerCategoryPositionals(complexity_cmd);
-    try check_shared.registerOutputFlags(complexity_cmd);
-    complexity_cmd.setHooks(.{ .run = &run });
+    try check_shared.registerCategoryPositionals(size_cmd);
+    try check_shared.registerOutputFlags(size_cmd);
+    size_cmd.setHooks(.{ .run = &run });
 }
 
 fn run(ctx: *fangz.ParseContext) !void {
@@ -25,7 +25,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const complexity_cfg = docent.config.loadComplexityOptionsFromCli(allocator, io, args.config_path) catch |err| {
+    const size_cfg = docent.config.loadSizeOptionsFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -49,9 +49,9 @@ fn run(ctx: *fangz.ParseContext) !void {
     var analyzed_files = docent.scan.target.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
-    _ = try analyzeReachableTargets(allocator, io, &plan, &analyzed_files, complexity_cfg, &all_diagnostics, &summary, args.fail_fast);
+    _ = try analyzeReachableTargets(allocator, io, &plan, &analyzed_files, size_cfg, &all_diagnostics, &summary, args.fail_fast);
 
-    try check_shared.printCheckResults(io, allocator, args, "docent check complexity", all_diagnostics.items, summary, path_display_root);
+    try check_shared.printCheckResults(io, allocator, args, "docent check size", all_diagnostics.items, summary, path_display_root);
 
     if (summary.hasErrors()) std.process.exit(1);
 }
@@ -61,7 +61,7 @@ pub fn analyzeReachableTargets(
     io: std.Io,
     plan: *const docent.status_plan.Plan,
     analyzed_files: *docent.scan.target.PathSet,
-    complexity_cfg: docent.rules.complexity.Complexity,
+    size_cfg: docent.rules.size.Size,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
@@ -84,13 +84,13 @@ pub fn analyzeReachableTargets(
         for (reachable.items) |path| {
             if (docent.scan.target.shouldSkipLintFile(path, plan.targeting)) continue;
             if (try analyzed_files.put(allocator, io, path)) continue;
-            if (try analyzeFile(allocator, io, path, complexity_cfg, all_diagnostics, summary, fail_fast)) return true;
+            if (try analyzeFile(allocator, io, path, size_cfg, all_diagnostics, summary, fail_fast)) return true;
         }
     }
 
     for (plan.extra_lint_files) |path| {
         if (try analyzed_files.put(allocator, io, path)) continue;
-        if (try analyzeFile(allocator, io, path, complexity_cfg, all_diagnostics, summary, fail_fast)) return true;
+        if (try analyzeFile(allocator, io, path, size_cfg, all_diagnostics, summary, fail_fast)) return true;
     }
 
     return false;
@@ -100,12 +100,12 @@ fn analyzeFile(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-    complexity_cfg: docent.rules.complexity.Complexity,
+    size_cfg: docent.rules.size.Size,
     all_diagnostics: *std.ArrayList(docent.Diagnostic),
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
 ) !bool {
-    var result = docent.lintComplexityFile(allocator, io, path, complexity_cfg) catch |err| {
+    var result = docent.lintSizeFile(allocator, io, path, size_cfg) catch |err| {
         try check_shared.printStderr(io, "error: failed to analyze '{s}': {}\n", .{ path, err });
         return false;
     };
