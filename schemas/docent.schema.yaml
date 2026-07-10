@@ -105,6 +105,25 @@ properties:
         maximum: 16
         default: 4
         description: "Number of spaces per indentation level when indent_style is space. The Zig standard is 4."
+      auto_wrap:
+        type: "boolean"
+        default: false
+        description: >-
+          Best-effort wrap of lines longer than max_line_length by expanding
+          lists and call argument lists. Off by default (gofumpt also does not wrap).
+      max_line_length:
+        type: "integer"
+        minimum: 1
+        maximum: 10000
+        default: 100
+        description: "Column budget used when auto_wrap is enabled. Matches the line_length_limit lint default."
+      grid_alignment:
+        type: "boolean"
+        default: false
+        description: >-
+          Column-align ':' and '=' in contiguous struct fields, declarations, and
+          multi-line parameter lists. Off by default because zig fmt left-flushes;
+          Docent re-applies this pass every run when enabled.
 
   complexity:
     type: "object"

@@ -19,6 +19,15 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const fmt_mod = b.addModule("fmt", .{
+        .root_source_file = b.path("modules/fmt.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "carnaval", .module = carnaval_mod },
+        },
+    });
+
     const typeset_mod = b.addModule("typeset", .{
         .root_source_file = b.path("modules/typeset.zig"),
         .target = target,
@@ -39,6 +48,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "vereda", .module = vereda_mod },
                 .{ .name = "toml", .module = toml_mod },
                 .{ .name = "doc_comment", .module = doc_comment_mod },
+                .{ .name = "fmt", .module = fmt_mod },
             },
         },
     );
@@ -65,6 +75,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "toml", .module = toml_mod },
             .{ .name = "typeset", .module = typeset_mod },
             .{ .name = "doc_comment", .module = doc_comment_mod },
+            .{ .name = "fmt", .module = fmt_mod },
         },
     });
 
@@ -170,6 +181,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "fangz", .module = fangz_mod },
                 .{ .name = "carnaval", .module = carnaval_mod },
                 .{ .name = "cli", .module = cli_mod },
+                .{ .name = "fmt", .module = fmt_mod },
             },
         }),
     });

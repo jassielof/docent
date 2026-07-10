@@ -9,7 +9,7 @@ const Allocator = std.mem.Allocator;
 /// transform *from* that canonical output -- `.k_r` is the identity case,
 /// needing no rewrite. Adding a new style (e.g. Whitesmiths, Stroustrup)
 /// means adding a variant here and a branch in `convert`; callers never
-/// hardcode a specific style by name (see `Fmt.zig`'s `applyPostProcessing`,
+/// hardcode a specific style by name (see `Formatter.zig`'s `applyPostProcessing`,
 /// which just calls `convert(gpa, current, config.brace_style)`).
 pub const Style = enum {
     k_r,

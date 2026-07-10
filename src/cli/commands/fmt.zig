@@ -2,7 +2,7 @@ const std = @import("std");
 
 const fangz = @import("fangz");
 const docent = @import("docent");
-const Fmt = docent.Fmt;
+const fmt = @import("fmt");
 
 pub fn register(root: *fangz.Command) !void {
     const fmt_cmd = try root.addSubcommand(.{
@@ -15,7 +15,7 @@ pub fn register(root: *fangz.Command) !void {
         .brief = "List non-conforming files and exit with an error if the list is non-empty",
     });
 
-    try fmt_cmd.addFlag(Fmt.CheckFormat, .{
+    try fmt_cmd.addFlag(fmt.CheckFormat, .{
         .name = "format",
         .short = 'f',
         .brief = "Output format for --check mode",
@@ -49,7 +49,7 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
     const io = ctx.io;
 
     const check_flag = ctx.boolFlag("check") orelse false;
-    const check_format = ctx.enumFlag(Fmt.CheckFormat, "format") orelse .pretty;
+    const check_format = ctx.enumFlag(fmt.CheckFormat, "format") orelse .pretty;
     const zon_flag = ctx.boolFlag("zon") orelse false;
     const excluded_files = ctx.stringListFlag("exclude") orelse &.{};
     const input_paths = ctx.positionals.items;
@@ -58,18 +58,18 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
         std.process.fatal("expected at least one file or directory argument", .{});
     }
 
-    const opts: Fmt.Options = .{
+    const opts: fmt.Options = .{
         .check = check_flag,
         .check_format = check_format,
         .zon = zon_flag,
     };
 
-    const config = Fmt.loadConfig(gpa, io);
+    const config = docent.config.loadFmtOptionsFromCli(gpa, io, null) catch .{};
 
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buffer);
 
-    var formatter = Fmt.init(gpa, io, &stdout_writer, opts, config);
+    var formatter = fmt.Formatter.init(gpa, io, &stdout_writer, opts, config);
     defer formatter.deinit();
 
     try formatter.formatPaths(input_paths, excluded_files);

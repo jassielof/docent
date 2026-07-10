@@ -29,7 +29,6 @@ pub const LintOptions = @import("LintOptions.zig");
 pub const rules = @import("rules.zig");
 pub const Suppressions = suppressions.Table;
 pub const naming_case = @import("naming_case.zig");
-pub const Fmt = @import("Fmt.zig");
 
 /// Returns whether the file-level `//!` check applies to `path`.
 ///
