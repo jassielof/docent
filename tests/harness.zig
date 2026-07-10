@@ -6,12 +6,23 @@
 //!
 //! To add a rule test:
 //! 1. Add `fixtures/rules/<namespace>/<case_id>.zig`.
-//! 2. Add or extend `rules/<namespace>/<rule_id>.zig` and call `harness.lintRuleFixture`.
+//! 2. Add or extend `rules/<namespace>/<rule_id>.zig` and call `harness.lintRuleFixture`
+//!    (or `expectRuleFixtureTable` for several cases in one test).
 //! 3. Import the test file from `rules/<namespace>.zig`.
+//!
+//! Prefer table-driven cases when many fixtures only differ by expected count:
+//!
+//! ```zig
+//! try harness.expectRuleFixtureTable("doc", &.{
+//!     .{ .parts = &.{"compliant.zig"}, .expect_count = 0 },
+//!     .{ .parts = &.{"missing.zig"}, .expect_count = 1 },
+//! }, rule_set, .{});
+//! ```
 
 const std = @import("std");
 const builtin = @import("builtin");
 const docent = @import("docent");
+const utils = @import("utils.zig");
 
 const is_windows = builtin.os.tag == .windows;
 
@@ -304,4 +315,30 @@ pub fn lintSizeRuleFixture(
     defer allocator.free(source);
     const size_cfg = sizeConfig(rule_set, configure);
     return docent.lintSizeSource(allocator, source, display, size_cfg);
+}
+
+/// One row for `expectRuleFixtureTable`.
+pub const RuleFixtureCase = struct {
+    parts: []const []const u8,
+    expect_count: usize,
+    /// When null, counts every diagnostic; otherwise only this rule id.
+    rule: ?[]const u8 = null,
+};
+
+/// Runs several fixture cases with the same rule set and asserts expected counts.
+pub fn expectRuleFixtureTable(
+    namespace: []const u8,
+    cases: []const RuleFixtureCase,
+    rule_set: docent.RuleSeverities,
+    options: docent.LintOptions,
+) !void {
+    for (cases) |case| {
+        var result = try lintRuleFixture(namespace, case.parts, rule_set, options);
+        defer result.deinit();
+        if (case.rule) |rule| {
+            try utils.expectRuleCount(result, rule, case.expect_count);
+        } else {
+            try std.testing.expectEqual(case.expect_count, result.diagnostics.items.len);
+        }
+    }
 }

@@ -17,8 +17,17 @@
 // Cross-reference links are baked into `doc` markup by serialize.zig /
 // typst.zig as `#link(label("..."))`, which resolves against the
 // `#label(decl.id)` decl.typ attaches to every rendered heading.
+//
+// Math in doc comments is emitted as MiTeX calls (`#mi` / `#mitex`); fenced
+// code blocks are ordinary Typst raw blocks styled by Codly.
 
+#import "@preview/mitex:0.2.7": *
+#import "@preview/codly:1.3.0": *
+#import "@preview/codly-languages:0.1.1": *
 #import "decl.typ": render-namespace
+
+#show: codly-init.with()
+#codly(languages: codly-languages)
 
 #let docs-json-path = sys.inputs.at("docs-json", default: "docs.json")
 #let docs = json(docs-json-path)
@@ -33,21 +42,11 @@
 #show raw: set text(font: "IBM Plex Mono")
 #set par(justify: true)
 
-// Inline code: shaded background, tight padding.
+// Inline code: shaded background (Codly handles block raw / fences).
 #show raw.where(block: false): it => box(
   fill: luma(240),
   outset: (y: 2pt, x: 1pt),
   radius: 2pt,
-  it,
-)
-
-// Fenced/signature code blocks: shaded card, full width.
-#show raw.where(block: true): it => block(
-  fill: luma(245),
-  stroke: 0.5pt + luma(210),
-  inset: 8pt,
-  radius: 4pt,
-  width: 100%,
   it,
 )
 

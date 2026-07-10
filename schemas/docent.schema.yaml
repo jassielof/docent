@@ -3,20 +3,27 @@ $schema: "https://json-schema.org/draft-07/schema#"
 $id: "https://jassielof.github.io/docent/schemas/docent.schema.json"
 title: "Docent Configuration Schema"
 description: >-
-  Categorized configuration for docent.toml. Inline diagnostic suppressions are
-  not TOML keys; they use // line-comment pragmas in source — see
+  Categorized configuration for `.config/docent.toml`. Docent uses two scan
+  models: `fmt` walks the filesystem (including orphan `.zig` files); `check`
+  and `typeset` start from module roots declared in `build.zig` and traverse
+  the reachable API graph (orphans are ignored). Inline diagnostic suppressions
+  are not TOML keys; they use // line-comment pragmas in source — see
   #/definitions/inline_suppression.
 type: "object"
 additionalProperties: false
 properties:
   doc:
     type: "object"
-    description: "Documentation comment validation rules."
+    description: "Documentation comment validation rules (module-API reachability scan)."
     additionalProperties: false
     properties:
       scan_mode:
         $ref: "#/definitions/scan_mode"
-        description: "Whether to enforce doc rules on public declarations only, or all declarations. Default: public."
+        description: >-
+          Visibility within the reachable module graph. `public` (default)
+          inspects publicly visible declarations only; `all` also includes
+          internal declarations. Does not enable a filesystem walk of orphan
+          files — that is `fmt`'s model.
         default: "public"
       missing_doc_comment:
         $ref: "#/definitions/rule_missing_doc_comment"
@@ -48,12 +55,14 @@ properties:
 
   style:
     type: "object"
-    description: "Naming conventions and file layout rules."
+    description: "Naming conventions and file layout rules (module-API reachability scan)."
     additionalProperties: false
     properties:
       scan_mode:
         $ref: "#/definitions/scan_mode"
-        description: "Whether to enforce style rules on all declarations or public only. Default: all."
+        description: >-
+          Visibility within the reachable module graph. Default: `all`
+          (reachable files, including internal declarations).
         default: "all"
       identifier_case:
         $ref: "#/definitions/rule_identifier_case"
@@ -64,9 +73,33 @@ properties:
 
   fmt:
     type: "object"
-    description: "Formatter options for docent fmt."
+    description: >-
+      Formatter options for `docent fmt`. Unlike check/typeset, fmt uses a
+      filesystem scan: recursive directory walks that include orphan `.zig`
+      files not reachable from any module root. Path filters follow the Deno
+      `fmt.include` / `fmt.exclude` model; exclusions win over inclusions.
+      CLI positional paths override `include` when provided; CLI `--exclude`
+      is merged with config `exclude`.
     additionalProperties: false
     properties:
+      include:
+        type: "array"
+        items:
+          type: "string"
+          minLength: 1
+        default: []
+        description: >-
+          Files or directories to format when no CLI paths are given. Empty
+          means CLI paths are required (current CLI behavior).
+      exclude:
+        type: "array"
+        items:
+          type: "string"
+          minLength: 1
+        default: []
+        description: >-
+          Files or directories to skip during the filesystem walk. Merged with
+          CLI `--exclude`. Exclusions take precedence over inclusions.
       brace_style:
         type: "string"
         enum: ["k_r", "k&r", "allman"]
@@ -125,14 +158,106 @@ properties:
           multi-line parameter lists. Off by default because zig fmt left-flushes;
           Docent re-applies this pass every run when enabled.
 
+  check:
+    type: "object"
+    description: >-
+      Module-target selection for `docent check`. Check does not walk the
+      filesystem for orphans: it discovers module roots from `build.zig`
+      (`root_source_file`) and runs reachability analysis from those roots.
+      These knobs mirror CLI `--lib` / `--bins` / `--tests` / `--deps` /
+      `--build-script`. Category tables (`doc`, `style`, …) still control
+      rule severity and `scan_mode` visibility inside the reachable graph.
+      CLI flags override these defaults when set.
+    additionalProperties: false
+    properties:
+      lib:
+        type: "boolean"
+        default: false
+        description: >-
+          Include library targets. When no bin/test filters are set (here or
+          on the CLI), libraries are included by default even if this is false.
+      bins:
+        type: "boolean"
+        default: false
+        description: "Include all executable targets from build.zig."
+      tests:
+        type: "boolean"
+        default: false
+        description: "Include all test targets from build.zig."
+      deps:
+        type: "boolean"
+        default: false
+        description: "Also lint local `.path` dependencies from build.zig.zon."
+      build_script:
+        type: "boolean"
+        default: false
+        description: "Also lint build.zig and files reachable from it via @import."
+      exclude_targets:
+        type: "array"
+        items:
+          type: "string"
+          minLength: 1
+        default: []
+        description: >-
+          Build-step target names to skip (exact match against the step name
+          from build.zig). Filters the module graph, not arbitrary paths.
+
+  typeset:
+    type: "object"
+    description: >-
+      Module-target selection and output defaults for `docent typeset`. Uses
+      the same build.zig module-root discovery and reachability model as
+      check (orphans ignored). CLI flags override these defaults when set.
+    additionalProperties: false
+    properties:
+      lib:
+        type: "boolean"
+        default: false
+        description: >-
+          Document library targets. When no bin/test filters are set, libraries
+          are included by default even if this is false.
+      bins:
+        type: "boolean"
+        default: false
+        description: "Document all executable targets from build.zig."
+      tests:
+        type: "boolean"
+        default: false
+        description: "Document all test targets from build.zig."
+      deps:
+        type: "boolean"
+        default: false
+        description: "Bundle direct local `.path` dependencies as appendix modules."
+      include_private:
+        type: "boolean"
+        default: false
+        description: "Include non-public declarations in the emitted docs."
+      bundle_std:
+        type: "boolean"
+        default: false
+        description: "Bundle referenced std.* declarations into the appendix instead of linking to ziglang.org."
+      output:
+        type: "string"
+        default: "docs.json"
+        description: "Default path for the emitted docs.json (overridden by `-o` / `--output`)."
+      exclude_targets:
+        type: "array"
+        items:
+          type: "string"
+          minLength: 1
+        default: []
+        description: "Build-step target names to skip when discovering modules."
+
   complexity:
     type: "object"
-    description: "Threshold-based complexity rules."
+    description: "Threshold-based complexity rules (module-API reachability scan)."
     additionalProperties: false
     properties:
       scan_mode:
         $ref: "#/definitions/scan_mode"
-        description: "Whether to enforce complexity rules on all declarations or public only. Default: all."
+        description: >-
+          Visibility within the reachable module graph. Default: `all`
+          (measure every reachable function, including non-pub).
         default: "all"
       cognitive_complexity:
         $ref: "#/definitions/rule_threshold"
@@ -143,12 +268,13 @@ properties:
 
   size:
     type: "object"
-    description: "Threshold-based size rules (parameter counts and similar limits)."
+    description: "Threshold-based size rules (module-API reachability scan)."
     additionalProperties: false
     properties:
       scan_mode:
         $ref: "#/definitions/scan_mode"
-        description: "Whether to enforce size rules on all declarations or public only. Default: all."
+        description: >-
+          Visibility within the reachable module graph. Default: `all`.
         default: "all"
       max_function_parameters:
         $ref: "#/definitions/rule_threshold"
@@ -207,7 +333,13 @@ definitions:
   scan_mode:
     type: "string"
     enum: ["public", "all"]
-    description: "public = only publicly visible declarations; all = includes private and internal declarations."
+    description: >-
+      Visibility filter applied inside the module reachability graph that
+      `docent check` builds from build.zig module roots. `public` = only
+      publicly visible (`pub`) declarations; `all` = also include internal
+      (non-pub) declarations in reachable files. Neither value switches check
+      to a filesystem orphan walk — use `docent fmt` (and `[fmt]` path
+      filters) for filesystem scanning.
 
   # --- Rule base shapes ---
 

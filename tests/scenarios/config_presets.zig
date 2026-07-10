@@ -32,7 +32,8 @@ test "godoc preset loads documentation grammar and zig naming defaults" {
     const config_path = try presetConfigPath(allocator, io, "godoc");
     defer allocator.free(config_path);
 
-    const cfg = try docent.config.loadConfig(allocator, io, config_path);
+    var cfg = try docent.config.loadConfig(allocator, io, config_path);
+    defer cfg.deinit(allocator);
 
     try std.testing.expect(std.meta.eql(cfg.doc.scan_mode, docent.scan.RuleScanConfig.public_api_surface));
     try std.testing.expect(!cfg.doc.invalid_leading_phrase.options.require_kind);

@@ -44,7 +44,7 @@ const Decl = walker.Decl;
 
 /// One module to emit into a package's `docs.json`: a walked root `Decl`
 /// paired with the name it should be reported under (`Decl.extra_info()`
-/// reports an empty name for a file's root struct, see `vendor/Decl.zig`).
+/// reports an empty name for a file's root struct, see `Decl.zig`).
 pub const Module = struct {
     root_decl: Decl.Index,
     name: []const u8,
@@ -342,7 +342,7 @@ fn emitChildren(
     var list: std.ArrayList(schema.DeclNode) = .empty;
     errdefer list.deinit(allocator);
 
-    for (Walk.decls.items, 0..) |*d, i| {
+    for (Walk.active.decls.items, 0..) |*d, i| {
         if (d.parent != container_index) continue;
         if (!d.is_pub() and !ctx.include_private) continue;
         const child_index: Decl.Index = @enumFromInt(i);
@@ -508,7 +508,7 @@ fn renderDocComment(
     ctx: *Ctx,
 ) !DocPair {
     const first = first_doc_comment.unwrap() orelse return .{ .doc = null, .summary = null, .link_targets = null };
-    // `Decl.findFirstDocComment` (vendor/Decl.zig) returns the boundary
+    // `Decl.findFirstDocComment` (Decl.zig) returns the boundary
     // token it stopped scanning backward at *unconditionally* -- when there
     // is no preceding doc comment at all, that boundary token is the decl's
     // own first token (e.g. `pub`), not a doc-comment token. Callers must
