@@ -1,9 +1,12 @@
 #:schema ../schemas/docent.schema.json
 
 [fmt]
+include = ["src/", "modules/"]
+exclude = ["dependencies/", "vendor/", "tests/fixtures/"]
 sort_imports = false
 single_line_braces = false
 logical_blank_lines = false
+trailing_comma = false
 
 [doc]
 invalid_leading_phrase = "allow"
