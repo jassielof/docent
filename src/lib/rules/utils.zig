@@ -3,6 +3,8 @@
 const helpers = @import("utils/helpers.zig");
 
 pub const ownedSubject = helpers.ownedSubject;
+pub const diagnosticSubjectFromDoc = helpers.diagnosticSubjectFromDoc;
+pub const diagnosticSubjectKindFromDoc = helpers.diagnosticSubjectKindFromDoc;
 pub const moduleDisplayName = helpers.moduleDisplayName;
 pub const isContainerDecl = helpers.isContainerDecl;
 pub const isEnumContainer = helpers.isEnumContainer;

@@ -7,7 +7,7 @@ const severity = @import("../../severity.zig");
 const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
-const doc = @import("../../doc.zig");
+const doc_comment = @import("doc_comment");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();
@@ -51,13 +51,13 @@ pub fn check(
         const block_end = i;
         const documented_first: Ast.TokenIndex = @intCast(block_end);
 
-        if (doc.comment.firstTrailingBlankLine(tree, block_start, block_end)) |blank_tok| {
+        if (doc_comment.comment.firstTrailingBlankLine(tree, block_start, block_end)) |blank_tok| {
             const slice = tree.tokenSlice(blank_tok);
             const loc = tree.tokenLocation(0, blank_tok);
             const subject = if (tag == .container_doc_comment)
                 try utils.ownedSubject(msg_allocator, .module, utils.moduleDisplayName(file, module_name))
             else
-                try doc.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator);
+                utils.diagnosticSubjectFromDoc(try doc_comment.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator));
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity_level = severity_level,

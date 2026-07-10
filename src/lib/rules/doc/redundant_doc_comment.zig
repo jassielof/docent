@@ -8,7 +8,6 @@ const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
 const alias = @import("../../scan/alias.zig");
 const utils = @import("../utils.zig");
-const doc = @import("../../doc.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();

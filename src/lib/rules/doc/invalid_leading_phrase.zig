@@ -63,7 +63,7 @@ const severity = @import("../../severity.zig");
 const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
-const doc = @import("../../doc.zig");
+const doc_comment = @import("doc_comment");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();
@@ -125,14 +125,14 @@ pub fn check(
 
         const documented_first: Ast.TokenIndex = @intCast(block_end);
 
-        if (tag == .doc_comment and !doc.shouldCheckDocCommentTarget(tree, documented_first, public_api_only)) {
+        if (tag == .doc_comment and !doc_comment.shouldCheckDocCommentTarget(tree, documented_first, public_api_only)) {
             continue;
         }
 
         const subject = if (tag == .container_doc_comment)
             try utils.ownedSubject(msg_allocator, .module, utils.moduleDisplayName(file, module_name))
         else
-            try doc.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator);
+            utils.diagnosticSubjectFromDoc(try doc_comment.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator));
 
         // Unresolved declarations or those without a usable name can't be validated.
         if (subject.name.len == 0) continue;
@@ -140,7 +140,7 @@ pub fn check(
         var words = std.ArrayList([]const u8).empty;
         defer words.deinit(allocator);
 
-        const report_tok = try doc.comment.summaryWords(tree, block_start, block_end, allocator, &words);
+        const report_tok = try doc_comment.comment.summaryWords(tree, block_start, block_end, allocator, &words);
         if (report_tok == null or words.items.len == 0) continue;
 
         if (hasLeadingPhrase(words.items, subject, options)) continue;

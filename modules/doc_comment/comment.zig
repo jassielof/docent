@@ -1,6 +1,7 @@
 //! Parsing utilities for Zig doc-comment text (`///` and `//!` lines).
 //!
-//! Aligned with Go's `go/doc/comment` package: this module operates on comment source text and token blocks, not on declaration structure (see `doc.zig`).
+//! Operates on comment source text and token blocks, not on declaration
+//! structure (see `extract.zig`).
 
 const std = @import("std");
 const Ast = std.zig.Ast;

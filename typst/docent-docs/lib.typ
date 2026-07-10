@@ -1,4 +1,4 @@
-// docent-docs: renders a docs.json file (see src/lib/typeset/schema.zig for
+// docent-docs: renders a docs.json file (see modules/typeset/schema.zig for
 // the schema it conforms to) into a document.
 //
 // A package can define multiple modules (library + one or more executables/
@@ -14,8 +14,8 @@
 // so a reference from a primary module into an appendix dependency (or vice
 // versa) resolves as an ordinary internal link, not an external URL.
 //
-// Cross-reference links are baked into `doc` markup by json_emit.zig /
-// markdown_typst.zig as `#link(label("..."))`, which resolves against the
+// Cross-reference links are baked into `doc` markup by serialize.zig /
+// typst.zig as `#link(label("..."))`, which resolves against the
 // `#label(decl.id)` decl.typ attaches to every rendered heading.
 
 #import "decl.typ": render-namespace
