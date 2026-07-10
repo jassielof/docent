@@ -10,4 +10,5 @@
 
 pub const style = @import("rules/style.zig");
 pub const complexity = @import("rules/complexity.zig");
+pub const size = @import("rules/size.zig");
 pub const doc = @import("rules/doc.zig");

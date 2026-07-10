@@ -16,7 +16,7 @@ invalid_leading_phrase: severity.Level = rules.doc.invalid_leading_phrase.defaul
 redundant_doc_comment: severity.Level = rules.doc.redundant_doc_comment.default_severity,
 cognitive_complexity: severity.Level = rules.complexity.cognitive.default_severity,
 cyclomatic_complexity: severity.Level = rules.complexity.cyclomatic.default_severity,
-max_fun_params: severity.Level = rules.complexity.max_fun_params.default_severity,
+max_fun_params: severity.Level = rules.size.max_fun_params.default_severity,
 identifier_case: severity.Level = rules.style.identifier_case.default_severity,
 line_length_limit: severity.Level = rules.style.line_length_limit.default_severity,
 

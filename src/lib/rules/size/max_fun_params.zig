@@ -2,7 +2,7 @@
 //!
 //! The maximum number of parameters in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, writers, and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
 //!
-//! A function is flagged when its parameter count is *strictly greater* than the threshold. It is reported by `docent check complexity`. Like the other complexity checks, it measures *every* function in the import-closure reachable from the module roots.
+//! A function is flagged when its parameter count is *strictly greater* than the threshold. It is reported by `docent check size`. Like other size checks, it measures *every* function in the import-closure reachable from the module roots.
 
 const std = @import("std");
 const Ast = std.zig.Ast;

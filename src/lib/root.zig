@@ -214,9 +214,33 @@ pub fn lintComplexitySource(
         msg,
         &result.diagnostics,
     );
-    try rules.complexity.max_fun_params.check(
+
+    try applySuppressions(allocator, &tree, &result);
+
+    return result;
+}
+
+/// Runs the size rules over in-memory Zig source and returns their diagnostics.
+///
+/// Unlike `lintSource`, this is driven by `docent check size` (and related check commands).
+pub fn lintSizeSource(
+    allocator: std.mem.Allocator,
+    source: [:0]const u8,
+    file: []const u8,
+    size_cfg: rules.size.Size,
+) !LintResult {
+    var tree = try std.zig.Ast.parse(allocator, source, .zig);
+    defer tree.deinit(allocator);
+
+    var result = LintResult.init(allocator);
+    errdefer result.deinit();
+
+    const msg = result.messageAllocator();
+    const file_owned = try vereda.path.toPosixSeparators(msg, file);
+
+    try rules.size.max_fun_params.check(
         &tree,
-        complexity_cfg.max_function_parameters,
+        size_cfg.max_function_parameters,
         file_owned,
         allocator,
         msg,
@@ -308,6 +332,26 @@ pub fn lintComplexityFile(
     defer allocator.free(source);
 
     return lintComplexitySource(allocator, source, path, complexity_cfg);
+}
+
+/// Reads `path` from the cwd and runs `lintSizeSource` on its contents.
+pub fn lintSizeFile(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+    size_cfg: rules.size.Size,
+) !LintResult {
+    const source = try std.Io.Dir.cwd().readFileAllocOptions(
+        io,
+        path,
+        allocator,
+        .limited(std.math.maxInt(u32)),
+        .of(u8),
+        0,
+    );
+    defer allocator.free(source);
+
+    return lintSizeSource(allocator, source, path, size_cfg);
 }
 
 /// Reads `path` from the cwd and runs `lintSource` on its contents.

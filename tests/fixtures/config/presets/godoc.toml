@@ -74,6 +74,6 @@ threshold = 15
 level = "allow"
 threshold = 10
 
-[complexity.max_function_parameters]
+[size.max_function_parameters]
 level = "allow"
 threshold = 7

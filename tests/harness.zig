@@ -254,7 +254,6 @@ fn complexityConfig(
     var cfg = docent.rules.complexity.Complexity.defaults();
     cfg.cognitive_complexity.level = rule_set.cognitive_complexity;
     cfg.cyclomatic_complexity.level = rule_set.cyclomatic_complexity;
-    cfg.max_function_parameters.level = rule_set.max_fun_params;
     if (configure) |configure_fn| configure_fn(&cfg);
     return cfg;
 }
@@ -276,4 +275,33 @@ pub fn lintComplexityRuleFixture(
     defer allocator.free(source);
     const complexity_cfg = complexityConfig(rule_set, configure);
     return docent.lintComplexitySource(allocator, source, display, complexity_cfg);
+}
+
+fn sizeConfig(
+    rule_set: docent.RuleSeverities,
+    configure: ?*const fn (*docent.rules.size.Size) void,
+) docent.rules.size.Size {
+    var cfg = docent.rules.size.Size.defaults();
+    cfg.max_function_parameters.level = rule_set.max_fun_params;
+    if (configure) |configure_fn| configure_fn(&cfg);
+    return cfg;
+}
+
+pub fn lintSizeRuleFixture(
+    namespace: []const u8,
+    parts: []const []const u8,
+    rule_set: docent.RuleSeverities,
+    display_path: ?[]const u8,
+    configure: ?*const fn (*docent.rules.size.Size) void,
+) !docent.LintResult {
+    const allocator = std.testing.allocator;
+    const path = try ruleFixturePath(allocator, namespace, parts);
+    defer allocator.free(path);
+    const display = if (display_path) |dp| try allocator.dupe(u8, dp) else try relativeFixtureDisplay(allocator, path);
+    defer allocator.free(display);
+
+    const source = try readFixtureFile(allocator, std.testing.io, path);
+    defer allocator.free(source);
+    const size_cfg = sizeConfig(rule_set, configure);
+    return docent.lintSizeSource(allocator, source, display, size_cfg);
 }

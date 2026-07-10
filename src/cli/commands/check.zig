@@ -7,6 +7,7 @@ const fangz = @import("fangz");
 
 const all_check = @import("check/all.zig");
 const complexity_check = @import("check/complexity.zig");
+const size_check = @import("check/size.zig");
 const doc_check = @import("check/doc.zig");
 const check_shared = @import("../check_shared.zig");
 const style_check = @import("check/style.zig");
@@ -16,7 +17,7 @@ pub fn register(root: *fangz.Command) !void {
     const check_cmd = try root.addSubcommand(.{
         .name = "check",
         .brief = "Run Docent lint checks",
-        .description = "Run documentation, style, or complexity checks. Use a category subcommand for full diagnostics, or run `docent check` alone for a compact summary across every category.",
+        .description = "Run documentation, style, complexity, or size checks. Use a category subcommand for full diagnostics, or run `docent check` alone for a compact summary across every category.",
     });
 
     try check_shared.registerTargetFlags(check_cmd, .{ .persistent = true, .positionals = false });
@@ -25,6 +26,7 @@ pub fn register(root: *fangz.Command) !void {
     try doc_check.register(check_cmd);
     try style_check.register(check_cmd);
     try complexity_check.register(check_cmd);
+    try size_check.register(check_cmd);
     try all_check.register(check_cmd);
 }
 
@@ -39,6 +41,11 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
     };
 
     const complexity_options = docent.config.loadComplexityOptionsFromCli(allocator, io, args.config_path) catch |err| {
+        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+        std.process.exit(1);
+    };
+
+    const size_options = docent.config.loadSizeOptionsFromCli(allocator, io, args.config_path) catch |err| {
         try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
         std.process.exit(1);
     };
@@ -76,10 +83,12 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
     var doc_opts = doc_options;
     var style_opts = style_options;
     var complexity_opts = complexity_options;
+    var size_opts = size_options;
     if (plan.path_mode == .recursive) {
         doc_opts.applyRunScanMode(.reachability_traversal);
         style_opts.applyRunScanMode(.reachability_traversal);
         complexity_opts.applyRunScanMode(.reachability_traversal);
+        size_opts.applyRunScanMode(.reachability_traversal);
     }
 
     const doc_lint_options: docent.LintOptions = switch (plan.path_mode) {
@@ -111,6 +120,8 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
     _ = try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, style_opts, &all_diagnostics, &summary, .none);
     analyzed_files.clear(allocator);
     _ = try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, complexity_opts, &all_diagnostics, &summary, .none);
+    analyzed_files.clear(allocator);
+    _ = try size_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, size_opts, &all_diagnostics, &summary, .none);
 
     var count_rows: std.ArrayList(check_shared.RuleCountRow) = .empty;
     defer count_rows.deinit(allocator);

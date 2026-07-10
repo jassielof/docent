@@ -233,12 +233,14 @@ pub const RuleCategory = enum {
     doc,
     style,
     complexity,
+    size,
 
     pub fn heading(self: RuleCategory) []const u8 {
         return switch (self) {
             .doc => "Documentation comments",
             .style => "Style",
             .complexity => "Complexity",
+            .size => "Size",
         };
     }
 
@@ -258,14 +260,8 @@ pub const RuleCategory = enum {
             if (std.mem.eql(u8, rule, name)) return .doc;
         }
         if (std.mem.eql(u8, rule, "identifier_case") or std.mem.eql(u8, rule, "line_length_limit")) return .style;
-        const complexity_rules = [_][]const u8{
-            "cognitive_complexity",
-            "cyclomatic_complexity",
-            "max_fun_params",
-        };
-        for (complexity_rules) |name| {
-            if (std.mem.eql(u8, rule, name)) return .complexity;
-        }
+        if (std.mem.eql(u8, rule, "cognitive_complexity") or std.mem.eql(u8, rule, "cyclomatic_complexity")) return .complexity;
+        if (std.mem.eql(u8, rule, "max_fun_params")) return .size;
         return null;
     }
 };
@@ -344,6 +340,7 @@ pub fn printCategorizedEffectiveRules(
     try printEffectiveRulesCategory(allocator, w, profile, rule_set, .doc, &any_category);
     try printEffectiveRulesCategory(allocator, w, profile, rule_set, .style, &any_category);
     try printEffectiveRulesCategory(allocator, w, profile, rule_set, .complexity, &any_category);
+    try printEffectiveRulesCategory(allocator, w, profile, rule_set, .size, &any_category);
 
     if (!any_category) {
         try carnaval.Style.init().dimmed().renderWithProfile("  (none)\n", w, profile);
@@ -391,7 +388,7 @@ fn printEffectiveRulesCategory(
 
 pub fn printCategorizedSummary(allocator: std.mem.Allocator, io: std.Io, rows: []const RuleCountRow) !void {
     const profile = stderrColorProfile(io);
-    const categories = [_]RuleCategory{ .doc, .style, .complexity };
+    const categories = [_]RuleCategory{ .doc, .style, .complexity, .size };
 
     var buf: [8192]u8 = undefined;
     var stderr = std.Io.File.stderr().writer(io, &buf);
