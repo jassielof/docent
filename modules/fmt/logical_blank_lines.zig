@@ -4,6 +4,14 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
+// TODO: Improve documentation for this rule. And corroborate the following sub-rules
+// - There should be a single blank line before the returning statement, unless it's the only statement in the block, add respective test cases for this and each of the following too respectively, enough and simple to cover the casese.
+// - Since Zig's standard formatter won't allow us to have double blank lines, so this will be dropped entirely.
+// - Related to import sorting, there should be a single blank line of separation between internal (non-public) and public imports declarations.
+// - There should be a single blank line of separation between the last import declaration and the first non-import declaration (either values, functions, structs, etc.).
+// - There should be a single blank of separation between logcal blocks of code, they shouldn't be glued together (0 or 1 newlines between them)
+// - Defer statements should be along their respective initialization statement, this includes errdefer too. And they should have a single blank line after them.
+
 /// Enforces logical blank line separation (vertical whitespace discipline).
 ///
 /// Rules applied:
