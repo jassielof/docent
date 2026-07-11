@@ -4,24 +4,27 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-// TODO: Improve documentation for this rule. And corroborate the following sub-rules
-// - There should be a single blank line before the returning statement, unless it's the only statement in the block, add respective test cases for this and each of the following too respectively, enough and simple to cover the casese.
-// - Since Zig's standard formatter won't allow us to have double blank lines, so this will be dropped entirely.
-// - Related to import sorting, there should be a single blank line of separation between internal (non-public) and public imports declarations.
-// - There should be a single blank line of separation between the last import declaration and the first non-import declaration (either values, functions, structs, etc.).
-// - There should be a single blank of separation between logcal blocks of code, they shouldn't be glued together (0 or 1 newlines between them)
-// - Defer statements should be along their respective initialization statement, this includes errdefer too. And they should have a single blank line after them.
-
 /// Enforces logical blank line separation (vertical whitespace discipline).
+///
+/// Zig's AST renderer collapses consecutive blank lines to one, so this pass
+/// never emits two blank lines in a row. Internal-vs-public import grouping is
+/// owned by `sort_imports`; this pass only ensures a blank line between the
+/// trailing import-related decls and the first non-import declaration.
 ///
 /// Rules applied:
 /// 1. One blank line after a closing `}` before the next statement
 ///    (unless followed by `}`, `else`, `catch`, or `)` continuation).
-/// 2. One blank line after `return`/`continue`/`break` statements
-///    (unless at end of block).
-/// 3. No blank line immediately after `{`.
-/// 4. No blank line immediately before `}`.
-/// 5. Never two consecutive blank lines.
+/// 2. One blank line before `return`/`continue`/`break`, unless it is the
+///    first statement in its block (covers the sole-statement case).
+/// 3. One blank line after `return`/`continue`/`break` when more statements
+///    follow in the same block.
+/// 4. `defer`/`errdefer` stay glued to their preceding initialization; a
+///    blank line follows a defer group before the next non-defer statement.
+/// 5. One blank line between the last import-related declaration and the
+///    first non-import declaration.
+/// 6. No blank line immediately after `{`.
+/// 7. No blank line immediately before `}`.
+/// 8. Never two consecutive blank lines.
 pub fn enforceLogicalBlankLines(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     var lines: std.ArrayList([]const u8) = .empty;
     defer lines.deinit(gpa);
@@ -52,6 +55,8 @@ pub fn enforceLogicalBlankLines(gpa: Allocator, input: []const u8) Allocator.Err
             if (i + 1 < lines.items.len) {
                 const next_trimmed = mem.trimStart(u8, mem.trimEnd(u8, lines.items[i + 1], " "), " ");
                 if (next_trimmed.len > 0 and next_trimmed[0] == '}') continue;
+                // Keep defer/errdefer glued to the preceding initialization.
+                if (isDeferLine(next_trimmed)) continue;
             }
 
             try output.appendSlice(gpa, line);
@@ -61,7 +66,7 @@ pub fn enforceLogicalBlankLines(gpa: Allocator, input: []const u8) Allocator.Err
         }
 
         if (prev_content) |pc| {
-            if (!prev_was_blank and needsBlankAfter(pc) and !suppressesBlank(trimmed)) {
+            if (!prev_was_blank and shouldInsertBlank(pc, trimmed)) {
                 try output.append(gpa, '\n');
             }
         }
@@ -75,22 +80,40 @@ pub fn enforceLogicalBlankLines(gpa: Allocator, input: []const u8) Allocator.Err
     return output.toOwnedSlice(gpa);
 }
 
+fn shouldInsertBlank(prev_trimmed: []const u8, next_trimmed: []const u8) bool {
+    if (suppressesBlank(next_trimmed)) return false;
+    if (isDeferLine(prev_trimmed) and isDeferLine(next_trimmed)) return false;
+    if (isImportRelated(prev_trimmed) and isImportRelated(next_trimmed)) return false;
+
+    if (needsBlankAfter(prev_trimmed)) return true;
+    if (needsBlankBefore(next_trimmed, prev_trimmed)) return true;
+    if (isImportRelated(prev_trimmed) and !isImportRelated(next_trimmed)) return true;
+
+    return false;
+}
+
 fn needsBlankAfter(prev_trimmed: []const u8) bool {
     if (prev_trimmed.len == 0) return false;
 
-    if (prev_trimmed.len >= 1 and prev_trimmed[prev_trimmed.len - 1] == '}') {
-        if (mem.eql(u8, prev_trimmed, "}") or
-            mem.eql(u8, prev_trimmed, "};") or
-            mem.endsWith(u8, prev_trimmed, "};") or
-            mem.eql(u8, prev_trimmed, "}"))
-        {
-            return true;
-        }
+    // Only "closing brace" lines — not one-liners like `fn foo() void {}`.
+    if (mem.eql(u8, prev_trimmed, "}") or
+        mem.eql(u8, prev_trimmed, "};") or
+        mem.endsWith(u8, prev_trimmed, "};"))
+    {
+        return true;
     }
 
     if (isFlowTerminator(prev_trimmed)) return true;
+    if (isDeferLine(prev_trimmed)) return true;
 
     return false;
+}
+
+fn needsBlankBefore(next_trimmed: []const u8, prev_trimmed: []const u8) bool {
+    if (!isFlowTerminator(next_trimmed)) return false;
+    // First statement in a block (including the sole-statement case).
+    if (mem.endsWith(u8, prev_trimmed, "{")) return false;
+    return true;
 }
 
 fn isFlowTerminator(trimmed: []const u8) bool {
@@ -98,6 +121,33 @@ fn isFlowTerminator(trimmed: []const u8) bool {
     if (mem.startsWith(u8, trimmed, "continue ") or mem.eql(u8, trimmed, "continue;")) return true;
     if (mem.eql(u8, trimmed, "break;") or mem.startsWith(u8, trimmed, "break ")) return true;
     return false;
+}
+
+fn isDeferLine(trimmed: []const u8) bool {
+    return mem.startsWith(u8, trimmed, "defer ") or
+        mem.startsWith(u8, trimmed, "errdefer ") or
+        mem.eql(u8, trimmed, "defer") or
+        mem.eql(u8, trimmed, "errdefer");
+}
+
+fn isImportRelated(trimmed: []const u8) bool {
+    if (mem.indexOf(u8, trimmed, "@import") != null) return true;
+    return isModuleAlias(trimmed);
+}
+
+/// `const Foo = bar.baz;` / `pub const Foo = bar.baz;` — aliases kept with imports.
+fn isModuleAlias(trimmed: []const u8) bool {
+    var line = trimmed;
+    if (mem.startsWith(u8, line, "pub ")) line = mem.trimStart(u8, line[4..], " ");
+    if (!mem.startsWith(u8, line, "const ")) return false;
+
+    const eq = mem.indexOf(u8, line, " = ") orelse return false;
+    const rhs = line[eq + 3 ..];
+    if (mem.indexOf(u8, rhs, "@") != null) return false;
+    if (mem.indexOf(u8, rhs, "(") != null) return false;
+    if (mem.indexOf(u8, rhs, "{") != null) return false;
+    if (mem.indexOf(u8, rhs, ".") == null) return false;
+    return true;
 }
 
 fn suppressesBlank(next_trimmed: []const u8) bool {

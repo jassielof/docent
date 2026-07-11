@@ -1,11 +1,14 @@
 const std = @import("std");
+const mem = std.mem;
 
 fn example(gpa: std.mem.Allocator) void {
     const source_code = "test";
     var tree = std.zig.Ast.parse(gpa, source_code, .zig) catch return;
     defer tree.deinit(gpa);
+
     if (tree.errors.len != 0) {
         std.debug.print("errors", .{});
+
         return;
     }
 
@@ -26,6 +29,7 @@ fn dense(x: i32) void {
 
     const y = 2;
     _ = y;
+
     return;
 }
 
@@ -51,6 +55,35 @@ fn nested(cond: bool) void {
     }
 
     doB();
+}
+
+fn only_return() void {
+    return;
+}
+
+fn blank_before_return(x: i32) i32 {
+    const doubled = x * 2;
+
+    return doubled;
+}
+
+fn glued_defer(gpa: std.mem.Allocator) !void {
+    var list: std.ArrayList(u8) = .empty;
+    defer list.deinit(gpa);
+
+    try list.append(gpa, 1);
+}
+
+fn defer_group(gpa: std.mem.Allocator) !void {
+    var a: std.ArrayList(u8) = .empty;
+    defer a.deinit(gpa);
+
+    var b: std.ArrayList(u8) = .empty;
+    defer b.deinit(gpa);
+    errdefer b.deinit(gpa);
+
+    try a.append(gpa, 1);
+    _ = mem;
 }
 
 fn doSomething() void {}
