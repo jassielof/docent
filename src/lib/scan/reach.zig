@@ -189,31 +189,28 @@ fn collectAllImportsFromNode(
 ) !void {
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.ast.init_node.unwrap()) |init_node| {
-            if (getImportPathFromExpr(tree, init_node)) |import_path| {
-                if (try resolveLocalZigImport(allocator, io, current_file, import_path)) |abs| {
+            if (getImportPathFromExpr(tree, init_node)) |import_path|
+                if (try resolveLocalZigImport(allocator, io, current_file, import_path)) |abs|
                     try out.append(allocator, abs);
-                }
-            }
 
             if (isContainerDecl(tree.nodeTag(init_node))) {
                 var buf: [2]std.zig.Ast.Node.Index = undefined;
-                if (tree.fullContainerDecl(&buf, init_node)) |container| {
-                    for (container.ast.members) |member| {
+
+                if (tree.fullContainerDecl(&buf, init_node)) |container|
+                    for (container.ast.members) |member|
                         try collectAllImportsFromNode(allocator, io, tree, member, current_file, out);
-                    }
-                }
             }
         }
+
         return;
     }
 
     if (isContainerDecl(tree.nodeTag(node))) {
         var buf: [2]std.zig.Ast.Node.Index = undefined;
-        if (tree.fullContainerDecl(&buf, node)) |container| {
-            for (container.ast.members) |member| {
+
+        if (tree.fullContainerDecl(&buf, node)) |container|
+            for (container.ast.members) |member|
                 try collectAllImportsFromNode(allocator, io, tree, member, current_file, out);
-            }
-        }
     }
 }
 

@@ -1140,9 +1140,7 @@ const InlineParser = struct {
         ip.pos = start;
     }
 
-    /// Parses a plain text autolink (not delimited by `<>`), starting at the
-    /// first character in the link (an `h`). `ip.pos` is left at the last
-    /// character of the link, or remains unchanged if there is no valid link.
+    /// Parses a plain text autolink (not delimited by `<>`), starting at the first character in the link (an `h`). `ip.pos` is left at the last character of the link, or remains unchanged if there is no valid link.
     fn parseTextAutolink(ip: *InlineParser) !void {
         const start = ip.pos;
         var state: union(enum) {
