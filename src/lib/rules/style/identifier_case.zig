@@ -260,6 +260,7 @@ fn getImportLiteral(tree: *const Ast, node: Ast.Node.Index) ?ImportLiteral {
 fn isImportMemberReexport(tree: *const Ast, node: Ast.Node.Index) bool {
     if (tree.nodeTag(node) != .field_access) return false;
     const fa = tree.nodeData(node).node_and_token;
+
     return getImportLiteral(tree, fa[0]) != null;
 }
 
