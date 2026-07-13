@@ -8,32 +8,34 @@
 // Returns nothing in both cases, so it's impossible to pipe the output to ripgrep, at least via nushell with `... | rg "pattern"`. `
 
 const std = @import("std");
-const vereda = @import("vereda");
-
-const suppressions = @import("suppressions.zig");
-
 const Ast = std.zig.Ast;
 
+const vereda = @import("vereda");
+
+pub const build_scan = @import("build_scan.zig");
+pub const check_shared = @import("check_shared.zig");
+pub const config = @import("config.zig");
 pub const Diagnostic = @import("Diagnostic.zig");
+pub const flags = @import("flags.zig");
+pub const LintOptions = @import("LintOptions.zig");
 pub const LintResult = @import("LintResult.zig");
+pub const manifest = @import("manifest.zig");
+pub const naming_case = @import("naming_case.zig");
 pub const output = @import("output.zig");
-pub const scan = @import("scan.zig");
-pub const RuleSeverities = @import("RuleSeverities.zig");
+pub const rule_config = @import("rule_config.zig");
 pub const rule_metadata = @import("rule_metadata.zig");
+pub const rules = @import("rules.zig");
+pub const RuleSeverities = @import("RuleSeverities.zig");
 pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
+pub const scan = @import("scan.zig");
+pub const Config = @import("schemas/Config.zig");
 pub const severity = @import("severity.zig");
 pub const SeverityLevel = severity.Level;
-pub const manifest = @import("manifest.zig");
-pub const config = @import("config.zig");
-pub const Config = @import("schemas/Config.zig");
-
 pub const status_plan = @import("status_plan.zig");
-pub const build_scan = @import("build_scan.zig");
-pub const LintOptions = @import("LintOptions.zig");
-pub const rules = @import("rules.zig");
+const suppressions = @import("suppressions.zig");
 pub const Suppressions = suppressions.Table;
-pub const naming_case = @import("naming_case.zig");
+pub const types = @import("types.zig");
 
 /// Returns whether the file-level `//!` check applies to `path`.
 ///

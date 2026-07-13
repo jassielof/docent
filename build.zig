@@ -45,6 +45,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "carnaval", .module = carnaval_mod },
+                .{ .name = "fangz", .module = fangz_mod },
                 .{ .name = "vereda", .module = vereda_mod },
                 .{ .name = "toml", .module = toml_mod },
                 .{ .name = "doc_comment", .module = doc_comment_mod },

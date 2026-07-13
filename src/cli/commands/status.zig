@@ -3,10 +3,9 @@ const std = @import("std");
 
 const carnaval = @import("carnaval");
 const docent = @import("docent");
+const check_shared = docent.check_shared;
+const cli_flags = docent.flags;
 const fangz = @import("fangz");
-
-const check_shared = @import("../check_shared.zig");
-const cli_flags = @import("../flags.zig");
 
 pub fn register(root: *fangz.Command) !void {
     const status_cmd = try root.addSubcommand(.{

@@ -3,10 +3,17 @@
 const std = @import("std");
 
 const carnaval = @import("carnaval");
-const docent = @import("docent");
 const fangz = @import("fangz");
 
 const cli_types = @import("types.zig");
+const config = @import("config.zig");
+const Diagnostic = @import("Diagnostic.zig");
+const manifest = @import("manifest.zig");
+const output = @import("output.zig");
+const RuleSeverities = @import("RuleSeverities.zig");
+const Config = @import("schemas/Config.zig");
+const SeverityLevel = @import("severity.zig").Level;
+const status_plan = @import("status_plan.zig");
 
 pub const TargetArgs = struct {
     positionals: []const []const u8 = &.{},
@@ -26,14 +33,14 @@ pub const TargetArgs = struct {
 /// Merges CLI target flags with `[check]` from `.config/docent.toml`.
 /// CLI bools OR with config (either may enable a target class). `exclude_targets`
 /// comes from config only.
-pub fn gatherPlan(allocator: std.mem.Allocator, io: std.Io, args: TargetArgs) !docent.status_plan.Plan {
-    var cfg: docent.Config = docent.config.loadConfigFromCli(allocator, io, args.config_path) catch .{};
+pub fn gatherPlan(allocator: std.mem.Allocator, io: std.Io, args: TargetArgs) !status_plan.Plan {
+    var cfg: Config = config.loadConfigFromCli(allocator, io, args.config_path) catch .{};
     defer cfg.deinit(allocator);
 
     const resolved_manifest = try resolveManifestPath(allocator, io, args.manifest_path);
     defer if (resolved_manifest) |p| allocator.free(p);
 
-    return docent.status_plan.gather(allocator, io, .{
+    return status_plan.gather(allocator, io, .{
         .lib = args.lib or cfg.check.lib,
         .bins = args.bins or cfg.check.bins,
         .bin_names = args.bin,
@@ -155,7 +162,7 @@ pub fn registerOutputFlags(cmd: *fangz.Command) !void {
     });
 }
 
-pub fn failFastMatches(ff: cli_types.FailFast, severity_level: docent.SeverityLevel) bool {
+pub fn failFastMatches(ff: cli_types.FailFast, severity_level: SeverityLevel) bool {
     return switch (ff) {
         .none => false,
         .@"error" => severity_level.isError(),
@@ -164,7 +171,7 @@ pub fn failFastMatches(ff: cli_types.FailFast, severity_level: docent.SeverityLe
     };
 }
 
-pub fn textFormat(mode: cli_types.OutputMode) docent.output.TextFormat {
+pub fn textFormat(mode: cli_types.OutputMode) output.TextFormat {
     return switch (mode) {
         .pretty => .pretty,
         .minimal => .minimal,
@@ -173,12 +180,12 @@ pub fn textFormat(mode: cli_types.OutputMode) docent.output.TextFormat {
 }
 
 pub fn allocPathDisplayRoot(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
-    const manifest = docent.manifest.findNearestManifestPath(allocator, io) catch |err| switch (err) {
+    const manifest_path = manifest.findNearestManifestPath(allocator, io) catch |err| switch (err) {
         error.OutOfMemory => return err,
         else => return realPathFileAlloc(allocator, io, "."),
     };
-    defer allocator.free(manifest);
-    const dir = std.fs.path.dirname(manifest) orelse return realPathFileAlloc(allocator, io, ".");
+    defer allocator.free(manifest_path);
+    const dir = std.fs.path.dirname(manifest_path) orelse return realPathFileAlloc(allocator, io, ".");
     return realPathFileAlloc(allocator, io, dir);
 }
 
@@ -193,19 +200,19 @@ pub fn printCheckResults(
     allocator: std.mem.Allocator,
     args: TargetArgs,
     summary_label: []const u8,
-    diagnostics: []const docent.Diagnostic,
-    summary: docent.output.Summary,
+    diagnostics: []const Diagnostic,
+    summary: output.Summary,
     path_display_root: ?[]const u8,
 ) !void {
     if (args.format == .json) {
-        try docent.output.printJsonStdout(io, allocator, diagnostics);
+        try output.printJsonStdout(io, allocator, diagnostics);
         return;
     }
 
-    const text_options = docent.output.stderrTextOptions(io, textFormat(args.format), .auto, path_display_root);
-    try docent.output.printDiagnosticsStderr(io, diagnostics, text_options);
+    const text_options = output.stderrTextOptions(io, textFormat(args.format), .auto, path_display_root);
+    try output.printDiagnosticsStderr(io, diagnostics, text_options);
     const had_diagnostics = summary.errors > 0 or summary.warnings > 0;
-    try docent.output.printSummaryStderr(io, summary, docent.output.stderrSummaryOptions(io, summary_label, .auto), had_diagnostics);
+    try output.printSummaryStderr(io, summary, output.stderrSummaryOptions(io, summary_label, .auto), had_diagnostics);
 }
 
 fn resolveManifestPath(allocator: std.mem.Allocator, io: std.Io, raw: ?[]const u8) !?[]u8 {
@@ -275,14 +282,14 @@ pub const RuleCategory = enum {
 
 pub const RuleCountRow = struct {
     category: RuleCategory,
-    severity: docent.SeverityLevel,
+    severity: SeverityLevel,
     rule: []const u8,
     count: usize,
 };
 
 pub fn appendDiagnosticCounts(
     allocator: std.mem.Allocator,
-    diagnostics: []const docent.Diagnostic,
+    diagnostics: []const Diagnostic,
     rows: *std.ArrayList(RuleCountRow),
 ) !void {
     for (diagnostics) |d| {
@@ -327,7 +334,7 @@ fn formatSummaryLine(
     const count_text = try std.fmt.bufPrint(&count_buf, "{d}", .{row.count});
     try carnaval.Style.init().bolded().renderWithProfile(count_text, &aw.writer, profile);
     try aw.writer.writeAll(" ");
-    try docent.output.writeSeverityRuleTag(&aw.writer, row.severity, row.rule, profile);
+    try output.writeSeverityRuleTag(&aw.writer, row.severity, row.rule, profile);
 
     return aw.toOwnedSlice();
 }
@@ -341,7 +348,7 @@ pub fn printCategorizedEffectiveRules(
     allocator: std.mem.Allocator,
     w: *std.Io.Writer,
     profile: carnaval.ColorProfile,
-    rule_set: docent.RuleSeverities,
+    rule_set: RuleSeverities,
 ) !void {
     var any_category = false;
     try printEffectiveRulesCategory(allocator, w, profile, rule_set, .doc, &any_category);
@@ -358,7 +365,7 @@ fn printEffectiveRulesCategory(
     allocator: std.mem.Allocator,
     w: *std.Io.Writer,
     profile: carnaval.ColorProfile,
-    rule_set: docent.RuleSeverities,
+    rule_set: RuleSeverities,
     comptime category: RuleCategory,
     any_category: *bool,
 ) !void {
@@ -368,7 +375,7 @@ fn printEffectiveRulesCategory(
         lines.deinit(allocator);
     }
 
-    inline for (@typeInfo(docent.RuleSeverities).@"struct".fields) |field| {
+    inline for (@typeInfo(RuleSeverities).@"struct".fields) |field| {
         comptime {
             const rule_category = RuleCategory.fromRule(field.name) orelse continue;
             if (rule_category != category) continue;
@@ -377,7 +384,7 @@ fn printEffectiveRulesCategory(
         const level = @field(rule_set, field.name);
         var buf: [512]u8 = undefined;
         var line_writer = std.Io.Writer.fixed(&buf);
-        try docent.output.writeSeverityRuleTag(&line_writer, level, field.name, profile);
+        try output.writeSeverityRuleTag(&line_writer, level, field.name, profile);
         try lines.append(allocator, try allocator.dupe(u8, line_writer.buffered()));
     }
 

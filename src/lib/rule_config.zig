@@ -1,7 +1,9 @@
 const std = @import("std");
 
-const docent = @import("docent");
 const fangz = @import("fangz");
+
+const RuleSeverities = @import("RuleSeverities.zig");
+const SeverityLevel = @import("severity.zig").Level;
 
 pub const RuleConfigError = error{
     InvalidSeverity,
@@ -9,11 +11,11 @@ pub const RuleConfigError = error{
 };
 
 /// Applies a single `key=severity` override to the rule set (used by project config loaders and tests).
-pub fn applyRuleOverride(rs: *docent.RuleSeverities, kv: fangz.KeyValuePair) RuleConfigError!void {
-    const sev = std.meta.stringToEnum(docent.SeverityLevel, kv.value) orelse
+pub fn applyRuleOverride(rs: *RuleSeverities, kv: fangz.KeyValuePair) RuleConfigError!void {
+    const sev = std.meta.stringToEnum(SeverityLevel, kv.value) orelse
         return error.InvalidSeverity;
 
-    inline for (@typeInfo(docent.RuleSeverities).@"struct".fields) |f| {
+    inline for (@typeInfo(RuleSeverities).@"struct".fields) |f| {
         if (std.mem.eql(u8, f.name, kv.key)) {
             const current = @field(rs, f.name);
             if (current == .forbid and sev != .forbid) return;
