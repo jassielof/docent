@@ -8,7 +8,7 @@ const fangz = @import("fangz");
 const complexity_check = @import("complexity.zig");
 const size_check = @import("size.zig");
 const doc_check = @import("doc.zig");
-const check_shared = @import("../../check_shared.zig");
+const check_shared = docent.check_shared;
 const style_check = @import("style.zig");
 
 pub fn register(check: *fangz.Command) !void {

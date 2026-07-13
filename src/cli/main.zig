@@ -1,20 +1,19 @@
 const std = @import("std");
 
+const docent = @import("docent");
+pub const rule_config = docent.rule_config;
+pub const default_fail_fast = docent.types.default_fail_fast;
+pub const FailFast = docent.types.FailFast;
+pub const OutputMode = docent.types.OutputMode;
+pub const registerConfigPathFlag = docent.flags.registerConfigPath;
 const fangz = @import("fangz");
 
 const check_command = @import("commands/check.zig");
 const fmt = @import("commands/fmt.zig");
 const init_command = @import("commands/init.zig");
 const status_command = @import("commands/status.zig");
-const typeset_command = @import("commands/typeset.zig");
-const types = @import("types.zig");
-
-pub const rule_config = @import("rule_config.zig");
-pub const registerConfigPathFlag = @import("flags.zig").registerConfigPath;
-pub const default_fail_fast = types.default_fail_fast;
-pub const FailFast = types.FailFast;
-pub const OutputMode = types.OutputMode;
 pub const registerStatusSubcommand = status_command.register;
+const typeset_command = @import("commands/typeset.zig");
 
 pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;

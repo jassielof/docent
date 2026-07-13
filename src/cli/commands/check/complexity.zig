@@ -5,8 +5,8 @@ const std = @import("std");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-const cli_types = @import("../../types.zig");
-const check_shared = @import("../../check_shared.zig");
+const cli_types = docent.types;
+const check_shared = docent.check_shared;
 
 pub fn register(check: *fangz.Command) !void {
     const complexity_cmd = try check.addSubcommand(.{
