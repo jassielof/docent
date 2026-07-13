@@ -162,12 +162,20 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run the test suite");
 
     const docent_lib_tests = b.addTest(.{
-        .name = "Docent Library",
+        .name = "Docent",
         .root_module = mod,
     });
 
     const run_docent_lib_tests = b.addRunArtifact(docent_lib_tests);
     test_step.dependOn(&run_docent_lib_tests.step);
+
+    const fmt_lib_tests = b.addTest(.{
+        .name = "Formatting",
+        .root_module = fmt_mod,
+    });
+
+    const run_fmt_lib_tests = b.addRunArtifact(fmt_lib_tests);
+    test_step.dependOn(&run_fmt_lib_tests.step);
 
     const integration_tests = b.addTest(.{
         .name = "Integration",
