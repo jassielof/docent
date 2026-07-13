@@ -2,11 +2,27 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-pub const types = @import("sort_imports/types.zig");
-pub const extractor = @import("sort_imports/extractor.zig");
+const format_test_assertions = @import("format_test_assertions.zig");
 pub const classifier = @import("sort_imports/classifier.zig");
-pub const sorter = @import("sort_imports/sorter.zig");
+pub const extractor = @import("sort_imports/extractor.zig");
 pub const renderer = @import("sort_imports/renderer.zig");
+pub const sorter = @import("sort_imports/sorter.zig");
+pub const types = @import("sort_imports/types.zig");
+
+test "sorts imports" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/sort_imports/input.zig");
+    const expected = @embedFile("fixtures/sort_imports/expected.zig");
+
+    const formatted = try sortImports(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try sortImports(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
 
 /// Sorts the leading top-level import block using AST-based extraction.
 ///

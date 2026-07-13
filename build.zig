@@ -161,13 +161,13 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run the test suite");
 
-    const unit_tests = b.addTest(.{
-        .name = "Docent",
+    const docent_lib_tests = b.addTest(.{
+        .name = "Docent Library",
         .root_module = mod,
     });
 
-    const run_unit_tests = b.addRunArtifact(unit_tests);
-    test_step.dependOn(&run_unit_tests.step);
+    const run_docent_lib_tests = b.addRunArtifact(docent_lib_tests);
+    test_step.dependOn(&run_docent_lib_tests.step);
 
     const integration_tests = b.addTest(.{
         .name = "Integration",
@@ -192,7 +192,12 @@ pub fn build(b: *std.Build) void {
 
     const fmt = b.addFmt(.{
         .check = true,
-        .paths = &.{ "src/", "modules/" },
+        .paths = &.{
+            "cmd/",
+            "lib/",
+            "internal/",
+        },
+        .exclude_paths = &.{"lib/fmt/fixtures/"},
     });
     check_step.dependOn(&fmt.step);
 

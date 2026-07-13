@@ -4,6 +4,8 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
+const format_test_assertions = @import("format_test_assertions.zig");
+
 /// Target brace placement style. Zig's own AST renderer (`tree.render()`)
 /// always emits K&R, so every style here describes a post-processing
 /// transform *from* that canonical output -- `.k_r` is the identity case,
@@ -135,4 +137,44 @@ fn endsWithBlockBrace(content: []const u8) bool {
     if (!mem.endsWith(u8, content, " {")) return false;
     if (content.len >= 3 and content[content.len - 3] == '.') return false;
     return true;
+}
+
+test "converts braces to Allman style" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/brace_style/input.zig");
+    const expected = @embedFile("fixtures/brace_style/expected_allman.zig");
+
+    const formatted = try convertToAllman(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try convertToAllman(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "dispatches brace style conversion" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/brace_style/input.zig");
+    const allman_expected = @embedFile("fixtures/brace_style/expected_allman.zig");
+    const k_r_expected = @embedFile("fixtures/brace_style/expected_k_r.zig");
+
+    const allman_formatted = try convert(gpa, input, .allman);
+    defer gpa.free(allman_formatted);
+    try std.testing.expectEqualStrings(allman_expected, allman_formatted);
+    try format_test_assertions.expectValidZig(allman_formatted);
+
+    const allman_formatted_expected = try convert(gpa, allman_expected, .allman);
+    defer gpa.free(allman_formatted_expected);
+    try format_test_assertions.expectIdempotent(allman_expected, allman_formatted_expected);
+
+    const k_r_formatted = try convert(gpa, input, .k_r);
+    defer gpa.free(k_r_formatted);
+    try std.testing.expectEqualStrings(k_r_expected, k_r_formatted);
+    try format_test_assertions.expectValidZig(k_r_formatted);
+
+    const k_r_formatted_expected = try convert(gpa, k_r_expected, .k_r);
+    defer gpa.free(k_r_formatted_expected);
+    try format_test_assertions.expectIdempotent(k_r_expected, k_r_formatted_expected);
 }
