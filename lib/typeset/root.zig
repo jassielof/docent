@@ -10,12 +10,12 @@
 //! owns Typst conversion (including MiTeX math and Codly-friendly code
 //! fences), JSON serialization, and dependency/std bundling.
 
-pub const schema = @import("typeset/schema.zig");
-pub const walker = @import("typeset/walker.zig");
-pub const serialize = @import("typeset/serialize.zig");
-pub const typst = @import("typeset/typst.zig");
-pub const external_refs = @import("typeset/external_refs.zig");
-pub const path_deps = @import("typeset/path_deps.zig");
-pub const std_bundle = @import("typeset/std_bundle.zig");
-pub const Walk = @import("typeset/Walk.zig");
+pub const schema = @import("schema.zig");
+pub const walker = @import("walker.zig");
+pub const serialize = @import("serialize.zig");
+pub const typst = @import("typst.zig");
+pub const external_refs = @import("external_refs.zig");
+pub const path_deps = @import("path_deps.zig");
+pub const std_bundle = @import("std_bundle.zig");
+pub const Walk = @import("Walk.zig");
 pub const Decl = Walk.Decl;
