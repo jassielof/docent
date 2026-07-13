@@ -3,8 +3,6 @@ const std = @import("std");
 const fangz_build = @import("fangz");
 
 pub fn build(b: *std.Build) void {
-    const mod_name = "docent";
-
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -38,7 +36,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const mod = b.addModule(
-        mod_name,
+        "docent",
         .{
             .root_source_file = b.path("src/lib/root.zig"),
             .target = target,
@@ -59,18 +57,18 @@ pub fn build(b: *std.Build) void {
     typeset_mod.addImport("docent", mod);
 
     const docs_lib = b.addLibrary(.{
-        .name = mod_name,
+        .name = "docent",
         .root_module = mod,
     });
 
-    const cli_step = b.step("cli", "Run the CLI");
+    const cli_step = b.step("docent", "Run the CLI");
 
     const cli_mod = b.createModule(.{
-        .root_source_file = b.path("src/cli/main.zig"),
+        .root_source_file = b.path("cmd/docent.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = mod_name, .module = mod },
+            .{ .name = "docent", .module = mod },
             .{ .name = "fangz", .module = fangz_mod },
             .{ .name = "carnaval", .module = carnaval_mod },
             .{ .name = "toml", .module = toml_mod },
@@ -81,7 +79,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const cli = b.addExecutable(.{
-        .name = mod_name,
+        .name = "docent",
         // Add exectuable can take a version field, so that should be used for the metadata injection, IF IT'S AVAILABLE, in my case I simply won't use it, so it should fallback to the build.zig.zon version field instead. In the case where the user uses the version here from addExecutable, it's a SemanticVersion type.
         // .version =
         .root_module = cli_mod,
@@ -178,7 +176,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = mod_name, .module = mod },
+                .{ .name = "docent", .module = mod },
                 .{ .name = "fangz", .module = fangz_mod },
                 .{ .name = "carnaval", .module = carnaval_mod },
                 .{ .name = "cli", .module = cli_mod },
