@@ -4,9 +4,9 @@
 //! - `comment` — text helpers: line bodies, paragraphs, summaries
 //! - `markup` — Zig's Markdown subset parser (Document / Parser / components)
 
-pub const extract = @import("doc_comment/extract.zig");
-pub const comment = @import("doc_comment/comment.zig");
-pub const markup = @import("doc_comment/markup.zig");
+pub const extract = @import("extract.zig");
+pub const comment = @import("comment.zig");
+pub const markup = @import("markup.zig");
 
 // Convenience re-exports of the most-used extract APIs.
 pub const Subject = extract.Subject;
