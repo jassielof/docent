@@ -4,6 +4,38 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
+const format_test_assertions = @import("format_test_assertions.zig");
+
+test "reindents using two spaces" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/indent_width/input.zig");
+    const expected = @embedFile("fixtures/indent_width/expected_spaces_2.zig");
+
+    const formatted = try reindent(gpa, input, .space, 2);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try reindent(gpa, expected, .space, 2);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "reindents using tabs" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/indent_width/input.zig");
+    const expected = @embedFile("fixtures/indent_width/expected_tabs.zig");
+
+    const formatted = try reindent(gpa, input, .tab, 4);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try reindent(gpa, expected, .tab, 4);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
 /// Leading-whitespace character used per indentation level. Zig's own AST
 /// renderer (`tree.render()`) always emits 4-space indentation, so `.space`
 /// at width 4 is the identity case (see `reindent`).

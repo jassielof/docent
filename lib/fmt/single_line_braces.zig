@@ -4,6 +4,8 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
+const format_test_assertions = @import("format_test_assertions.zig");
+
 /// The enforceBraces function wraps single-line control-flow bodies in braces.
 ///
 /// Converts patterns like `if (cond) return;` into multi-line braced blocks.
@@ -61,6 +63,21 @@ pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     }
 
     return output.toOwnedSlice(gpa);
+}
+
+test "enforces braces for single-line control flow" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/single_line_braces/input.zig");
+    const expected = @embedFile("fixtures/single_line_braces/expected.zig");
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try enforceBraces(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
 const keywords = [_][]const u8{ "if ", "while ", "for " };

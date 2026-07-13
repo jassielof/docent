@@ -12,6 +12,37 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
+const format_test_assertions = @import("format_test_assertions.zig");
+
+test "wraps overlong call lists" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/auto_wrap/input.zig");
+    const expected = @embedFile("fixtures/auto_wrap/expected.zig");
+
+    const formatted = try autoWrap(gpa, input, 60);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(gpa, expected, 60);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "leaves short lines unchanged" {
+    const gpa = std.testing.allocator;
+    const expected = @embedFile("fixtures/auto_wrap/expected_short.zig");
+
+    const formatted = try autoWrap(gpa, expected, 100);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(gpa, expected, 100);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
 /// Wraps over-long lines by expanding `(...)` / `{...}` lists. Caller owns
 /// the returned slice.
 pub fn autoWrap(gpa: Allocator, input: []const u8, max_line_length: u32) Allocator.Error![]u8 {

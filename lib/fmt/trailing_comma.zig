@@ -6,6 +6,23 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
+const format_test_assertions = @import("format_test_assertions.zig");
+
+test "adds trailing commas to multiline lists" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/trailing_comma/input.zig");
+    const expected = @embedFile("fixtures/trailing_comma/expected.zig");
+
+    const formatted = try addTrailingCommas(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try addTrailingCommas(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
 /// Expands single-line lists with 3 or more items to one-per-line with trailing commas.
 pub fn addTrailingCommas(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     var output: std.ArrayList(u8) = .empty;

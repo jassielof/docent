@@ -4,6 +4,23 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
+const format_test_assertions = @import("format_test_assertions.zig");
+
+test "enforces logical blank lines" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/logical_blank_lines/input.zig");
+    const expected = @embedFile("fixtures/logical_blank_lines/expected.zig");
+
+    const formatted = try enforceLogicalBlankLines(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try enforceLogicalBlankLines(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
 /// Enforces logical blank line separation (vertical whitespace discipline).
 ///
 /// Zig's AST renderer collapses consecutive blank lines to one, so this pass

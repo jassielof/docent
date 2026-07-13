@@ -15,6 +15,8 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
+const format_test_assertions = @import("format_test_assertions.zig");
+
 const AlignKind = enum { colon, equals, none };
 
 const LineInfo = struct {
@@ -25,6 +27,35 @@ const LineInfo = struct {
     /// For `name: Type = value`, also align `=` after the type.
     equals_after_colon: ?usize = null,
 };
+
+test "aligns fields and declarations" {
+    const gpa = std.testing.allocator;
+    const input = @embedFile("fixtures/grid_alignment/input.zig");
+    const expected = @embedFile("fixtures/grid_alignment/expected.zig");
+
+    const formatted = try alignGrid(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try alignGrid(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "does not alter a single-line group" {
+    const gpa = std.testing.allocator;
+    const expected = @embedFile("fixtures/grid_alignment/expected_single.zig");
+
+    const formatted = try alignGrid(gpa, expected);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try alignGrid(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
 
 /// Aligns `:` / `=` columns in contiguous groups. Caller owns the returned slice.
 pub fn alignGrid(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
