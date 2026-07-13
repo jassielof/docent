@@ -8,12 +8,12 @@ pub const OutputMode = docent.types.OutputMode;
 pub const registerConfigPathFlag = docent.flags.registerConfigPath;
 const fangz = @import("fangz");
 
-const check_command = @import("commands/check.zig");
-const fmt = @import("commands/fmt.zig");
-const init_command = @import("commands/init.zig");
-const status_command = @import("commands/status.zig");
+const check_command = @import("docent/check.zig");
+const fmt = @import("docent/fmt.zig");
+const init_command = @import("docent/init.zig");
+const status_command = @import("docent/status.zig");
 pub const registerStatusSubcommand = status_command.register;
-const typeset_command = @import("commands/typeset.zig");
+const typeset_command = @import("docent/typeset.zig");
 
 pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;
