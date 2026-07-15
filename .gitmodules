@@ -4,9 +4,6 @@
 [submodule "dependencies/fangz"]
 	path = dependencies/fangz
 	url = https://github.com/jassielof/fangz
-[submodule "dependencies/carnaval"]
-	path = dependencies/carnaval
-	url = https://github.com/jassielof/carnaval
 [submodule "dependencies/vereda"]
 	path = dependencies/vereda
 	url = https://github.com/jassielof/vereda

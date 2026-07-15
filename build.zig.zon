@@ -1,11 +1,10 @@
 .{
     .name = .docent,
-    .description = "Documentation linter for Zig projects.",
     .version = "0.0.0",
     .fingerprint = 0xf25cae59b814c9e6,
     .dependencies = .{
         .fangz = .{ .path = "dependencies/fangz" },
-        .carnaval = .{ .path = "dependencies/carnaval" },
+        .carnaval = .{ .path = "dependencies/fangz/dependencies/carnaval" },
         .vereda = .{ .path = "dependencies/vereda" },
         .toml = .{ .path = "dependencies/toml" },
     },
