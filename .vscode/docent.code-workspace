@@ -14,7 +14,7 @@
     },
     {
       "name": "Carnaval",
-      "path": "../dependencies/carnaval",
+      "path": "../dependencies/fangz/dependencies/carnaval",
     },
     {
       "name": "TOML",
@@ -22,9 +22,16 @@
     },
   ],
   "settings": {
-    "git.repositoryScanIgnoredFolders": ["references"],
+    "git.repositoryScanIgnoredFolders": [
+      "references"
+    ],
     "git.detectSubmodules": false,
-    "git.scanRepositories": ["modules", "dependencies"],
-    "better-todo-tree.filtering.excludeGlobs": ["**/references/*/**"],
+    "git.scanRepositories": [
+      "modules",
+      "dependencies"
+    ],
+    "better-todo-tree.filtering.excludeGlobs": [
+      "**/references/*/**"
+    ],
   },
 }
