@@ -20,7 +20,6 @@ pub const flags = @import("flags.zig");
 pub const LintOptions = @import("LintOptions.zig");
 pub const LintResult = @import("LintResult.zig");
 pub const manifest = @import("manifest.zig");
-pub const naming_case = @import("naming_case.zig");
 pub const output = @import("output.zig");
 pub const rule_config = @import("rule_config.zig");
 pub const rule_metadata = @import("rule_metadata.zig");
