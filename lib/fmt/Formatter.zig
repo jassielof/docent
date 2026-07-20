@@ -11,6 +11,7 @@ const carnaval = @import("carnaval");
 
 const config_mod = @import("config.zig");
 const array_type_guard = @import("array_type_guard.zig");
+const symlink_safe_write = @import("symlink_safe_write.zig");
 
 pub const Config = config_mod.Config;
 pub const Options = config_mod.Options;
@@ -345,11 +346,7 @@ fn fmtPathFile(
         try self.stdout_writer.interface.print("{s}\n", .{file_path});
         self.any_error = true;
     } else {
-        var af = try dir.createFileAtomic(io, sub_path, .{ .permissions = stat.permissions, .replace = true });
-        defer af.deinit(io);
-
-        try af.file.writeStreamingAll(io, pp.output);
-        try af.replace(io);
+        try symlink_safe_write.write(io, dir, sub_path, stat.permissions, source_code, pp.output);
         try self.stdout_writer.interface.print("{s}\n", .{file_path});
     }
 }
