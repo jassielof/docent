@@ -6,10 +6,22 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const fangz_mod = b.dependency("fangz", .{}).module("fangz");
-    const vereda_mod = b.dependency("vereda", .{}).module("vereda");
-    const carnaval_mod = b.dependency("carnaval", .{}).module("carnaval");
-    const toml_mod = b.dependency("toml", .{}).module("toml");
+    const fangz_mod = b.dependency("fangz", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("fangz");
+    const vereda_mod = b.dependency("vereda", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("vereda");
+    const carnaval_mod = b.dependency("carnaval", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("carnaval");
+    const toml_mod = b.dependency("toml", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("toml");
 
     const doc_comment_mod = b.addModule("doc_comment", .{
         .root_source_file = b.path("lib/doc_comment/root.zig"),

@@ -10,6 +10,7 @@ const Color = std.zig.Color;
 const carnaval = @import("carnaval");
 
 const config_mod = @import("config.zig");
+const array_type_guard = @import("array_type_guard.zig");
 
 pub const Config = config_mod.Config;
 pub const Options = config_mod.Options;
@@ -121,6 +122,14 @@ pub fn formatStdin(gpa: Allocator, io: Io, opts: Options, config: Config) !void 
     } else if (tree.errors.len != 0) {
         std.zig.printAstErrorsToStderr(gpa, io, tree, "<stdin>", opts.color) catch {};
         std.process.exit(2);
+    }
+
+    if (array_type_guard.findPathologicalArrayType(&tree, array_type_guard.default_max_length_nesting)) |pathological| {
+        const loc = tree.tokenLocation(0, tree.firstToken(pathological.node));
+        std.process.fatal(
+            "<stdin>:{d}:{d}: array type nests {d} levels deep through its length expression; refusing to render (see https://codeberg.org/ziglang/zig/issues/35714)",
+            .{ loc.line + 1, loc.column + 1, pathological.depth },
+        );
     }
 
     const rendered = try tree.renderAlloc(gpa);
@@ -299,6 +308,16 @@ fn fmtPathFile(
                 }
             },
         }
+    }
+
+    if (array_type_guard.findPathologicalArrayType(&tree, array_type_guard.default_max_length_nesting)) |pathological| {
+        const loc = tree.tokenLocation(0, tree.firstToken(pathological.node));
+        std.log.err(
+            "unable to format '{s}': array type at {d}:{d} nests {d} levels deep through its length expression; refusing to render (see https://codeberg.org/ziglang/zig/issues/35714)",
+            .{ file_path, loc.line + 1, loc.column + 1, pathological.depth },
+        );
+        self.any_error = true;
+        return;
     }
 
     self.out_buffer.clearRetainingCapacity();
