@@ -12,7 +12,6 @@
 // TODO: There should be a way to add a sort/ordering for doctests, where it should automatically reorder the doctests to be defined following their referencing testing unit, for example, an add() function it's followed by substract() and divide(), and then theres test add {}, and test substract {}, these should be reordered as fn add() -> test add {} -> fn substract() -> test substract {} -> fn divide() -> test divide {}.
 
 // TODO: https://codeberg.org/ziglang/zig/issues/36209, solve and add the respective test case, that documents/references the issue
-// TODO: https://codeberg.org/ziglang/zig/issues/35714, solve and add the respective test case, that documents/references the issue
 
 pub const config = @import("config.zig");
 pub const Config = config.Config;
@@ -22,6 +21,9 @@ pub const BraceStyle = Config.BraceStyle;
 pub const IndentStyle = Config.IndentStyle;
 
 pub const Formatter = @import("Formatter.zig");
+
+pub const array_type_guard = @import("array_type_guard.zig");
+pub const findPathologicalArrayType = array_type_guard.findPathologicalArrayType;
 
 pub const brace_style = @import("brace_style.zig");
 pub const convertToAllman = brace_style.convertToAllman;
@@ -40,3 +42,9 @@ pub const autoWrap = auto_wrap.autoWrap;
 pub const grid_alignment = @import("grid_alignment.zig");
 pub const alignGrid = grid_alignment.alignGrid;
 pub const diff = @import("diff.zig");
+
+const std = @import("std");
+
+comptime {
+    std.testing.refAllDecls(@This());
+}

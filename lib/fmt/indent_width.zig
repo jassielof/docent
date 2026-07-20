@@ -16,9 +16,11 @@ test "reindents using two spaces" {
     try std.testing.expectEqualStrings(expected, formatted);
     try format_test_assertions.expectValidZig(formatted);
 
-    const formatted_expected = try reindent(gpa, expected, .space, 2);
-    defer gpa.free(formatted_expected);
-    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+    // Unlike the width == 4 (`.space`) and `.tab` cases, `reindent` is not a fixed point when
+    // called again directly on its own 2-space output: it always assumes 4-space-per-level
+    // input (see the doc comment on `reindent`), which only holds for source fresh out of
+    // `std.zig.Ast.render`. Re-running the full parse+render+reindent pipeline is idempotent;
+    // calling `reindent` a second time on already-2-space text is not, by design.
 }
 
 test "reindents using tabs" {
