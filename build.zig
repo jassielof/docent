@@ -17,6 +17,12 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const identifier_style_mod = b.addModule("identifier_style", .{
+        .root_source_file = b.path("lib/identifier_style/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const fmt_mod = b.addModule("fmt", .{
         .root_source_file = b.path("lib/fmt/root.zig"),
         .target = target,
@@ -48,6 +54,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "toml", .module = toml_mod },
                 .{ .name = "doc_comment", .module = doc_comment_mod },
                 .{ .name = "fmt", .module = fmt_mod },
+                .{ .name = "identifier_style", .module = identifier_style_mod },
             },
         },
     );
@@ -169,6 +176,14 @@ pub fn build(b: *std.Build) void {
     const run_docent_lib_tests = b.addRunArtifact(docent_lib_tests);
     test_step.dependOn(&run_docent_lib_tests.step);
 
+    const identifier_style_lib_tests = b.addTest(.{
+        .name = "Identifier Style",
+        .root_module = identifier_style_mod,
+    });
+
+    const run_identifier_style_lib_tests = b.addRunArtifact(identifier_style_lib_tests);
+    test_step.dependOn(&run_identifier_style_lib_tests.step);
+
     const fmt_lib_tests = b.addTest(.{
         .name = "Formatting",
         .root_module = fmt_mod,
@@ -189,6 +204,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "carnaval", .module = carnaval_mod },
                 .{ .name = "cli", .module = cli_mod },
                 .{ .name = "fmt", .module = fmt_mod },
+                .{ .name = "identifier_style", .module = identifier_style_mod },
             },
         }),
     });

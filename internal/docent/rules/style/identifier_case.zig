@@ -51,7 +51,7 @@ const scan = @import("../../scan.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 const doc_comment = @import("doc_comment");
-const naming_case = @import("../../naming_case.zig");
+const naming_case = @import("identifier_style");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();

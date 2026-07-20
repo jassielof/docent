@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const docent = @import("docent");
+const identifier_style = @import("identifier_style");
 
 fn presetConfigPath(allocator: std.mem.Allocator, io: std.Io, name: []const u8) ![]const u8 {
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
@@ -19,7 +20,7 @@ test "tiger style preset enforces snake_case and line length forbid" {
     defer allocator.free(config_path);
 
     const style = try docent.config.loadStyleOptions(allocator, io, config_path);
-    try std.testing.expectEqual(docent.naming_case.Style.snake, style.identifier_case.options.struct_file_case);
+    try std.testing.expectEqual(identifier_style.Style.snake, style.identifier_case.options.struct_file_case);
     try std.testing.expect(style.identifier_case.level == .deny);
     try std.testing.expect(style.line_length_limit.level == .forbid);
     try std.testing.expectEqual(@as(u32, 100), style.line_length_limit.options.max_length);

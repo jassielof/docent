@@ -15,7 +15,7 @@ const doc_rules = @import("../rules/doc.zig");
 const style_rules = @import("../rules/style.zig");
 const complexity_rules = @import("../rules/complexity.zig");
 const size_rules = @import("../rules/size.zig");
-const naming_case = @import("../naming_case.zig");
+const naming_case = @import("identifier_style");
 const fmt_mod = @import("fmt");
 const TargetSelect = @import("TargetSelect.zig");
 
