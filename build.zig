@@ -192,6 +192,14 @@ pub fn build(b: *std.Build) void {
     const run_fmt_lib_tests = b.addRunArtifact(fmt_lib_tests);
     test_step.dependOn(&run_fmt_lib_tests.step);
 
+    const doc_comment_lib_tests = b.addTest(.{
+        .name = "Doc Comments",
+        .root_module = doc_comment_mod,
+    });
+
+    const run_doc_comment_lib_tests = b.addRunArtifact(doc_comment_lib_tests);
+    test_step.dependOn(&run_doc_comment_lib_tests.step);
+
     const integration_tests = b.addTest(.{
         .name = "Integration",
         .root_module = b.createModule(.{
