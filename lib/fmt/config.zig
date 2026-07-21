@@ -29,6 +29,7 @@ pub const Config = struct {
     trailing_comma: bool = true,
     logical_blank_lines: bool = true,
     sort_imports: bool = true,
+    sort_doctests: bool = true,
     indent_style: IndentStyle = .space,
     indent_width: u8 = 4,
     /// Best-effort wrap of over-long lines via list/call expansion. Off by

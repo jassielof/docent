@@ -11,6 +11,7 @@ indent_width = 4
 logical_blank_lines = true
 single_line_braces = true
 sort_imports = true
+sort_doctests = true
 trailing_comma = true
 auto_wrap = false
 max_line_length = 100

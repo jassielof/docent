@@ -157,6 +157,12 @@ fn decodeFmt(allocator: std.mem.Allocator, value: toml.DynamicValue, out: *Fmt) 
             else => return error.ConfigParseFailed,
         };
     }
+    if (table.get("sort_doctests")) |v| {
+        out.sort_doctests = switch (v) {
+            .boolean => |b| b,
+            else => return error.ConfigParseFailed,
+        };
+    }
     if (table.get("indent_style")) |v| {
         const text = v.stringSlice() orelse return error.ConfigParseFailed;
         out.indent_style = Fmt.IndentStyle.fromConfigString(text) orelse return error.ConfigParseFailed;
@@ -440,6 +446,7 @@ test "decode reads fmt options" {
         \\trailing_comma = true
         \\logical_blank_lines = true
         \\sort_imports = true
+        \\sort_doctests = true
         \\indent_width = 2
         \\auto_wrap = true
         \\max_line_length = 80
@@ -457,6 +464,7 @@ test "decode reads fmt options" {
     try std.testing.expect(cfg.fmt.trailing_comma);
     try std.testing.expect(cfg.fmt.logical_blank_lines);
     try std.testing.expect(cfg.fmt.sort_imports);
+    try std.testing.expect(cfg.fmt.sort_doctests);
     try std.testing.expectEqual(@as(u8, 2), cfg.fmt.indent_width);
     try std.testing.expect(cfg.fmt.auto_wrap);
     try std.testing.expectEqual(@as(u32, 80), cfg.fmt.max_line_length);
@@ -470,6 +478,7 @@ test "decode reads fmt options" {
     try std.testing.expect(empty_cfg.fmt.trailing_comma);
     try std.testing.expect(empty_cfg.fmt.logical_blank_lines);
     try std.testing.expect(empty_cfg.fmt.sort_imports);
+    try std.testing.expect(empty_cfg.fmt.sort_doctests);
     try std.testing.expectEqual(@as(u8, 4), empty_cfg.fmt.indent_width);
     try std.testing.expect(!empty_cfg.fmt.auto_wrap);
     try std.testing.expectEqual(@as(u32, 100), empty_cfg.fmt.max_line_length);
