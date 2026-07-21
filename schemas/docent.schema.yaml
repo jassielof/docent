@@ -131,8 +131,9 @@ properties:
         type: "boolean"
         default: true
         description: >-
-          Reorder named top-level tests in contiguous function/test blocks so each
-          test follows the function with the same name.
+          Reorder identifier tests in contiguous function/test blocks so each test
+          follows the function with the same name. An exactly matching quoted test
+          follows its identifier counterpart; descriptive quoted test cases stay put.
       indent_style:
         type: "string"
         enum: ["space", "tab"]

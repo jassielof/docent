@@ -5,7 +5,7 @@ const Allocator = mem.Allocator;
 
 const format_test_assertions = @import("format_test_assertions.zig");
 
-const Kind = enum { function, test_decl };
+const Kind = enum { function, identifier_test, quoted_test };
 
 const Entry = struct {
     kind: Kind,
@@ -29,11 +29,11 @@ test "places named tests directly after their matching function" {
         \\    return a / b;
         \\}
         \\
-        \\test "subtract" {
+        \\test subtract {
         \\    try std.testing.expectEqual(@as(u8, 1), subtract(2, 1));
         \\}
         \\
-        \\test "add" {
+        \\test add {
         \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
         \\}
         \\
@@ -43,7 +43,7 @@ test "places named tests directly after their matching function" {
         \\    return a + b;
         \\}
         \\
-        \\test "add" {
+        \\test add {
         \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
         \\}
         \\
@@ -51,7 +51,7 @@ test "places named tests directly after their matching function" {
         \\    return a - b;
         \\}
         \\
-        \\test "subtract" {
+        \\test subtract {
         \\    try std.testing.expectEqual(@as(u8, 1), subtract(2, 1));
         \\}
         \\
@@ -78,11 +78,11 @@ test "preserves a single blank line after a sorted block" {
         \\    return a - b;
         \\}
         \\
-        \\test "subtract" {
+        \\test subtract {
         \\    try std.testing.expectEqual(@as(u8, 1), subtract(2, 1));
         \\}
         \\
-        \\test "add" {
+        \\test add {
         \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
         \\}
         \\
@@ -94,7 +94,7 @@ test "preserves a single blank line after a sorted block" {
         \\    return a + b;
         \\}
         \\
-        \\test "add" {
+        \\test add {
         \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
         \\}
         \\
@@ -102,7 +102,7 @@ test "preserves a single blank line after a sorted block" {
         \\    return a - b;
         \\}
         \\
-        \\test "subtract" {
+        \\test subtract {
         \\    try std.testing.expectEqual(@as(u8, 1), subtract(2, 1));
         \\}
         \\
@@ -118,9 +118,88 @@ test "preserves a single blank line after a sorted block" {
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
+test "does not move quoted test cases" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn add(a: u8, b: u8) u8 {
+        \\    return a + b;
+        \\}
+        \\
+        \\fn subtract(a: u8, b: u8) u8 {
+        \\    return a - b;
+        \\}
+        \\
+        \\test "generic arithmetic case" {
+        \\    try std.testing.expect(true);
+        \\}
+        \\
+        \\test add {
+        \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
+        \\}
+        \\
+    ;
+
+    const formatted = try sortDoctests(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+}
+
+test "places an exact quoted duplicate after its identifier doctest" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn add(a: u8, b: u8) u8 {
+        \\    return a + b;
+        \\}
+        \\
+        \\fn subtract(a: u8, b: u8) u8 {
+        \\    return a - b;
+        \\}
+        \\
+        \\test "add" {
+        \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
+        \\}
+        \\
+        \\test subtract {
+        \\    try std.testing.expectEqual(@as(u8, 1), subtract(2, 1));
+        \\}
+        \\
+        \\test add {
+        \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
+        \\}
+        \\
+    ;
+    const expected =
+        \\fn add(a: u8, b: u8) u8 {
+        \\    return a + b;
+        \\}
+        \\
+        \\test add {
+        \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
+        \\}
+        \\
+        \\test "add" {
+        \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
+        \\}
+        \\
+        \\fn subtract(a: u8, b: u8) u8 {
+        \\    return a - b;
+        \\}
+        \\
+        \\test subtract {
+        \\    try std.testing.expectEqual(@as(u8, 1), subtract(2, 1));
+        \\}
+        \\
+    ;
+
+    const formatted = try sortDoctests(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+}
+
 /// Reorders contiguous top-level function/test blocks so a named test follows
-/// the function with the same name. Tests with no matching function retain
-/// their relative order at the end of the block.
+/// the function with the same name. Identifier tests are primary doctests;
+/// an exactly matching quoted test is placed immediately after its identifier
+/// counterpart. Descriptive quoted test cases are untouched.
 pub fn sortDoctests(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     const sentinel = try gpa.dupeZ(u8, input);
     defer gpa.free(sentinel);
@@ -150,7 +229,7 @@ pub fn sortDoctests(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
         for (root_decls[block_first..block_last]) |node| {
             try entries.append(gpa, entryFor(&tree, node));
         }
-        if (!hasMatchingPair(entries.items)) continue;
+        if (!hasOnlyMatchingDoctests(entries.items)) continue;
 
         const start = entries.items[0].start;
         const end = entries.items[entries.items.len - 1].end;
@@ -173,13 +252,14 @@ pub fn sortDoctests(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
 
 fn isCandidate(tree: *const Ast, node: Ast.Node.Index) bool {
     return switch (tree.nodeTag(node)) {
-        .fn_decl, .test_decl => true,
+        .fn_decl => true,
+        .test_decl => testKind(tree, node) != null,
         else => false,
     };
 }
 
 fn entryFor(tree: *const Ast, node: Ast.Node.Index) Entry {
-    const kind: Kind = if (tree.nodeTag(node) == .fn_decl) .function else .test_decl;
+    const kind: Kind = if (tree.nodeTag(node) == .fn_decl) .function else testKind(tree, node).?;
     return .{
         .kind = kind,
         .name = if (kind == .function) functionName(tree, node) else testName(tree, node),
@@ -195,16 +275,22 @@ fn functionName(tree: *const Ast, node: Ast.Node.Index) []const u8 {
     return tree.tokenSlice(name_token);
 }
 
+fn testKind(tree: *const Ast, node: Ast.Node.Index) ?Kind {
+    const token = tree.nodeData(node).opt_token_and_node[0].unwrap() orelse return null;
+    if (tree.tokenTag(token) == .identifier) return .identifier_test;
+    if (tree.tokenTag(token) != .string_literal) return null;
+
+    const raw = tree.tokenSlice(token);
+    if (raw.len < 2 or raw[0] != '"' or raw[raw.len - 1] != '"') return null;
+    const unquoted = raw[1 .. raw.len - 1];
+    if (mem.indexOfScalar(u8, unquoted, '\\') != null or mem.indexOfScalar(u8, unquoted, ':') != null) return null;
+    return .quoted_test;
+}
+
 fn testName(tree: *const Ast, node: Ast.Node.Index) []const u8 {
     const token = tree.nodeData(node).opt_token_and_node[0].unwrap() orelse return "";
     const raw = tree.tokenSlice(token);
-    if (tree.tokenTag(token) == .string_literal) {
-        if (raw.len < 2 or raw[0] != '"' or raw[raw.len - 1] != '"') return "";
-        const unquoted = raw[1 .. raw.len - 1];
-        if (mem.indexOfScalar(u8, unquoted, '\\') != null) return "";
-        return unquoted;
-    }
-    return raw;
+    return if (tree.tokenTag(token) == .string_literal) raw[1 .. raw.len - 1] else raw;
 }
 
 fn declarationStart(tree: *const Ast, node: Ast.Node.Index) usize {
@@ -230,14 +316,21 @@ fn declarationEnd(tree: *const Ast, node: Ast.Node.Index) usize {
     return end;
 }
 
-fn hasMatchingPair(entries: []const Entry) bool {
-    for (entries) |function| {
-        if (function.kind != .function or function.name.len == 0) continue;
-        for (entries) |test_decl| {
-            if (test_decl.kind == .test_decl and mem.eql(u8, function.name, test_decl.name)) return true;
+fn hasOnlyMatchingDoctests(entries: []const Entry) bool {
+    var found_match = false;
+    for (entries) |test_decl| {
+        if (test_decl.kind == .function) continue;
+        var matches_function = false;
+        for (entries) |function| {
+            if (function.kind == .function and mem.eql(u8, function.name, test_decl.name)) {
+                found_match = true;
+                matches_function = true;
+                break;
+            }
         }
+        if (!matches_function) return false;
     }
-    return false;
+    return found_match;
 }
 
 fn renderBlock(gpa: Allocator, output: *std.ArrayList(u8), entries: []const Entry, source: []const u8) !void {
@@ -250,10 +343,12 @@ fn renderBlock(gpa: Allocator, output: *std.ArrayList(u8), entries: []const Entr
         if (entry.kind != .function) continue;
         try renderEntry(gpa, output, entry, source);
         emitted.items[index] = true;
-        for (entries, 0..) |test_decl, test_index| {
-            if (test_decl.kind != .test_decl or !mem.eql(u8, entry.name, test_decl.name)) continue;
-            try renderEntry(gpa, output, test_decl, source);
-            emitted.items[test_index] = true;
+        inline for (.{ Kind.identifier_test, Kind.quoted_test }) |test_kind| {
+            for (entries, 0..) |test_decl, test_index| {
+                if (test_decl.kind != test_kind or !mem.eql(u8, entry.name, test_decl.name)) continue;
+                try renderEntry(gpa, output, test_decl, source);
+                emitted.items[test_index] = true;
+            }
         }
     }
     for (entries, 0..) |entry, index| {
