@@ -9,7 +9,7 @@
 //! - [Zig's main formatting implementation](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/fmt.zig)
 //! - [gofumpt](https://github.com/mvdan/gofumpt)
 
-// TODO: There should be a way to add a sort/ordering for doctests, where it should automatically reorder the doctests to be defined following their referencing testing unit, for example, an add() function it's followed by substract() and divide(), and then theres test add {}, and test substract {}, these should be reordered as fn add() -> test add {} -> fn substract() -> test substract {} -> fn divide() -> test divide {}.
+// TODO: There should be a way to add a sort/ordering for doctests, where it should automatically reorder the doctests to be defined following their referencing testing unit, for example, an add() function it's followed by substract() and divide(), and then theres test add {}, and test substract {}, these should be reordered as fn add() -> test add {} -> fn substract() -> test substract {} -> fn divide() -> test divide {}. This should be another rule, "sort_doctests" basically.
 
 pub const config = @import("config.zig");
 pub const Config = config.Config;
