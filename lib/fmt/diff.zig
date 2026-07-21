@@ -3,7 +3,7 @@ const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
 const carnaval = @import("carnaval");
-
+// TODO: If it's possibly use Google's Diff Match Patch library, if there are benefits of course.
 const removed_style = carnaval.Style.init().fg(.{ .ansi16 = .red });
 const added_style = carnaval.Style.init().fg(.{ .ansi16 = .green });
 const location_style = carnaval.Style.init().fg(.{ .ansi16 = .cyan });
