@@ -24,6 +24,7 @@ pub const single_line_braces = @import("single_line_braces.zig");
 pub const trailing_comma = @import("trailing_comma.zig");
 pub const logical_blank_lines = @import("logical_blank_lines.zig");
 pub const sort_imports = @import("sort_imports.zig");
+pub const sort_doctests = @import("sort_doctests.zig");
 pub const indent_width = @import("indent_width.zig");
 pub const auto_wrap = @import("auto_wrap.zig");
 pub const grid_alignment = @import("grid_alignment.zig");
@@ -34,6 +35,7 @@ pub const enforceBraces = single_line_braces.enforceBraces;
 pub const addTrailingCommas = trailing_comma.addTrailingCommas;
 pub const enforceLogicalBlankLines = logical_blank_lines.enforceLogicalBlankLines;
 pub const sortImports = sort_imports.sortImports;
+pub const sortDoctests = sort_doctests.sortDoctests;
 pub const reindent = indent_width.reindent;
 pub const autoWrap = auto_wrap.autoWrap;
 pub const alignGrid = grid_alignment.alignGrid;
@@ -359,6 +361,13 @@ pub fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Al
 
     if (config.sort_imports) {
         const result = try sort_imports.sortImports(gpa, current);
+        if (current_allocated) gpa.free(current);
+        current = result;
+        current_allocated = true;
+    }
+
+    if (config.sort_doctests) {
+        const result = try sort_doctests.sortDoctests(gpa, current);
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;
