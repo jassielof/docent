@@ -2,7 +2,6 @@ const std = @import("std");
 
 const fangz_build = @import("fangz");
 
-// TODO: Docent output diagnostics can't seem t be piped to stdout
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
