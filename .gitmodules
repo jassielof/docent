@@ -7,3 +7,6 @@
 [submodule "dependencies/vereda"]
 	path = dependencies/vereda
 	url = https://github.com/jassielof/vereda
+[submodule "dependencies/dmp"]
+	path = dependencies/dmp
+	url = https://github.com/jassielof/dmp-zig
