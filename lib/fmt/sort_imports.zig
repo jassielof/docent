@@ -24,12 +24,57 @@ test "sorts imports" {
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
+test "keeps conditional imports in their origin category and orders reexports by base path" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\const std = @import("std");
+        \\const zoo = @import("zoo.zig");
+        \\const alpha = @import("alpha.zig");
+        \\const platform = if (std.builtin.os.tag == .windows)
+        \\    @import("platform/windows.zig")
+        \\else
+        \\    @import("platform/posix.zig");
+        \\const dependency = if (std.builtin.os.tag == .windows)
+        \\    @import("windows-dependency")
+        \\else
+        \\    @import("posix-dependency");
+        \\pub const Aardvark = zoo.Value;
+        \\pub const Zebra = alpha.Value;
+        \\
+    ;
+    const expected =
+        \\const std = @import("std");
+        \\
+        \\const dependency = if (std.builtin.os.tag == .windows)
+        \\    @import("windows-dependency")
+        \\else
+        \\    @import("posix-dependency");
+        \\
+        \\const alpha = @import("alpha.zig");
+        \\const zoo = @import("zoo.zig");
+        \\const platform = if (std.builtin.os.tag == .windows)
+        \\    @import("platform/windows.zig")
+        \\else
+        \\    @import("platform/posix.zig");
+        \\
+        \\pub const Zebra = alpha.Value;
+        \\pub const Aardvark = zoo.Value;
+        \\
+    ;
+
+    const formatted = try sortImports(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
 /// Sorts the leading top-level import block using AST-based extraction.
 ///
-/// Imports are regrouped into categories (builtin, std, dependencies, root,
-/// local files, conditionals) separated by blank lines. Within each category,
-/// imports are sorted case-insensitively by const identifier. Aliases are
-/// placed directly beneath the import they derive from.
+/// Imports are regrouped into categories (std, builtin, root, dependencies,
+/// local files) separated by blank lines. Bases sort by import path and
+/// aliases remain directly beneath their base, ordered by accessed member path.
+/// Conditional imports join the origin category of their most-local branch and
+/// remain at the end of that category.
 ///
 /// Internal and public imports are separated by a single blank line (Zig's
 /// formatter collapses consecutive blank lines, so a double gap would not
