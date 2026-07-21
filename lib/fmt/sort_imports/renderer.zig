@@ -26,18 +26,21 @@ pub fn render(arena: Allocator, groups: SortedGroups, entries: []const ImportEnt
 }
 
 fn renderSuperGroup(arena: Allocator, output: *std.ArrayList(u8), sg: *const SuperGroup, entries: []const ImportEntry, any: *bool) !void {
-    try renderGroupIfNonEmpty(arena, output, &sg.builtin_group, entries, any);
     try renderGroupIfNonEmpty(arena, output, &sg.stdlib_group, entries, any);
+    try renderConditionalsForKind(arena, output, &sg.conditional_group, .stdlib, entries, any, !groupHasEntries(&sg.stdlib_group));
 
-    for (sg.dep_keys.items) |key| {
-        if (sg.dep_groups.getPtr(key)) |grp| {
-            try renderGroupIfNonEmpty(arena, output, grp, entries, any);
-        }
-    }
+    try renderGroupIfNonEmpty(arena, output, &sg.builtin_group, entries, any);
+    try renderConditionalsForKind(arena, output, &sg.conditional_group, .builtin_mod, entries, any, !groupHasEntries(&sg.builtin_group));
 
     try renderGroupIfNonEmpty(arena, output, &sg.root_group, entries, any);
+    try renderConditionalsForKind(arena, output, &sg.conditional_group, .root_mod, entries, any, !groupHasEntries(&sg.root_group));
+
+    try renderDependencies(arena, output, sg, entries, any);
+    try renderConditionalsForKind(arena, output, &sg.conditional_group, .dependency, entries, any, !dependenciesHaveEntries(sg));
+
     try renderGroupIfNonEmpty(arena, output, &sg.file_group, entries, any);
-    try renderGroupIfNonEmpty(arena, output, &sg.conditional_group, entries, any);
+    try renderConditionalsForKind(arena, output, &sg.conditional_group, .file, entries, any, !groupHasEntries(&sg.file_group));
+    try renderConditionalsForKind(arena, output, &sg.conditional_group, .conditional, entries, any, true);
 }
 
 fn renderPublicGroup(arena: Allocator, output: *std.ArrayList(u8), sg: *const SuperGroup, entries: []const ImportEntry, any: *bool) !void {
@@ -97,6 +100,45 @@ fn renderPublicGroup(arena: Allocator, output: *std.ArrayList(u8), sg: *const Su
     }
 }
 
+fn renderDependencies(arena: Allocator, output: *std.ArrayList(u8), sg: *const SuperGroup, entries: []const ImportEntry, any: *bool) !void {
+    if (!dependenciesHaveEntries(sg)) return;
+
+    if (any.*) try output.append(arena, '\n');
+    for (sg.dep_keys.items) |key| {
+        if (sg.dep_groups.getPtr(key)) |grp| {
+            for (grp.indices.items) |idx| try renderEntry(arena, output, entries, idx);
+        }
+    }
+    any.* = true;
+}
+
+fn dependenciesHaveEntries(sg: *const SuperGroup) bool {
+    for (sg.dep_keys.items) |key| {
+        if (sg.dep_groups.getPtr(key)) |grp| {
+            if (grp.indices.items.len > 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+fn renderConditionalsForKind(arena: Allocator, output: *std.ArrayList(u8), group: *const Group, kind: types.SourceKind, entries: []const ImportEntry, any: *bool, separate: bool) !void {
+    var matching: std.ArrayList(usize) = .empty;
+    for (group.indices.items) |idx| {
+        if (entries[idx].kind == kind) try matching.append(arena, idx);
+    }
+    if (matching.items.len == 0) return;
+
+    if (any.* and separate) try output.append(arena, '\n');
+    for (matching.items) |idx| try renderEntry(arena, output, entries, idx);
+    any.* = true;
+}
+
+fn groupHasEntries(group: *const Group) bool {
+    return group.indices.items.len > 0;
+}
+
 fn renderGroupIfNonEmpty(arena: Allocator, output: *std.ArrayList(u8), group: *const Group, entries: []const ImportEntry, any: *bool) !void {
     if (group.indices.items.len == 0) return;
     if (any.*) try output.append(arena, '\n');
@@ -124,6 +166,10 @@ fn renderEntry(arena: Allocator, output: *std.ArrayList(u8), entries: []const Im
     const S = struct {
         entries: []const ImportEntry,
         fn lessThan(ctx: @This(), a: usize, b: usize) bool {
+            const a_path = memberPath(ctx.entries[a]);
+            const b_path = memberPath(ctx.entries[b]);
+            const path_cmp = cmpIgnoreCase(a_path, b_path);
+            if (path_cmp != .eq) return path_cmp == .lt;
             return cmpIgnoreCase(ctx.entries[a].left, ctx.entries[b].left) == .lt;
         }
     };
@@ -132,6 +178,13 @@ fn renderEntry(arena: Allocator, output: *std.ArrayList(u8), entries: []const Im
     for (children.items) |child_idx| {
         try renderEntry(arena, output, entries, child_idx);
     }
+}
+
+fn memberPath(entry: ImportEntry) []const u8 {
+    const equals = mem.indexOfScalar(u8, entry.source_text, '=') orelse return entry.left;
+    const rhs = mem.trim(u8, entry.source_text[equals + 1 ..], " \t\r\n;");
+    const dot = mem.indexOfScalar(u8, rhs, '.') orelse return rhs;
+    return rhs[dot + 1 ..];
 }
 
 fn superGroupHasEntries(sg: *const SuperGroup) bool {

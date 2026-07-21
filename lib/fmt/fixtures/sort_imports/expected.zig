@@ -1,25 +1,24 @@
 //! Module doc comment stays at the top.
 
-const builtin = @import("builtin");
-
 const std = @import("std");
-const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const fs = std.fs;
 const mem = std.mem;
+const Allocator = std.mem.Allocator;
 const process = std.process;
+
+const builtin = @import("builtin");
+
+const root = @import("root");
+const version = root.version;
 
 const fangz = @import("fangz");
 const App = fangz.App;
 const Command = fangz.Command;
 const Flag = fangz.Flag;
-
 const vereda = @import("vereda");
 const WalkEntry = vereda.WalkEntry;
 const Walker = vereda.Walker;
-
-const root = @import("root");
-const version = root.version;
 
 const analysis = @import("analysis.zig");
 const check_command = @import("commands/check.zig");
@@ -28,7 +27,6 @@ const init_command = @import("commands/init.zig");
 const status_command = @import("commands/status.zig");
 const suppressions = @import("suppressions.zig");
 const string_utils = @import("utils/string.zig");
-
 const platform = if (builtin.os.tag == .windows)
     @import("platform/windows.zig")
 else

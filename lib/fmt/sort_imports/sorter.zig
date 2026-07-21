@@ -41,6 +41,11 @@ pub fn buildGroups(arena: Allocator, entries: []const ImportEntry) !SortedGroups
 
         const sg = if (entry.visibility == .public) &result.public else &result.internal;
 
+        if (entry.shape == .conditional) {
+            try sg.conditional_group.indices.append(arena, idx);
+            continue;
+        }
+
         switch (entry.kind) {
             .builtin_mod => try sg.builtin_group.indices.append(arena, idx),
             .stdlib => try sg.stdlib_group.indices.append(arena, idx),
@@ -100,7 +105,7 @@ fn sortSuperGroup(sg: *SuperGroup, entries: []const ImportEntry) void {
     sortGroupByLeft(sg.root_group.indices.items, entries);
     sortGroupByRight(sg.file_group.indices.items, entries);
     sortGroupByLeft(sg.conditional_group.indices.items, entries);
-    sortGroupByLeft(sg.reexport_group.indices.items, entries);
+    sortGroupByModuleThenLeft(sg.reexport_group.indices.items, entries);
 
     mem.sort([]const u8, sg.dep_keys.items, {}, lessThanIgnoreCaseCtx);
     for (sg.dep_keys.items) |key| {
@@ -115,6 +120,18 @@ fn sortSuperGroup(sg: *SuperGroup, entries: []const ImportEntry) void {
             sortGroupByLeft(grp.indices.items, entries);
         }
     }
+}
+
+fn sortGroupByModuleThenLeft(indices: []usize, entries: []const ImportEntry) void {
+    const S = struct {
+        entries: []const ImportEntry,
+        fn lessThan(ctx: @This(), a: usize, b: usize) bool {
+            const module_cmp = cmpIgnoreCase(ctx.entries[a].module, ctx.entries[b].module);
+            if (module_cmp != .eq) return module_cmp == .lt;
+            return lessThanIgnoreCase(ctx.entries[a].left, ctx.entries[b].left);
+        }
+    };
+    mem.sort(usize, indices, S{ .entries = entries }, S.lessThan);
 }
 
 fn sortGroupByLeft(indices: []usize, entries: []const ImportEntry) void {

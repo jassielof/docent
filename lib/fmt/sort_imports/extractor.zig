@@ -7,6 +7,7 @@ const types = @import("types.zig");
 const ImportEntry = types.ImportEntry;
 const Visibility = types.Visibility;
 const ImportShape = types.ImportShape;
+const SourceKind = types.SourceKind;
 const classifier = @import("classifier.zig");
 
 pub const ExtractionResult = struct {
@@ -54,7 +55,7 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
                 try entries.append(arena, .{
                     .node = decl,
                     .visibility = vis,
-                    .kind = .conditional,
+                    .kind = classifyConditional(tree, init_node),
                     .shape = .conditional,
                     .left = left,
                     .right = "",
@@ -125,6 +126,44 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
         .block_start = if (entries.items.len > 0) adjustBlockStartForComments(source, bs, entries.items[0].comment_lines) else bs,
         .block_end = block_end,
         .prefix_end = prefix_end,
+    };
+}
+
+/// Conditionals belong to the most local origin represented by an import in
+/// either branch. This keeps, for example, platform-specific local imports in
+/// the local-file section while still leaving the multi-line declaration last
+/// within that section.
+fn classifyConditional(tree: *const Ast, node: Ast.Node.Index) SourceKind {
+    var result: ?SourceKind = null;
+    collectConditionalKind(tree, node, &result);
+    return result orelse .conditional;
+}
+
+fn collectConditionalKind(tree: *const Ast, node: Ast.Node.Index, result: *?SourceKind) void {
+    if (getImportPath(tree, node)) |path| {
+        const kind = classifier.classifyKind(path);
+        if (result.* == null or kindRank(kind) > kindRank(result.*.?)) result.* = kind;
+        return;
+    }
+
+    const tag = tree.nodeTag(node);
+    if (tag == .if_simple or tag == .@"if") {
+        const if_full = tree.fullIf(node) orelse return;
+        collectConditionalKind(tree, if_full.ast.then_expr, result);
+        if (if_full.ast.else_expr.unwrap()) |else_node| {
+            collectConditionalKind(tree, else_node, result);
+        }
+    }
+}
+
+fn kindRank(kind: SourceKind) u3 {
+    return switch (kind) {
+        .builtin_mod => 0,
+        .stdlib => 1,
+        .root_mod => 2,
+        .dependency => 3,
+        .file => 4,
+        .conditional => 5,
     };
 }
 
