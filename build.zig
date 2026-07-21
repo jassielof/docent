@@ -22,6 +22,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     }).module("toml");
+    const dmp_mod = b.dependency("dmp", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("dmp");
 
     const doc_comment_mod = b.addModule("doc_comment", .{
         .root_source_file = b.path("lib/doc_comment/root.zig"),
@@ -41,6 +45,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "carnaval", .module = carnaval_mod },
+            .{ .name = "dmp", .module = dmp_mod },
         },
     });
 
