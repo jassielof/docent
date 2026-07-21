@@ -67,6 +67,57 @@ test "places named tests directly after their matching function" {
     try format_test_assertions.expectValidZig(formatted);
 }
 
+test "preserves a single blank line after a sorted block" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn add(a: u8, b: u8) u8 {
+        \\    return a + b;
+        \\}
+        \\
+        \\fn subtract(a: u8, b: u8) u8 {
+        \\    return a - b;
+        \\}
+        \\
+        \\test "subtract" {
+        \\    try std.testing.expectEqual(@as(u8, 1), subtract(2, 1));
+        \\}
+        \\
+        \\test "add" {
+        \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
+        \\}
+        \\
+        \\const sentinel = 1;
+        \\
+    ;
+    const expected =
+        \\fn add(a: u8, b: u8) u8 {
+        \\    return a + b;
+        \\}
+        \\
+        \\test "add" {
+        \\    try std.testing.expectEqual(@as(u8, 3), add(1, 2));
+        \\}
+        \\
+        \\fn subtract(a: u8, b: u8) u8 {
+        \\    return a - b;
+        \\}
+        \\
+        \\test "subtract" {
+        \\    try std.testing.expectEqual(@as(u8, 1), subtract(2, 1));
+        \\}
+        \\
+        \\const sentinel = 1;
+        \\
+    ;
+
+    const formatted = try sortDoctests(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    const formatted_expected = try sortDoctests(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
 /// Reorders contiguous top-level function/test blocks so a named test follows
 /// the function with the same name. Tests with no matching function retain
 /// their relative order at the end of the block.
@@ -105,7 +156,11 @@ pub fn sortDoctests(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
         const end = entries.items[entries.items.len - 1].end;
         try output.appendSlice(gpa, input[cursor..start]);
         try renderBlock(gpa, &output, entries.items, input);
-        if (end == input.len and output.items.len >= 2 and output.items[output.items.len - 1] == '\n' and output.items[output.items.len - 2] == '\n') {
+        if (output.items.len >= 2 and
+            output.items[output.items.len - 1] == '\n' and
+            output.items[output.items.len - 2] == '\n' and
+            (end == input.len or input[end] == '\n'))
+        {
             output.items.len -= 1;
         }
         cursor = end;
