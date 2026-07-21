@@ -3,13 +3,39 @@ const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
 const carnaval = @import("carnaval");
-// TODO: If it's possibly use Google's Diff Match Patch library, if there are benefits of course.
+const dmp = @import("dmp");
 const removed_style = carnaval.Style.init().fg(.{ .ansi16 = .red });
 const added_style = carnaval.Style.init().fg(.{ .ansi16 = .green });
 const location_style = carnaval.Style.init().fg(.{ .ansi16 = .cyan });
 const dimmed_style = carnaval.Style.init().dimmed();
 
+test "reports a changed line once when surrounding lines repeat" {
+    var output = std.Io.Writer.Allocating.init(std.testing.allocator);
+    defer output.deinit();
+
+    try writeDiff(
+        std.testing.io,
+        &output.writer,
+        "example.zig",
+        "same\nchange\nsame\n",
+        "same\nchanged\nsame\n",
+        .none,
+    );
+
+    try std.testing.expectEqualStrings(
+        \\from example.zig:
+        \\   2 | - change
+        \\  ...
+        \\   2 | + changed
+        \\
+        \\
+    ,
+        output.writer.buffered(),
+    );
+}
+
 pub fn writeDiff(
+    io: std.Io,
     writer: *std.Io.Writer,
     file_path: []const u8,
     original: []const u8,
@@ -26,7 +52,7 @@ pub fn writeDiff(
 
     var hunks: std.ArrayList(Hunk) = .empty;
     defer hunks.deinit(std.heap.page_allocator);
-    collectHunks(std.heap.page_allocator, orig_lines.items, fmt_lines.items, &hunks) catch return;
+    collectHunks(std.heap.page_allocator, io, original, formatted, orig_lines.items.len, fmt_lines.items.len, &hunks) catch return;
 
     if (hunks.items.len == 0) return;
 
@@ -72,98 +98,94 @@ const Hunk = struct {
 
 fn collectHunks(
     alloc: Allocator,
-    orig: []const []const u8,
-    formatted: []const []const u8,
+    io: std.Io,
+    original: []const u8,
+    formatted: []const u8,
+    orig_line_count: usize,
+    formatted_line_count: usize,
     hunks: *std.ArrayList(Hunk),
 ) !void {
-    var oi: usize = 0;
-    var fi: usize = 0;
+    const engine: dmp.Diff = .init(io, alloc);
+    var edits = try engine.diff(original, formatted, true, .none);
+    defer dmp.Diff.deinitEditList(alloc, &edits);
 
-    while (oi < orig.len and fi < formatted.len) {
-        if (mem.eql(u8, orig[oi], formatted[fi])) {
-            oi += 1;
-            fi += 1;
-            continue;
+    var original_offset: usize = 0;
+    var formatted_offset: usize = 0;
+    var active: ?ByteHunk = null;
+
+    for (edits.items) |edit| {
+        switch (edit.operation) {
+            .equal => {
+                if (active) |hunk| {
+                    try appendHunk(alloc, hunks, hunk, original, formatted, orig_line_count, formatted_line_count);
+                    active = null;
+                }
+                original_offset += edit.text.len;
+                formatted_offset += edit.text.len;
+            },
+            .delete => {
+                if (active == null) active = .{
+                    .original_start = original_offset,
+                    .original_end = original_offset,
+                    .formatted_start = formatted_offset,
+                    .formatted_end = formatted_offset,
+                };
+                active.?.original_end += edit.text.len;
+                original_offset += edit.text.len;
+            },
+            .insert => {
+                if (active == null) active = .{
+                    .original_start = original_offset,
+                    .original_end = original_offset,
+                    .formatted_start = formatted_offset,
+                    .formatted_end = formatted_offset,
+                };
+                active.?.formatted_end += edit.text.len;
+                formatted_offset += edit.text.len;
+            },
         }
-
-        var removed_end = oi;
-        var added_end = fi;
-
-        const sync = findSync(orig[oi..], formatted[fi..]);
-        removed_end = oi + sync.orig_skip;
-        added_end = fi + sync.fmt_skip;
-
-        try hunks.append(alloc, .{
-            .removed_start = oi,
-            .removed_end = removed_end,
-            .added_start = fi,
-            .added_end = added_end,
-        });
-
-        oi = removed_end;
-        fi = added_end;
     }
-
-    if (oi < orig.len) {
-        try hunks.append(alloc, .{
-            .removed_start = oi,
-            .removed_end = orig.len,
-            .added_start = formatted.len,
-            .added_end = formatted.len,
-        });
-    }
-
-    if (fi < formatted.len) {
-        try hunks.append(alloc, .{
-            .removed_start = orig.len,
-            .removed_end = orig.len,
-            .added_start = fi,
-            .added_end = formatted.len,
-        });
+    if (active) |hunk| {
+        try appendHunk(alloc, hunks, hunk, original, formatted, orig_line_count, formatted_line_count);
     }
 }
 
-const SyncResult = struct { orig_skip: usize, fmt_skip: usize };
+const ByteHunk = struct {
+    original_start: usize,
+    original_end: usize,
+    formatted_start: usize,
+    formatted_end: usize,
+};
 
-fn findSync(orig: []const []const u8, formatted: []const []const u8) SyncResult {
-    const max_look = @min(orig.len, @min(formatted.len, 50));
-    var best_oi: usize = orig.len;
-    var best_fi: usize = formatted.len;
-    var best_cost: usize = orig.len + formatted.len;
+fn appendHunk(
+    alloc: Allocator,
+    hunks: *std.ArrayList(Hunk),
+    hunk: ByteHunk,
+    original: []const u8,
+    formatted: []const u8,
+    orig_line_count: usize,
+    formatted_line_count: usize,
+) !void {
+    try hunks.append(alloc, .{
+        .removed_start = lineAt(original, hunk.original_start),
+        .removed_end = lineRangeEnd(original, hunk.original_start, hunk.original_end, orig_line_count),
+        .added_start = lineAt(formatted, hunk.formatted_start),
+        .added_end = lineRangeEnd(formatted, hunk.formatted_start, hunk.formatted_end, formatted_line_count),
+    });
+}
 
-    for (1..max_look) |fi| {
-        for (0..@min(orig.len, max_look)) |oi| {
-            if (mem.eql(u8, orig[oi], formatted[fi])) {
-                const cost = oi + fi;
-                if (cost < best_cost) {
-                    best_cost = cost;
-                    best_oi = oi;
-                    best_fi = fi;
-                }
-                break;
-            }
-        }
+fn lineAt(text: []const u8, offset: usize) usize {
+    var line: usize = 0;
+    for (text[0..@min(offset, text.len)]) |byte| {
+        if (byte == '\n') line += 1;
     }
+    return line;
+}
 
-    for (1..@min(orig.len, max_look)) |oi| {
-        for (0..@min(formatted.len, max_look)) |fi| {
-            if (mem.eql(u8, orig[oi], formatted[fi])) {
-                const cost = oi + fi;
-                if (cost < best_cost) {
-                    best_cost = cost;
-                    best_oi = oi;
-                    best_fi = fi;
-                }
-                break;
-            }
-        }
-    }
-
-    if (best_oi == orig.len and best_fi == formatted.len) {
-        return .{ .orig_skip = 1, .fmt_skip = 1 };
-    }
-
-    return .{ .orig_skip = best_oi, .fmt_skip = best_fi };
+fn lineRangeEnd(text: []const u8, start: usize, end: usize, line_count: usize) usize {
+    const start_line = lineAt(text, start);
+    if (end > start) return lineAt(text, end - 1) + 1;
+    return @min(start_line + 1, line_count);
 }
 
 fn splitLines(alloc: Allocator, text: []const u8, out: *std.ArrayList([]const u8)) !void {

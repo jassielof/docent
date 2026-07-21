@@ -342,7 +342,7 @@ fn fmtPathFile(
             var stderr_buf: [8192]u8 = undefined;
             var stderr = Io.File.stderr().writer(self.io, &stderr_buf);
             const profile = carnaval.colorProfileForHandle(Io.File.stderr().handle);
-            diff.writeDiff(&stderr.interface, file_path, source_code, pp.output, profile) catch {};
+            diff.writeDiff(io, &stderr.interface, file_path, source_code, pp.output, profile) catch {};
             stderr.interface.flush() catch {};
         }
         try self.stdout_writer.interface.print("{s}\n", .{file_path});

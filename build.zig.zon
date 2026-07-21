@@ -7,6 +7,7 @@
         .carnaval = .{ .path = "dependencies/fangz/dependencies/carnaval" },
         .vereda = .{ .path = "dependencies/vereda" },
         .toml = .{ .path = "dependencies/toml" },
+        .dmp = .{ .path = "dependencies/dmp" },
     },
     .minimum_zig_version = "0.16.0",
     .paths = .{
