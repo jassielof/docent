@@ -104,6 +104,12 @@ pub fn endsWithTerminalPunctuation(text: []const u8) bool {
     };
 }
 
+test endsWithTerminalPunctuation {
+    try std.testing.expect(endsWithTerminalPunctuation("Hello."));
+    try std.testing.expect(endsWithTerminalPunctuation("Watch out!"));
+    try std.testing.expect(!endsWithTerminalPunctuation("No mark"));
+}
+
 /// Returns the first blank line after the last non-empty line in a doc-comment block, if any.
 pub fn firstTrailingBlankLine(
     tree: *const Ast,
@@ -155,10 +161,4 @@ test "firstParagraph stops at blank line" {
     defer std.testing.allocator.free(para.text);
     try std.testing.expectEqualStrings("Line one", para.text);
     try std.testing.expectEqual(@as(?Ast.TokenIndex, 0), para.last_line_token);
-}
-
-test "endsWithTerminalPunctuation" {
-    try std.testing.expect(endsWithTerminalPunctuation("Hello."));
-    try std.testing.expect(endsWithTerminalPunctuation("Watch out!"));
-    try std.testing.expect(!endsWithTerminalPunctuation("No mark"));
 }

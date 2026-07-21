@@ -68,6 +68,21 @@ pub fn fileIsNamespace(tree: *const Ast) bool {
     return true;
 }
 
+test fileIsNamespace {
+    const ns_source = "pub const x = 1;\n" ++ "\x00";
+    var ns_tree = try std.zig.Ast.parse(std.testing.allocator, ns_source, .zig);
+    defer ns_tree.deinit(std.testing.allocator);
+    try std.testing.expect(fileIsNamespace(&ns_tree));
+
+    const struct_source =
+        \\//! Structure file
+        \\x: u8,
+    ++ "\x00";
+    var struct_tree = try std.zig.Ast.parse(std.testing.allocator, struct_source, .zig);
+    defer struct_tree.deinit(std.testing.allocator);
+    try std.testing.expect(!fileIsNamespace(&struct_tree));
+}
+
 /// Subject kind for an exposed implicit struct or namespace source file.
 pub fn exposedSourceFileSubjectKind(tree: *const Ast) SubjectKind {
     return if (fileIsNamespace(tree)) .namespace else .structure;
@@ -91,6 +106,18 @@ pub fn containerDocBlockIsFullyBlank(tree: *const Ast) bool {
         if (!comment.isEmptyLine(tree.tokenSlice(tok))) return false;
     }
     return true;
+}
+
+test containerDocBlockIsFullyBlank {
+    const blank = "//!\n//!\npub fn f() void {}\n" ++ "\x00";
+    var tree = try std.zig.Ast.parse(std.testing.allocator, blank, .zig);
+    defer tree.deinit(std.testing.allocator);
+    try std.testing.expect(containerDocBlockIsFullyBlank(&tree));
+
+    const text = "//! Module docs.\npub fn f() void {}\n" ++ "\x00";
+    var tree2 = try std.zig.Ast.parse(std.testing.allocator, text, .zig);
+    defer tree2.deinit(std.testing.allocator);
+    try std.testing.expect(!containerDocBlockIsFullyBlank(&tree2));
 }
 
 fn findDocCommentVisibility(
@@ -257,31 +284,4 @@ fn isEnumContainer(tree: *const Ast, container_node: Ast.Node.Index) bool {
 fn isPubVisibility(tree: *const Ast, visib_token: ?Ast.TokenIndex) bool {
     const vt = visib_token orelse return false;
     return tree.tokenTag(vt) == .keyword_pub;
-}
-
-test "fileIsNamespace" {
-    const ns_source = "pub const x = 1;\n" ++ "\x00";
-    var ns_tree = try std.zig.Ast.parse(std.testing.allocator, ns_source, .zig);
-    defer ns_tree.deinit(std.testing.allocator);
-    try std.testing.expect(fileIsNamespace(&ns_tree));
-
-    const struct_source =
-        \\//! Structure file
-        \\x: u8,
-    ++ "\x00";
-    var struct_tree = try std.zig.Ast.parse(std.testing.allocator, struct_source, .zig);
-    defer struct_tree.deinit(std.testing.allocator);
-    try std.testing.expect(!fileIsNamespace(&struct_tree));
-}
-
-test "containerDocBlockIsFullyBlank" {
-    const blank = "//!\n//!\npub fn f() void {}\n" ++ "\x00";
-    var tree = try std.zig.Ast.parse(std.testing.allocator, blank, .zig);
-    defer tree.deinit(std.testing.allocator);
-    try std.testing.expect(containerDocBlockIsFullyBlank(&tree));
-
-    const text = "//! Module docs.\npub fn f() void {}\n" ++ "\x00";
-    var tree2 = try std.zig.Ast.parse(std.testing.allocator, text, .zig);
-    defer tree2.deinit(std.testing.allocator);
-    try std.testing.expect(!containerDocBlockIsFullyBlank(&tree2));
 }
