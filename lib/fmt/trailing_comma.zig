@@ -177,6 +177,21 @@ test "adds trailing commas to multiline lists" {
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
+test "leaves multiline string literal content unchanged" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\const template =
+        \\    \\call(one, two, three);
+        \\    \\.{ .first = 1, .second = 2, .third = 3 }
+        \\;
+    ;
+
+    const formatted = try addTrailingCommas(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
 /// Expands single-line lists with 3 or more items to one-per-line with trailing commas.
 pub fn addTrailingCommas(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     var output: std.ArrayList(u8) = .empty;
@@ -199,6 +214,13 @@ pub fn addTrailingCommas(gpa: Allocator, input: []const u8) Allocator.Error![]u8
 }
 
 fn expandLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8, base_indent: usize) !void {
+    // Zig multiline string literals use a double-backslash prefix on every
+    // content line. Their content is not Zig code and must pass through verbatim.
+    if (isMultilineStringLine(line)) {
+        try output.appendSlice(gpa, line);
+        return;
+    }
+
     var pos: usize = 0;
 
     while (pos < line.len) {
@@ -252,6 +274,11 @@ fn expandLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8, base
         try output.append(gpa, c);
         pos += 1;
     }
+}
+
+fn isMultilineStringLine(line: []const u8) bool {
+    const trimmed = mem.trimStart(u8, line, " \t");
+    return mem.startsWith(u8, trimmed, "\\\\");
 }
 
 fn splitTopLevel(gpa: Allocator, inner: []const u8) ![][]const u8 {

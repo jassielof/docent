@@ -6,7 +6,7 @@ exclude = ["dependencies/", "vendor/", "tests/fixtures/", "lib/fmt/fixtures/"]
 sort_imports = false
 single_line_braces = false
 logical_blank_lines = false
-trailing_comma = false
+trailing_comma = true
 
 [doc]
 invalid_leading_phrase = "allow"
