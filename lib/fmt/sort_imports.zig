@@ -197,6 +197,40 @@ test "retains internal inline imports and their attached comments" {
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
+test "keeps one blank line between imports and following declarations" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\const std = @import("std");
+        \\const helper = @import("helper.zig");
+        \\
+        \\test "uses imports" {
+        \\    _ = std;
+        \\    _ = helper;
+        \\}
+        \\
+    ;
+    const expected =
+        \\const std = @import("std");
+        \\
+        \\const helper = @import("helper.zig");
+        \\
+        \\test "uses imports" {
+        \\    _ = std;
+        \\    _ = helper;
+        \\}
+        \\
+    ;
+
+    const formatted = try sortImports(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try sortImports(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
 /// Sorts the leading top-level import block using AST-based extraction.
 ///
 /// Imports are regrouped into categories (std, builtin, root, dependencies,
@@ -255,6 +289,14 @@ pub fn sortImports(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
         var rest_start = result.block_end;
         while (rest_start < input.len and (input[rest_start] == '\n' or input[rest_start] == '\r')) rest_start += 1;
         if (rest_start < input.len) {
+            // The leading import block is structurally separate from the next
+            // declaration. Preserve that boundary here because the logical
+            // blank-lines rule may be disabled independently.
+            if (output.items.len > 0 and output.items[output.items.len - 1] == '\n') {
+                try output.append(gpa, '\n');
+            } else {
+                try output.appendSlice(gpa, "\n\n");
+            }
             try output.appendSlice(gpa, input[rest_start..]);
         }
     }
