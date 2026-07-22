@@ -27,20 +27,20 @@
 //!   `include_private` is set (see `Ctx`), otherwise public-only.
 
 const std = @import("std");
-const Ast = std.zig.Ast;
 const Writer = std.Io.Writer;
+const Ast = std.zig.Ast;
 
 const doc_comment = @import("doc_comment");
 const comment = doc_comment.comment;
 const markdown = doc_comment.markup;
-const typst = @import("typst.zig");
-const external_refs = @import("external_refs.zig");
-const std_bundle = @import("std_bundle.zig");
-const schema = @import("schema.zig");
-const walker = @import("walker.zig");
 
-const Walk = walker.Walk;
+const external_refs = @import("external_refs.zig");
+const schema = @import("schema.zig");
+const std_bundle = @import("std_bundle.zig");
+const typst = @import("typst.zig");
+const walker = @import("walker.zig");
 const Decl = walker.Decl;
+const Walk = walker.Walk;
 
 /// One module to emit into a package's `docs.json`: a walked root `Decl`
 /// paired with the name it should be reported under (`Decl.extra_info()`

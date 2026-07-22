@@ -40,8 +40,8 @@
 const std = @import("std");
 
 const walker = @import("walker.zig");
-const Walk = walker.Walk;
 const Decl = walker.Decl;
+const Walk = walker.Walk;
 
 pub const StdRoot = struct {
     /// `lib/std` -- where `mem.zig`, `zig.zig`, `zig/Ast.zig`, etc. live.

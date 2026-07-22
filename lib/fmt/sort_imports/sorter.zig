@@ -4,9 +4,9 @@ const Allocator = std.mem.Allocator;
 
 const types = @import("types.zig");
 const ImportEntry = types.ImportEntry;
+const ImportShape = types.ImportShape;
 const SourceKind = types.SourceKind;
 const Visibility = types.Visibility;
-const ImportShape = types.ImportShape;
 
 pub const Group = struct {
     indices: std.ArrayList(usize),

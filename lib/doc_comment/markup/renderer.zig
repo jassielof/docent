@@ -1,8 +1,9 @@
 const std = @import("std");
-const Document = @import("Document.zig");
-const Node = Document.Node;
 const assert = std.debug.assert;
 const Writer = std.Io.Writer;
+
+const Document = @import("Document.zig");
+const Node = Document.Node;
 
 /// A Markdown document renderer.
 ///

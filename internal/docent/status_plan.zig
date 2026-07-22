@@ -1,12 +1,13 @@
 //! Builds the lint plan used by `docent status` and the default CLI run (targets, paths, skip reasons).
 
 const std = @import("std");
+
 const carnaval = @import("carnaval");
 
-const manifest = @import("manifest.zig");
-const targeting = @import("scan/target.zig");
 const build_scan = @import("build_scan.zig");
+const manifest = @import("manifest.zig");
 const reach = @import("scan/reach.zig");
+const targeting = @import("scan/target.zig");
 
 /// One build target after applying lint filters, with the files that would be checked.
 pub const ResolvedTarget = struct {

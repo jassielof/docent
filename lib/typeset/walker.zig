@@ -36,12 +36,12 @@
 
 const std = @import("std");
 
-pub const Walk = @import("Walk.zig");
-pub const Decl = Walk.Decl;
-
 const docent = @import("docent");
 const reach = docent.scan.reach;
 const target = docent.scan.target;
+
+pub const Walk = @import("Walk.zig");
+pub const Decl = Walk.Decl;
 
 /// Maps each synthetic `Walk.files` key (see the module doc comment) back to
 /// the real, cwd-relative filesystem path it was read from, so

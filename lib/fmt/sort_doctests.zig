@@ -1,7 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
-const Ast = std.zig.Ast;
 const Allocator = mem.Allocator;
+const Ast = std.zig.Ast;
 
 const format_test_assertions = @import("format_test_assertions.zig");
 
