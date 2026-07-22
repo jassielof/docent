@@ -1,7 +1,6 @@
 //! Shared helpers for lint rules.
 
 const helpers = @import("utils/helpers.zig");
-
 pub const diagnosticSubjectFromDoc = helpers.diagnosticSubjectFromDoc;
 pub const diagnosticSubjectKindFromDoc = helpers.diagnosticSubjectKindFromDoc;
 pub const dupSourceLine = helpers.dupSourceLine;
