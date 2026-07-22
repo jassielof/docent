@@ -10,9 +10,10 @@
 //! - **Casing mismatch:** A doctest identifier that has no matching public declaration but a case-variant of it does — suggests the correct casing. Currently limited to capitalization differences; snake_case normalization may be added later.
 const std = @import("std");
 const Ast = std.zig.Ast;
+
 const Diagnostic = @import("../../Diagnostic.zig");
-const severity = @import("../../severity.zig");
 const scan = @import("../../scan.zig");
+const severity = @import("../../severity.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 

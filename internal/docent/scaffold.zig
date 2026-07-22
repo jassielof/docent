@@ -1,6 +1,7 @@
 //! Build-system integration: custom `build.zig` step that runs Docent during `zig build`.
 
 const std = @import("std");
+
 const docent = @import("root.zig");
 
 /// Custom build step that lints Zig sources and fails the build on configured severities.

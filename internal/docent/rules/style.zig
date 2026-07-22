@@ -2,10 +2,10 @@
 const scan = @import("../scan.zig");
 const category = @import("category.zig");
 
+pub const identifier_case = @import("style/identifier_case.zig");
+
 /// Default scan mode for style rules; `reachability_traversal` because naming and layout apply to every reachable declaration, not just the public surface.
 pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
-
-pub const identifier_case = @import("style/identifier_case.zig");
 
 /// The `style` configuration: the category-wide scan mode plus each rule's config, decoded generically and resolved in place.
 pub const Style = struct {

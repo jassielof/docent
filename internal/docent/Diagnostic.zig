@@ -1,6 +1,7 @@
 //! Represents a diagnostic issue or warning generated during static analysis.
 
 const std = @import("std");
+
 const severity = @import("severity.zig");
 
 /// What the diagnostic refers to, for consistent prose output across rules.

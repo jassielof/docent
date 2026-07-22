@@ -3,10 +3,9 @@
 const std = @import("std");
 
 const docent = @import("docent");
-const fangz = @import("fangz");
-
-const cli_types = docent.types;
 const check_shared = docent.check_shared;
+const cli_types = docent.types;
+const fangz = @import("fangz");
 
 pub fn register(check: *fangz.Command) !void {
     const style_cmd = try check.addSubcommand(.{

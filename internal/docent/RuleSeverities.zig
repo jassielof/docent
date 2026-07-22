@@ -2,8 +2,8 @@
 //!
 //! Defaults are sourced from each rule module's `default_severity`. Project config overrides
 //! the returned value. Each rule module also exports `prose_title` for diagnostic messages.
-const severity = @import("severity.zig");
 const rules = @import("rules.zig");
+const severity = @import("severity.zig");
 
 missing_doc_comment: severity.Level = rules.doc.missing_doc_comment.default_severity,
 missing_doctest: severity.Level = rules.doc.missing_doctest.default_severity,
