@@ -599,3 +599,7 @@ test "private function parameters are not checked under public_api_only" {
     );
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
+
+comptime {
+    std.testing.refAllDecls(@This());
+}

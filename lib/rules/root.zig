@@ -22,6 +22,8 @@
 //!
 //! For examples, check the test suite.
 
+const std = @import("std");
+
 pub const Diagnostic = @import("Diagnostic.zig");
 pub const severity = @import("severity.zig");
 pub const SeverityLevel = severity.Level;
@@ -35,3 +37,7 @@ pub const complexity = @import("complexity.zig");
 pub const doc = @import("doc.zig");
 pub const size = @import("size.zig");
 pub const style = @import("style.zig");
+
+comptime {
+    std.testing.refAllDecls(@This());
+}

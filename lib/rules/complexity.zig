@@ -1,4 +1,6 @@
 //! The complexity namespace gathers complexity-related rules.
+const std = @import("std");
+
 const scan = @import("scan.zig");
 /// Default scan mode for complexity rules; `reachability_traversal` because every reachable function is measured, not just the public surface.
 pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
@@ -31,3 +33,7 @@ pub const Complexity = struct {
         category.applyRunScanMode(self, mode);
     }
 };
+
+comptime {
+    std.testing.refAllDecls(@This());
+}

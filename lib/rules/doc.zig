@@ -59,3 +59,8 @@ pub const Doc = struct {
         category.applyRunScanMode(self, mode);
     }
 };
+
+comptime {
+    std.testing.refAllDecls(@This());
+}
+const std = @import("std");

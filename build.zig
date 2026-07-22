@@ -217,6 +217,22 @@ pub fn build(b: *std.Build) void {
     const run_docent_lib_tests = b.addRunArtifact(docent_lib_tests);
     test_step.dependOn(&run_docent_lib_tests.step);
 
+    const rules_lib_tests = b.addTest(.{
+        .name = "Rules",
+        .root_module = rules_mod,
+    });
+
+    const run_rules_lib_tests = b.addRunArtifact(rules_lib_tests);
+    test_step.dependOn(&run_rules_lib_tests.step);
+
+    const project_scan_lib_tests = b.addTest(.{
+        .name = "Project Scan",
+        .root_module = project_scan_mod,
+    });
+
+    const run_project_scan_lib_tests = b.addRunArtifact(project_scan_lib_tests);
+    test_step.dependOn(&run_project_scan_lib_tests.step);
+
     const identifier_style_lib_tests = b.addTest(.{
         .name = "Identifier Style",
         .root_module = identifier_style_mod,

@@ -631,3 +631,7 @@ test "labeled block break is not penalized" {
     );
     try std.testing.expectEqual(@as(u32, 0), score);
 }
+
+comptime {
+    std.testing.refAllDecls(@This());
+}
