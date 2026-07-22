@@ -586,7 +586,11 @@ fn fmtPathFile(
             ) catch {};
             stderr.interface.flush() catch {};
         }
-        try self.stdout_writer.interface.print("{s}\n", .{file_path});
+        try diff.writeDisplayPath(
+            &self.stdout_writer.interface,
+            file_path,
+        );
+        try self.stdout_writer.interface.writeAll("\n");
         self.any_error = true;
     } else {
         try symlink_safe_write.write(
@@ -597,7 +601,11 @@ fn fmtPathFile(
             source_code,
             pp.output,
         );
-        try self.stdout_writer.interface.print("{s}\n", .{file_path});
+        try diff.writeDisplayPath(
+            &self.stdout_writer.interface,
+            file_path,
+        );
+        try self.stdout_writer.interface.writeAll("\n");
     }
 }
 
