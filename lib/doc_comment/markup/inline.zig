@@ -1,7 +1,6 @@
 //! Inline nodes: link, autolink, image, strong, emphasis, code span, text, line break.
 
 const Document = @import("Document.zig");
-
 pub const autolink = Document.Node.Tag.autolink;
 pub const code_span = Document.Node.Tag.code_span;
 pub const emphasis = Document.Node.Tag.emphasis;
