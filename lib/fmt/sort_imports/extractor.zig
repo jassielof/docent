@@ -104,20 +104,21 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
             const parent_idx = known.get(head).?;
             const parent_entry = entries.items[parent_idx];
             const is_field = isFieldAccess(tree, init_node);
-            const cross_visibility = vis == .public and parent_entry.visibility == .internal;
-            const shape: ImportShape = if (cross_visibility) .reexport else if (is_field) .alias else .reexport;
-            const parent_link: ?usize = if (cross_visibility) null else parent_idx;
+            // A public alias still belongs directly beneath its private import.
+            // Visibility groups independent imports, not an import and the
+            // names re-exported from it.
+            const shape: ImportShape = if (is_field) .alias else .reexport;
 
             try known.put(left, entries.items.len);
             try entries.append(arena, .{
                 .node = decl,
                 .visibility = vis,
-                .kind = if (cross_visibility) .file else parent_entry.kind,
+                .kind = parent_entry.kind,
                 .shape = shape,
                 .left = left,
                 .right = "",
                 .module = parent_entry.module,
-                .parent = parent_link,
+                .parent = parent_idx,
                 .comment_lines = comments,
                 .source_text = decl_text,
             });

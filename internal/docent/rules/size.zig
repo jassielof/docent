@@ -1,12 +1,11 @@
 //! The size namespace gathers size-related rules (line widths, parameter counts, and similar limits).
 const scan = @import("../scan.zig");
+/// Default scan mode for size rules; `reachability_traversal` because every reachable function is measured, not just the public surface.
+pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
 const category = @import("category.zig");
 
 pub const line_length_limit = @import("size/line_length_limit.zig");
 pub const max_fun_params = @import("size/max_fun_params.zig");
-
-/// Default scan mode for size rules; `reachability_traversal` because every reachable function is measured, not just the public surface.
-pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
 
 /// The `size` configuration: the category-wide scan mode plus each rule's config, decoded generically and resolved in place.
 pub const Size = struct {

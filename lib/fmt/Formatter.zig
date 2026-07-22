@@ -11,34 +11,32 @@ const carnaval = @import("carnaval");
 
 const array_type_guard = @import("array_type_guard.zig");
 const config_mod = @import("config.zig");
-const symlink_safe_write = @import("symlink_safe_write.zig");
-
-pub const Config = config_mod.Config;
-pub const Options = config_mod.Options;
 pub const CheckFormat = config_mod.CheckFormat;
+pub const Config = config_mod.Config;
 pub const BraceStyle = Config.BraceStyle;
 pub const IndentStyle = Config.IndentStyle;
+pub const Options = config_mod.Options;
+const symlink_safe_write = @import("symlink_safe_write.zig");
 
-pub const brace_style = @import("brace_style.zig");
-pub const single_line_braces = @import("single_line_braces.zig");
-pub const trailing_comma = @import("trailing_comma.zig");
-pub const logical_blank_lines = @import("logical_blank_lines.zig");
-pub const sort_imports = @import("sort_imports.zig");
-pub const sort_doctests = @import("sort_doctests.zig");
-pub const indent_width = @import("indent_width.zig");
 pub const auto_wrap = @import("auto_wrap.zig");
-pub const grid_alignment = @import("grid_alignment.zig");
-pub const diff = @import("diff.zig");
-
-pub const convertToAllman = brace_style.convertToAllman;
-pub const enforceBraces = single_line_braces.enforceBraces;
-pub const addTrailingCommas = trailing_comma.addTrailingCommas;
-pub const enforceLogicalBlankLines = logical_blank_lines.enforceLogicalBlankLines;
-pub const sortImports = sort_imports.sortImports;
-pub const sortDoctests = sort_doctests.sortDoctests;
-pub const reindent = indent_width.reindent;
 pub const autoWrap = auto_wrap.autoWrap;
+pub const brace_style = @import("brace_style.zig");
+pub const convertToAllman = brace_style.convertToAllman;
+pub const diff = @import("diff.zig");
+pub const grid_alignment = @import("grid_alignment.zig");
 pub const alignGrid = grid_alignment.alignGrid;
+pub const indent_width = @import("indent_width.zig");
+pub const reindent = indent_width.reindent;
+pub const logical_blank_lines = @import("logical_blank_lines.zig");
+pub const enforceLogicalBlankLines = logical_blank_lines.enforceLogicalBlankLines;
+pub const single_line_braces = @import("single_line_braces.zig");
+pub const enforceBraces = single_line_braces.enforceBraces;
+pub const sort_doctests = @import("sort_doctests.zig");
+pub const sortDoctests = sort_doctests.sortDoctests;
+pub const sort_imports = @import("sort_imports.zig");
+pub const sortImports = sort_imports.sortImports;
+pub const trailing_comma = @import("trailing_comma.zig");
+pub const addTrailingCommas = trailing_comma.addTrailingCommas;
 
 seen: SeenMap,
 any_error: bool,

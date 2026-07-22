@@ -5,6 +5,9 @@ const Ast = std.zig.Ast;
 
 const vereda = @import("vereda");
 
+const suppressions = @import("suppressions.zig");
+pub const Suppressions = suppressions.Table;
+
 pub const build_scan = @import("build_scan.zig");
 pub const check_shared = @import("check_shared.zig");
 pub const config = @import("config.zig");
@@ -25,8 +28,6 @@ pub const Config = @import("schemas/Config.zig");
 pub const severity = @import("severity.zig");
 pub const SeverityLevel = severity.Level;
 pub const status_plan = @import("status_plan.zig");
-const suppressions = @import("suppressions.zig");
-pub const Suppressions = suppressions.Table;
 pub const types = @import("types.zig");
 
 /// Returns whether the file-level `//!` check applies to `path`.

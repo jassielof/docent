@@ -1,12 +1,11 @@
 //! The complexity namespace gathers complexity-related rules.
 const scan = @import("../scan.zig");
+/// Default scan mode for complexity rules; `reachability_traversal` because every reachable function is measured, not just the public surface.
+pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
 const category = @import("category.zig");
 
 pub const cognitive = @import("complexity/cognitive.zig");
 pub const cyclomatic = @import("complexity/cyclomatic.zig");
-
-/// Default scan mode for complexity rules; `reachability_traversal` because every reachable function is measured, not just the public surface.
-pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
 
 /// The `complexity` configuration: the category-wide scan mode plus each rule's config, decoded generically and resolved in place.
 pub const Complexity = struct {

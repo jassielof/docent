@@ -88,7 +88,9 @@ test "sorts imports" {
         \\const fmt_command = @import("commands/fmt.zig");
         \\const init_command = @import("commands/init.zig");
         \\const status_command = @import("commands/status.zig");
+        \\pub const registerStatusSubcommand = status_command.register;
         \\const suppressions = @import("suppressions.zig");
+        \\pub const Suppressions = suppressions.Table;
         \\const string_utils = @import("utils/string.zig");
         \\const platform = if (builtin.os.tag == .windows)
         \\    @import("platform/windows.zig")
@@ -106,9 +108,6 @@ test "sorts imports" {
         \\pub const default_fail_fast = @import("types.zig").default_fail_fast;
         \\pub const FailFast = @import("types.zig").FailFast;
         \\pub const OutputMode = @import("types.zig").OutputMode;
-        \\
-        \\pub const registerStatusSubcommand = status_command.register;
-        \\pub const Suppressions = suppressions.Table;
         \\
     ;
 
@@ -149,14 +148,13 @@ test "keeps conditional imports in their origin category and orders reexports by
         \\    @import("posix-dependency");
         \\
         \\const alpha = @import("alpha.zig");
+        \\pub const Zebra = alpha.Value;
         \\const zoo = @import("zoo.zig");
+        \\pub const Aardvark = zoo.Value;
         \\const platform = if (std.builtin.os.tag == .windows)
         \\    @import("platform/windows.zig")
         \\else
         \\    @import("platform/posix.zig");
-        \\
-        \\pub const Zebra = alpha.Value;
-        \\pub const Aardvark = zoo.Value;
         \\
     ;
 
@@ -166,7 +164,7 @@ test "keeps conditional imports in their origin category and orders reexports by
     try format_test_assertions.expectValidZig(formatted);
 }
 
-test "retains internal inline imports and their attached comments" {
+test "keeps public aliases attached to private imports" {
     const gpa = std.testing.allocator;
     const input =
         \\// NOTE: keep this comment exactly once.
@@ -182,16 +180,71 @@ test "retains internal inline imports and their attached comments" {
         \\const std = @import("std");
         \\
         \\const alpha = @import("alpha.zig");
+        \\pub const Name = alpha.Name;
         \\const Renderer = @import("renderer.zig").Renderer;
         \\const SeverityLevel = @import("severity.zig").Level;
-        \\
-        \\pub const Name = alpha.Name;
         \\
     ;
 
     const formatted = try sortImports(gpa, input);
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
+
+    const formatted_expected = try sortImports(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "keeps public aliases attached to public imports" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\pub const trailing_comma = @import("trailing_comma.zig");
+        \\pub const Config = @import("config.zig");
+        \\pub const addTrailingCommas = trailing_comma.addTrailingCommas;
+        \\
+    ;
+    const expected =
+        \\pub const Config = @import("config.zig");
+        \\pub const trailing_comma = @import("trailing_comma.zig");
+        \\pub const addTrailingCommas = trailing_comma.addTrailingCommas;
+        \\
+    ;
+
+    const formatted = try sortImports(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try sortImports(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "orders public aliases beneath their private import" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\const config_mod = @import("config.zig");
+        \\pub const Options = config_mod.Options;
+        \\pub const CheckFormat = config_mod.CheckFormat;
+        \\pub const Config = config_mod.Config;
+        \\pub const BraceStyle = config_mod.Config.BraceStyle;
+        \\pub const IndentStyle = config_mod.Config.IndentStyle;
+        \\
+    ;
+    const expected =
+        \\const config_mod = @import("config.zig");
+        \\pub const CheckFormat = config_mod.CheckFormat;
+        \\pub const Config = config_mod.Config;
+        \\pub const BraceStyle = config_mod.Config.BraceStyle;
+        \\pub const IndentStyle = config_mod.Config.IndentStyle;
+        \\pub const Options = config_mod.Options;
+        \\
+    ;
+
+    const formatted = try sortImports(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
 
     const formatted_expected = try sortImports(gpa, expected);
     defer gpa.free(formatted_expected);
