@@ -3,13 +3,13 @@
 const std = @import("std");
 
 const docent = @import("docent");
+const check_shared = docent.check_shared;
 const fangz = @import("fangz");
 
 const all_check = @import("check/all.zig");
 const complexity_check = @import("check/complexity.zig");
-const size_check = @import("check/size.zig");
 const doc_check = @import("check/doc.zig");
-const check_shared = docent.check_shared;
+const size_check = @import("check/size.zig");
 const style_check = @import("check/style.zig");
 
 /// Registers the `check` command and its category subcommands on `root`.
