@@ -8,6 +8,10 @@
 //!
 //! - **Missing module doc comment** — file-level `//!` on module entry roots (`root.zig` and library `root_source_file` paths from `build.zig`).
 //! - **Missing source-file doc comment** — file-level `//!` on implicit structure files and namespaces (files without struct fields at file scope).
+//!
+//! ## Broken intra-doc links
+//!
+//! Zig itself allows it but strictly scoped to symbols within the same file, one cannot reference symbols from other files within the same module, this is done by backticks, but it's not documented, until it's properly designed and documented, this won't be documented. See <https://github.com/ziglang/zig/issues/19866>.
 const scan = @import("../scan.zig");
 const category = @import("category.zig");
 
