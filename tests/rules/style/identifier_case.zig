@@ -185,3 +185,31 @@ test "PascalCase struct file stem is accepted by default" {
     defer result.deinit();
     try utils.expectRuleAbsent(result, "identifier_case");
 }
+
+test "@This() alias in a namespace file should be snake_case" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{"identifier_case_bad_this_alias_namespace.zig"}, warn, reachability, null, null);
+    defer result.deinit();
+    try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqual(.namespace, result.diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("Bar", result.diagnostics.items[0].subject.?.name);
+}
+
+test "snake_case @This() alias in a namespace file is clean" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{"identifier_case_good_this_alias_namespace.zig"}, warn, reachability, null, null);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}
+
+test "@This() alias in a struct file should be PascalCase" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{"identifier_case_bad_this_alias_struct.zig"}, warn, reachability, "Self.zig", null);
+    defer result.deinit();
+    try utils.expectRuleCount(result, "identifier_case", 1);
+    try std.testing.expectEqual(.structure, result.diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("self", result.diagnostics.items[0].subject.?.name);
+}
+
+test "PascalCase @This() alias in a struct file is clean" {
+    var result = try harness.lintStyleRuleFixture(ns, &.{"identifier_case_good_this_alias_struct.zig"}, warn, reachability, "Self.zig", null);
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "identifier_case");
+}

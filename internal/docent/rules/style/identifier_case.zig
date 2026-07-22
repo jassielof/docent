@@ -135,6 +135,7 @@ pub fn check(
         namespace_cache.deinit();
     }
 
+    const file_is_namespace = doc_comment.fileIsNamespace(tree);
     for (tree.rootDecls()) |decl| {
         try checkNode(
             tree,
@@ -144,6 +145,7 @@ pub fn check(
             public_api_only,
             options,
             .field,
+            file_is_namespace,
             allocator,
             io,
             &namespace_cache,
@@ -161,6 +163,10 @@ fn checkNode(
     public_api_only: bool,
     options: Options,
     member_field_kind: Diagnostic.SubjectKind,
+    /// Whether the container `node` is declared in (the file root, or the enclosing struct/opaque)
+    /// is field-less. Used to resolve `@This()` aliases (`classifyVarDecl`), which name the
+    /// enclosing container rather than importing or re-exporting a declaration elsewhere.
+    enclosing_is_namespace: bool,
     allocator: std.mem.Allocator,
     io: std.Io,
     namespace_cache: *std.StringHashMap(bool),
@@ -229,6 +235,7 @@ fn checkNode(
                 tree,
                 var_decl,
                 options,
+                enclosing_is_namespace,
             )) |c| {
                 try checkName(
                     tree,
@@ -277,6 +284,7 @@ fn checkNode(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, node)) .enumerator else member_field_kind;
+            const child_is_namespace = !containerHasFields(tree, container);
             for (container.ast.members) |member| {
                 try checkNode(
                     tree,
@@ -286,6 +294,7 @@ fn checkNode(
                     public_api_only,
                     options,
                     child_kind,
+                    child_is_namespace,
                     allocator,
                     io,
                     namespace_cache,
@@ -335,6 +344,7 @@ fn checkVarDeclInit(
     var buf: [2]Ast.Node.Index = undefined;
     if (tree.fullContainerDecl(&buf, init_node)) |container| {
         const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, init_node)) .enumerator else .field;
+        const child_is_namespace = !containerHasFields(tree, container);
         for (container.ast.members) |member| {
             try checkNode(
                 tree,
@@ -344,6 +354,7 @@ fn checkVarDeclInit(
                 public_api_only,
                 options,
                 child_kind,
+                child_is_namespace,
                 allocator,
                 io,
                 namespace_cache,
@@ -784,6 +795,10 @@ fn classifyVarDecl(
     tree: *const Ast,
     var_decl: Ast.full.VarDecl,
     options: Options,
+    /// Whether the container this declaration lives in (file root, or enclosing struct/opaque) is
+    /// field-less. Only consulted for `@This()` initializers, which name that container rather than
+    /// referencing a declaration elsewhere.
+    enclosing_is_namespace: bool,
 ) ?Classification {
     const is_const = tree.tokenTag(var_decl.ast.mut_token) == .keyword_const;
     const init_node = var_decl.ast.init_node.unwrap() orelse return null;
@@ -811,6 +826,15 @@ fn classifyVarDecl(
 
     // Inline type expressions (`[]const u8`, `?T`, `fn () void`, …) define a type and use PascalCase.
     if (isTypeExpr(tag)) return .{ .case = types_case, .kind = .type_alias };
+
+    // `@This()` names the enclosing container itself, not a declaration elsewhere - unlike other
+    // builtin/function calls and re-exports, it must not be treated as an opaque alias, or a name
+    // binding the container's own case convention would go unchecked (e.g. `const Foo = @This();`
+    // at the top of a snake_case-required namespace file).
+    if (isThisCall(tree, init_node)) return if (enclosing_is_namespace)
+        .{ .case = namespaces_case, .kind = .namespace }
+    else
+        .{ .case = types_case, .kind = .structure };
 
     // Aliases/re-exports resolve to a declaration elsewhere; skip to avoid false positives.
     if (isAliasInit(tag)) return null;
@@ -936,6 +960,19 @@ fn isTypeExpr(tag: Ast.Node.Tag) bool {
         => true,
         else => false,
     };
+}
+
+/// True when `node` is the builtin call `@This()` (with no arguments).
+fn isThisCall(tree: *const Ast, node: Ast.Node.Index) bool {
+    const tag = tree.nodeTag(node);
+    if (tag != .builtin_call_two and tag != .builtin_call_two_comma) return false;
+
+    const builtin_tok = tree.nodeMainToken(node);
+    if (tree.tokenTag(builtin_tok) != .builtin) return false;
+    if (!std.mem.eql(u8, tree.tokenSlice(builtin_tok), "@This")) return false;
+
+    const args = tree.nodeData(node).opt_node_and_opt_node;
+    return args[0].unwrap() == null;
 }
 
 /// True when an initializer merely references a declaration defined elsewhere.
