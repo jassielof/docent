@@ -165,6 +165,38 @@ test "keeps conditional imports in their origin category and orders reexports by
     try format_test_assertions.expectValidZig(formatted);
 }
 
+test "retains internal inline imports and their attached comments" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\// NOTE: keep this comment exactly once.
+        \\const std = @import("std");
+        \\const SeverityLevel = @import("severity.zig").Level;
+        \\const Renderer = @import("renderer.zig").Renderer;
+        \\const alpha = @import("alpha.zig");
+        \\pub const Name = alpha.Name;
+        \\
+    ;
+    const expected =
+        \\// NOTE: keep this comment exactly once.
+        \\const std = @import("std");
+        \\
+        \\const alpha = @import("alpha.zig");
+        \\const Renderer = @import("renderer.zig").Renderer;
+        \\const SeverityLevel = @import("severity.zig").Level;
+        \\
+        \\pub const Name = alpha.Name;
+        \\
+    ;
+
+    const formatted = try sortImports(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+
+    const formatted_expected = try sortImports(gpa, expected);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
 /// Sorts the leading top-level import block using AST-based extraction.
 ///
 /// Imports are regrouped into categories (std, builtin, root, dependencies,

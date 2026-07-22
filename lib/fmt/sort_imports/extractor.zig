@@ -129,12 +129,13 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
     }
 
     const bs = block_start orelse 0;
+    const owned_entries = try entries.toOwnedSlice(arena);
     return .{
-        .entries = try entries.toOwnedSlice(arena),
-        .block_start = if (entries.items.len > 0) adjustBlockStartForComments(
+        .entries = owned_entries,
+        .block_start = if (owned_entries.len > 0) adjustBlockStartForComments(
             source,
             bs,
-            entries.items[0].comment_lines,
+            owned_entries[0].comment_lines,
         ) else bs,
         .block_end = block_end,
         .prefix_end = prefix_end,

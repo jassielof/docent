@@ -116,10 +116,10 @@ fn renderSuperGroup(
         !dependenciesHaveEntries(sg),
     );
 
-    try renderGroupIfNonEmpty(
+    try renderFiles(
         arena,
         output,
-        &sg.file_group,
+        sg,
         entries,
         any,
     );
@@ -130,7 +130,7 @@ fn renderSuperGroup(
         .file,
         entries,
         any,
-        !groupHasEntries(&sg.file_group),
+        !filesHaveEntries(sg),
     );
     try renderConditionalsForKind(
         arena,
@@ -141,6 +141,38 @@ fn renderSuperGroup(
         any,
         true,
     );
+}
+
+fn renderFiles(
+    arena: Allocator,
+    output: *std.ArrayList(u8),
+    sg: *const SuperGroup,
+    entries: []const ImportEntry,
+    any: *bool,
+) !void {
+    if (!filesHaveEntries(sg)) return;
+
+    var indices: std.ArrayList(usize) = .empty;
+    for (sg.file_group.indices.items) |idx| try indices.append(arena, idx);
+    for (sg.inline_field_keys.items) |key| {
+        if (sg.inline_field_groups.getPtr(key)) |group| {
+            for (group.indices.items) |idx| try indices.append(arena, idx);
+        }
+    }
+
+    const S = struct {
+        entries: []const ImportEntry,
+        fn lessThan(ctx: @This(), a: usize, b: usize) bool {
+            const path_cmp = cmpIgnoreCase(ctx.entries[a].right, ctx.entries[b].right);
+            if (path_cmp != .eq) return path_cmp == .lt;
+            return cmpIgnoreCase(ctx.entries[a].left, ctx.entries[b].left) == .lt;
+        }
+    };
+    mem.sort(usize, indices.items, S{ .entries = entries }, S.lessThan);
+
+    if (any.*) try output.append(arena, '\n');
+    for (indices.items) |idx| try renderEntry(arena, output, entries, idx);
+    any.* = true;
 }
 
 fn renderPublicGroup(
@@ -265,6 +297,16 @@ fn dependenciesHaveEntries(sg: *const SuperGroup) bool {
             if (grp.indices.items.len > 0) {
                 return true;
             }
+        }
+    }
+    return false;
+}
+
+fn filesHaveEntries(sg: *const SuperGroup) bool {
+    if (groupHasEntries(&sg.file_group)) return true;
+    for (sg.inline_field_keys.items) |key| {
+        if (sg.inline_field_groups.getPtr(key)) |group| {
+            if (groupHasEntries(group)) return true;
         }
     }
     return false;
