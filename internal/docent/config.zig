@@ -18,12 +18,24 @@ pub const Error = Config.Error || error{
 
 /// Walks upward from cwd until `.config/docent.toml` exists, or returns null.
 pub fn findNearestConfigPath(allocator: std.mem.Allocator, io: std.Io) Error!?[]const u8 {
-    return findConfigPathRelative(allocator, io, default_relative_path);
+    return findConfigPathRelative(
+        allocator,
+        io,
+        default_relative_path,
+    );
 }
 
 /// Walks upward from cwd until `relative_path` exists under a directory, or returns null.
-pub fn findConfigPathRelative(allocator: std.mem.Allocator, io: std.Io, relative_path: []const u8) Error!?[]const u8 {
-    var current = try realPathFileAlloc(allocator, io, ".");
+pub fn findConfigPathRelative(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    relative_path: []const u8,
+) Error!?[]const u8 {
+    var current = try realPathFileAlloc(
+        allocator,
+        io,
+        ".",
+    );
 
     while (true) {
         const candidate = try std.fs.path.join(allocator, &.{ current, relative_path });
@@ -54,8 +66,16 @@ pub fn findConfigPathRelative(allocator: std.mem.Allocator, io: std.Io, relative
 /// Loads and decodes a `docent.toml` file.
 ///
 /// Caller owns path lists under `fmt` / `check` / `typeset`; free with `Config.deinit`.
-pub fn loadConfig(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!Config {
-    var parsed = try parseConfigFile(allocator, io, config_path);
+pub fn loadConfig(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: []const u8,
+) Error!Config {
+    var parsed = try parseConfigFile(
+        allocator,
+        io,
+        config_path,
+    );
     defer parsed.deinit();
     return try Config.decode(allocator, parsed.root);
 }
@@ -63,23 +83,47 @@ pub fn loadConfig(allocator: std.mem.Allocator, io: std.Io, config_path: []const
 /// Loads config from an explicit `config_path`, or searches for the default file when null.
 ///
 /// Caller owns path lists under `fmt` / `check` / `typeset`; free with `Config.deinit`.
-pub fn loadConfigFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!Config {
+pub fn loadConfigFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!Config {
     if (config_path) |explicit| {
-        const abs = try resolveExplicitConfigPath(allocator, io, explicit);
+        const abs = try resolveExplicitConfigPath(
+            allocator,
+            io,
+            explicit,
+        );
         defer allocator.free(abs);
-        return loadConfig(allocator, io, abs);
+        return loadConfig(
+            allocator,
+            io,
+            abs,
+        );
     }
     const discovered = try findNearestConfigPath(allocator, io);
     if (discovered) |path| {
         defer allocator.free(path);
-        return loadConfig(allocator, io, path);
+        return loadConfig(
+            allocator,
+            io,
+            path,
+        );
     }
     return .{};
 }
 
 /// Loads rule severities from a `docent.toml` file; omitted rules keep library defaults.
-pub fn loadRuleSeverities(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!RuleSeverities {
-    var cfg = try loadConfig(allocator, io, config_path);
+pub fn loadRuleSeverities(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: []const u8,
+) Error!RuleSeverities {
+    var cfg = try loadConfig(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     var rule_severities: RuleSeverities = .{};
     try Config.applyRuleSeverities(cfg, &rule_severities);
@@ -88,19 +132,39 @@ pub fn loadRuleSeverities(allocator: std.mem.Allocator, io: std.Io, config_path:
 
 /// Nearest `.config/docent.toml`, or library defaults when no config file exists.
 pub fn loadNearestRuleSeverities(allocator: std.mem.Allocator, io: std.Io) Error!RuleSeverities {
-    return loadRuleSeveritiesFromCli(allocator, io, null);
+    return loadRuleSeveritiesFromCli(
+        allocator,
+        io,
+        null,
+    );
 }
 
 /// Loads resolved documentation rule config from a `docent.toml` file.
-pub fn loadDocOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.doc.Doc {
-    var cfg = try loadConfig(allocator, io, config_path);
+pub fn loadDocOptions(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: []const u8,
+) Error!rules.doc.Doc {
+    var cfg = try loadConfig(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.doc;
 }
 
 /// Loads documentation config from an explicit `config_path`, or searches for the default file when null.
-pub fn loadDocOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!rules.doc.Doc {
-    var cfg = try loadConfigFromCli(allocator, io, config_path);
+pub fn loadDocOptionsFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!rules.doc.Doc {
+    var cfg = try loadConfigFromCli(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.doc;
 }
@@ -108,8 +172,16 @@ pub fn loadDocOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_pa
 /// Loads fmt options from an explicit `config_path`, or searches for the default file when null.
 ///
 /// Caller owns `include` / `exclude` path lists; free with `Config.Fmt.deinit`.
-pub fn loadFmtOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!Config.Fmt {
-    var cfg = try loadConfigFromCli(allocator, io, config_path);
+pub fn loadFmtOptionsFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!Config.Fmt {
+    var cfg = try loadConfigFromCli(
+        allocator,
+        io,
+        config_path,
+    );
     const fmt = cfg.fmt;
     cfg.fmt.include = &.{};
     cfg.fmt.exclude = &.{};
@@ -118,78 +190,166 @@ pub fn loadFmtOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_pa
 }
 
 /// Loads resolved complexity rule config from a `docent.toml` file.
-pub fn loadComplexityOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.complexity.Complexity {
-    var cfg = try loadConfig(allocator, io, config_path);
+pub fn loadComplexityOptions(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: []const u8,
+) Error!rules.complexity.Complexity {
+    var cfg = try loadConfig(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.complexity;
 }
 
 /// Loads complexity config from an explicit `config_path`, or searches for the default file when null.
-pub fn loadComplexityOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!rules.complexity.Complexity {
-    var cfg = try loadConfigFromCli(allocator, io, config_path);
+pub fn loadComplexityOptionsFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!rules.complexity.Complexity {
+    var cfg = try loadConfigFromCli(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.complexity;
 }
 
 /// Loads resolved size rule config from a `docent.toml` file.
-pub fn loadSizeOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.size.Size {
-    var cfg = try loadConfig(allocator, io, config_path);
+pub fn loadSizeOptions(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: []const u8,
+) Error!rules.size.Size {
+    var cfg = try loadConfig(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.size;
 }
 
 /// Loads size config from an explicit `config_path`, or searches for the default file when null.
-pub fn loadSizeOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!rules.size.Size {
-    var cfg = try loadConfigFromCli(allocator, io, config_path);
+pub fn loadSizeOptionsFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!rules.size.Size {
+    var cfg = try loadConfigFromCli(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.size;
 }
 
 /// Loads resolved style rule config from a `docent.toml` file.
-pub fn loadStyleOptions(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!rules.style.Style {
-    var cfg = try loadConfig(allocator, io, config_path);
+pub fn loadStyleOptions(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: []const u8,
+) Error!rules.style.Style {
+    var cfg = try loadConfig(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.style;
 }
 
 /// Loads style config from an explicit `config_path`, or searches for the default file when null.
-pub fn loadStyleOptionsFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!rules.style.Style {
-    var cfg = try loadConfigFromCli(allocator, io, config_path);
+pub fn loadStyleOptionsFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!rules.style.Style {
+    var cfg = try loadConfigFromCli(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.style;
 }
 
 /// Returns the declaration scan mode for documentation rules.
-pub fn loadDocScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.RuleScanConfig {
-    var cfg = try loadConfigFromCli(allocator, io, config_path);
+pub fn loadDocScanModeFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!scan.RuleScanConfig {
+    var cfg = try loadConfigFromCli(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.doc.scan_mode;
 }
 
 /// Returns the declaration scan mode for complexity rules.
-pub fn loadComplexityScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.RuleScanConfig {
-    var cfg = try loadConfigFromCli(allocator, io, config_path);
+pub fn loadComplexityScanModeFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!scan.RuleScanConfig {
+    var cfg = try loadConfigFromCli(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.complexity.scan_mode;
 }
 
 /// Returns the declaration scan mode for size rules.
-pub fn loadSizeScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.RuleScanConfig {
-    var cfg = try loadConfigFromCli(allocator, io, config_path);
+pub fn loadSizeScanModeFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!scan.RuleScanConfig {
+    var cfg = try loadConfigFromCli(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.size.scan_mode;
 }
 
 /// Returns the declaration scan mode for style rules.
-pub fn loadStyleScanModeFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!scan.RuleScanConfig {
-    var cfg = try loadConfigFromCli(allocator, io, config_path);
+pub fn loadStyleScanModeFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!scan.RuleScanConfig {
+    var cfg = try loadConfigFromCli(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     return cfg.style.scan_mode;
 }
 
 /// Loads rules from an explicit `config_path`, or searches for the default file when null.
-pub fn loadRuleSeveritiesFromCli(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!RuleSeverities {
-    var cfg = try loadConfigFromCli(allocator, io, config_path);
+pub fn loadRuleSeveritiesFromCli(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!RuleSeverities {
+    var cfg = try loadConfigFromCli(
+        allocator,
+        io,
+        config_path,
+    );
     defer cfg.deinit(allocator);
     var rule_severities: RuleSeverities = .{};
     try Config.applyRuleSeverities(cfg, &rule_severities);
@@ -197,8 +357,16 @@ pub fn loadRuleSeveritiesFromCli(allocator: std.mem.Allocator, io: std.Io, confi
 }
 
 /// Resolved config path for status output: explicit path, discovered file, or null.
-pub fn resolveConfigPathForDisplay(allocator: std.mem.Allocator, io: std.Io, config_path: ?[]const u8) Error!?[]const u8 {
-    if (config_path) |explicit| return try resolveExplicitConfigPath(allocator, io, explicit);
+pub fn resolveConfigPathForDisplay(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: ?[]const u8,
+) Error!?[]const u8 {
+    if (config_path) |explicit| return try resolveExplicitConfigPath(
+        allocator,
+        io,
+        explicit,
+    );
     return findNearestConfigPath(allocator, io);
 }
 
@@ -212,11 +380,19 @@ const ParsedConfig = struct {
     }
 };
 
-fn parseConfigFile(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) Error!ParsedConfig {
+fn parseConfigFile(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: []const u8,
+) Error!ParsedConfig {
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
 
-    const config_text = readConfigText(arena.allocator(), io, config_path) catch |err| switch (err) {
+    const config_text = readConfigText(
+        arena.allocator(),
+        io,
+        config_path,
+    ) catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
         else => return error.ConfigParseFailed,
     };
@@ -225,26 +401,55 @@ fn parseConfigFile(allocator: std.mem.Allocator, io: std.Io, config_path: []cons
     return .{ .root = root, .arena = arena };
 }
 
-fn resolveExplicitConfigPath(allocator: std.mem.Allocator, io: std.Io, path: []const u8) Error![]u8 {
+fn resolveExplicitConfigPath(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) Error![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = std.Io.Dir.cwd().realPathFile(io, path, &buffer) catch return error.ConfigNotFound;
+    const len = std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    ) catch return error.ConfigNotFound;
     return allocator.dupe(u8, buffer[0..len]) catch error.OutOfMemory;
 }
 
-fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) Error![]u8 {
+fn realPathFileAlloc(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) Error![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = std.Io.Dir.cwd().realPathFile(io, path, &buffer) catch return error.OutOfMemory;
+    const len = std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    ) catch return error.OutOfMemory;
     return allocator.dupe(u8, buffer[0..len]) catch error.OutOfMemory;
 }
 
 fn isReadableFile(io: std.Io, path: []const u8) bool {
-    const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return false;
+    const file = std.Io.Dir.openFileAbsolute(
+        io,
+        path,
+        .{},
+    ) catch return false;
     file.close(io);
     return true;
 }
 
-fn readConfigText(allocator: std.mem.Allocator, io: std.Io, config_path: []const u8) ![]u8 {
-    return std.Io.Dir.cwd().readFileAlloc(io, config_path, allocator, .limited(1 * 1024 * 1024));
+fn readConfigText(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config_path: []const u8,
+) ![]u8 {
+    return std.Io.Dir.cwd().readFileAlloc(
+        io,
+        config_path,
+        allocator,
+        .limited(1 * 1024 * 1024),
+    );
 }
 
 /// Returns a short human-readable description of `err`.

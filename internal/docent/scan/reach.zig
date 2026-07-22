@@ -2,9 +2,17 @@
 
 const std = @import("std");
 
-fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
+fn realPathFileAlloc(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+    const len = try std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    );
     return allocator.dupe(u8, buffer[0..len]);
 }
 
@@ -45,12 +53,22 @@ const Crawler = struct {
         }
 
         if (self.pub_only) {
-            collectPublicImportsFromFile(self.allocator, self.io, path, &imports) catch |e| {
+            collectPublicImportsFromFile(
+                self.allocator,
+                self.io,
+                path,
+                &imports,
+            ) catch |e| {
                 self.setErr(e);
                 return;
             };
         } else {
-            collectAllImportsFromFile(self.allocator, self.io, path, &imports) catch |e| {
+            collectAllImportsFromFile(
+                self.allocator,
+                self.io,
+                path,
+                &imports,
+            ) catch |e| {
                 self.setErr(e);
                 return;
             };
@@ -88,19 +106,32 @@ const Crawler = struct {
 
             i += 1;
 
-            self.group.async(self.io, crawlTask, .{ self, candidate });
+            self.group.async(
+                self.io,
+                crawlTask,
+                .{ self, candidate },
+            );
         }
     }
 };
 
-fn collectReachableGeneric(allocator: std.mem.Allocator, io: std.Io, root_path: []const u8, pub_only: bool) !std.ArrayList([]const u8) {
+fn collectReachableGeneric(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    root_path: []const u8,
+    pub_only: bool,
+) !std.ArrayList([]const u8) {
     var files: std.ArrayList([]const u8) = .empty;
     errdefer deinitOwnedPaths(allocator, &files);
 
     var seen = std.StringHashMap(void).init(allocator);
     defer seen.deinit();
 
-    const root_abs = try realPathFileAlloc(allocator, io, root_path);
+    const root_abs = try realPathFileAlloc(
+        allocator,
+        io,
+        root_path,
+    );
     try files.append(allocator, root_abs);
     try seen.put(files.items[0], {});
 
@@ -112,7 +143,11 @@ fn collectReachableGeneric(allocator: std.mem.Allocator, io: std.Io, root_path: 
         .pub_only = pub_only,
     };
 
-    crawler.group.async(io, Crawler.crawlTask, .{ &crawler, root_abs });
+    crawler.group.async(
+        io,
+        Crawler.crawlTask,
+        .{ &crawler, root_abs },
+    );
     try crawler.group.await(io);
 
     if (crawler.err) |err| return err;
@@ -120,13 +155,31 @@ fn collectReachableGeneric(allocator: std.mem.Allocator, io: std.Io, root_path: 
 }
 
 /// Collects local Zig files that are publicly reachable from a root entry file.
-pub fn collectReachablePublicFiles(allocator: std.mem.Allocator, io: std.Io, root_path: []const u8) !std.ArrayList([]const u8) {
-    return collectReachableGeneric(allocator, io, root_path, true);
+pub fn collectReachablePublicFiles(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    root_path: []const u8,
+) !std.ArrayList([]const u8) {
+    return collectReachableGeneric(
+        allocator,
+        io,
+        root_path,
+        true,
+    );
 }
 
 /// Collects local Zig files reachable from `root_path` by following every file-scope `@import("…zig")`.
-pub fn collectReachableFiles(allocator: std.mem.Allocator, io: std.Io, root_path: []const u8) !std.ArrayList([]const u8) {
-    return collectReachableGeneric(allocator, io, root_path, false);
+pub fn collectReachableFiles(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    root_path: []const u8,
+) !std.ArrayList([]const u8) {
+    return collectReachableGeneric(
+        allocator,
+        io,
+        root_path,
+        false,
+    );
 }
 
 /// Frees every owned path in `paths` and then deinits the list.
@@ -171,11 +224,22 @@ fn collectAllImportsFromFile(
     ) catch return;
     defer allocator.free(source_text);
 
-    var tree = std.zig.Ast.parse(allocator, source_text, .zig) catch return;
+    var tree = std.zig.Ast.parse(
+        allocator,
+        source_text,
+        .zig,
+    ) catch return;
     defer tree.deinit(allocator);
 
     for (tree.rootDecls()) |decl| {
-        try collectAllImportsFromNode(allocator, io, &tree, decl, file_path, out);
+        try collectAllImportsFromNode(
+            allocator,
+            io,
+            &tree,
+            decl,
+            file_path,
+            out,
+        );
     }
 }
 
@@ -190,7 +254,12 @@ fn collectAllImportsFromNode(
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.ast.init_node.unwrap()) |init_node| {
             if (getImportPathFromExpr(tree, init_node)) |import_path|
-                if (try resolveLocalZigImport(allocator, io, current_file, import_path)) |abs|
+                if (try resolveLocalZigImport(
+                    allocator,
+                    io,
+                    current_file,
+                    import_path,
+                )) |abs|
                     try out.append(allocator, abs);
 
             if (isContainerDecl(tree.nodeTag(init_node))) {
@@ -198,7 +267,14 @@ fn collectAllImportsFromNode(
 
                 if (tree.fullContainerDecl(&buf, init_node)) |container|
                     for (container.ast.members) |member|
-                        try collectAllImportsFromNode(allocator, io, tree, member, current_file, out);
+                        try collectAllImportsFromNode(
+                            allocator,
+                            io,
+                            tree,
+                            member,
+                            current_file,
+                            out,
+                        );
             }
         }
 
@@ -210,7 +286,14 @@ fn collectAllImportsFromNode(
 
         if (tree.fullContainerDecl(&buf, node)) |container|
             for (container.ast.members) |member|
-                try collectAllImportsFromNode(allocator, io, tree, member, current_file, out);
+                try collectAllImportsFromNode(
+                    allocator,
+                    io,
+                    tree,
+                    member,
+                    current_file,
+                    out,
+                );
     }
 }
 
@@ -230,11 +313,22 @@ fn collectPublicImportsFromFile(
     ) catch return;
     defer allocator.free(source_text);
 
-    var tree = std.zig.Ast.parse(allocator, source_text, .zig) catch return;
+    var tree = std.zig.Ast.parse(
+        allocator,
+        source_text,
+        .zig,
+    ) catch return;
     defer tree.deinit(allocator);
 
     for (tree.rootDecls()) |decl| {
-        try collectPublicImportsFromNode(allocator, io, &tree, decl, file_path, out);
+        try collectPublicImportsFromNode(
+            allocator,
+            io,
+            &tree,
+            decl,
+            file_path,
+            out,
+        );
     }
 }
 
@@ -251,7 +345,12 @@ fn collectPublicImportsFromNode(
             if (var_decl.visib_token) |vt| {
                 if (tree.tokenTag(vt) == .keyword_pub) {
                     if (getImportPathFromExpr(tree, init_node)) |import_path| {
-                        if (try resolveLocalZigImport(allocator, io, current_file, import_path)) |abs| {
+                        if (try resolveLocalZigImport(
+                            allocator,
+                            io,
+                            current_file,
+                            import_path,
+                        )) |abs| {
                             try out.append(allocator, abs);
                         }
                     }
@@ -262,7 +361,14 @@ fn collectPublicImportsFromNode(
                 var buf: [2]std.zig.Ast.Node.Index = undefined;
                 if (tree.fullContainerDecl(&buf, init_node)) |container| {
                     for (container.ast.members) |member| {
-                        try collectPublicImportsFromNode(allocator, io, tree, member, current_file, out);
+                        try collectPublicImportsFromNode(
+                            allocator,
+                            io,
+                            tree,
+                            member,
+                            current_file,
+                            out,
+                        );
                     }
                 }
             }
@@ -274,7 +380,14 @@ fn collectPublicImportsFromNode(
         var buf: [2]std.zig.Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
-                try collectPublicImportsFromNode(allocator, io, tree, member, current_file, out);
+                try collectPublicImportsFromNode(
+                    allocator,
+                    io,
+                    tree,
+                    member,
+                    current_file,
+                    out,
+                );
             }
         }
     }
@@ -292,7 +405,11 @@ fn getImportPathFromExpr(tree: *const std.zig.Ast, node: std.zig.Ast.Node.Index)
 
     const builtin_tok = tree.nodeMainToken(node);
     if (tree.tokenTag(builtin_tok) != .builtin) return null;
-    if (!std.mem.eql(u8, tree.tokenSlice(builtin_tok), "@import")) return null;
+    if (!std.mem.eql(
+        u8,
+        tree.tokenSlice(builtin_tok),
+        "@import",
+    )) return null;
 
     const args = tree.nodeData(node).opt_node_and_opt_node;
     const arg_node = args[0].unwrap() orelse return null;
@@ -311,16 +428,28 @@ fn resolveLocalZigImport(
     import_path: []const u8,
 ) !?[]const u8 {
     // Package imports like "std" are intentionally excluded from local reachability.
-    if (!std.mem.endsWith(u8, import_path, ".zig")) return null;
+    if (!std.mem.endsWith(
+        u8,
+        import_path,
+        ".zig",
+    )) return null;
     if (std.fs.path.isAbsolute(import_path)) return null;
 
     const base_dir = std.fs.path.dirname(current_file) orelse ".";
     const joined = try std.fs.path.join(allocator, &.{ base_dir, import_path });
     defer allocator.free(joined);
 
-    const abs = realPathFileAlloc(allocator, io, joined) catch return null;
+    const abs = realPathFileAlloc(
+        allocator,
+        io,
+        joined,
+    ) catch return null;
 
-    const stat = std.Io.Dir.openFileAbsolute(io, abs, .{}) catch {
+    const stat = std.Io.Dir.openFileAbsolute(
+        io,
+        abs,
+        .{},
+    ) catch {
         allocator.free(abs);
         return null;
     };

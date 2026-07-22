@@ -22,7 +22,11 @@ pub const default_severity: severity.Level = .warn;
 pub const prose_title = "Redundant doc comment";
 
 /// Full configuration for `redundant_doc_comment`: severity and scan mode, with no rule-specific options.
-pub const Rule = category.Rule(default_severity, struct {}, scan.RuleScanConfig.public_api_surface);
+pub const Rule = category.Rule(
+    default_severity,
+    struct {},
+    scan.RuleScanConfig.public_api_surface,
+);
 
 /// Walks `tree` and appends diagnostics for redundant doc comments on re-exports.
 pub fn check(
@@ -41,7 +45,17 @@ pub fn check(
     _ = module_name;
 
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity_level, file, public_api_only, allocator, io, msg_allocator, diagnostics);
+        try checkNode(
+            tree,
+            decl,
+            severity_level,
+            file,
+            public_api_only,
+            allocator,
+            io,
+            msg_allocator,
+            diagnostics,
+        );
     }
 }
 
@@ -60,14 +74,24 @@ fn checkNode(
 
     if (tree.fullVarDecl(node)) |var_decl| {
         const first_tok = var_decl.firstToken();
-        if (shouldCheckDecl(tree, var_decl.visib_token, public_api_only) and
+        if (shouldCheckDecl(
+            tree,
+            var_decl.visib_token,
+            public_api_only,
+        ) and
             hasDocComment(tree, first_tok))
         {
             const init_node = var_decl.ast.init_node.unwrap() orelse return;
             if (alias.getInfo(tree, init_node)) |info| {
                 const name_tok = var_decl.ast.mut_token + 1;
                 const name = tree.tokenSlice(name_tok);
-                if (try alias.isTargetDocumented(info, name, file, allocator, io)) {
+                if (try alias.isTargetDocumented(
+                    info,
+                    name,
+                    file,
+                    allocator,
+                    io,
+                )) {
                     // Report redundant doc comment pointing to the first doc comment token
                     var doc_tok = first_tok - 1;
                     while (doc_tok > 0 and tree.tokenTag(doc_tok - 1) == .doc_comment) : (doc_tok -= 1) {}
@@ -77,18 +101,36 @@ fn checkNode(
                     try diagnostics.append(allocator, .{
                         .rule = rule_name,
                         .severity_level = severity_level,
-                        .subject = try utils.ownedSubject(msg_allocator, pubVarDeclSubjectKind(tree, var_decl), name),
+                        .subject = try utils.ownedSubject(
+                            msg_allocator,
+                            pubVarDeclSubjectKind(tree, var_decl),
+                            name,
+                        ),
                         .file = file,
                         .line = loc.line + 1,
                         .column = loc.column + 1,
-                        .source_line = try utils.dupSourceLine(tree, doc_tok, msg_allocator),
+                        .source_line = try utils.dupSourceLine(
+                            tree,
+                            doc_tok,
+                            msg_allocator,
+                        ),
                         .symbol_len = slice.len,
                     });
                 }
             }
         }
 
-        try checkVarDeclInit(tree, var_decl, severity_level, file, public_api_only, allocator, io, msg_allocator, diagnostics);
+        try checkVarDeclInit(
+            tree,
+            var_decl,
+            severity_level,
+            file,
+            public_api_only,
+            allocator,
+            io,
+            msg_allocator,
+            diagnostics,
+        );
         return;
     }
 
@@ -96,7 +138,17 @@ fn checkNode(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity_level, file, public_api_only, allocator, io, msg_allocator, diagnostics);
+                try checkNode(
+                    tree,
+                    member,
+                    severity_level,
+                    file,
+                    public_api_only,
+                    allocator,
+                    io,
+                    msg_allocator,
+                    diagnostics,
+                );
             }
         }
         return;
@@ -114,14 +166,28 @@ fn checkVarDeclInit(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    if (public_api_only and !shouldCheckDecl(tree, var_decl.visib_token, true)) return;
+    if (public_api_only and !shouldCheckDecl(
+        tree,
+        var_decl.visib_token,
+        true,
+    )) return;
 
     const init_node = var_decl.ast.init_node.unwrap() orelse return;
     if (isContainerDecl(tree.nodeTag(init_node))) {
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, init_node)) |container| {
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity_level, file, public_api_only, allocator, io, msg_allocator, diagnostics);
+                try checkNode(
+                    tree,
+                    member,
+                    severity_level,
+                    file,
+                    public_api_only,
+                    allocator,
+                    io,
+                    msg_allocator,
+                    diagnostics,
+                );
             }
         }
     }
@@ -141,7 +207,11 @@ fn isPubVisibility(tree: *const Ast, visib_token: ?Ast.TokenIndex) bool {
     return tree.tokenTag(vt) == .keyword_pub;
 }
 
-fn shouldCheckDecl(tree: *const Ast, visib_token: ?Ast.TokenIndex, public_api_only: bool) bool {
+fn shouldCheckDecl(
+    tree: *const Ast,
+    visib_token: ?Ast.TokenIndex,
+    public_api_only: bool,
+) bool {
     if (!public_api_only) return true;
     return isPubVisibility(tree, visib_token);
 }

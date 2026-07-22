@@ -27,15 +27,31 @@ pub const Style = enum {
 
     /// Parses TOML / schema spellings (`k_r`, `k&r`, `allman`).
     pub fn fromConfigString(text: []const u8) ?Style {
-        if (mem.eql(u8, text, "k_r") or mem.eql(u8, text, "k&r")) return .k_r;
-        if (mem.eql(u8, text, "allman")) return .allman;
+        if (mem.eql(
+            u8,
+            text,
+            "k_r",
+        ) or mem.eql(
+            u8,
+            text,
+            "k&r",
+        )) return .k_r;
+        if (mem.eql(
+            u8,
+            text,
+            "allman",
+        )) return .allman;
         return null;
     }
 };
 
 /// Converts Zig's rendered (K&R) output to `style`. Caller owns the
 /// returned slice.
-pub fn convert(gpa: Allocator, input: []const u8, style: Style) Allocator.Error![]u8 {
+pub fn convert(
+    gpa: Allocator,
+    input: []const u8,
+    style: Style,
+) Allocator.Error![]u8 {
     return switch (style) {
         .k_r => gpa.dupe(u8, input),
         .allman => convertToAllman(gpa, input),
@@ -53,11 +69,19 @@ pub fn convertToAllman(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
 
     var line_start: usize = 0;
     while (line_start < input.len) {
-        const line_end = mem.indexOfScalar(u8, input[line_start..], '\n') orelse input.len - line_start;
+        const line_end = mem.indexOfScalar(
+            u8,
+            input[line_start..],
+            '\n',
+        ) orelse input.len - line_start;
         const full_line = input[line_start .. line_start + line_end];
         line_start += line_end + 1;
 
-        const trimmed = mem.trimEnd(u8, full_line, " ");
+        const trimmed = mem.trimEnd(
+            u8,
+            full_line,
+            " ",
+        );
         if (trimmed.len == 0) {
             try output.appendSlice(gpa, full_line);
             if (line_start <= input.len) try output.append(gpa, '\n');
@@ -68,12 +92,22 @@ pub fn convertToAllman(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
         const indent = full_line[0..indent_len];
         const content = full_line[indent_len..trimmed.len];
 
-        if (tryHandleElseCatch(gpa, &output, indent, content) catch return error.OutOfMemory) {
+        if (tryHandleElseCatch(
+            gpa,
+            &output,
+            indent,
+            content,
+        ) catch return error.OutOfMemory) {
             if (line_start <= input.len) try output.append(gpa, '\n');
             continue;
         }
 
-        if (tryHandleTrailingBrace(gpa, &output, indent, content) catch return error.OutOfMemory) {
+        if (tryHandleTrailingBrace(
+            gpa,
+            &output,
+            indent,
+            content,
+        ) catch return error.OutOfMemory) {
             if (line_start <= input.len) try output.append(gpa, '\n');
             continue;
         }
@@ -92,12 +126,25 @@ fn leadingSpaces(line: []const u8) usize {
     return line.len;
 }
 
-fn tryHandleElseCatch(gpa: Allocator, output: *std.ArrayList(u8), indent: []const u8, content: []const u8) !bool {
+fn tryHandleElseCatch(
+    gpa: Allocator,
+    output: *std.ArrayList(u8),
+    indent: []const u8,
+    content: []const u8,
+) !bool {
     if (content.len < 3 or content[0] != '}' or content[1] != ' ') return false;
 
     const rest = content[2..];
-    const is_else = mem.startsWith(u8, rest, "else");
-    const is_catch = mem.startsWith(u8, rest, "catch");
+    const is_else = mem.startsWith(
+        u8,
+        rest,
+        "else",
+    );
+    const is_catch = mem.startsWith(
+        u8,
+        rest,
+        "catch",
+    );
     if (!is_else and !is_catch) return false;
 
     try output.appendSlice(gpa, indent);
@@ -105,7 +152,11 @@ fn tryHandleElseCatch(gpa: Allocator, output: *std.ArrayList(u8), indent: []cons
     try output.append(gpa, '\n');
 
     if (endsWithBlockBrace(rest)) {
-        const rest_without_brace = mem.trimEnd(u8, rest[0 .. rest.len - 2], " ");
+        const rest_without_brace = mem.trimEnd(
+            u8,
+            rest[0 .. rest.len - 2],
+            " ",
+        );
         try output.appendSlice(gpa, indent);
         try output.appendSlice(gpa, rest_without_brace);
         try output.append(gpa, '\n');
@@ -119,10 +170,19 @@ fn tryHandleElseCatch(gpa: Allocator, output: *std.ArrayList(u8), indent: []cons
     return true;
 }
 
-fn tryHandleTrailingBrace(gpa: Allocator, output: *std.ArrayList(u8), indent: []const u8, content: []const u8) !bool {
+fn tryHandleTrailingBrace(
+    gpa: Allocator,
+    output: *std.ArrayList(u8),
+    indent: []const u8,
+    content: []const u8,
+) !bool {
     if (!endsWithBlockBrace(content)) return false;
 
-    const without_brace = mem.trimEnd(u8, content[0 .. content.len - 2], " ");
+    const without_brace = mem.trimEnd(
+        u8,
+        content[0 .. content.len - 2],
+        " ",
+    );
     try output.appendSlice(gpa, indent);
     try output.appendSlice(gpa, without_brace);
     try output.append(gpa, '\n');
@@ -134,7 +194,11 @@ fn tryHandleTrailingBrace(gpa: Allocator, output: *std.ArrayList(u8), indent: []
 
 fn endsWithBlockBrace(content: []const u8) bool {
     if (content.len < 2) return false;
-    if (!mem.endsWith(u8, content, " {")) return false;
+    if (!mem.endsWith(
+        u8,
+        content,
+        " {",
+    )) return false;
     if (content.len >= 3 and content[content.len - 3] == '.') return false;
     return true;
 }
@@ -352,21 +416,37 @@ test "dispatches brace style conversion" {
         \\
     ;
 
-    const allman_formatted = try convert(gpa, input, .allman);
+    const allman_formatted = try convert(
+        gpa,
+        input,
+        .allman,
+    );
     defer gpa.free(allman_formatted);
     try std.testing.expectEqualStrings(allman_expected, allman_formatted);
     try format_test_assertions.expectValidZig(allman_formatted);
 
-    const allman_formatted_expected = try convert(gpa, allman_expected, .allman);
+    const allman_formatted_expected = try convert(
+        gpa,
+        allman_expected,
+        .allman,
+    );
     defer gpa.free(allman_formatted_expected);
     try format_test_assertions.expectIdempotent(allman_expected, allman_formatted_expected);
 
-    const k_r_formatted = try convert(gpa, input, .k_r);
+    const k_r_formatted = try convert(
+        gpa,
+        input,
+        .k_r,
+    );
     defer gpa.free(k_r_formatted);
     try std.testing.expectEqualStrings(k_r_expected, k_r_formatted);
     try format_test_assertions.expectValidZig(k_r_formatted);
 
-    const k_r_formatted_expected = try convert(gpa, k_r_expected, .k_r);
+    const k_r_formatted_expected = try convert(
+        gpa,
+        k_r_expected,
+        .k_r,
+    );
     defer gpa.free(k_r_formatted_expected);
     try format_test_assertions.expectIdempotent(k_r_expected, k_r_formatted_expected);
 }

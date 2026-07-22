@@ -169,7 +169,11 @@ pub fn ExtraData(comptime T: type) type {
     return struct { data: T, end: usize };
 }
 
-pub fn extraData(doc: Document, comptime T: type, index: ExtraIndex) ExtraData(T) {
+pub fn extraData(
+    doc: Document,
+    comptime T: type,
+    index: ExtraIndex,
+) ExtraData(T) {
     const fields = @typeInfo(T).@"struct".fields;
     var i: usize = @intFromEnum(index);
     var result: T = undefined;

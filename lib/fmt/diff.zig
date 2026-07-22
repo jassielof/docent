@@ -47,35 +47,83 @@ pub fn writeDiff(
     defer orig_lines.deinit(std.heap.page_allocator);
     defer fmt_lines.deinit(std.heap.page_allocator);
 
-    splitLines(std.heap.page_allocator, original, &orig_lines) catch return;
-    splitLines(std.heap.page_allocator, formatted, &fmt_lines) catch return;
+    splitLines(
+        std.heap.page_allocator,
+        original,
+        &orig_lines,
+    ) catch return;
+    splitLines(
+        std.heap.page_allocator,
+        formatted,
+        &fmt_lines,
+    ) catch return;
 
     var hunks: std.ArrayList(Hunk) = .empty;
     defer hunks.deinit(std.heap.page_allocator);
-    collectHunks(std.heap.page_allocator, io, original, formatted, orig_lines.items.len, fmt_lines.items.len, &hunks) catch return;
+    collectHunks(
+        std.heap.page_allocator,
+        io,
+        original,
+        formatted,
+        orig_lines.items.len,
+        fmt_lines.items.len,
+        &hunks,
+    ) catch return;
 
     if (hunks.items.len == 0) return;
 
     try writer.writeAll("from ");
-    try location_style.renderWithProfile(file_path, writer, profile);
+    try location_style.renderWithProfile(
+        file_path,
+        writer,
+        profile,
+    );
     try writer.writeAll(":\n");
 
     for (hunks.items) |hunk| {
         for (hunk.removed_start..hunk.removed_end) |i| {
-            try writeLineNumber(writer, i + 1, profile);
-            try removed_style.renderWithProfile("- ", writer, profile);
-            try removed_style.renderWithProfile(orig_lines.items[i], writer, profile);
+            try writeLineNumber(
+                writer,
+                i + 1,
+                profile,
+            );
+            try removed_style.renderWithProfile(
+                "- ",
+                writer,
+                profile,
+            );
+            try removed_style.renderWithProfile(
+                orig_lines.items[i],
+                writer,
+                profile,
+            );
             try writer.writeAll("\n");
         }
 
         if (hunk.removed_end > hunk.removed_start and hunk.added_end > hunk.added_start) {
-            try dimmed_style.renderWithProfile("  ...\n", writer, profile);
+            try dimmed_style.renderWithProfile(
+                "  ...\n",
+                writer,
+                profile,
+            );
         }
 
         for (hunk.added_start..hunk.added_end) |i| {
-            try writeLineNumber(writer, i + 1, profile);
-            try added_style.renderWithProfile("+ ", writer, profile);
-            try added_style.renderWithProfile(fmt_lines.items[i], writer, profile);
+            try writeLineNumber(
+                writer,
+                i + 1,
+                profile,
+            );
+            try added_style.renderWithProfile(
+                "+ ",
+                writer,
+                profile,
+            );
+            try added_style.renderWithProfile(
+                fmt_lines.items[i],
+                writer,
+                profile,
+            );
             try writer.writeAll("\n");
         }
 
@@ -83,10 +131,22 @@ pub fn writeDiff(
     }
 }
 
-fn writeLineNumber(writer: *std.Io.Writer, line: usize, profile: carnaval.ColorProfile) !void {
+fn writeLineNumber(
+    writer: *std.Io.Writer,
+    line: usize,
+    profile: carnaval.ColorProfile,
+) !void {
     var buf: [16]u8 = undefined;
-    const text = std.fmt.bufPrint(&buf, "{d: >4} | ", .{line}) catch return;
-    try dimmed_style.renderWithProfile(text, writer, profile);
+    const text = std.fmt.bufPrint(
+        &buf,
+        "{d: >4} | ",
+        .{line},
+    ) catch return;
+    try dimmed_style.renderWithProfile(
+        text,
+        writer,
+        profile,
+    );
 }
 
 const Hunk = struct {
@@ -106,7 +166,12 @@ fn collectHunks(
     hunks: *std.ArrayList(Hunk),
 ) !void {
     const engine: dmp.Diff = .init(io, alloc);
-    var edits = try engine.diff(original, formatted, true, .none);
+    var edits = try engine.diff(
+        original,
+        formatted,
+        true,
+        .none,
+    );
     defer dmp.Diff.deinitEditList(alloc, &edits);
 
     var original_offset: usize = 0;
@@ -117,7 +182,15 @@ fn collectHunks(
         switch (edit.operation) {
             .equal => {
                 if (active) |hunk| {
-                    try appendHunk(alloc, hunks, hunk, original, formatted, orig_line_count, formatted_line_count);
+                    try appendHunk(
+                        alloc,
+                        hunks,
+                        hunk,
+                        original,
+                        formatted,
+                        orig_line_count,
+                        formatted_line_count,
+                    );
                     active = null;
                 }
                 original_offset += edit.text.len;
@@ -146,7 +219,15 @@ fn collectHunks(
         }
     }
     if (active) |hunk| {
-        try appendHunk(alloc, hunks, hunk, original, formatted, orig_line_count, formatted_line_count);
+        try appendHunk(
+            alloc,
+            hunks,
+            hunk,
+            original,
+            formatted,
+            orig_line_count,
+            formatted_line_count,
+        );
     }
 }
 
@@ -168,9 +249,19 @@ fn appendHunk(
 ) !void {
     try hunks.append(alloc, .{
         .removed_start = lineAt(original, hunk.original_start),
-        .removed_end = lineRangeEnd(original, hunk.original_start, hunk.original_end, orig_line_count),
+        .removed_end = lineRangeEnd(
+            original,
+            hunk.original_start,
+            hunk.original_end,
+            orig_line_count,
+        ),
         .added_start = lineAt(formatted, hunk.formatted_start),
-        .added_end = lineRangeEnd(formatted, hunk.formatted_start, hunk.formatted_end, formatted_line_count),
+        .added_end = lineRangeEnd(
+            formatted,
+            hunk.formatted_start,
+            hunk.formatted_end,
+            formatted_line_count,
+        ),
     });
 }
 
@@ -182,16 +273,29 @@ fn lineAt(text: []const u8, offset: usize) usize {
     return line;
 }
 
-fn lineRangeEnd(text: []const u8, start: usize, end: usize, line_count: usize) usize {
+fn lineRangeEnd(
+    text: []const u8,
+    start: usize,
+    end: usize,
+    line_count: usize,
+) usize {
     const start_line = lineAt(text, start);
     if (end > start) return lineAt(text, end - 1) + 1;
     return @min(start_line + 1, line_count);
 }
 
-fn splitLines(alloc: Allocator, text: []const u8, out: *std.ArrayList([]const u8)) !void {
+fn splitLines(
+    alloc: Allocator,
+    text: []const u8,
+    out: *std.ArrayList([]const u8),
+) !void {
     var pos: usize = 0;
     while (pos < text.len) {
-        const end = mem.indexOfScalar(u8, text[pos..], '\n') orelse text.len - pos;
+        const end = mem.indexOfScalar(
+            u8,
+            text[pos..],
+            '\n',
+        ) orelse text.len - pos;
         try out.append(alloc, text[pos .. pos + end]);
         pos += end + 1;
     }

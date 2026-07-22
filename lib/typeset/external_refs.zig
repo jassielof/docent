@@ -37,14 +37,30 @@ pub const RefsFile = struct {
 };
 
 /// Recursively collects every id in `modules` (and their `decls`) into `out`.
-pub fn collectIds(allocator: std.mem.Allocator, modules: []const schema.DeclNode, out: *std.ArrayList([]const u8)) !void {
-    for (modules) |m| try collectIdsFrom(allocator, m, out);
+pub fn collectIds(
+    allocator: std.mem.Allocator,
+    modules: []const schema.DeclNode,
+    out: *std.ArrayList([]const u8),
+) !void {
+    for (modules) |m| try collectIdsFrom(
+        allocator,
+        m,
+        out,
+    );
 }
 
-fn collectIdsFrom(allocator: std.mem.Allocator, decl: schema.DeclNode, out: *std.ArrayList([]const u8)) !void {
+fn collectIdsFrom(
+    allocator: std.mem.Allocator,
+    decl: schema.DeclNode,
+    out: *std.ArrayList([]const u8),
+) !void {
     try out.append(allocator, decl.id);
     if (decl.decls) |children| {
-        for (children) |child| try collectIdsFrom(allocator, child, out);
+        for (children) |child| try collectIdsFrom(
+            allocator,
+            child,
+            out,
+        );
     }
 }
 
@@ -61,14 +77,26 @@ pub fn writeRefsFile(
 ) !void {
     var ids: std.ArrayList([]const u8) = .empty;
     defer ids.deinit(allocator);
-    try collectIds(allocator, modules, &ids);
+    try collectIds(
+        allocator,
+        modules,
+        &ids,
+    );
 
-    const refs: RefsFile = .{ .package = package, .doc_url = doc_url, .ids = ids.items };
+    const refs: RefsFile = .{
+        .package = package,
+        .doc_url = doc_url,
+        .ids = ids.items,
+    };
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(allocator);
     var allocating = std.Io.Writer.Allocating.fromArrayList(allocator, &buf);
-    try std.json.Stringify.value(refs, .{ .whitespace = .indent_2 }, &allocating.writer);
+    try std.json.Stringify.value(
+        refs,
+        .{ .whitespace = .indent_2 },
+        &allocating.writer,
+    );
     buf = allocating.toArrayList();
 
     if (std.fs.path.dirname(output_path)) |dir| {
@@ -87,7 +115,12 @@ pub const Table = struct {
 
     /// Loads the sidecar at `path` and merges its ids into this table.
     /// First-loaded wins on id collisions across multiple sidecars.
-    pub fn loadFile(self: *Table, allocator: std.mem.Allocator, io: std.Io, path: []const u8) !void {
+    pub fn loadFile(
+        self: *Table,
+        allocator: std.mem.Allocator,
+        io: std.Io,
+        path: []const u8,
+    ) !void {
         const source = try std.Io.Dir.cwd().readFileAllocOptions(
             io,
             path,
@@ -97,7 +130,12 @@ pub const Table = struct {
             0,
         );
 
-        const parsed = try std.json.parseFromSlice(RefsFile, allocator, source, .{});
+        const parsed = try std.json.parseFromSlice(
+            RefsFile,
+            allocator,
+            source,
+            .{},
+        );
 
         for (parsed.value.ids) |id| {
             const gop = try self.entries.getOrPut(allocator, id);

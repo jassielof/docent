@@ -50,12 +50,20 @@ test "wraps overlong call lists" {
         \\
     ;
 
-    const formatted = try autoWrap(gpa, input, 60);
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
     try format_test_assertions.expectValidZig(formatted);
 
-    const formatted_expected = try autoWrap(gpa, expected, 60);
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
     defer gpa.free(formatted_expected);
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
@@ -69,19 +77,31 @@ test "leaves short lines unchanged" {
         \\
     ;
 
-    const formatted = try autoWrap(gpa, expected, 100);
+    const formatted = try autoWrap(
+        gpa,
+        expected,
+        100,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
     try format_test_assertions.expectValidZig(formatted);
 
-    const formatted_expected = try autoWrap(gpa, expected, 100);
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        100,
+    );
     defer gpa.free(formatted_expected);
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
 /// Wraps over-long lines by expanding `(...)` / `{...}` lists. Caller owns
 /// the returned slice.
-pub fn autoWrap(gpa: Allocator, input: []const u8, max_line_length: u32) Allocator.Error![]u8 {
+pub fn autoWrap(
+    gpa: Allocator,
+    input: []const u8,
+    max_line_length: u32,
+) Allocator.Error![]u8 {
     var output: std.ArrayList(u8) = .empty;
     errdefer output.deinit(gpa);
 
@@ -89,7 +109,11 @@ pub fn autoWrap(gpa: Allocator, input: []const u8, max_line_length: u32) Allocat
 
     var line_start: usize = 0;
     while (line_start < input.len) {
-        const line_end = mem.indexOfScalar(u8, input[line_start..], '\n') orelse input.len - line_start;
+        const line_end = mem.indexOfScalar(
+            u8,
+            input[line_start..],
+            '\n',
+        ) orelse input.len - line_start;
         const full_line = input[line_start .. line_start + line_end];
         line_start += line_end + 1;
 
@@ -97,7 +121,13 @@ pub fn autoWrap(gpa: Allocator, input: []const u8, max_line_length: u32) Allocat
             const indent_len = leadingSpaces(full_line);
             var scratch: std.ArrayList(u8) = .empty;
             defer scratch.deinit(gpa);
-            try expandOverlong(gpa, &scratch, full_line, indent_len, max_line_length);
+            try expandOverlong(
+                gpa,
+                &scratch,
+                full_line,
+                indent_len,
+                max_line_length,
+            );
             try output.appendSlice(gpa, scratch.items);
         } else {
             try output.appendSlice(gpa, full_line);
@@ -120,7 +150,12 @@ fn expandOverlong(
     if (findBestBreak(line)) |break_at| {
         const c = line[break_at];
         const close: u8 = if (c == '(') ')' else '}';
-        if (findMatchingClose(line, break_at, c, close)) |close_pos| {
+        if (findMatchingClose(
+            line,
+            break_at,
+            c,
+            close,
+        )) |close_pos| {
             const inner = line[break_at + 1 .. close_pos];
             if (inner.len > 0 and !hasTrailingComma(inner)) {
                 const items = try splitTopLevel(gpa, inner);
@@ -133,12 +168,26 @@ fn expandOverlong(
 
                     const item_indent = base_indent + 4;
                     for (items) |item| {
-                        const trimmed = mem.trim(u8, item, " \t");
+                        const trimmed = mem.trim(
+                            u8,
+                            item,
+                            " \t",
+                        );
                         if (trimmed.len == 0) continue;
-                        try appendSpaces(gpa, output, item_indent);
+                        try appendSpaces(
+                            gpa,
+                            output,
+                            item_indent,
+                        );
                         // Recurse if the item itself is still over budget.
                         if (item_indent + trimmed.len > max_line_length) {
-                            try expandOverlong(gpa, output, trimmed, item_indent, max_line_length);
+                            try expandOverlong(
+                                gpa,
+                                output,
+                                trimmed,
+                                item_indent,
+                                max_line_length,
+                            );
                         } else {
                             try output.appendSlice(gpa, trimmed);
                         }
@@ -146,7 +195,11 @@ fn expandOverlong(
                         try output.append(gpa, '\n');
                     }
 
-                    try appendSpaces(gpa, output, base_indent);
+                    try appendSpaces(
+                        gpa,
+                        output,
+                        base_indent,
+                    );
                     try output.append(gpa, close);
                     try output.appendSlice(gpa, line[close_pos + 1 ..]);
                     return;
@@ -177,13 +230,23 @@ fn findBestBreak(line: []const u8) ?usize {
         if (c == '(' or c == '{') {
             // Skip `.{` anonymous struct start for `{` after `.`
             if (c == '{' and pos > 0 and line[pos - 1] == '.') {
-                if (findMatchingClose(line, pos, '{', '}')) |close_pos| {
+                if (findMatchingClose(
+                    line,
+                    pos,
+                    '{',
+                    '}',
+                )) |close_pos| {
                     pos = close_pos + 1;
                     continue;
                 }
             }
             const close: u8 = if (c == '(') ')' else '}';
-            if (findMatchingClose(line, pos, c, close)) |close_pos| {
+            if (findMatchingClose(
+                line,
+                pos,
+                c,
+                close,
+            )) |close_pos| {
                 const inner = line[pos + 1 .. close_pos];
                 if (inner.len > 0 and !hasTrailingComma(inner) and containsTopLevelCommaOrContent(inner)) {
                     // Prefer outermost: first match wins, but skip empty `{}` / `()`.
@@ -204,12 +267,20 @@ fn findBestBreak(line: []const u8) ?usize {
 }
 
 fn containsTopLevelCommaOrContent(inner: []const u8) bool {
-    const trimmed = mem.trim(u8, inner, " \t");
+    const trimmed = mem.trim(
+        u8,
+        inner,
+        " \t",
+    );
     return trimmed.len > 0;
 }
 
 fn isCommentOnly(line: []const u8) bool {
-    const trimmed = mem.trim(u8, line, " \t");
+    const trimmed = mem.trim(
+        u8,
+        line,
+        " \t",
+    );
     return trimmed.len >= 2 and trimmed[0] == '/' and (trimmed[1] == '/' or trimmed[1] == '!');
 }
 
@@ -251,14 +322,22 @@ fn splitTopLevel(gpa: Allocator, inner: []const u8) ![][]const u8 {
         try items.append(gpa, inner[start..]);
     } else if (items.items.len > 0) {
         // Trailing comma already handled by hasTrailingComma guard.
-    } else if (mem.trim(u8, inner, " \t").len > 0) {
+    } else if (mem.trim(
+        u8,
+        inner,
+        " \t",
+    ).len > 0) {
         try items.append(gpa, inner);
     }
 
     return items.toOwnedSlice(gpa);
 }
 
-fn appendSpaces(gpa: Allocator, output: *std.ArrayList(u8), count: usize) !void {
+fn appendSpaces(
+    gpa: Allocator,
+    output: *std.ArrayList(u8),
+    count: usize,
+) !void {
     var j: usize = 0;
     while (j < count) : (j += 1) {
         try output.append(gpa, ' ');
@@ -272,7 +351,12 @@ fn leadingSpaces(line: []const u8) usize {
     return line.len;
 }
 
-fn findMatchingClose(line: []const u8, start: usize, open: u8, close: u8) ?usize {
+fn findMatchingClose(
+    line: []const u8,
+    start: usize,
+    open: u8,
+    close: u8,
+) ?usize {
     var depth: usize = 0;
     var i = start;
     while (i < line.len) : (i += 1) {
@@ -292,7 +376,11 @@ fn findMatchingClose(line: []const u8, start: usize, open: u8, close: u8) ?usize
 }
 
 fn hasTrailingComma(inner: []const u8) bool {
-    const trimmed = mem.trimEnd(u8, inner, " ");
+    const trimmed = mem.trimEnd(
+        u8,
+        inner,
+        " ",
+    );
     return trimmed.len > 0 and trimmed[trimmed.len - 1] == ',';
 }
 

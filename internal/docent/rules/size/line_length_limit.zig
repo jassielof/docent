@@ -34,7 +34,11 @@ pub const Options = struct {
 };
 
 /// Full configuration for `line_length_limit`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.reachability_traversal);
+pub const Rule = category.Rule(
+    default_severity,
+    Options,
+    scan.RuleScanConfig.reachability_traversal,
+);
 
 /// Walks `source` line by line and appends a diagnostic for every line wider than `options.max_length`.
 pub fn check(
@@ -54,9 +58,17 @@ pub fn check(
     var line_number: usize = 1;
 
     while (line_start <= source.len) {
-        const line_end = std.mem.indexOfScalar(u8, source[line_start..], '\n') orelse source.len - line_start;
+        const line_end = std.mem.indexOfScalar(
+            u8,
+            source[line_start..],
+            '\n',
+        ) orelse source.len - line_start;
         const raw_line = source[line_start .. line_start + line_end];
-        const line = if (std.mem.endsWith(u8, raw_line, "\r"))
+        const line = if (std.mem.endsWith(
+            u8,
+            raw_line,
+            "\r",
+        ))
             raw_line[0 .. raw_line.len - 1]
         else
             raw_line;
@@ -72,7 +84,11 @@ pub fn check(
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity_level = severity_level,
-                .subject = try utils.ownedSubject(msg_allocator, .source_file, stem),
+                .subject = try utils.ownedSubject(
+                    msg_allocator,
+                    .source_file,
+                    stem,
+                ),
                 .detail = detail,
                 .file = file,
                 .line = line_number,
@@ -90,7 +106,11 @@ pub fn check(
 
 fn fileStem(file: []const u8) []const u8 {
     const base = std.fs.path.basename(file);
-    if (std.mem.endsWith(u8, base, ".zig")) return base[0 .. base.len - ".zig".len];
+    if (std.mem.endsWith(
+        u8,
+        base,
+        ".zig",
+    )) return base[0 .. base.len - ".zig".len];
     return base;
 }
 
@@ -99,15 +119,35 @@ fn effectiveLineLength(line: []const u8, options: Options) usize {
 
     if (!options.ignore_trailing_comments) return line.len;
     const comment_start = trailingCommentStart(line) orelse return line.len;
-    return std.mem.trim(u8, line[0..comment_start], " \t").len;
+    return std.mem.trim(
+        u8,
+        line[0..comment_start],
+        " \t",
+    ).len;
 }
 
 fn isLeadingCommentLine(line: []const u8) bool {
-    const content = std.mem.trim(u8, line, " \t");
+    const content = std.mem.trim(
+        u8,
+        line,
+        " \t",
+    );
     if (content.len == 0) return true;
-    return std.mem.startsWith(u8, content, "//!") or
-        std.mem.startsWith(u8, content, "///") or
-        std.mem.startsWith(u8, content, "//");
+    return std.mem.startsWith(
+        u8,
+        content,
+        "//!",
+    ) or
+        std.mem.startsWith(
+            u8,
+            content,
+            "///",
+        ) or
+        std.mem.startsWith(
+            u8,
+            content,
+            "//",
+        );
 }
 
 fn trailingCommentStart(line: []const u8) ?usize {

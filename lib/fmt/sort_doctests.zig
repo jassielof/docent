@@ -5,7 +5,11 @@ const Allocator = mem.Allocator;
 
 const format_test_assertions = @import("format_test_assertions.zig");
 
-const Kind = enum { function, identifier_test, quoted_test };
+const Kind = enum {
+    function,
+    identifier_test,
+    quoted_test,
+};
 
 const Entry = struct {
     kind: Kind,
@@ -204,7 +208,11 @@ pub fn sortDoctests(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     const sentinel = try gpa.dupeZ(u8, input);
     defer gpa.free(sentinel);
 
-    var tree = std.zig.Ast.parse(gpa, sentinel, .zig) catch return gpa.dupe(u8, input);
+    var tree = std.zig.Ast.parse(
+        gpa,
+        sentinel,
+        .zig,
+    ) catch return gpa.dupe(u8, input);
     defer tree.deinit(gpa);
     if (tree.errors.len != 0) return gpa.dupe(u8, input);
 
@@ -234,7 +242,12 @@ pub fn sortDoctests(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
         const start = entries.items[0].start;
         const end = entries.items[entries.items.len - 1].end;
         try output.appendSlice(gpa, input[cursor..start]);
-        try renderBlock(gpa, &output, entries.items, input);
+        try renderBlock(
+            gpa,
+            &output,
+            entries.items,
+            input,
+        );
         if (output.items.len >= 2 and
             output.items[output.items.len - 1] == '\n' and
             output.items[output.items.len - 2] == '\n' and
@@ -283,7 +296,15 @@ fn testKind(tree: *const Ast, node: Ast.Node.Index) ?Kind {
     const raw = tree.tokenSlice(token);
     if (raw.len < 2 or raw[0] != '"' or raw[raw.len - 1] != '"') return null;
     const unquoted = raw[1 .. raw.len - 1];
-    if (mem.indexOfScalar(u8, unquoted, '\\') != null or mem.indexOfScalar(u8, unquoted, ':') != null) return null;
+    if (mem.indexOfScalar(
+        u8,
+        unquoted,
+        '\\',
+    ) != null or mem.indexOfScalar(
+        u8,
+        unquoted,
+        ':',
+    ) != null) return null;
     return .quoted_test;
 }
 
@@ -300,8 +321,16 @@ fn declarationStart(tree: *const Ast, node: Ast.Node.Index) usize {
         if (line_end > 0 and tree.source[line_end - 1] == '\n') line_end -= 1;
         var line_start = line_end;
         while (line_start > 0 and tree.source[line_start - 1] != '\n') line_start -= 1;
-        const line = mem.trim(u8, tree.source[line_start..line_end], " \t\r");
-        if (!mem.startsWith(u8, line, "//")) break;
+        const line = mem.trim(
+            u8,
+            tree.source[line_start..line_end],
+            " \t\r",
+        );
+        if (!mem.startsWith(
+            u8,
+            line,
+            "//",
+        )) break;
         start = line_start;
     }
     return start;
@@ -322,7 +351,11 @@ fn hasOnlyMatchingDoctests(entries: []const Entry) bool {
         if (test_decl.kind == .function) continue;
         var matches_function = false;
         for (entries) |function| {
-            if (function.kind == .function and mem.eql(u8, function.name, test_decl.name)) {
+            if (function.kind == .function and mem.eql(
+                u8,
+                function.name,
+                test_decl.name,
+            )) {
                 found_match = true;
                 matches_function = true;
                 break;
@@ -333,7 +366,12 @@ fn hasOnlyMatchingDoctests(entries: []const Entry) bool {
     return found_match;
 }
 
-fn renderBlock(gpa: Allocator, output: *std.ArrayList(u8), entries: []const Entry, source: []const u8) !void {
+fn renderBlock(
+    gpa: Allocator,
+    output: *std.ArrayList(u8),
+    entries: []const Entry,
+    source: []const u8,
+) !void {
     var emitted: std.ArrayList(bool) = .empty;
     defer emitted.deinit(gpa);
     try emitted.resize(gpa, entries.len);
@@ -341,23 +379,47 @@ fn renderBlock(gpa: Allocator, output: *std.ArrayList(u8), entries: []const Entr
 
     for (entries, 0..) |entry, index| {
         if (entry.kind != .function) continue;
-        try renderEntry(gpa, output, entry, source);
+        try renderEntry(
+            gpa,
+            output,
+            entry,
+            source,
+        );
         emitted.items[index] = true;
         inline for (.{ Kind.identifier_test, Kind.quoted_test }) |test_kind| {
             for (entries, 0..) |test_decl, test_index| {
-                if (test_decl.kind != test_kind or !mem.eql(u8, entry.name, test_decl.name)) continue;
-                try renderEntry(gpa, output, test_decl, source);
+                if (test_decl.kind != test_kind or !mem.eql(
+                    u8,
+                    entry.name,
+                    test_decl.name,
+                )) continue;
+                try renderEntry(
+                    gpa,
+                    output,
+                    test_decl,
+                    source,
+                );
                 emitted.items[test_index] = true;
             }
         }
     }
     for (entries, 0..) |entry, index| {
         if (emitted.items[index]) continue;
-        try renderEntry(gpa, output, entry, source);
+        try renderEntry(
+            gpa,
+            output,
+            entry,
+            source,
+        );
     }
 }
 
-fn renderEntry(gpa: Allocator, output: *std.ArrayList(u8), entry: Entry, source: []const u8) !void {
+fn renderEntry(
+    gpa: Allocator,
+    output: *std.ArrayList(u8),
+    entry: Entry,
+    source: []const u8,
+) !void {
     try output.appendSlice(gpa, source[entry.start..entry.end]);
     if (output.items.len == 0 or output.items[output.items.len - 1] != '\n') try output.append(gpa, '\n');
     try output.append(gpa, '\n');

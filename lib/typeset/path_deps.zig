@@ -25,10 +25,18 @@ pub const Entry = struct {
 /// Scans `.dependencies = .{ .name = .{ .path = "..." }, ... }` for `.path`
 /// entries, resolved relative to `manifest_path`'s directory. Ignores
 /// URL/hash dependencies (no `.path` field) entirely.
-pub fn discover(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const u8) !std.ArrayList(Entry) {
+pub fn discover(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    manifest_path: []const u8,
+) !std.ArrayList(Entry) {
     const dir = std.fs.path.dirname(manifest_path) orelse return error.InvalidManifestPath;
 
-    const file = try std.Io.Dir.cwd().openFile(io, manifest_path, .{});
+    const file = try std.Io.Dir.cwd().openFile(
+        io,
+        manifest_path,
+        .{},
+    );
     defer file.close(io);
     var reader = file.reader(io, &.{});
     const manifest_text = try reader.interface.allocRemaining(allocator, .limited(1 * 1024 * 1024));
@@ -37,7 +45,11 @@ pub fn discover(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const
     var out: std.ArrayList(Entry) = .empty;
     errdefer deinitEntries(allocator, &out);
 
-    const deps_idx = std.mem.indexOf(u8, manifest_text, ".dependencies") orelse return out;
+    const deps_idx = std.mem.indexOf(
+        u8,
+        manifest_text,
+        ".dependencies",
+    ) orelse return out;
     var i = deps_idx + ".dependencies".len;
     while (i < manifest_text.len and manifest_text[i] != '{') : (i += 1) {}
     if (i >= manifest_text.len) return out;
@@ -64,7 +76,11 @@ pub fn discover(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const
             }
         }
 
-        if (depth >= 1 and std.mem.startsWith(u8, manifest_text[i..], ".path")) {
+        if (depth >= 1 and std.mem.startsWith(
+            u8,
+            manifest_text[i..],
+            ".path",
+        )) {
             var j = i + ".path".len;
             while (j < manifest_text.len and manifest_text[j] != '=') : (j += 1) {}
             if (j >= manifest_text.len) break;
@@ -98,7 +114,11 @@ pub fn discover(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const
                     try std.fs.path.join(allocator, &.{ dir, raw_path });
                 defer allocator.free(joined);
 
-                const resolved = realPathOrDupe(allocator, io, joined);
+                const resolved = realPathOrDupe(
+                    allocator,
+                    io,
+                    joined,
+                );
                 try out.append(allocator, .{
                     .name = try allocator.dupe(u8, current_name.?),
                     .root_dir = resolved,
@@ -122,7 +142,11 @@ pub fn discover(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const
 /// Like `discover`, but also walks each dependency's own `build.zig.zon`
 /// for nested `.path` deps (e.g. vereda → xdg). Deduplicates by resolved
 /// `root_dir`. Still never follows URL/hash dependencies.
-pub fn discoverRecursive(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const u8) !std.ArrayList(Entry) {
+pub fn discoverRecursive(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    manifest_path: []const u8,
+) !std.ArrayList(Entry) {
     var out: std.ArrayList(Entry) = .empty;
     errdefer deinitEntries(allocator, &out);
 
@@ -141,7 +165,11 @@ pub fn discoverRecursive(allocator: std.mem.Allocator, io: std.Io, manifest_path
         const current = queue.orderedRemove(0);
         defer allocator.free(current);
 
-        var direct = try discover(allocator, io, current);
+        var direct = try discover(
+            allocator,
+            io,
+            current,
+        );
         defer deinitEntries(allocator, &direct);
 
         for (direct.items) |dep| {
@@ -167,7 +195,11 @@ pub fn discoverRecursive(allocator: std.mem.Allocator, io: std.Io, manifest_path
 }
 
 fn fileExists(io: std.Io, path: []const u8) bool {
-    const file = std.Io.Dir.cwd().openFile(io, path, .{}) catch return false;
+    const file = std.Io.Dir.cwd().openFile(
+        io,
+        path,
+        .{},
+    ) catch return false;
     file.close(io);
     return true;
 }
@@ -177,24 +209,46 @@ fn fileExists(io: std.Io, path: []const u8) bool {
 /// `docent.scan.target`'s `collectDirectoryEntrypoints`). Returns `null`
 /// when none of those conventions match, rather than guessing from
 /// whatever `.zig` files happen to sit at the top level.
-pub fn findRootModule(allocator: std.mem.Allocator, io: std.Io, dir: []const u8) !?[]const u8 {
+pub fn findRootModule(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    dir: []const u8,
+) !?[]const u8 {
     var entrypoints: std.ArrayList([]const u8) = .empty;
     defer target.deinitOwnedPaths(allocator, &entrypoints);
 
-    try target.collectDirectoryEntrypoints(allocator, io, dir, .{}, &entrypoints);
+    try target.collectDirectoryEntrypoints(
+        allocator,
+        io,
+        dir,
+        .{},
+        &entrypoints,
+    );
 
     for (entrypoints.items) |entry| {
         const base = std.fs.path.basename(entry);
-        if (std.mem.eql(u8, base, "root.zig")) {
+        if (std.mem.eql(
+            u8,
+            base,
+            "root.zig",
+        )) {
             return try allocator.dupe(u8, entry);
         }
     }
     return null;
 }
 
-fn realPathOrDupe(allocator: std.mem.Allocator, io: std.Io, path: []const u8) []const u8 {
+fn realPathOrDupe(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) []const u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = std.Io.Dir.cwd().realPathFile(io, path, &buffer) catch return allocator.dupe(u8, path) catch path;
+    const len = std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    ) catch return allocator.dupe(u8, path) catch path;
     return allocator.dupe(u8, buffer[0..len]) catch path;
 }
 

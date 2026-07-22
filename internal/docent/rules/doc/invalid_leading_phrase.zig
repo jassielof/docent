@@ -102,10 +102,18 @@ pub const default_severity: severity.Level = .allow;
 pub const prose_title = "Invalid leading phrase";
 
 /// Full configuration for `invalid_leading_phrase`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.public_api_surface);
+pub const Rule = category.Rule(
+    default_severity,
+    Options,
+    scan.RuleScanConfig.public_api_surface,
+);
 
 /// The article_words set contains the words considered as articles for leading phrases.
-pub const article_words: []const []const u8 = &.{ "a", "an", "the" };
+pub const article_words: []const []const u8 = &.{
+    "a",
+    "an",
+    "the",
+};
 
 const KindPhrase = []const []const u8;
 
@@ -138,14 +146,28 @@ pub fn check(
 
         const documented_first: Ast.TokenIndex = @intCast(block_end);
 
-        if (tag == .doc_comment and !doc_comment.shouldCheckDocCommentTarget(tree, documented_first, public_api_only)) {
+        if (tag == .doc_comment and !doc_comment.shouldCheckDocCommentTarget(
+            tree,
+            documented_first,
+            public_api_only,
+        )) {
             continue;
         }
 
         const subject = if (tag == .container_doc_comment)
-            try utils.ownedSubject(msg_allocator, .module, utils.moduleDisplayName(file, module_name))
+            try utils.ownedSubject(
+                msg_allocator,
+                .module,
+                utils.moduleDisplayName(file, module_name),
+            )
         else
-            utils.diagnosticSubjectFromDoc(try doc_comment.resolveDocCommentSubject(tree, documented_first, file, module_name, msg_allocator));
+            utils.diagnosticSubjectFromDoc(try doc_comment.resolveDocCommentSubject(
+                tree,
+                documented_first,
+                file,
+                module_name,
+                msg_allocator,
+            ));
 
         // Unresolved declarations or those without a usable name can't be validated.
         if (subject.name.len == 0) continue;
@@ -153,15 +175,29 @@ pub fn check(
         var words = std.ArrayList([]const u8).empty;
         defer words.deinit(allocator);
 
-        const report_tok = try doc_comment.comment.summaryWords(tree, block_start, block_end, allocator, &words);
+        const report_tok = try doc_comment.comment.summaryWords(
+            tree,
+            block_start,
+            block_end,
+            allocator,
+            &words,
+        );
         if (report_tok == null or words.items.len == 0) continue;
 
-        if (hasLeadingPhrase(words.items, subject, options)) continue;
+        if (hasLeadingPhrase(
+            words.items,
+            subject,
+            options,
+        )) continue;
 
         const tok = report_tok.?;
         const slice = tree.tokenSlice(tok);
         const loc = tree.tokenLocation(0, tok);
-        const detail = try std.fmt.allocPrint(msg_allocator, "expected the summary to begin with '{s}'", .{subject.name});
+        const detail = try std.fmt.allocPrint(
+            msg_allocator,
+            "expected the summary to begin with '{s}'",
+            .{subject.name},
+        );
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
@@ -170,13 +206,21 @@ pub fn check(
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
-            .source_line = try utils.dupSourceLine(tree, tok, msg_allocator),
+            .source_line = try utils.dupSourceLine(
+                tree,
+                tok,
+                msg_allocator,
+            ),
             .symbol_len = slice.len,
         });
     }
 }
 
-fn hasLeadingPhrase(words: []const []const u8, subject: Diagnostic.Subject, options: Options) bool {
+fn hasLeadingPhrase(
+    words: []const []const u8,
+    subject: Diagnostic.Subject,
+    options: Options,
+) bool {
     var i: usize = 0;
     const has_article = i < words.len and isArticle(words[i]);
     if (has_article) i += 1;
@@ -189,7 +233,11 @@ fn hasLeadingPhrase(words: []const []const u8, subject: Diagnostic.Subject, opti
     // e.g. "Function `add` ..."
     const consumed_before = matchKindPhrase(rest, subject.kind);
     if (consumed_before > 0 and consumed_before < rest.len) {
-        if (wordMatchesIdentifier(rest[consumed_before], subject, options)) {
+        if (wordMatchesIdentifier(
+            rest[consumed_before],
+            subject,
+            options,
+        )) {
             // Check that we don't have a kind phrase in both places.
             // e.g. "Function `add` function ..."
             const post_id = rest[consumed_before + 1 ..];
@@ -201,7 +249,11 @@ fn hasLeadingPhrase(words: []const []const u8, subject: Diagnostic.Subject, opti
 
     // Case 2: Identifier first, with optional/required kind after.
     // e.g. "`add` function ..." or just "`add` ..."
-    if (rest.len > 0 and wordMatchesIdentifier(rest[0], subject, options)) {
+    if (rest.len > 0 and wordMatchesIdentifier(
+        rest[0],
+        subject,
+        options,
+    )) {
         const consumed_after = matchKindPhrase(rest[1..], subject.kind);
         if (consumed_after > 0) {
             // Kind is after the identifier (e.g. "`add` function ...")
@@ -215,7 +267,11 @@ fn hasLeadingPhrase(words: []const []const u8, subject: Diagnostic.Subject, opti
     return false;
 }
 
-fn wordMatchesIdentifier(word: []const u8, subject: Diagnostic.Subject, options: Options) bool {
+fn wordMatchesIdentifier(
+    word: []const u8,
+    subject: Diagnostic.Subject,
+    options: Options,
+) bool {
     if (options.require_backticks) {
         if (word.len < 2 or word[0] != '`' or word[word.len - 1] != '`') return false;
     }
@@ -251,19 +307,40 @@ fn matchKindPhrase(words: []const []const u8, kind: Diagnostic.SubjectKind) usiz
 fn kindPhrases(kind: Diagnostic.SubjectKind) []const KindPhrase {
     return switch (kind) {
         .module => &.{ &.{"module"}, &.{"library"} },
-        .source_file => &.{ &.{"module"}, &.{"namespace"}, &.{"file"} },
+        .source_file => &.{
+            &.{"module"},
+            &.{"namespace"},
+            &.{"file"},
+        },
         .function => &.{&.{"function"}},
         .parameter => &.{ &.{"parameter"}, &.{"argument"} },
         .error_set => &.{ &.{ "error", "set" }, &.{"set"} },
         .enumeration => &.{ &.{"enum"}, &.{"enumeration"} },
-        .constant => &.{ &.{"constant"}, &.{"struct"}, &.{"structure"}, &.{"union"}, &.{"type"} },
+        .constant => &.{
+            &.{"constant"},
+            &.{"struct"},
+            &.{"structure"},
+            &.{"union"},
+            &.{"type"},
+        },
         .variable => &.{&.{"variable"}},
         .field => &.{&.{"field"}},
-        .enumerator => &.{ &.{"enumerator"}, &.{"value"}, &.{"variant"}, &.{"tag"}, &.{"member"} },
+        .enumerator => &.{
+            &.{"enumerator"},
+            &.{"value"},
+            &.{"variant"},
+            &.{"tag"},
+            &.{"member"},
+        },
         .structure => &.{ &.{"struct"}, &.{"structure"} },
         .namespace => &.{&.{"namespace"}},
         .@"union" => &.{&.{"union"}},
-        .error_value => &.{ &.{ "error", "value" }, &.{ "error", "tag" }, &.{ "error", "member" }, &.{"value"} },
+        .error_value => &.{
+            &.{ "error", "value" },
+            &.{ "error", "tag" },
+            &.{ "error", "member" },
+            &.{"value"},
+        },
         .type_alias => &.{ &.{"type"}, &.{"alias"} },
         .doc_comment, .doctest => &.{},
     };
@@ -274,11 +351,19 @@ fn identifierMatches(word: []const u8, subject: Diagnostic.Subject) bool {
 
     return switch (subject.kind) {
         .module, .source_file => std.ascii.eqlIgnoreCase(core, subject.name),
-        else => std.mem.eql(u8, core, subject.name),
+        else => std.mem.eql(
+            u8,
+            core,
+            subject.name,
+        ),
     };
 }
 
 /// Trims surrounding backticks and punctuation so `` `foo`, `` and `foo.` compare as `foo`.
 fn wordCore(word: []const u8) []const u8 {
-    return std.mem.trim(u8, word, "`.,;:!?()'\"");
+    return std.mem.trim(
+        u8,
+        word,
+        "`.,;:!?()'\"",
+    );
 }

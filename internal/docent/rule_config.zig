@@ -16,7 +16,11 @@ pub fn applyRuleOverride(rs: *RuleSeverities, kv: fangz.KeyValuePair) RuleConfig
         return error.InvalidSeverity;
 
     inline for (@typeInfo(RuleSeverities).@"struct".fields) |f| {
-        if (std.mem.eql(u8, f.name, kv.key)) {
+        if (std.mem.eql(
+            u8,
+            f.name,
+            kv.key,
+        )) {
             const current = @field(rs, f.name);
             if (current == .forbid and sev != .forbid) return;
             @field(rs, f.name) = sev;

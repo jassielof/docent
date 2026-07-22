@@ -107,14 +107,24 @@ fn sortSuperGroup(sg: *SuperGroup, entries: []const ImportEntry) void {
     sortGroupByLeft(sg.conditional_group.indices.items, entries);
     sortGroupByModuleThenLeft(sg.reexport_group.indices.items, entries);
 
-    mem.sort([]const u8, sg.dep_keys.items, {}, lessThanIgnoreCaseCtx);
+    mem.sort(
+        []const u8,
+        sg.dep_keys.items,
+        {},
+        lessThanIgnoreCaseCtx,
+    );
     for (sg.dep_keys.items) |key| {
         if (sg.dep_groups.getPtr(key)) |grp| {
             sortGroupByLeft(grp.indices.items, entries);
         }
     }
 
-    mem.sort([]const u8, sg.inline_field_keys.items, {}, lessThanIgnoreCaseCtx);
+    mem.sort(
+        []const u8,
+        sg.inline_field_keys.items,
+        {},
+        lessThanIgnoreCaseCtx,
+    );
     for (sg.inline_field_keys.items) |key| {
         if (sg.inline_field_groups.getPtr(key)) |grp| {
             sortGroupByLeft(grp.indices.items, entries);
@@ -125,38 +135,69 @@ fn sortSuperGroup(sg: *SuperGroup, entries: []const ImportEntry) void {
 fn sortGroupByModuleThenLeft(indices: []usize, entries: []const ImportEntry) void {
     const S = struct {
         entries: []const ImportEntry,
-        fn lessThan(ctx: @This(), a: usize, b: usize) bool {
+        fn lessThan(
+            ctx: @This(),
+            a: usize,
+            b: usize,
+        ) bool {
             const module_cmp = cmpIgnoreCase(ctx.entries[a].module, ctx.entries[b].module);
             if (module_cmp != .eq) return module_cmp == .lt;
             return lessThanIgnoreCase(ctx.entries[a].left, ctx.entries[b].left);
         }
     };
-    mem.sort(usize, indices, S{ .entries = entries }, S.lessThan);
+    mem.sort(
+        usize,
+        indices,
+        S{ .entries = entries },
+        S.lessThan,
+    );
 }
 
 fn sortGroupByLeft(indices: []usize, entries: []const ImportEntry) void {
     const S = struct {
         entries: []const ImportEntry,
-        fn lessThan(ctx: @This(), a: usize, b: usize) bool {
+        fn lessThan(
+            ctx: @This(),
+            a: usize,
+            b: usize,
+        ) bool {
             return lessThanIgnoreCase(ctx.entries[a].left, ctx.entries[b].left);
         }
     };
-    mem.sort(usize, indices, S{ .entries = entries }, S.lessThan);
+    mem.sort(
+        usize,
+        indices,
+        S{ .entries = entries },
+        S.lessThan,
+    );
 }
 
 fn sortGroupByRight(indices: []usize, entries: []const ImportEntry) void {
     const S = struct {
         entries: []const ImportEntry,
-        fn lessThan(ctx: @This(), a: usize, b: usize) bool {
+        fn lessThan(
+            ctx: @This(),
+            a: usize,
+            b: usize,
+        ) bool {
             const cmp = cmpIgnoreCase(ctx.entries[a].right, ctx.entries[b].right);
             if (cmp != .eq) return cmp == .lt;
             return lessThanIgnoreCase(ctx.entries[a].left, ctx.entries[b].left);
         }
     };
-    mem.sort(usize, indices, S{ .entries = entries }, S.lessThan);
+    mem.sort(
+        usize,
+        indices,
+        S{ .entries = entries },
+        S.lessThan,
+    );
 }
 
-fn lessThanIgnoreCaseCtx(_: void, a: []const u8, b: []const u8) bool {
+fn lessThanIgnoreCaseCtx(
+    _: void,
+    a: []const u8,
+    b: []const u8,
+) bool {
     return lessThanIgnoreCase(a, b);
 }
 

@@ -100,18 +100,32 @@ test "normalizes malformed packed array rows" {
 fn formatSourceForTest(gpa: Allocator, input: []const u8) ![]const u8 {
     const sentinel_input = try gpa.dupeZ(u8, input);
     defer gpa.free(sentinel_input);
-    var tree = try std.zig.Ast.parse(gpa, sentinel_input, .zig);
+    var tree = try std.zig.Ast.parse(
+        gpa,
+        sentinel_input,
+        .zig,
+    );
     defer tree.deinit(gpa);
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
 
     const rendered = try tree.renderAlloc(gpa);
     defer gpa.free(rendered);
-    const post_processed = try applyPostProcessing(gpa, rendered, .{});
+    const post_processed = try applyPostProcessing(
+        gpa,
+        rendered,
+        .{},
+    );
     if (post_processed.allocated) return post_processed.output;
     return gpa.dupe(u8, post_processed.output);
 }
 
-pub fn init(gpa: Allocator, io: Io, stdout_writer: *Io.File.Writer, opts: Options, config: Config) Formatter {
+pub fn init(
+    gpa: Allocator,
+    io: Io,
+    stdout_writer: *Io.File.Writer,
+    opts: Options,
+    config: Config,
+) Formatter {
     return .{
         .gpa = gpa,
         .io = io,
@@ -133,7 +147,12 @@ pub fn deinit(self: *Formatter) void {
     self.out_buffer.deinit();
 }
 
-pub fn formatStdin(gpa: Allocator, io: Io, opts: Options, config: Config) !void {
+pub fn formatStdin(
+    gpa: Allocator,
+    io: Io,
+    opts: Options,
+    config: Config,
+) !void {
     const stdin: Io.File = .stdin();
     var stdio_buffer: [1024]u8 = undefined;
     var file_reader: Io.File.Reader = stdin.reader(io, &stdio_buffer);
@@ -142,7 +161,11 @@ pub fn formatStdin(gpa: Allocator, io: Io, opts: Options, config: Config) !void 
     };
     defer gpa.free(source_code);
 
-    var tree = std.zig.Ast.parse(gpa, source_code, if (opts.zon) .zon else .zig) catch |err| {
+    var tree = std.zig.Ast.parse(
+        gpa,
+        source_code,
+        if (opts.zon) .zon else .zig,
+    ) catch |err| {
         std.process.fatal("error parsing stdin: {}", .{err});
     };
     defer tree.deinit(gpa);
@@ -156,29 +179,57 @@ pub fn formatStdin(gpa: Allocator, io: Io, opts: Options, config: Config) !void 
                 var wip_errors: std.zig.ErrorBundle.Wip = undefined;
                 try wip_errors.init(gpa);
                 defer wip_errors.deinit();
-                try wip_errors.addZirErrorMessages(zir, tree, source_code, "<stdin>");
+                try wip_errors.addZirErrorMessages(
+                    zir,
+                    tree,
+                    source_code,
+                    "<stdin>",
+                );
                 var error_bundle = try wip_errors.toOwnedBundle("");
                 defer error_bundle.deinit(gpa);
-                error_bundle.renderToStderr(io, .{}, opts.color) catch {};
+                error_bundle.renderToStderr(
+                    io,
+                    .{},
+                    opts.color,
+                ) catch {};
                 std.process.exit(2);
             }
         } else {
-            const zoir = try std.zig.ZonGen.generate(gpa, tree, .{});
+            const zoir = try std.zig.ZonGen.generate(
+                gpa,
+                tree,
+                .{},
+            );
             defer zoir.deinit(gpa);
 
             if (zoir.hasCompileErrors()) {
                 var wip_errors: std.zig.ErrorBundle.Wip = undefined;
                 try wip_errors.init(gpa);
                 defer wip_errors.deinit();
-                try wip_errors.addZoirErrorMessages(zoir, tree, source_code, "<stdin>");
+                try wip_errors.addZoirErrorMessages(
+                    zoir,
+                    tree,
+                    source_code,
+                    "<stdin>",
+                );
                 var error_bundle = try wip_errors.toOwnedBundle("");
                 defer error_bundle.deinit(gpa);
-                error_bundle.renderToStderr(io, .{}, opts.color) catch {};
+                error_bundle.renderToStderr(
+                    io,
+                    .{},
+                    opts.color,
+                ) catch {};
                 std.process.exit(2);
             }
         }
     } else if (tree.errors.len != 0) {
-        std.zig.printAstErrorsToStderr(gpa, io, tree, "<stdin>", opts.color) catch {};
+        std.zig.printAstErrorsToStderr(
+            gpa,
+            io,
+            tree,
+            "<stdin>",
+            opts.color,
+        ) catch {};
         std.process.exit(2);
     }
 
@@ -186,30 +237,54 @@ pub fn formatStdin(gpa: Allocator, io: Io, opts: Options, config: Config) !void 
         const loc = tree.tokenLocation(0, tree.firstToken(pathological.node));
         std.process.fatal(
             "<stdin>:{d}:{d}: array type nests {d} levels deep through its length expression; refusing to render (see https://codeberg.org/ziglang/zig/issues/35714)",
-            .{ loc.line + 1, loc.column + 1, pathological.depth },
+            .{
+                loc.line + 1,
+                loc.column + 1,
+                pathological.depth,
+            },
         );
     }
 
     const rendered = try tree.renderAlloc(gpa);
     defer gpa.free(rendered);
 
-    const pp = try applyPostProcessing(gpa, rendered, config);
+    const pp = try applyPostProcessing(
+        gpa,
+        rendered,
+        config,
+    );
     defer if (pp.allocated) gpa.free(pp.output);
 
     if (opts.check) {
-        const code: u8 = @intFromBool(!mem.eql(u8, pp.output, source_code));
+        const code: u8 = @intFromBool(!mem.eql(
+            u8,
+            pp.output,
+            source_code,
+        ));
         std.process.exit(code);
     }
 
     return Io.File.stdout().writeStreamingAll(io, pp.output);
 }
 
-pub fn formatPaths(self: *Formatter, input_files: []const []const u8, excluded_files: []const []const u8) !void {
+pub fn formatPaths(
+    self: *Formatter,
+    input_files: []const []const u8,
+    excluded_files: []const []const u8,
+) !void {
     for (excluded_files) |file_path| {
-        const stat = Io.Dir.cwd().statFile(self.io, file_path, .{}) catch |err| switch (err) {
+        const stat = Io.Dir.cwd().statFile(
+            self.io,
+            file_path,
+            .{},
+        ) catch |err| switch (err) {
             error.FileNotFound => continue,
             error.IsDir => dir: {
-                var dir = try Io.Dir.cwd().openDir(self.io, file_path, .{});
+                var dir = try Io.Dir.cwd().openDir(
+                    self.io,
+                    file_path,
+                    .{},
+                );
                 defer dir.close(self.io);
                 break :dir try dir.stat(self.io);
             },
@@ -219,7 +294,11 @@ pub fn formatPaths(self: *Formatter, input_files: []const []const u8, excluded_f
     }
 
     for (input_files) |file_path| {
-        try self.fmtPath(file_path, Io.Dir.cwd(), file_path);
+        try self.fmtPath(
+            file_path,
+            Io.Dir.cwd(),
+            file_path,
+        );
     }
     try self.stdout_writer.interface.flush();
     if (self.any_error) {
@@ -227,9 +306,22 @@ pub fn formatPaths(self: *Formatter, input_files: []const []const u8, excluded_f
     }
 }
 
-fn fmtPath(self: *Formatter, file_path: []const u8, dir: Io.Dir, sub_path: []const u8) !void {
-    self.fmtPathFile(file_path, dir, sub_path) catch |err| switch (err) {
-        error.IsDir, error.AccessDenied => return self.fmtPathDir(file_path, dir, sub_path),
+fn fmtPath(
+    self: *Formatter,
+    file_path: []const u8,
+    dir: Io.Dir,
+    sub_path: []const u8,
+) !void {
+    self.fmtPathFile(
+        file_path,
+        dir,
+        sub_path,
+    ) catch |err| switch (err) {
+        error.IsDir, error.AccessDenied => return self.fmtPathDir(
+            file_path,
+            dir,
+            sub_path,
+        ),
         else => {
             std.log.err("unable to format '{s}': {s}", .{ file_path, @errorName(err) });
             self.any_error = true;
@@ -242,7 +334,15 @@ fn fmtPath(self: *Formatter, file_path: []const u8, dir: Io.Dir, sub_path: []con
 /// `--exclude`). Matches lint's cache/output skips; path deps / vendor are
 /// left to `[fmt].exclude` so projects can opt in to formatting them.
 fn shouldSkipWalkDir(name: []const u8) bool {
-    return mem.eql(u8, name, "zig-out") or mem.eql(u8, name, "zig-cache");
+    return mem.eql(
+        u8,
+        name,
+        "zig-out",
+    ) or mem.eql(
+        u8,
+        name,
+        "zig-cache",
+    );
 }
 
 fn fmtPathDir(
@@ -253,7 +353,11 @@ fn fmtPathDir(
 ) !void {
     const io = self.io;
 
-    var dir = try parent_dir.openDir(io, parent_sub_path, .{ .iterate = true });
+    var dir = try parent_dir.openDir(
+        io,
+        parent_sub_path,
+        .{ .iterate = true },
+    );
     defer dir.close(io);
 
     const stat = try dir.stat(io);
@@ -264,17 +368,37 @@ fn fmtPathDir(
         const is_dir = entry.kind == .directory;
 
         // Dotdirs (e.g. .git, .zig-cache) and build/cache output trees.
-        if (mem.startsWith(u8, entry.name, ".")) continue;
+        if (mem.startsWith(
+            u8,
+            entry.name,
+            ".",
+        )) continue;
         if (is_dir and shouldSkipWalkDir(entry.name)) continue;
 
-        if (is_dir or entry.kind == .file and (mem.endsWith(u8, entry.name, ".zig") or mem.endsWith(u8, entry.name, ".zon"))) {
+        if (is_dir or entry.kind == .file and (mem.endsWith(
+            u8,
+            entry.name,
+            ".zig",
+        ) or mem.endsWith(
+            u8,
+            entry.name,
+            ".zon",
+        ))) {
             const full_path = try fs.path.join(self.gpa, &[_][]const u8{ file_path, entry.name });
             defer self.gpa.free(full_path);
 
             if (is_dir) {
-                try self.fmtPathDir(full_path, dir, entry.name);
+                try self.fmtPathDir(
+                    full_path,
+                    dir,
+                    entry.name,
+                );
             } else {
-                self.fmtPathFile(full_path, dir, entry.name) catch |err| {
+                self.fmtPathFile(
+                    full_path,
+                    dir,
+                    entry.name,
+                ) catch |err| {
                     std.log.err("unable to format '{s}': {s}", .{ full_path, @errorName(err) });
                     self.any_error = true;
                     return;
@@ -292,7 +416,11 @@ fn fmtPathFile(
 ) !void {
     const io = self.io;
 
-    const source_file = try dir.openFile(io, sub_path, .{});
+    const source_file = try dir.openFile(
+        io,
+        sub_path,
+        .{},
+    );
     var file_closed = false;
     errdefer if (!file_closed) source_file.close(io);
 
@@ -319,13 +447,27 @@ fn fmtPathFile(
 
     const mode: std.zig.Ast.Mode = mode: {
         if (self.force_zon) break :mode .zon;
-        if (mem.endsWith(u8, sub_path, ".zon")) break :mode .zon;
+        if (mem.endsWith(
+            u8,
+            sub_path,
+            ".zon",
+        )) break :mode .zon;
         break :mode .zig;
     };
-    var tree = try std.zig.Ast.parse(gpa, source_code, mode);
+    var tree = try std.zig.Ast.parse(
+        gpa,
+        source_code,
+        mode,
+    );
     defer tree.deinit(gpa);
     if (tree.errors.len != 0) {
-        try std.zig.printAstErrorsToStderr(gpa, io, tree, file_path, self.color);
+        try std.zig.printAstErrorsToStderr(
+            gpa,
+            io,
+            tree,
+            file_path,
+            self.color,
+        );
         self.any_error = true;
         return;
     }
@@ -343,25 +485,47 @@ fn fmtPathFile(
                     var wip_errors: std.zig.ErrorBundle.Wip = undefined;
                     try wip_errors.init(gpa);
                     defer wip_errors.deinit();
-                    try wip_errors.addZirErrorMessages(zir, tree, source_code, file_path);
+                    try wip_errors.addZirErrorMessages(
+                        zir,
+                        tree,
+                        source_code,
+                        file_path,
+                    );
                     var error_bundle = try wip_errors.toOwnedBundle("");
                     defer error_bundle.deinit(gpa);
-                    try error_bundle.renderToStderr(io, .{}, self.color);
+                    try error_bundle.renderToStderr(
+                        io,
+                        .{},
+                        self.color,
+                    );
                     self.any_error = true;
                 }
             },
             .zon => {
-                var zoir = try std.zig.ZonGen.generate(gpa, tree, .{});
+                var zoir = try std.zig.ZonGen.generate(
+                    gpa,
+                    tree,
+                    .{},
+                );
                 defer zoir.deinit(gpa);
 
                 if (zoir.hasCompileErrors()) {
                     var wip_errors: std.zig.ErrorBundle.Wip = undefined;
                     try wip_errors.init(gpa);
                     defer wip_errors.deinit();
-                    try wip_errors.addZoirErrorMessages(zoir, tree, source_code, file_path);
+                    try wip_errors.addZoirErrorMessages(
+                        zoir,
+                        tree,
+                        source_code,
+                        file_path,
+                    );
                     var error_bundle = try wip_errors.toOwnedBundle("");
                     defer error_bundle.deinit(gpa);
-                    try error_bundle.renderToStderr(io, .{}, self.color);
+                    try error_bundle.renderToStderr(
+                        io,
+                        .{},
+                        self.color,
+                    );
                     self.any_error = true;
                 }
             },
@@ -372,7 +536,12 @@ fn fmtPathFile(
         const loc = tree.tokenLocation(0, tree.firstToken(pathological.node));
         std.log.err(
             "unable to format '{s}': array type at {d}:{d} nests {d} levels deep through its length expression; refusing to render (see https://codeberg.org/ziglang/zig/issues/35714)",
-            .{ file_path, loc.line + 1, loc.column + 1, pathological.depth },
+            .{
+                file_path,
+                loc.line + 1,
+                loc.column + 1,
+                pathological.depth,
+            },
         );
         self.any_error = true;
         return;
@@ -381,15 +550,27 @@ fn fmtPathFile(
     self.out_buffer.clearRetainingCapacity();
     try self.out_buffer.ensureTotalCapacity(source_code.len);
 
-    tree.render(gpa, &self.out_buffer.writer, .{}) catch |err| switch (err) {
+    tree.render(
+        gpa,
+        &self.out_buffer.writer,
+        .{},
+    ) catch |err| switch (err) {
         error.WriteFailed, error.OutOfMemory => return error.OutOfMemory,
     };
 
     const rendered = self.out_buffer.written();
-    const pp = try applyPostProcessing(gpa, rendered, self.config);
+    const pp = try applyPostProcessing(
+        gpa,
+        rendered,
+        self.config,
+    );
     defer if (pp.allocated) gpa.free(pp.output);
 
-    if (mem.eql(u8, pp.output, source_code))
+    if (mem.eql(
+        u8,
+        pp.output,
+        source_code,
+    ))
         return;
 
     if (self.check_mode) {
@@ -397,20 +578,38 @@ fn fmtPathFile(
             var stderr_buf: [8192]u8 = undefined;
             var stderr = Io.File.stderr().writer(self.io, &stderr_buf);
             const profile = carnaval.colorProfileForHandle(Io.File.stderr().handle);
-            diff.writeDiff(io, &stderr.interface, file_path, source_code, pp.output, profile) catch {};
+            diff.writeDiff(
+                io,
+                &stderr.interface,
+                file_path,
+                source_code,
+                pp.output,
+                profile,
+            ) catch {};
             stderr.interface.flush() catch {};
         }
         try self.stdout_writer.interface.print("{s}\n", .{file_path});
         self.any_error = true;
     } else {
-        try symlink_safe_write.write(io, dir, sub_path, stat.permissions, source_code, pp.output);
+        try symlink_safe_write.write(
+            io,
+            dir,
+            sub_path,
+            stat.permissions,
+            source_code,
+            pp.output,
+        );
         try self.stdout_writer.interface.print("{s}\n", .{file_path});
     }
 }
 
 /// Applies all configured post-processing passes to rendered source.
 /// Caller owns the returned slice when it differs from `input`.
-pub fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Allocator.Error!struct { output: []const u8, allocated: bool } {
+pub fn applyPostProcessing(
+    gpa: Allocator,
+    input: []const u8,
+    config: Config,
+) Allocator.Error!struct { output: []const u8, allocated: bool } {
     var current: []const u8 = input;
     var current_allocated = false;
 
@@ -436,7 +635,11 @@ pub fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Al
     }
 
     if (config.auto_wrap) {
-        const result = try auto_wrap.autoWrap(gpa, current, config.max_line_length);
+        const result = try auto_wrap.autoWrap(
+            gpa,
+            current,
+            config.max_line_length,
+        );
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;
@@ -450,7 +653,11 @@ pub fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Al
     }
 
     if (config.brace_style != .k_r) {
-        const result = try brace_style.convert(gpa, current, config.brace_style);
+        const result = try brace_style.convert(
+            gpa,
+            current,
+            config.brace_style,
+        );
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;
@@ -471,7 +678,12 @@ pub fn applyPostProcessing(gpa: Allocator, input: []const u8, config: Config) Al
     }
 
     if (config.indent_style != .space or config.indent_width != 4) {
-        const result = try indent_width.reindent(gpa, current, config.indent_style, config.indent_width);
+        const result = try indent_width.reindent(
+            gpa,
+            current,
+            config.indent_style,
+            config.indent_width,
+        );
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;

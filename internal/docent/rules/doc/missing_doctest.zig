@@ -25,7 +25,11 @@ pub const default_severity: severity.Level = .allow;
 pub const prose_title = "Missing doctest";
 
 /// Full configuration for `missing_doctest`: severity and scan mode, with no rule-specific options.
-pub const Rule = category.Rule(default_severity, struct {}, scan.RuleScanConfig.public_api_surface);
+pub const Rule = category.Rule(
+    default_severity,
+    struct {},
+    scan.RuleScanConfig.public_api_surface,
+);
 
 /// Walks `tree` and appends diagnostics for public functions without matching doctests.
 pub fn check(
@@ -47,7 +51,13 @@ pub fn check(
     defer tested_names.deinit();
 
     for (tree.rootDecls()) |decl| {
-        try collectDecl(tree, decl, public_api_only, &pub_fns, &tested_names);
+        try collectDecl(
+            tree,
+            decl,
+            public_api_only,
+            &pub_fns,
+            &tested_names,
+        );
     }
 
     var iter = pub_fns.iterator();
@@ -59,11 +69,19 @@ pub fn check(
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity_level = severity_level,
-                .subject = try utils.ownedSubject(msg_allocator, .function, name),
+                .subject = try utils.ownedSubject(
+                    msg_allocator,
+                    .function,
+                    name,
+                ),
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
-                .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+                .source_line = try utils.dupSourceLine(
+                    tree,
+                    name_tok,
+                    msg_allocator,
+                ),
                 .symbol_len = name.len,
             });
         }

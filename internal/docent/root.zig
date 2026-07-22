@@ -37,12 +37,24 @@ pub fn resolveRequireModuleDoc(path: []const u8, library_entry_roots: []const []
         if (scan.target.pathsEqual(path, root))
             return true;
 
-    return std.mem.eql(u8, std.fs.path.basename(path), "root.zig");
+    return std.mem.eql(
+        u8,
+        std.fs.path.basename(path),
+        "root.zig",
+    );
 }
 
-fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
+fn realPathFileAlloc(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+    const len = try std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    );
 
     return allocator.dupe(u8, buffer[0..len]);
 }
@@ -58,7 +70,11 @@ pub fn collectLibraryEntryRoots(
     var roots: std.ArrayList([]const u8) = .empty;
     errdefer scan.target.deinitOwnedPaths(allocator, &roots);
 
-    var scanned = try build_scan.scanProjectBuildScript(allocator, io, project_root);
+    var scanned = try build_scan.scanProjectBuildScript(
+        allocator,
+        io,
+        project_root,
+    );
     defer if (scanned) |*sc| sc.deinit(allocator);
 
     if (scanned) |sc| {
@@ -72,7 +88,11 @@ pub fn collectLibraryEntryRoots(
                 try std.fs.path.join(allocator, &.{ project_root, t.root_source_file });
             defer allocator.free(joined);
 
-            const abs = realPathFileAlloc(allocator, io, joined) catch
+            const abs = realPathFileAlloc(
+                allocator,
+                io,
+                joined,
+            ) catch
                 try allocator.dupe(u8, joined);
 
             try roots.append(allocator, abs);
@@ -82,10 +102,18 @@ pub fn collectLibraryEntryRoots(
     return try roots.toOwnedSlice(allocator);
 }
 
-fn applySuppressions(allocator: std.mem.Allocator, tree: *const Ast, result: *LintResult) !void {
+fn applySuppressions(
+    allocator: std.mem.Allocator,
+    tree: *const Ast,
+    result: *LintResult,
+) !void {
     var table = try suppressions.collectFromTree(allocator, tree);
     defer table.deinit(allocator);
-    suppressions.filterDiagnostics(allocator, &result.diagnostics, &table);
+    suppressions.filterDiagnostics(
+        allocator,
+        &result.diagnostics,
+        &table,
+    );
 }
 
 /// Lints in-memory Zig source and returns all rule diagnostics.
@@ -100,7 +128,11 @@ pub fn lintSource(
     library_entry_roots: []const []const u8,
     doc_cfg: rules.doc.Doc,
 ) !LintResult {
-    var tree = try std.zig.Ast.parse(allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(allocator);
 
     var result = LintResult.init(allocator);
@@ -151,9 +183,30 @@ pub fn lintSource(
         msg,
         &result.diagnostics,
     );
-    try rules.doc.missing_doctest.check(&tree, doc_cfg.missing_doctest, file_owned, allocator, msg, &result.diagnostics);
-    try rules.doc.private_doctest.check(&tree, doc_cfg.private_doctest, file_owned, allocator, msg, &result.diagnostics);
-    try rules.doc.doctest_naming_mismatch.check(&tree, doc_cfg.doctest_naming_mismatch, file_owned, allocator, msg, &result.diagnostics);
+    try rules.doc.missing_doctest.check(
+        &tree,
+        doc_cfg.missing_doctest,
+        file_owned,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
+    try rules.doc.private_doctest.check(
+        &tree,
+        doc_cfg.private_doctest,
+        file_owned,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
+    try rules.doc.doctest_naming_mismatch.check(
+        &tree,
+        doc_cfg.doctest_naming_mismatch,
+        file_owned,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
     try rules.doc.invalid_leading_phrase.check(
         &tree,
         doc_cfg.invalid_leading_phrase,
@@ -174,7 +227,11 @@ pub fn lintSource(
         &result.diagnostics,
     );
 
-    try applySuppressions(allocator, &tree, &result);
+    try applySuppressions(
+        allocator,
+        &tree,
+        &result,
+    );
 
     return result;
 }
@@ -188,7 +245,11 @@ pub fn lintComplexitySource(
     file: []const u8,
     complexity_cfg: rules.complexity.Complexity,
 ) !LintResult {
-    var tree = try std.zig.Ast.parse(allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(allocator);
 
     var result = LintResult.init(allocator);
@@ -214,7 +275,11 @@ pub fn lintComplexitySource(
         &result.diagnostics,
     );
 
-    try applySuppressions(allocator, &tree, &result);
+    try applySuppressions(
+        allocator,
+        &tree,
+        &result,
+    );
 
     return result;
 }
@@ -228,7 +293,11 @@ pub fn lintSizeSource(
     file: []const u8,
     size_cfg: rules.size.Size,
 ) !LintResult {
-    var tree = try std.zig.Ast.parse(allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(allocator);
 
     var result = LintResult.init(allocator);
@@ -254,7 +323,11 @@ pub fn lintSizeSource(
         &result.diagnostics,
     );
 
-    try applySuppressions(allocator, &tree, &result);
+    try applySuppressions(
+        allocator,
+        &tree,
+        &result,
+    );
 
     return result;
 }
@@ -269,7 +342,11 @@ pub fn lintStyleSource(
     file: []const u8,
     style_cfg: rules.style.Style,
 ) !LintResult {
-    var tree = try std.zig.Ast.parse(allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(allocator);
 
     var result = LintResult.init(allocator);
@@ -288,7 +365,11 @@ pub fn lintStyleSource(
         &result.diagnostics,
     );
 
-    try applySuppressions(allocator, &tree, &result);
+    try applySuppressions(
+        allocator,
+        &tree,
+        &result,
+    );
 
     return result;
 }
@@ -310,7 +391,13 @@ pub fn lintStyleFile(
     );
     defer allocator.free(source);
 
-    return lintStyleSource(allocator, io, source, path, style_cfg);
+    return lintStyleSource(
+        allocator,
+        io,
+        source,
+        path,
+        style_cfg,
+    );
 }
 
 /// Reads `path` from the cwd and runs `lintComplexitySource` on its contents.
@@ -330,7 +417,12 @@ pub fn lintComplexityFile(
     );
     defer allocator.free(source);
 
-    return lintComplexitySource(allocator, source, path, complexity_cfg);
+    return lintComplexitySource(
+        allocator,
+        source,
+        path,
+        complexity_cfg,
+    );
 }
 
 /// Reads `path` from the cwd and runs `lintSizeSource` on its contents.
@@ -350,7 +442,12 @@ pub fn lintSizeFile(
     );
     defer allocator.free(source);
 
-    return lintSizeSource(allocator, source, path, size_cfg);
+    return lintSizeSource(
+        allocator,
+        source,
+        path,
+        size_cfg,
+    );
 }
 
 /// Reads `path` from the cwd and runs `lintSource` on its contents.
@@ -372,7 +469,15 @@ pub fn lintFile(
     );
     defer allocator.free(source);
 
-    return lintSource(allocator, io, source, path, options, library_entry_roots, doc_cfg);
+    return lintSource(
+        allocator,
+        io,
+        source,
+        path,
+        options,
+        library_entry_roots,
+        doc_cfg,
+    );
 }
 
 comptime {

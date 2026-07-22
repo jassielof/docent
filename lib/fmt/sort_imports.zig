@@ -185,7 +185,11 @@ pub fn sortImports(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     const sentinel_input = try gpa.dupeZ(u8, input);
     defer gpa.free(sentinel_input);
 
-    var tree = std.zig.Ast.parse(gpa, sentinel_input, .zig) catch return gpa.dupe(u8, input);
+    var tree = std.zig.Ast.parse(
+        gpa,
+        sentinel_input,
+        .zig,
+    ) catch return gpa.dupe(u8, input);
     defer tree.deinit(gpa);
 
     if (tree.errors.len != 0) return gpa.dupe(u8, input);
@@ -194,7 +198,11 @@ pub fn sortImports(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     if (result.entries.len == 0) return gpa.dupe(u8, input);
 
     const groups = sorter.buildGroups(arena, result.entries) catch return gpa.dupe(u8, input);
-    const rendered = renderer.render(arena, groups, result.entries) catch return gpa.dupe(u8, input);
+    const rendered = renderer.render(
+        arena,
+        groups,
+        result.entries,
+    ) catch return gpa.dupe(u8, input);
 
     var output: std.ArrayList(u8) = .empty;
     errdefer output.deinit(gpa);

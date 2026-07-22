@@ -5,7 +5,11 @@ pub fn expectValidZig(source: []const u8) !void {
     const source_z = try gpa.dupeZ(u8, source);
     defer gpa.free(source_z);
 
-    var tree = try std.zig.Ast.parse(gpa, source_z, .zig);
+    var tree = try std.zig.Ast.parse(
+        gpa,
+        source_z,
+        .zig,
+    );
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);

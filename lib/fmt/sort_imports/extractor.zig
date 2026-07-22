@@ -36,7 +36,11 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
         const left = tree.tokenSlice(name_tok);
         const vis: Visibility = if (var_decl.visib_token) |vt| (if (tree.tokenTag(vt) == .keyword_pub) .public else .internal) else .internal;
 
-        const decl_start = tokenStart(tree, firstToken(tree, decl, var_decl));
+        const decl_start = tokenStart(tree, firstToken(
+            tree,
+            decl,
+            var_decl,
+        ));
         const decl_end = findDeclEnd(source, lastTokenEnd(tree, decl));
 
         if (block_start == null) {
@@ -45,7 +49,11 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
         }
 
         const decl_text = source[decl_start..decl_end];
-        const comments = try collectAttachedComments(arena, source, decl_start);
+        const comments = try collectAttachedComments(
+            arena,
+            source,
+            decl_start,
+        );
 
         const tag = tree.nodeTag(init_node);
 
@@ -123,7 +131,11 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
     const bs = block_start orelse 0;
     return .{
         .entries = try entries.toOwnedSlice(arena),
-        .block_start = if (entries.items.len > 0) adjustBlockStartForComments(source, bs, entries.items[0].comment_lines) else bs,
+        .block_start = if (entries.items.len > 0) adjustBlockStartForComments(
+            source,
+            bs,
+            entries.items[0].comment_lines,
+        ) else bs,
         .block_end = block_end,
         .prefix_end = prefix_end,
     };
@@ -135,11 +147,19 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
 /// within that section.
 fn classifyConditional(tree: *const Ast, node: Ast.Node.Index) SourceKind {
     var result: ?SourceKind = null;
-    collectConditionalKind(tree, node, &result);
+    collectConditionalKind(
+        tree,
+        node,
+        &result,
+    );
     return result orelse .conditional;
 }
 
-fn collectConditionalKind(tree: *const Ast, node: Ast.Node.Index, result: *?SourceKind) void {
+fn collectConditionalKind(
+    tree: *const Ast,
+    node: Ast.Node.Index,
+    result: *?SourceKind,
+) void {
     if (getImportPath(tree, node)) |path| {
         const kind = classifier.classifyKind(path);
         if (result.* == null or kindRank(kind) > kindRank(result.*.?)) result.* = kind;
@@ -149,9 +169,17 @@ fn collectConditionalKind(tree: *const Ast, node: Ast.Node.Index, result: *?Sour
     const tag = tree.nodeTag(node);
     if (tag == .if_simple or tag == .@"if") {
         const if_full = tree.fullIf(node) orelse return;
-        collectConditionalKind(tree, if_full.ast.then_expr, result);
+        collectConditionalKind(
+            tree,
+            if_full.ast.then_expr,
+            result,
+        );
         if (if_full.ast.else_expr.unwrap()) |else_node| {
-            collectConditionalKind(tree, else_node, result);
+            collectConditionalKind(
+                tree,
+                else_node,
+                result,
+            );
         }
     }
 }
@@ -167,7 +195,11 @@ fn kindRank(kind: SourceKind) u3 {
     };
 }
 
-fn adjustBlockStartForComments(source: []const u8, decl_start: usize, comments: []const []const u8) usize {
+fn adjustBlockStartForComments(
+    source: []const u8,
+    decl_start: usize,
+    comments: []const []const u8,
+) usize {
     if (comments.len == 0) return decl_start;
     var pos = decl_start;
     for (comments) |_| {
@@ -188,7 +220,11 @@ fn getImportPath(tree: *const Ast, node: Ast.Node.Index) ?[]const u8 {
 
     const builtin_tok = tree.nodeMainToken(cur);
     if (tree.tokenTag(builtin_tok) != .builtin) return null;
-    if (!mem.eql(u8, tree.tokenSlice(builtin_tok), "@import")) return null;
+    if (!mem.eql(
+        u8,
+        tree.tokenSlice(builtin_tok),
+        "@import",
+    )) return null;
 
     const args = tree.nodeData(cur).opt_node_and_opt_node;
     const arg_node = args[0].unwrap() orelse return null;
@@ -212,7 +248,11 @@ fn containsImport(tree: *const Ast, node: Ast.Node.Index) bool {
     const tag = tree.nodeTag(node);
     if (tag == .builtin_call_two or tag == .builtin_call_two_comma) {
         const tok = tree.nodeMainToken(node);
-        return mem.eql(u8, tree.tokenSlice(tok), "@import");
+        return mem.eql(
+            u8,
+            tree.tokenSlice(tok),
+            "@import",
+        );
     }
     if (tag == .if_simple or tag == .@"if") {
         const if_full = tree.fullIf(node) orelse return false;
@@ -239,7 +279,11 @@ fn resolveHead(tree: *const Ast, node: Ast.Node.Index) []const u8 {
     return "";
 }
 
-fn firstToken(tree: *const Ast, node: Ast.Node.Index, var_decl: Ast.full.VarDecl) Ast.TokenIndex {
+fn firstToken(
+    tree: *const Ast,
+    node: Ast.Node.Index,
+    var_decl: Ast.full.VarDecl,
+) Ast.TokenIndex {
     if (var_decl.visib_token) |vt| return vt;
     _ = tree;
     _ = node;
@@ -264,7 +308,11 @@ fn findDeclEnd(source: []const u8, after_semi: usize) usize {
     return pos;
 }
 
-fn collectAttachedComments(arena: Allocator, source: []const u8, decl_start: usize) ![]const []const u8 {
+fn collectAttachedComments(
+    arena: Allocator,
+    source: []const u8,
+    decl_start: usize,
+) ![]const []const u8 {
     var comment_lines: std.ArrayList([]const u8) = .empty;
     var pos = decl_start;
 
@@ -274,18 +322,42 @@ fn collectAttachedComments(arena: Allocator, source: []const u8, decl_start: usi
         var line_start = line_end;
         while (line_start > 0 and source[line_start - 1] != '\n') line_start -= 1;
 
-        const line = mem.trimEnd(u8, source[line_start..line_end], " \t\r");
-        const trimmed = mem.trimStart(u8, line, " \t");
+        const line = mem.trimEnd(
+            u8,
+            source[line_start..line_end],
+            " \t\r",
+        );
+        const trimmed = mem.trimStart(
+            u8,
+            line,
+            " \t",
+        );
 
         if (trimmed.len == 0) break;
-        if (!mem.startsWith(u8, trimmed, "//")) break;
-        if (mem.startsWith(u8, trimmed, "//!")) break;
+        if (!mem.startsWith(
+            u8,
+            trimmed,
+            "//",
+        )) break;
+        if (mem.startsWith(
+            u8,
+            trimmed,
+            "//!",
+        )) break;
 
         var full_line = source[line_start..line_end];
         if (line_end < source.len and source[line_end] == '\n') {
             full_line = source[line_start .. line_end + 1];
         }
-        try comment_lines.insert(arena, 0, mem.trimEnd(u8, full_line, "\r\n"));
+        try comment_lines.insert(
+            arena,
+            0,
+            mem.trimEnd(
+                u8,
+                full_line,
+                "\r\n",
+            ),
+        );
         pos = line_start;
     }
 

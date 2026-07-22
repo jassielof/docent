@@ -41,7 +41,11 @@ pub const PackageMeta = struct {
 };
 
 fn scanPackageName(manifest_text: []const u8) ?[]const u8 {
-    const idx = std.mem.indexOf(u8, manifest_text, ".name") orelse return null;
+    const idx = std.mem.indexOf(
+        u8,
+        manifest_text,
+        ".name",
+    ) orelse return null;
     var i = idx + ".name".len;
     while (i < manifest_text.len and manifest_text[i] != '=') : (i += 1) {}
     if (i >= manifest_text.len) return null;
@@ -74,21 +78,37 @@ fn parseManifestPartial(allocator: std.mem.Allocator, manifest_text: []const u8)
     );
 }
 
-fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
+fn realPathFileAlloc(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+    const len = try std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    );
     return allocator.dupe(u8, buffer[0..len]);
 }
 
 fn isReadableFile(io: std.Io, path: []const u8) bool {
-    const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return false;
+    const file = std.Io.Dir.openFileAbsolute(
+        io,
+        path,
+        .{},
+    ) catch return false;
     file.close(io);
     return true;
 }
 
 /// Walks upward from cwd until a readable `build.zig.zon` is found.
 pub fn findNearestManifestPath(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
-    var current = try realPathFileAlloc(allocator, io, ".");
+    var current = try realPathFileAlloc(
+        allocator,
+        io,
+        ".",
+    );
 
     while (true) {
         const candidate = try std.fs.path.join(allocator, &.{ current, "build.zig.zon" });
@@ -116,8 +136,16 @@ pub fn findNearestManifestPath(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
     }
 }
 
-fn readManifestText(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const u8) ![]u8 {
-    const file = try std.Io.Dir.openFileAbsolute(io, manifest_path, .{});
+fn readManifestText(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    manifest_path: []const u8,
+) ![]u8 {
+    const file = try std.Io.Dir.openFileAbsolute(
+        io,
+        manifest_path,
+        .{},
+    );
     defer file.close(io);
     var reader = file.reader(io, &.{});
     return reader.interface.allocRemaining(allocator, .limited(1 * 1024 * 1024));
@@ -132,7 +160,11 @@ fn scanDependencyPathStrings(allocator: std.mem.Allocator, manifest_text: []cons
     var out: std.ArrayList([]const u8) = .empty;
     errdefer deinitOwnedPaths(allocator, &out);
 
-    const deps_idx = std.mem.indexOf(u8, manifest_text, ".dependencies") orelse return out;
+    const deps_idx = std.mem.indexOf(
+        u8,
+        manifest_text,
+        ".dependencies",
+    ) orelse return out;
     var i = deps_idx + ".dependencies".len;
 
     while (i < manifest_text.len and manifest_text[i] != '{') : (i += 1) {}
@@ -148,7 +180,11 @@ fn scanDependencyPathStrings(allocator: std.mem.Allocator, manifest_text: []cons
             continue;
         }
 
-        if (depth >= 1 and std.mem.startsWith(u8, manifest_text[i..], ".path")) {
+        if (depth >= 1 and std.mem.startsWith(
+            u8,
+            manifest_text[i..],
+            ".path",
+        )) {
             var j = i + ".path".len;
             while (j < manifest_text.len and manifest_text[j] != '=') : (j += 1) {}
             if (j >= manifest_text.len) break;
@@ -191,8 +227,16 @@ fn scanDependencyPathStrings(allocator: std.mem.Allocator, manifest_text: []cons
 }
 
 /// Resolves `.paths` entries from `build.zig.zon` relative to the manifest directory.
-pub fn loadPackagePaths(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const u8) !std.ArrayList([]const u8) {
-    const manifest_text = try readManifestText(allocator, io, manifest_path);
+pub fn loadPackagePaths(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    manifest_path: []const u8,
+) !std.ArrayList([]const u8) {
+    const manifest_text = try readManifestText(
+        allocator,
+        io,
+        manifest_path,
+    );
     defer allocator.free(manifest_text);
 
     const manifest = try parseManifestPartial(allocator, manifest_text);
@@ -217,8 +261,16 @@ pub fn loadPackagePaths(allocator: std.mem.Allocator, io: std.Io, manifest_path:
 }
 
 /// Collects resolved directory roots for every `.dependencies.*.path` in `build.zig.zon`.
-pub fn loadDependencyPathRoots(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const u8) !std.ArrayList([]const u8) {
-    const manifest_text = try readManifestText(allocator, io, manifest_path);
+pub fn loadDependencyPathRoots(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    manifest_path: []const u8,
+) !std.ArrayList([]const u8) {
+    const manifest_text = try readManifestText(
+        allocator,
+        io,
+        manifest_path,
+    );
     defer allocator.free(manifest_text);
 
     const dir = try manifestDir(manifest_path);
@@ -234,7 +286,11 @@ pub fn loadDependencyPathRoots(allocator: std.mem.Allocator, io: std.Io, manifes
         else
             try std.fs.path.join(allocator, &.{ dir, raw });
 
-        const normalized = realPathFileAlloc(allocator, io, joined) catch joined;
+        const normalized = realPathFileAlloc(
+            allocator,
+            io,
+            joined,
+        ) catch joined;
         if (joined.ptr != normalized.ptr) allocator.free(joined);
 
         try out.append(allocator, normalized);
@@ -244,12 +300,24 @@ pub fn loadDependencyPathRoots(allocator: std.mem.Allocator, io: std.Io, manifes
 }
 
 /// Loads package name, version, and project root from a manifest file.
-pub fn loadPackageMeta(allocator: std.mem.Allocator, io: std.Io, manifest_path: []const u8) !PackageMeta {
-    const manifest_text = try readManifestText(allocator, io, manifest_path);
+pub fn loadPackageMeta(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    manifest_path: []const u8,
+) !PackageMeta {
+    const manifest_text = try readManifestText(
+        allocator,
+        io,
+        manifest_path,
+    );
     defer allocator.free(manifest_text);
 
     const dir = try manifestDir(manifest_path);
-    const project_root = try realPathFileAlloc(allocator, io, dir);
+    const project_root = try realPathFileAlloc(
+        allocator,
+        io,
+        dir,
+    );
 
     var name: ?[]const u8 = null;
     if (scanPackageName(manifest_text)) |raw| {
@@ -276,28 +344,44 @@ pub fn loadNearestPackageMeta(allocator: std.mem.Allocator, io: std.Io) !Package
     const manifest_path = findNearestManifestPath(allocator, io) catch |err| switch (err) {
         error.OutOfMemory => return err,
         else => {
-            const cwd = try realPathFileAlloc(allocator, io, ".");
+            const cwd = try realPathFileAlloc(
+                allocator,
+                io,
+                ".",
+            );
             return .{
                 .project_root = cwd,
             };
         },
     };
     defer allocator.free(manifest_path);
-    return loadPackageMeta(allocator, io, manifest_path);
+    return loadPackageMeta(
+        allocator,
+        io,
+        manifest_path,
+    );
 }
 
 /// Convenience: nearest manifest package paths (same as CLI default targets).
 pub fn loadNearestPackagePaths(allocator: std.mem.Allocator, io: std.Io) !std.ArrayList([]const u8) {
     const manifest_path = try findNearestManifestPath(allocator, io);
     defer allocator.free(manifest_path);
-    return loadPackagePaths(allocator, io, manifest_path);
+    return loadPackagePaths(
+        allocator,
+        io,
+        manifest_path,
+    );
 }
 
 /// Convenience: dependency path roots for the nearest manifest.
 pub fn loadNearestDependencyPathRoots(allocator: std.mem.Allocator, io: std.Io) !std.ArrayList([]const u8) {
     const manifest_path = try findNearestManifestPath(allocator, io);
     defer allocator.free(manifest_path);
-    return loadDependencyPathRoots(allocator, io, manifest_path);
+    return loadDependencyPathRoots(
+        allocator,
+        io,
+        manifest_path,
+    );
 }
 
 /// Frees every owned path in `paths` and then deinits the list.

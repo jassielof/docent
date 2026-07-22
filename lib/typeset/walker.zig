@@ -71,7 +71,11 @@ pub fn walkModule(
     module_root_path: []const u8,
     module_name: []const u8,
 ) !Decl.Index {
-    var reachable = try reach.collectReachablePublicFiles(allocator, io, module_root_path);
+    var reachable = try reach.collectReachablePublicFiles(
+        allocator,
+        io,
+        module_root_path,
+    );
     defer reach.deinitOwnedPaths(allocator, &reachable);
 
     if (reachable.items.len == 0) return error.ModuleRootNotFound;
@@ -88,11 +92,21 @@ pub fn walkModule(
     for (reachable.items, 0..) |abs_path, i| {
         const paths = if (i == 0)
             Paths{
-                .key = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ module_name, root_basename }),
+                .key = try std.fmt.allocPrint(
+                    allocator,
+                    "{s}/{s}",
+                    .{ module_name, root_basename },
+                ),
                 .display = try allocator.dupe(u8, module_root_path),
             }
         else
-            try moduleRelativeKey(allocator, module_name, root_dir_abs, root_dir_arg, abs_path);
+            try moduleRelativeKey(
+                allocator,
+                module_name,
+                root_dir_abs,
+                root_dir_arg,
+                abs_path,
+            );
 
         if (Walk.active.files.contains(paths.key)) continue;
 
@@ -106,12 +120,20 @@ pub fn walkModule(
         );
 
         const file_index = try Walk.add_file(paths.key, source);
-        try real_paths.put(std.heap.page_allocator, paths.key, paths.display);
+        try real_paths.put(
+            std.heap.page_allocator,
+            paths.key,
+            paths.display,
+        );
         if (i == 0) root_file_index = file_index;
     }
 
     const found_root = root_file_index orelse return error.ModuleRootNotFound;
-    try Walk.active.modules.put(std.heap.page_allocator, module_name, found_root);
+    try Walk.active.modules.put(
+        std.heap.page_allocator,
+        module_name,
+        found_root,
+    );
     return Walk.File.Index.findRootDecl(found_root);
 }
 
@@ -135,7 +157,11 @@ fn moduleRelativeKey(
     root_dir_arg: []const u8,
     file_abs: []const u8,
 ) !Paths {
-    const rel = try target.pathRelativeTo(allocator, root_dir_abs, file_abs);
+    const rel = try target.pathRelativeTo(
+        allocator,
+        root_dir_abs,
+        file_abs,
+    );
     defer allocator.free(rel);
 
     // `pathRelativeTo` returns an unchanged dupe of `file_abs` when it isn't
@@ -144,17 +170,33 @@ fn moduleRelativeKey(
     // exactly. Fall back to a flattened, still-unique posix-ish key; nothing
     // crashes, but `@import` resolution for decls reached only through such
     // a file may not resolve.
-    if (std.mem.eql(u8, rel, file_abs)) {
+    if (std.mem.eql(
+        u8,
+        rel,
+        file_abs,
+    )) {
         const posix_abs = try posixify(allocator, file_abs);
         return .{
-            .key = try std.fmt.allocPrint(allocator, "{s}/_external/{s}", .{ module_name, posix_abs }),
+            .key = try std.fmt.allocPrint(
+                allocator,
+                "{s}/_external/{s}",
+                .{ module_name, posix_abs },
+            ),
             .display = posix_abs,
         };
     }
 
     return .{
-        .key = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ module_name, rel }),
-        .display = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ root_dir_arg, rel }),
+        .key = try std.fmt.allocPrint(
+            allocator,
+            "{s}/{s}",
+            .{ module_name, rel },
+        ),
+        .display = try std.fmt.allocPrint(
+            allocator,
+            "{s}/{s}",
+            .{ root_dir_arg, rel },
+        ),
     };
 }
 

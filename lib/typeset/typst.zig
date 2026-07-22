@@ -99,7 +99,11 @@ pub fn renderToTypst(
         .refs = refs,
         .std_collector = std_collector,
     };
-    try renderer.renderNode(doc, .root, &allocating.writer);
+    try renderer.renderNode(
+        doc,
+        .root,
+        &allocating.writer,
+    );
     out = allocating.toArrayList();
 
     return .{
@@ -117,17 +121,30 @@ const Renderer = struct {
     refs: ?*const external_refs.Table,
     std_collector: ?*std_bundle.Collector,
 
-    fn renderNode(self: *Renderer, doc: Document, node: Document.Node.Index, writer: *Writer) RenderError!void {
+    fn renderNode(
+        self: *Renderer,
+        doc: Document,
+        node: Document.Node.Index,
+        writer: *Writer,
+    ) RenderError!void {
         const data = doc.nodes.items(.data)[@intFromEnum(node)];
         switch (doc.nodes.items(.tag)[@intFromEnum(node)]) {
             .root => for (doc.extraChildren(data.container.children)) |child|
-                try self.renderNode(doc, child, writer),
+                try self.renderNode(
+                    doc,
+                    child,
+                    writer,
+                ),
 
             .list => {
                 const ordered = data.list.start.asNumber() != null;
                 for (doc.extraChildren(data.list.children)) |item| {
                     try writer.writeAll(if (ordered) "+ " else "- ");
-                    try self.renderListItemBody(doc, item, writer);
+                    try self.renderListItemBody(
+                        doc,
+                        item,
+                        writer,
+                    );
                     try writer.writeAll("\n");
                 }
                 try writer.writeAll("\n");
@@ -158,7 +175,11 @@ const Renderer = struct {
                             const cell_data = doc.nodes.items(.data)[@intFromEnum(cell)];
                             try writer.writeAll("[");
                             for (doc.extraChildren(cell_data.table_cell.children)) |child|
-                                try self.renderNode(doc, child, writer);
+                                try self.renderNode(
+                                    doc,
+                                    child,
+                                    writer,
+                                );
                             try writer.writeAll("], ");
                         }
                         if (is_header) try writer.writeAll("), ");
@@ -172,7 +193,11 @@ const Renderer = struct {
                 var level: u3 = 0;
                 while (level < data.heading.level) : (level += 1) try writer.writeByte('=');
                 try writer.writeByte(' ');
-                for (doc.extraChildren(data.heading.children)) |child| try self.renderNode(doc, child, writer);
+                for (doc.extraChildren(data.heading.children)) |child| try self.renderNode(
+                    doc,
+                    child,
+                    writer,
+                );
                 try writer.writeAll("\n\n");
             },
             .code_block => {
@@ -193,11 +218,19 @@ const Renderer = struct {
             },
             .blockquote => {
                 try writer.writeAll("#quote(block: true)[\n");
-                for (doc.extraChildren(data.container.children)) |child| try self.renderNode(doc, child, writer);
+                for (doc.extraChildren(data.container.children)) |child| try self.renderNode(
+                    doc,
+                    child,
+                    writer,
+                );
                 try writer.writeAll("]\n\n");
             },
             .paragraph => {
-                for (doc.extraChildren(data.container.children)) |child| try self.renderNode(doc, child, writer);
+                for (doc.extraChildren(data.container.children)) |child| try self.renderNode(
+                    doc,
+                    child,
+                    writer,
+                );
                 try writer.writeAll("\n\n");
             },
             .thematic_break => try writer.writeAll("#line(length: 100%)\n\n"),
@@ -206,7 +239,11 @@ const Renderer = struct {
                 try writer.writeAll("#link(\"");
                 try writeEscapedString(doc.string(data.link.target), writer);
                 try writer.writeAll("\")[");
-                for (doc.extraChildren(data.link.children)) |child| try self.renderNode(doc, child, writer);
+                for (doc.extraChildren(data.link.children)) |child| try self.renderNode(
+                    doc,
+                    child,
+                    writer,
+                );
                 try writer.writeAll("]");
             },
             .autolink => {
@@ -222,12 +259,20 @@ const Renderer = struct {
             },
             .strong => {
                 try writer.writeByte('*');
-                for (doc.extraChildren(data.container.children)) |child| try self.renderNode(doc, child, writer);
+                for (doc.extraChildren(data.container.children)) |child| try self.renderNode(
+                    doc,
+                    child,
+                    writer,
+                );
                 try writer.writeByte('*');
             },
             .emphasis => {
                 try writer.writeByte('_');
-                for (doc.extraChildren(data.container.children)) |child| try self.renderNode(doc, child, writer);
+                for (doc.extraChildren(data.container.children)) |child| try self.renderNode(
+                    doc,
+                    child,
+                    writer,
+                );
                 try writer.writeByte('_');
             },
             .code_span => try self.renderCodeSpan(doc.string(data.text.content), writer),
@@ -238,10 +283,18 @@ const Renderer = struct {
 
     /// Renders a code span, linking it if its content resolves via one of
     /// the three tiers described in the module doc comment.
-    fn renderCodeSpan(self: *Renderer, content: []const u8, writer: *Writer) RenderError!void {
+    fn renderCodeSpan(
+        self: *Renderer,
+        content: []const u8,
+        writer: *Writer,
+    ) RenderError!void {
         if (resolveDeclPath(self.origin, content)) |target| {
             if (target.get().is_pub()) {
-                try self.writeInternalLink(target, content, writer);
+                try self.writeInternalLink(
+                    target,
+                    content,
+                    writer,
+                );
                 return;
             }
         }
@@ -249,8 +302,16 @@ const Renderer = struct {
         if (looksLikeDottedPath(content)) {
             if (isStdPath(content)) {
                 if (self.std_collector) |collector| {
-                    if (collector.resolve(self.allocator, self.io, content) catch null) |target| {
-                        try self.writeInternalLink(target, content, writer);
+                    if (collector.resolve(
+                        self.allocator,
+                        self.io,
+                        content,
+                    ) catch null) |target| {
+                        try self.writeInternalLink(
+                            target,
+                            content,
+                            writer,
+                        );
                         return;
                     }
                     // Unresolvable even with local bundling on: per the
@@ -265,13 +326,21 @@ const Renderer = struct {
                         .{ self.zig_version, content },
                     );
                     try self.link_targets.append(self.allocator, content);
-                    try writeExternalLink(url, content, writer);
+                    try writeExternalLink(
+                        url,
+                        content,
+                        writer,
+                    );
                     return;
                 }
             } else if (self.refs) |table| {
                 if (table.get(content)) |url| {
                     try self.link_targets.append(self.allocator, content);
-                    try writeExternalLink(url, content, writer);
+                    try writeExternalLink(
+                        url,
+                        content,
+                        writer,
+                    );
                     return;
                 }
             }
@@ -284,7 +353,12 @@ const Renderer = struct {
 
     /// Writes an internal same-document link to `target`'s label, used for
     /// both same-module resolution and `--bundle-std` hits.
-    fn writeInternalLink(self: *Renderer, target: Decl.Index, content: []const u8, writer: *Writer) RenderError!void {
+    fn writeInternalLink(
+        self: *Renderer,
+        target: Decl.Index,
+        content: []const u8,
+        writer: *Writer,
+    ) RenderError!void {
         var fqn_buf: std.ArrayList(u8) = .empty;
         defer fqn_buf.deinit(std.heap.page_allocator);
         try target.get().fqn(&fqn_buf);
@@ -302,16 +376,29 @@ const Renderer = struct {
     /// paragraph child down to its inline content (no blank-line gap) --
     /// mirrors `Renderer.renderDefault`'s `.list_item` handling in
     /// `doc_comment` markup's HTML renderer.
-    fn renderListItemBody(self: *Renderer, doc: Document, item: Document.Node.Index, writer: *Writer) RenderError!void {
+    fn renderListItemBody(
+        self: *Renderer,
+        doc: Document,
+        item: Document.Node.Index,
+        writer: *Writer,
+    ) RenderError!void {
         const item_data = doc.nodes.items(.data)[@intFromEnum(item)];
         for (doc.extraChildren(item_data.list_item.children)) |child| {
             const child_tag = doc.nodes.items(.tag)[@intFromEnum(child)];
             if (item_data.list_item.tight and child_tag == .paragraph) {
                 const para_data = doc.nodes.items(.data)[@intFromEnum(child)];
                 for (doc.extraChildren(para_data.container.children)) |para_child|
-                    try self.renderNode(doc, para_child, writer);
+                    try self.renderNode(
+                        doc,
+                        para_child,
+                        writer,
+                    );
             } else {
-                try self.renderNode(doc, child, writer);
+                try self.renderNode(
+                    doc,
+                    child,
+                    writer,
+                );
             }
         }
     }
@@ -323,7 +410,11 @@ const Renderer = struct {
 /// spans -- parameter names, expressions, etc. -- fall in this bucket, and
 /// that's expected).
 fn resolveDeclPath(origin: Decl.Index, path: []const u8) ?Decl.Index {
-    var components = std.mem.splitScalar(u8, path, '.');
+    var components = std.mem.splitScalar(
+        u8,
+        path,
+        '.',
+    );
     var current = origin.get().lookup(components.first()) orelse return null;
     while (components.next()) |component| {
         switch (current.get().categorize()) {
@@ -352,10 +443,22 @@ fn looksLikeDottedPath(s: []const u8) bool {
 /// True when `path` is `std` or starts with `std.` -- see the module doc
 /// comment for the (verified) URL/anchor format this feeds into.
 fn isStdPath(path: []const u8) bool {
-    return std.mem.eql(u8, path, "std") or std.mem.startsWith(u8, path, "std.");
+    return std.mem.eql(
+        u8,
+        path,
+        "std",
+    ) or std.mem.startsWith(
+        u8,
+        path,
+        "std.",
+    );
 }
 
-fn writeExternalLink(url: []const u8, content: []const u8, writer: *Writer) Writer.Error!void {
+fn writeExternalLink(
+    url: []const u8,
+    content: []const u8,
+    writer: *Writer,
+) Writer.Error!void {
     try writer.writeAll("#link(\"");
     try writeEscapedString(url, writer);
     try writer.writeAll("\")[`");
@@ -384,7 +487,12 @@ fn writeTextWithInlineMath(text: []const u8, writer: *Writer) Writer.Error!void 
             const open_len: usize = if (block) 2 else 1;
             const close = if (block) "$$" else "$";
             const start = i + open_len;
-            if (std.mem.indexOfPos(u8, text, start, close)) |end| {
+            if (std.mem.indexOfPos(
+                u8,
+                text,
+                start,
+                close,
+            )) |end| {
                 const latex = text[start..end];
                 if (block) {
                     try writer.writeAll("#mitex(`");
@@ -401,7 +509,11 @@ fn writeTextWithInlineMath(text: []const u8, writer: *Writer) Writer.Error!void 
         }
         // Emit one character (with Typst escaping) and advance.
         const rest = text[i..];
-        const next_dollar = std.mem.indexOfScalar(u8, rest, '$') orelse rest.len;
+        const next_dollar = std.mem.indexOfScalar(
+            u8,
+            rest,
+            '$',
+        ) orelse rest.len;
         try writeEscapedTypstText(rest[0..next_dollar], writer);
         i += next_dollar;
         if (i < text.len and text[i] == '$') {
@@ -413,14 +525,38 @@ fn writeTextWithInlineMath(text: []const u8, writer: *Writer) Writer.Error!void 
 }
 
 fn isMathFenceTag(tag: []const u8) bool {
-    const t = std.mem.trim(u8, tag, " \t");
-    return std.mem.eql(u8, t, "math") or std.mem.eql(u8, t, "latex") or std.mem.eql(u8, t, "tex");
+    const t = std.mem.trim(
+        u8,
+        tag,
+        " \t",
+    );
+    return std.mem.eql(
+        u8,
+        t,
+        "math",
+    ) or std.mem.eql(
+        u8,
+        t,
+        "latex",
+    ) or std.mem.eql(
+        u8,
+        t,
+        "tex",
+    );
 }
 
 /// Codly language keys are single tokens; collapse `zig test` → `zig`.
 fn normalizeCodeFenceTag(tag: []const u8) []const u8 {
-    const t = std.mem.trim(u8, tag, " \t");
-    if (std.mem.indexOfScalar(u8, t, ' ')) |sp| return t[0..sp];
+    const t = std.mem.trim(
+        u8,
+        tag,
+        " \t",
+    );
+    if (std.mem.indexOfScalar(
+        u8,
+        t,
+        ' ',
+    )) |sp| return t[0..sp];
     return t;
 }
 

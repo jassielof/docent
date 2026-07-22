@@ -5,9 +5,17 @@ const build_scan = @import("../build_scan.zig");
 const reach = @import("reach.zig");
 const carnaval = @import("carnaval");
 
-fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
+fn realPathFileAlloc(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+    const len = try std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    );
     return allocator.dupe(u8, buffer[0..len]);
 }
 
@@ -85,11 +93,23 @@ fn pathSeparatorsEqual(a: u8, b: u8) bool {
 fn pathHasSegment(path: []const u8, segment: []const u8) bool {
     var rest = path;
     while (rest.len > 0) {
-        if (std.mem.startsWith(u8, rest, segment)) {
+        if (std.mem.startsWith(
+            u8,
+            rest,
+            segment,
+        )) {
             const after = rest[segment.len..];
             if (after.len == 0 or pathSeparatorsEqual(after[0], '/')) return true;
         }
-        const slash = std.mem.indexOfScalar(u8, rest, '/') orelse std.mem.indexOfScalar(u8, rest, '\\') orelse break;
+        const slash = std.mem.indexOfScalar(
+            u8,
+            rest,
+            '/',
+        ) orelse std.mem.indexOfScalar(
+            u8,
+            rest,
+            '\\',
+        ) orelse break;
         rest = rest[slash + 1 ..];
     }
     return false;
@@ -122,11 +142,21 @@ pub fn collectDirectoryLintTargets(
     var entrypoints: std.ArrayList([]const u8) = .empty;
     defer deinitOwnedPaths(allocator, &entrypoints);
 
-    try collectDirectoryEntrypoints(allocator, io, dir_path, options, &entrypoints);
+    try collectDirectoryEntrypoints(
+        allocator,
+        io,
+        dir_path,
+        options,
+        &entrypoints,
+    );
 
     if (entrypoints.items.len > 0) {
         for (entrypoints.items) |entrypoint| {
-            var reachable = try reach.collectReachablePublicFiles(allocator, io, entrypoint);
+            var reachable = try reach.collectReachablePublicFiles(
+                allocator,
+                io,
+                entrypoint,
+            );
             defer reach.deinitOwnedPaths(allocator, &reachable);
 
             for (reachable.items) |path| {
@@ -139,7 +169,13 @@ pub fn collectDirectoryLintTargets(
         return targets;
     }
 
-    try collectRecursiveZigFiles(allocator, io, dir_path, options, &targets);
+    try collectRecursiveZigFiles(
+        allocator,
+        io,
+        dir_path,
+        options,
+        &targets,
+    );
     return targets;
 }
 
@@ -157,7 +193,11 @@ fn tryAppendEntrypoint(
     out: *std.ArrayList([]const u8),
 ) !bool {
     if (!isReadableLocalFile(io, candidate)) return false;
-    const root_abs = realPathFileAlloc(allocator, io, candidate) catch return false;
+    const root_abs = realPathFileAlloc(
+        allocator,
+        io,
+        candidate,
+    ) catch return false;
     if (shouldSkipLintFile(root_abs, options)) {
         allocator.free(root_abs);
         return false;
@@ -183,7 +223,13 @@ pub fn collectDirectoryEntrypoints(
     for (relative_roots) |relative_root| {
         const candidate = try std.fs.path.join(allocator, &.{ dir_path, relative_root });
         defer allocator.free(candidate);
-        if (try tryAppendEntrypoint(allocator, io, candidate, options, out)) return;
+        if (try tryAppendEntrypoint(
+            allocator,
+            io,
+            candidate,
+            options,
+            out,
+        )) return;
     }
 
     var dir = std.Io.Dir.cwd().openDir(
@@ -199,12 +245,20 @@ pub fn collectDirectoryEntrypoints(
 
     while (try it.next(io)) |entry| {
         if (entry.kind != .file) continue;
-        if (!std.mem.endsWith(u8, entry.name, ".zig")) continue;
+        if (!std.mem.endsWith(
+            u8,
+            entry.name,
+            ".zig",
+        )) continue;
 
         const full = try std.fs.path.join(allocator, &.{ dir_path, entry.name });
         defer allocator.free(full);
 
-        const abs = realPathFileAlloc(allocator, io, full) catch continue;
+        const abs = realPathFileAlloc(
+            allocator,
+            io,
+            full,
+        ) catch continue;
         if (shouldSkipLintFile(abs, options)) {
             allocator.free(abs);
             continue;
@@ -221,7 +275,11 @@ pub fn collectRecursiveZigFiles(
     options: Options,
     out: *std.ArrayList([]const u8),
 ) !void {
-    var dir = std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return;
+    var dir = std.Io.Dir.cwd().openDir(
+        io,
+        dir_path,
+        .{ .iterate = true },
+    ) catch return;
     defer dir.close(io);
 
     var walker = try dir.walk(allocator);
@@ -229,12 +287,20 @@ pub fn collectRecursiveZigFiles(
 
     while (try walker.next(io)) |entry| {
         if (entry.kind != .file) continue;
-        if (!std.mem.endsWith(u8, entry.basename, ".zig")) continue;
+        if (!std.mem.endsWith(
+            u8,
+            entry.basename,
+            ".zig",
+        )) continue;
 
         const full = try std.fs.path.join(allocator, &.{ dir_path, entry.path });
         defer allocator.free(full);
 
-        const abs = realPathFileAlloc(allocator, io, full) catch continue;
+        const abs = realPathFileAlloc(
+            allocator,
+            io,
+            full,
+        ) catch continue;
         if (shouldSkipLintFile(abs, options)) {
             allocator.free(abs);
             continue;
@@ -244,7 +310,11 @@ pub fn collectRecursiveZigFiles(
 }
 
 fn isReadableLocalFile(io: std.Io, path: []const u8) bool {
-    const file = std.Io.Dir.cwd().openFile(io, path, .{}) catch return false;
+    const file = std.Io.Dir.cwd().openFile(
+        io,
+        path,
+        .{},
+    ) catch return false;
     file.close(io);
     return true;
 }
@@ -261,7 +331,11 @@ pub fn collectBuildScriptLintFiles(
 
     if (!isReadableLocalFile(io, build_zig)) return;
 
-    var reachable = try reach.collectReachableFiles(allocator, io, build_zig);
+    var reachable = try reach.collectReachableFiles(
+        allocator,
+        io,
+        build_zig,
+    );
     defer deinitOwnedPaths(allocator, &reachable);
 
     for (reachable.items) |path| {
@@ -273,12 +347,32 @@ pub fn collectBuildScriptLintFiles(
 /// Returns whether `path` refers to a build script (`build.zig` or under `build/`).
 pub fn isBuildScriptPath(path: []const u8) bool {
     const base = std.fs.path.basename(path);
-    if (std.mem.eql(u8, base, "build.zig")) return true;
+    if (std.mem.eql(
+        u8,
+        base,
+        "build.zig",
+    )) return true;
 
-    if (std.mem.indexOf(u8, path, "/build/") != null) return true;
-    if (std.mem.indexOf(u8, path, "\\build\\") != null) return true;
-    if (std.mem.startsWith(u8, path, "build/")) return true;
-    if (std.mem.startsWith(u8, path, "build\\")) return true;
+    if (std.mem.indexOf(
+        u8,
+        path,
+        "/build/",
+    ) != null) return true;
+    if (std.mem.indexOf(
+        u8,
+        path,
+        "\\build\\",
+    ) != null) return true;
+    if (std.mem.startsWith(
+        u8,
+        path,
+        "build/",
+    )) return true;
+    if (std.mem.startsWith(
+        u8,
+        path,
+        "build\\",
+    )) return true;
 
     return false;
 }
@@ -312,8 +406,17 @@ pub const PathSet = struct {
     }
 
     /// Returns `true` when `path` was already recorded.
-    pub fn put(self: *PathSet, allocator: std.mem.Allocator, io: std.Io, path: []const u8) !bool {
-        const canonical = realPathFileAlloc(allocator, io, path) catch try allocator.dupe(u8, path);
+    pub fn put(
+        self: *PathSet,
+        allocator: std.mem.Allocator,
+        io: std.Io,
+        path: []const u8,
+    ) !bool {
+        const canonical = realPathFileAlloc(
+            allocator,
+            io,
+            path,
+        ) catch try allocator.dupe(u8, path);
         defer allocator.free(canonical);
 
         var it = self.map.keyIterator();
@@ -333,7 +436,11 @@ pub const PathSet = struct {
 };
 
 /// Returns `path` relative to `base`, or a copy of `path` when `path` is not under `base`.
-pub fn pathRelativeTo(allocator: std.mem.Allocator, base: []const u8, path: []const u8) ![]const u8 {
+pub fn pathRelativeTo(
+    allocator: std.mem.Allocator,
+    base: []const u8,
+    path: []const u8,
+) ![]const u8 {
     if (path.len < base.len or !pathsEqual(path[0..base.len], base)) {
         return allocator.dupe(u8, path);
     }
@@ -353,20 +460,32 @@ pub fn pathRelativeTo(allocator: std.mem.Allocator, base: []const u8, path: []co
 }
 
 /// Returns whether a scanned build target matches the active targeting options.
-pub fn matchesTarget(options: Options, name: []const u8, kind: build_scan.TargetKind) bool {
+pub fn matchesTarget(
+    options: Options,
+    name: []const u8,
+    kind: build_scan.TargetKind,
+) bool {
     return switch (kind) {
         .lib => options.effectiveLib(),
         .bin => blk: {
             if (options.bins) break :blk true;
             for (options.bin_names) |bin_name| {
-                if (std.mem.eql(u8, bin_name, name)) break :blk true;
+                if (std.mem.eql(
+                    u8,
+                    bin_name,
+                    name,
+                )) break :blk true;
             }
             break :blk false;
         },
         .test_target => blk: {
             if (options.tests) break :blk true;
             for (options.test_names) |test_name| {
-                if (std.mem.eql(u8, test_name, name)) break :blk true;
+                if (std.mem.eql(
+                    u8,
+                    test_name,
+                    name,
+                )) break :blk true;
             }
             break :blk false;
         },
@@ -374,40 +493,94 @@ pub fn matchesTarget(options: Options, name: []const u8, kind: build_scan.Target
 }
 
 /// Allocates a human-readable explanation for why a target was not linted.
-pub fn skipReason(allocator: std.mem.Allocator, profile: carnaval.ColorProfile, kind: build_scan.TargetKind, options: Options, name: []const u8) ![]const u8 {
+pub fn skipReason(
+    allocator: std.mem.Allocator,
+    profile: carnaval.ColorProfile,
+    kind: build_scan.TargetKind,
+    options: Options,
+    name: []const u8,
+) ![]const u8 {
     return switch (kind) {
         .lib => try allocator.dupe(u8, "Libraries are not selected by active filters."),
         .bin => blk: {
             if (options.bin_names.len > 0) {
-                const bin_flag = try carnaval.Style.init().italicized().underlined().renderAllocWithProfile("--bin", allocator, profile);
+                const bin_flag = try carnaval.Style.init().italicized().underlined().renderAllocWithProfile(
+                    "--bin",
+                    allocator,
+                    profile,
+                );
                 defer allocator.free(bin_flag);
-                break :blk try std.fmt.allocPrint(allocator, "Executable name does not match active {s} filters.", .{bin_flag});
+                break :blk try std.fmt.allocPrint(
+                    allocator,
+                    "Executable name does not match active {s} filters.",
+                    .{bin_flag},
+                );
             }
-            const bins_styled = try carnaval.Style.init().underlined().renderAllocWithProfile("--bins", allocator, profile);
+            const bins_styled = try carnaval.Style.init().underlined().renderAllocWithProfile(
+                "--bins",
+                allocator,
+                profile,
+            );
             defer allocator.free(bins_styled);
 
-            const bin_raw = try std.fmt.allocPrint(allocator, "--bin {s}", .{name});
+            const bin_raw = try std.fmt.allocPrint(
+                allocator,
+                "--bin {s}",
+                .{name},
+            );
             defer allocator.free(bin_raw);
-            const bin_styled = try carnaval.Style.init().underlined().renderAllocWithProfile(bin_raw, allocator, profile);
+            const bin_styled = try carnaval.Style.init().underlined().renderAllocWithProfile(
+                bin_raw,
+                allocator,
+                profile,
+            );
             defer allocator.free(bin_styled);
 
-            break :blk try std.fmt.allocPrint(allocator, "Executables are opt-in (add {s} or {s}).", .{ bins_styled, bin_styled });
+            break :blk try std.fmt.allocPrint(
+                allocator,
+                "Executables are opt-in (add {s} or {s}).",
+                .{ bins_styled, bin_styled },
+            );
         },
         .test_target => blk: {
             if (options.test_names.len > 0) {
-                const test_flag = try carnaval.Style.init().underlined().renderAllocWithProfile("--test", allocator, profile);
+                const test_flag = try carnaval.Style.init().underlined().renderAllocWithProfile(
+                    "--test",
+                    allocator,
+                    profile,
+                );
                 defer allocator.free(test_flag);
-                break :blk try std.fmt.allocPrint(allocator, "Test name does not match active {s} filters.", .{test_flag});
+                break :blk try std.fmt.allocPrint(
+                    allocator,
+                    "Test name does not match active {s} filters.",
+                    .{test_flag},
+                );
             }
-            const tests_styled = try carnaval.Style.init().underlined().renderAllocWithProfile("--tests", allocator, profile);
+            const tests_styled = try carnaval.Style.init().underlined().renderAllocWithProfile(
+                "--tests",
+                allocator,
+                profile,
+            );
             defer allocator.free(tests_styled);
 
-            const test_raw = try std.fmt.allocPrint(allocator, "--test {s}", .{name});
+            const test_raw = try std.fmt.allocPrint(
+                allocator,
+                "--test {s}",
+                .{name},
+            );
             defer allocator.free(test_raw);
-            const test_styled = try carnaval.Style.init().underlined().renderAllocWithProfile(test_raw, allocator, profile);
+            const test_styled = try carnaval.Style.init().underlined().renderAllocWithProfile(
+                test_raw,
+                allocator,
+                profile,
+            );
             defer allocator.free(test_styled);
 
-            break :blk try std.fmt.allocPrint(allocator, "Tests are opt-in (add {s} or {s}).", .{ tests_styled, test_styled });
+            break :blk try std.fmt.allocPrint(
+                allocator,
+                "Tests are opt-in (add {s} or {s}).",
+                .{ tests_styled, test_styled },
+            );
         },
     };
 }
@@ -428,11 +601,23 @@ test "PathSet deduplicates canonical paths" {
     var set = PathSet.init(allocator);
     defer set.deinit(allocator);
 
-    const first = try realPathFileAlloc(allocator, io, ".");
+    const first = try realPathFileAlloc(
+        allocator,
+        io,
+        ".",
+    );
     defer allocator.free(first);
 
-    try std.testing.expect(!try set.put(allocator, io, first));
-    try std.testing.expect(try set.put(allocator, io, first));
+    try std.testing.expect(!try set.put(
+        allocator,
+        io,
+        first,
+    ));
+    try std.testing.expect(try set.put(
+        allocator,
+        io,
+        first,
+    ));
 }
 
 test "artifact directories are skipped" {

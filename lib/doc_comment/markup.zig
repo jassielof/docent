@@ -159,7 +159,11 @@ fn mainImpl() !void {
     var stdin_reader = std.fs.File.stdin().reader(&stdin_buffer);
 
     while (stdin_reader.takeDelimiterExclusive('\n')) |line| {
-        const trimmed = std.mem.trimEnd(u8, line, '\r');
+        const trimmed = std.mem.trimEnd(
+            u8,
+            line,
+            '\r',
+        );
         try parser.feedLine(trimmed);
     } else |err| switch (err) {
         error.EndOfStream => {},
@@ -1122,7 +1126,11 @@ fn testRender(input: []const u8, expected: []const u8) !void {
     var parser = try Parser.init(testing.allocator);
     defer parser.deinit();
 
-    var lines = std.mem.splitScalar(u8, input, '\n');
+    var lines = std.mem.splitScalar(
+        u8,
+        input,
+        '\n',
+    );
     while (lines.next()) |line| {
         try parser.feedLine(line);
     }
