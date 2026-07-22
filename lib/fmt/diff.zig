@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 
 const carnaval = @import("carnaval");
 const dmp = @import("dmp");
+const vereda = @import("vereda");
 
 const removed_style = carnaval.Style.init().fg(.{ .ansi16 = .red });
 const added_style = carnaval.Style.init().fg(.{ .ansi16 = .green });
@@ -17,20 +18,35 @@ test "reports a changed line once when surrounding lines repeat" {
     try writeDiff(
         std.testing.io,
         &output.writer,
-        "example.zig",
+        "lib/fmt\\example.zig",
         "same\nchange\nsame\n",
         "same\nchanged\nsame\n",
         .none,
     );
 
     try std.testing.expectEqualStrings(
-        \\from example.zig:
+        \\from lib/fmt/example.zig:
         \\   2 | - change
         \\  ...
         \\   2 | + changed
         \\
         \\
     ,
+        output.writer.buffered(),
+    );
+}
+
+test "renders diagnostic paths with forward slashes" {
+    var output = std.Io.Writer.Allocating.init(std.testing.allocator);
+    defer output.deinit();
+
+    try writeDisplayPath(
+        &output.writer,
+        "lib/fmt\\Formatter.zig",
+    );
+
+    try std.testing.expectEqualStrings(
+        "lib/fmt/Formatter.zig",
         output.writer.buffered(),
     );
 }
@@ -43,6 +59,12 @@ pub fn writeDiff(
     formatted: []const u8,
     profile: carnaval.ColorProfile,
 ) !void {
+    const display_path = try vereda.path.toPosixSeparators(
+        std.heap.page_allocator,
+        file_path,
+    );
+    defer std.heap.page_allocator.free(display_path);
+
     var orig_lines: std.ArrayList([]const u8) = .empty;
     var fmt_lines: std.ArrayList([]const u8) = .empty;
     defer orig_lines.deinit(std.heap.page_allocator);
@@ -75,7 +97,7 @@ pub fn writeDiff(
 
     try writer.writeAll("from ");
     try location_style.renderWithProfile(
-        file_path,
+        display_path,
         writer,
         profile,
     );
@@ -130,6 +152,20 @@ pub fn writeDiff(
 
         try writer.writeAll("\n");
     }
+}
+
+/// Writes `path` using forward slashes for stable, copyable diagnostics.
+/// The original path remains untouched for filesystem operations.
+pub fn writeDisplayPath(
+    writer: *std.Io.Writer,
+    path: []const u8,
+) !void {
+    const display_path = try vereda.path.toPosixSeparators(
+        std.heap.page_allocator,
+        path,
+    );
+    defer std.heap.page_allocator.free(display_path);
+    try writer.writeAll(display_path);
 }
 
 fn writeLineNumber(

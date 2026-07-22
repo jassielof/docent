@@ -46,6 +46,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "carnaval", .module = carnaval_mod },
             .{ .name = "dmp", .module = dmp_mod },
+            .{ .name = "vereda", .module = vereda_mod },
         },
     });
 
