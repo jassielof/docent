@@ -56,6 +56,61 @@ stdout_writer: *Io.File.Writer,
 const Formatter = @This();
 const SeenMap = std.AutoHashMap(Io.File.INode, void);
 
+test "preserves custom Zig-formatted array layouts" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\const a = &.{
+        \\    "hola",    "adios",
+        \\    "bonjour", "au revoir",
+        \\};
+        \\
+    ;
+
+    const formatted = try formatSourceForTest(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+}
+
+test "normalizes malformed packed array rows" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\const a = &.{
+        \\    "hola",
+        \\    "adios",     "hola",
+        \\    "bonjour", "au revoir",
+        \\};
+        \\
+    ;
+    const expected =
+        \\const a = &.{
+        \\    "hola",
+        \\    "adios",
+        \\    "hola",
+        \\    "bonjour",
+        \\    "au revoir",
+        \\};
+        \\
+    ;
+
+    const formatted = try formatSourceForTest(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+}
+
+fn formatSourceForTest(gpa: Allocator, input: []const u8) ![]const u8 {
+    const sentinel_input = try gpa.dupeZ(u8, input);
+    defer gpa.free(sentinel_input);
+    var tree = try std.zig.Ast.parse(gpa, sentinel_input, .zig);
+    defer tree.deinit(gpa);
+    try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
+
+    const rendered = try tree.renderAlloc(gpa);
+    defer gpa.free(rendered);
+    const post_processed = try applyPostProcessing(gpa, rendered, .{});
+    if (post_processed.allocated) return post_processed.output;
+    return gpa.dupe(u8, post_processed.output);
+}
+
 pub fn init(gpa: Allocator, io: Io, stdout_writer: *Io.File.Writer, opts: Options, config: Config) Formatter {
     return .{
         .gpa = gpa,
