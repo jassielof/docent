@@ -8,8 +8,34 @@ const format_test_assertions = @import("format_test_assertions.zig");
 
 test "reindents using two spaces" {
     const gpa = std.testing.allocator;
-    const input = @embedFile("fixtures/indent_width/input.zig");
-    const expected = @embedFile("fixtures/indent_width/expected_spaces_2.zig");
+    const input =
+        \\fn example(cond: bool) void {
+        \\    if (cond) {
+        \\        const x = 1;
+        \\        _ = x;
+        \\        if (!cond) {
+        \\            doSomething();
+        \\        }
+        \\    }
+        \\}
+        \\
+        \\fn doSomething() void {}
+        \\
+    ;
+    const expected =
+        \\fn example(cond: bool) void {
+        \\  if (cond) {
+        \\    const x = 1;
+        \\    _ = x;
+        \\    if (!cond) {
+        \\      doSomething();
+        \\    }
+        \\  }
+        \\}
+        \\
+        \\fn doSomething() void {}
+        \\
+    ;
 
     const formatted = try reindent(gpa, input, .space, 2);
     defer gpa.free(formatted);
@@ -25,8 +51,32 @@ test "reindents using two spaces" {
 
 test "reindents using tabs" {
     const gpa = std.testing.allocator;
-    const input = @embedFile("fixtures/indent_width/input.zig");
-    const expected = @embedFile("fixtures/indent_width/expected_tabs.zig");
+    const input =
+        \\fn example(cond: bool) void {
+        \\    if (cond) {
+        \\        const x = 1;
+        \\        _ = x;
+        \\        if (!cond) {
+        \\            doSomething();
+        \\        }
+        \\    }
+        \\}
+        \\
+        \\fn doSomething() void {}
+        \\
+    ;
+    const expected =
+        "fn example(cond: bool) void {\n" ++
+        "\tif (cond) {\n" ++
+        "\t\tconst x = 1;\n" ++
+        "\t\t_ = x;\n" ++
+        "\t\tif (!cond) {\n" ++
+        "\t\t\tdoSomething();\n" ++
+        "\t\t}\n" ++
+        "\t}\n" ++
+        "}\n" ++
+        "\n" ++
+        "fn doSomething() void {}\n";
 
     const formatted = try reindent(gpa, input, .tab, 4);
     defer gpa.free(formatted);

@@ -16,8 +16,39 @@ const format_test_assertions = @import("format_test_assertions.zig");
 
 test "wraps overlong call lists" {
     const gpa = std.testing.allocator;
-    const input = @embedFile("fixtures/auto_wrap/input.zig");
-    const expected = @embedFile("fixtures/auto_wrap/expected.zig");
+    const input =
+        \\const std = @import("std");
+        \\
+        \\pub fn example(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32) i32 {
+        \\    return a + b + c + d + e + f + g + h;
+        \\}
+        \\
+        \\pub fn short(x: i32) i32 {
+        \\    return x;
+        \\}
+        \\
+    ;
+    const expected =
+        \\const std = @import("std");
+        \\
+        \\pub fn example(
+        \\    a: i32,
+        \\    b: i32,
+        \\    c: i32,
+        \\    d: i32,
+        \\    e: i32,
+        \\    f: i32,
+        \\    g: i32,
+        \\    h: i32,
+        \\) i32 {
+        \\    return a + b + c + d + e + f + g + h;
+        \\}
+        \\
+        \\pub fn short(x: i32) i32 {
+        \\    return x;
+        \\}
+        \\
+    ;
 
     const formatted = try autoWrap(gpa, input, 60);
     defer gpa.free(formatted);
@@ -31,7 +62,12 @@ test "wraps overlong call lists" {
 
 test "leaves short lines unchanged" {
     const gpa = std.testing.allocator;
-    const expected = @embedFile("fixtures/auto_wrap/expected_short.zig");
+    const expected =
+        \\pub fn short(x: i32) i32 {
+        \\    return x;
+        \\}
+        \\
+    ;
 
     const formatted = try autoWrap(gpa, expected, 100);
     defer gpa.free(formatted);

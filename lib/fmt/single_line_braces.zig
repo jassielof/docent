@@ -67,8 +67,147 @@ pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
 
 test "enforces braces for single-line control flow" {
     const gpa = std.testing.allocator;
-    const input = @embedFile("fixtures/single_line_braces/input.zig");
-    const expected = @embedFile("fixtures/single_line_braces/expected.zig");
+    const input =
+        \\const std = @import("std");
+        \\
+        \\fn doSomething() void {}
+        \\fn foo() void {}
+        \\fn bar() void {}
+        \\fn alreadyBraced() void {}
+        \\
+        \\fn process(item: i32) void {
+        \\    _ = item;
+        \\}
+        \\
+        \\fn example() void {
+        \\    const a = 5;
+        \\    const b = 10;
+        \\    const x = .{ .a = 1 };
+        \\    const y = 30;
+        \\    const iter: std.ArrayList(i32) = .empty;
+        \\    const items = [_]i32{ 1, 2, 3 };
+        \\
+        \\    if (true) return;
+        \\
+        \\    if (a > b) doSomething();
+        \\
+        \\    if (x) foo() else bar();
+        \\
+        \\    while (iter.next()) |item| process(item);
+        \\
+        \\    for (items) |item| process(item);
+        \\
+        \\    if (true) {
+        \\        alreadyBraced();
+        \\    }
+        \\
+        \\    if (a) {
+        \\        x;
+        \\    } else if (b) {
+        \\        y;
+        \\    }
+        \\
+        \\    const conditional_value: usize = if (x > 4)
+        \\        "greater"
+        \\    else
+        \\        "lesser";
+        \\
+        \\    _ = conditional_value;
+        \\
+        \\    const mode: i32 = if (a > b) 1 else 0;
+        \\    _ = mode;
+        \\
+        \\    consume(
+        \\        a,
+        \\        if (a > b) 1 else 0,
+        \\    );
+        \\}
+        \\
+        \\fn consume(v: i32, w: i32) void {
+        \\    _ = v;
+        \\    _ = w;
+        \\}
+        \\
+    ;
+    const expected =
+        \\const std = @import("std");
+        \\
+        \\fn doSomething() void {}
+        \\fn foo() void {}
+        \\fn bar() void {}
+        \\fn alreadyBraced() void {}
+        \\
+        \\fn process(item: i32) void {
+        \\    _ = item;
+        \\}
+        \\
+        \\fn example() void {
+        \\    const a = 5;
+        \\    const b = 10;
+        \\    const x = .{ .a = 1 };
+        \\    const y = 30;
+        \\    const iter: std.ArrayList(i32) = .empty;
+        \\    const items = [_]i32{ 1, 2, 3 };
+        \\
+        \\    if (true) {
+        \\        return;
+        \\    }
+        \\
+        \\    if (a > b) {
+        \\        doSomething();
+        \\    }
+        \\
+        \\    if (x) {
+        \\        foo();
+        \\    } else {
+        \\        bar();
+        \\    }
+        \\
+        \\    while (iter.next()) |item| {
+        \\        process(item);
+        \\    }
+        \\
+        \\    for (items) |item| {
+        \\        process(item);
+        \\    }
+        \\
+        \\    if (true) {
+        \\        alreadyBraced();
+        \\    }
+        \\
+        \\    if (a) {
+        \\        x;
+        \\    } else if (b) {
+        \\        y;
+        \\    }
+        \\
+        \\    const conditional_value: usize = if (x > 4) {
+        \\        "greater";
+        \\    } else {
+        \\        "lesser";
+        \\    };
+        \\
+        \\    _ = conditional_value;
+        \\
+        \\    const mode: i32 = if (a > b) {
+        \\        1;
+        \\    } else {
+        \\        0;
+        \\    };
+        \\    _ = mode;
+        \\
+        \\    consume(
+        \\        a,
+        \\        if (a > b) 1 else 0,
+        \\    );
+        \\}
+        \\
+        \\fn consume(v: i32, w: i32) void {
+        \\    _ = v;
+        \\    _ = w;
+        \\}
+        \\
+    ;
 
     const formatted = try enforceBraces(gpa, input);
     defer gpa.free(formatted);
