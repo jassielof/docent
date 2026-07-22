@@ -8,6 +8,13 @@
 //!
 //! - [Zig's main formatting implementation](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/fmt.zig)
 //! - [gofumpt](https://github.com/mvdan/gofumpt)
+// TODO: The check diff diagnostics mix up the slashes (I'm on Windows):
+// ```
+// lib/fmt\Formatter.zig
+// lib/fmt\root.zig
+// internal/docent\root.zig
+// ```
+// These are set as `include = ["lib/", "internal/"]` which isn't normalized, Vereda might help with path normalization.
 
 const std = @import("std");
 
