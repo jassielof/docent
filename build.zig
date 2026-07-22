@@ -59,6 +59,7 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // TODO: This module should be internal (`createModule`) not public (`addModule`).
     const mod = b.addModule(
         "docent",
         .{
