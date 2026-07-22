@@ -19,17 +19,18 @@
 //! parsed.
 
 const std = @import("std");
-const mem = std.mem;
-const assert = std.debug.assert;
+const ArrayList = std.ArrayList;
 const isWhitespace = std.ascii.isWhitespace;
+const assert = std.debug.assert;
+const mem = std.mem;
 const Allocator = mem.Allocator;
 const expectEqual = std.testing.expectEqual;
+
 const Document = @import("Document.zig");
-const Node = Document.Node;
-const ExtraIndex = Document.ExtraIndex;
 const ExtraData = Document.ExtraData;
+const ExtraIndex = Document.ExtraIndex;
+const Node = Document.Node;
 const StringIndex = Document.StringIndex;
-const ArrayList = std.ArrayList;
 
 nodes: Node.List = .{},
 extra: ArrayList(u32) = .empty,
