@@ -2,12 +2,12 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-const types = @import("types.zig");
-const ImportEntry = types.ImportEntry;
 const sorter = @import("sorter.zig");
 const Group = sorter.Group;
-const SuperGroup = sorter.SuperGroup;
 const SortedGroups = sorter.SortedGroups;
+const SuperGroup = sorter.SuperGroup;
+const types = @import("types.zig");
+const ImportEntry = types.ImportEntry;
 
 pub fn render(
     arena: Allocator,
@@ -162,16 +162,30 @@ fn renderFiles(
 
     const S = struct {
         entries: []const ImportEntry,
-        fn lessThan(ctx: @This(), a: usize, b: usize) bool {
+        fn lessThan(
+            ctx: @This(),
+            a: usize,
+            b: usize,
+        ) bool {
             const path_cmp = cmpIgnoreCase(ctx.entries[a].right, ctx.entries[b].right);
             if (path_cmp != .eq) return path_cmp == .lt;
             return cmpIgnoreCase(ctx.entries[a].left, ctx.entries[b].left) == .lt;
         }
     };
-    mem.sort(usize, indices.items, S{ .entries = entries }, S.lessThan);
+    mem.sort(
+        usize,
+        indices.items,
+        S{ .entries = entries },
+        S.lessThan,
+    );
 
     if (any.*) try output.append(arena, '\n');
-    for (indices.items) |idx| try renderEntry(arena, output, entries, idx);
+    for (indices.items) |idx| try renderEntry(
+        arena,
+        output,
+        entries,
+        idx,
+    );
     any.* = true;
 }
 

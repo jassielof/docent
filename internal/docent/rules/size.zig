@@ -2,11 +2,11 @@
 const scan = @import("../scan.zig");
 const category = @import("category.zig");
 
+pub const line_length_limit = @import("size/line_length_limit.zig");
+pub const max_fun_params = @import("size/max_fun_params.zig");
+
 /// Default scan mode for size rules; `reachability_traversal` because every reachable function is measured, not just the public surface.
 pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
-
-pub const max_fun_params = @import("size/max_fun_params.zig");
-pub const line_length_limit = @import("size/line_length_limit.zig");
 
 /// The `size` configuration: the category-wide scan mode plus each rule's config, decoded generically and resolved in place.
 pub const Size = struct {

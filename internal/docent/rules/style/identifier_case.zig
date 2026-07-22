@@ -43,15 +43,16 @@
 
 const std = @import("std");
 const Ast = std.zig.Ast;
+
+const doc_comment = @import("doc_comment");
+const naming_case = @import("identifier_style");
 const vereda = @import("vereda");
 
 const Diagnostic = @import("../../Diagnostic.zig");
-const severity = @import("../../severity.zig");
 const scan = @import("../../scan.zig");
+const severity = @import("../../severity.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
-const doc_comment = @import("doc_comment");
-const naming_case = @import("identifier_style");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();

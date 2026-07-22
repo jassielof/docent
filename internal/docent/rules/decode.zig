@@ -13,10 +13,11 @@
 //! Enums decode from their tag name unless they expose `pub fn fromConfigString`, which is then preferred and absorbs odd spellings such as `public`/`all` or `@"kebab-case"`.
 
 const std = @import("std");
+
 const toml = @import("toml");
 
-const severity = @import("../severity.zig");
 const scan = @import("../scan.zig");
+const severity = @import("../severity.zig");
 
 /// Decode errors surfaced to config loaders and `formatError`.
 pub const Error = error{

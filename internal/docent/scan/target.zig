@@ -1,9 +1,11 @@
 //! Selects which files and build targets Docent lints based on CLI flags and `build.zig` metadata.
 
 const std = @import("std");
+
+const carnaval = @import("carnaval");
+
 const build_scan = @import("../build_scan.zig");
 const reach = @import("reach.zig");
-const carnaval = @import("carnaval");
 
 fn realPathFileAlloc(
     allocator: std.mem.Allocator,

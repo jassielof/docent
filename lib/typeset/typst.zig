@@ -53,10 +53,11 @@ const Writer = std.Io.Writer;
 
 const markdown = @import("doc_comment").markup;
 const Document = markdown.Document;
-const walker = @import("walker.zig");
-const Decl = walker.Decl;
+
 const external_refs = @import("external_refs.zig");
 const std_bundle = @import("std_bundle.zig");
+const walker = @import("walker.zig");
+const Decl = walker.Decl;
 
 const RenderError = Writer.Error || std.mem.Allocator.Error;
 

@@ -71,12 +71,14 @@
 
 const std = @import("std");
 const Ast = std.zig.Ast;
+
+const doc_comment = @import("doc_comment");
+
 const Diagnostic = @import("../../Diagnostic.zig");
-const severity = @import("../../severity.zig");
 const scan = @import("../../scan.zig");
+const severity = @import("../../severity.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
-const doc_comment = @import("doc_comment");
 
 inline fn srcLoc() std.builtin.SourceLocation {
     return @src();

@@ -1,9 +1,11 @@
 //! An abstract tree representation of a Markdown document.
 
 const std = @import("std");
-const builtin = @import("builtin");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
+
+const builtin = @import("builtin");
+
 const Renderer = @import("renderer.zig").Renderer;
 
 nodes: Node.List.Slice,

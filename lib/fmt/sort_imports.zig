@@ -3,6 +3,7 @@ const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
 const format_test_assertions = @import("format_test_assertions.zig");
+
 pub const classifier = @import("sort_imports/classifier.zig");
 pub const extractor = @import("sort_imports/extractor.zig");
 pub const renderer = @import("sort_imports/renderer.zig");
