@@ -1,16 +1,16 @@
 //! Stateful formatter: walk paths, render with Zig's AST, apply post-passes.
 
 const std = @import("std");
+const fs = std.fs;
 const Io = std.Io;
 const mem = std.mem;
-const fs = std.fs;
 const Allocator = std.mem.Allocator;
 const Color = std.zig.Color;
 
 const carnaval = @import("carnaval");
 
-const config_mod = @import("config.zig");
 const array_type_guard = @import("array_type_guard.zig");
+const config_mod = @import("config.zig");
 const symlink_safe_write = @import("symlink_safe_write.zig");
 
 pub const Config = config_mod.Config;
