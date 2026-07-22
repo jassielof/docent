@@ -19,11 +19,14 @@ test "tiger style preset enforces snake_case and line length forbid" {
     const config_path = try presetConfigPath(allocator, io, "tiger-style");
     defer allocator.free(config_path);
 
-    const style = try docent.config.loadStyleOptions(allocator, io, config_path);
+    var cfg = try docent.config.loadConfig(allocator, io, config_path);
+    defer cfg.deinit(allocator);
+
+    const style = cfg.style;
     try std.testing.expectEqual(identifier_style.Style.snake, style.identifier_case.options.struct_file_case);
     try std.testing.expect(style.identifier_case.level == .deny);
-    try std.testing.expect(style.line_length_limit.level == .forbid);
-    try std.testing.expectEqual(@as(u32, 100), style.line_length_limit.options.max_length);
+    try std.testing.expect(cfg.size.line_length_limit.level == .forbid);
+    try std.testing.expectEqual(@as(u32, 100), cfg.size.line_length_limit.options.max_length);
 }
 
 test "godoc preset loads documentation grammar and zig naming defaults" {
@@ -41,6 +44,6 @@ test "godoc preset loads documentation grammar and zig naming defaults" {
     try std.testing.expect(!cfg.doc.invalid_leading_phrase.options.require_article);
     try std.testing.expect(cfg.doc.missing_doctest.level == .allow);
 
-    try std.testing.expect(cfg.style.line_length_limit.options.ignore_leading_comments);
-    try std.testing.expect(cfg.style.line_length_limit.options.ignore_trailing_comments);
+    try std.testing.expect(cfg.size.line_length_limit.options.ignore_leading_comments);
+    try std.testing.expect(cfg.size.line_length_limit.options.ignore_trailing_comments);
 }

@@ -26,6 +26,6 @@ level = "deny"
 functions = "snake_case"
 struct_file_case = "snake_case"
 
-[style.line_length_limit]
+[size.line_length_limit]
 level = "forbid"
 max_length = 100

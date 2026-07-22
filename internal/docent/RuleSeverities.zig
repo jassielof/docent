@@ -17,8 +17,8 @@ redundant_doc_comment: severity.Level = rules.doc.redundant_doc_comment.default_
 cognitive_complexity: severity.Level = rules.complexity.cognitive.default_severity,
 cyclomatic_complexity: severity.Level = rules.complexity.cyclomatic.default_severity,
 max_fun_params: severity.Level = rules.size.max_fun_params.default_severity,
+line_length_limit: severity.Level = rules.size.line_length_limit.default_severity,
 identifier_case: severity.Level = rules.style.identifier_case.default_severity,
-line_length_limit: severity.Level = rules.style.line_length_limit.default_severity,
 
 /// Comptime-computed array of all rule field names in declaration order.
 const _field_names_buf = init: {

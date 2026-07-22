@@ -211,7 +211,6 @@ pub fn relativeFixtureDisplay(allocator: std.mem.Allocator, absolute: []const u8
 fn styleConfig(rule_set: docent.RuleSeverities, scan_mode: docent.scan.RuleScanConfig) docent.rules.style.Style {
     var cfg = docent.rules.style.Style.defaults();
     cfg.identifier_case.level = rule_set.identifier_case;
-    cfg.line_length_limit.level = rule_set.line_length_limit;
     cfg.applyRunScanMode(scan_mode);
     return cfg;
 }
@@ -237,13 +236,13 @@ pub fn lintStyleRuleFixture(
     return docent.lintStyleSource(allocator, std.testing.io, source, display, style_cfg);
 }
 
-pub fn lintStyleRuleFixtureOptions(
+pub fn lintSizeRuleFixtureOptions(
     namespace: []const u8,
     parts: []const []const u8,
     rule_set: docent.RuleSeverities,
     scan_mode: docent.scan.RuleScanConfig,
     display_path: ?[]const u8,
-    line_length_options: docent.rules.style.line_length_limit.Options,
+    line_length_options: docent.rules.size.line_length_limit.Options,
 ) !docent.LintResult {
     const allocator = std.testing.allocator;
     const path = try ruleFixturePath(allocator, namespace, parts);
@@ -253,9 +252,10 @@ pub fn lintStyleRuleFixtureOptions(
 
     const source = try readFixtureFile(allocator, std.testing.io, path);
     defer allocator.free(source);
-    var style_cfg = styleConfig(rule_set, scan_mode);
-    style_cfg.line_length_limit.options = line_length_options;
-    return docent.lintStyleSource(allocator, std.testing.io, source, display, style_cfg);
+    var size_cfg = sizeConfig(rule_set, null);
+    size_cfg.applyRunScanMode(scan_mode);
+    size_cfg.line_length_limit.options = line_length_options;
+    return docent.lintSizeSource(allocator, source, display, size_cfg);
 }
 
 fn complexityConfig(
@@ -294,6 +294,7 @@ fn sizeConfig(
 ) docent.rules.size.Size {
     var cfg = docent.rules.size.Size.defaults();
     cfg.max_function_parameters.level = rule_set.max_fun_params;
+    cfg.line_length_limit.level = rule_set.line_length_limit;
     if (configure) |configure_fn| configure_fn(&cfg);
     return cfg;
 }

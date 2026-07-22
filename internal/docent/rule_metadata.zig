@@ -22,7 +22,7 @@ fn proseTitleForRule(comptime rule_name: []const u8) []const u8 {
     if (std.mem.eql(u8, rule_name, "cyclomatic_complexity")) return rules.complexity.cyclomatic.prose_title;
     if (std.mem.eql(u8, rule_name, "max_fun_params")) return rules.size.max_fun_params.prose_title;
     if (std.mem.eql(u8, rule_name, "identifier_case")) return rules.style.identifier_case.prose_title;
-    if (std.mem.eql(u8, rule_name, "line_length_limit")) return rules.style.line_length_limit.prose_title;
+    if (std.mem.eql(u8, rule_name, "line_length_limit")) return rules.size.line_length_limit.prose_title;
     @compileError("missing prose_title mapping for rule: " ++ rule_name);
 }
 

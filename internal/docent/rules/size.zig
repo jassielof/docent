@@ -1,4 +1,4 @@
-//! The size namespace gathers size-related rules (parameter counts, and similar limits).
+//! The size namespace gathers size-related rules (line widths, parameter counts, and similar limits).
 const scan = @import("../scan.zig");
 const category = @import("category.zig");
 
@@ -6,12 +6,14 @@ const category = @import("category.zig");
 pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
 
 pub const max_fun_params = @import("size/max_fun_params.zig");
+pub const line_length_limit = @import("size/line_length_limit.zig");
 
 /// The `size` configuration: the category-wide scan mode plus each rule's config, decoded generically and resolved in place.
 pub const Size = struct {
     /// Category-wide scan mode; rules with a `null` scan mode inherit this value.
     scan_mode: scan.RuleScanConfig = default_scan_mode,
     max_function_parameters: max_fun_params.Rule = .{},
+    line_length_limit: line_length_limit.Rule = .{},
 
     /// Returns the library defaults with scan-mode inheritance already applied.
     pub fn defaults() Size {

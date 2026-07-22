@@ -245,6 +245,14 @@ pub fn lintSizeSource(
         msg,
         &result.diagnostics,
     );
+    try rules.size.line_length_limit.check(
+        source,
+        size_cfg.line_length_limit,
+        file_owned,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
 
     try applySuppressions(allocator, &tree, &result);
 
@@ -276,14 +284,6 @@ pub fn lintStyleSource(
         file_owned,
         allocator,
         io,
-        msg,
-        &result.diagnostics,
-    );
-    try rules.style.line_length_limit.check(
-        source,
-        style_cfg.line_length_limit,
-        file_owned,
-        allocator,
         msg,
         &result.diagnostics,
     );

@@ -57,7 +57,7 @@ types = "PascalCase"
 constants = "snake_case"
 struct_file_case = "PascalCase"
 
-[style.line_length_limit]
+[size.line_length_limit]
 level = "allow"
 max_length = 100
 ignore_leading_comments = true

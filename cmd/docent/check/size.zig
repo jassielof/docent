@@ -1,4 +1,4 @@
-//! `docent check size` — function size limits such as parameter counts.
+//! `docent check size` — source-size limits such as line width and parameter counts.
 
 const std = @import("std");
 
@@ -11,8 +11,8 @@ const check_shared = docent.check_shared;
 pub fn register(check: *fangz.Command) !void {
     const size_cmd = try check.addSubcommand(.{
         .name = "size",
-        .brief = "Check function size limits",
-        .description = "Measure size limits such as parameter counts for every function reachable from the project's module roots. Thresholds are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
+        .brief = "Check source size limits",
+        .description = "Measure source size limits such as line width and function parameter counts for every file reachable from the project's module roots. Thresholds are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
     });
 
     try check_shared.registerCategoryPositionals(size_cmd);
