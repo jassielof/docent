@@ -17,7 +17,11 @@ pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     {
         var pos: usize = 0;
         while (pos < input.len) {
-            const end = mem.indexOfScalar(u8, input[pos..], '\n') orelse input.len - pos;
+            const end = mem.indexOfScalar(
+                u8,
+                input[pos..],
+                '\n',
+            ) orelse input.len - pos;
             try all_lines.append(gpa, input[pos .. pos + end]);
             pos += end + 1;
         }
@@ -31,7 +35,11 @@ pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     while (li < all_lines.items.len) {
         const full_line = all_lines.items[li];
         const indent_len = leadingSpaces(full_line);
-        const trimmed = mem.trimEnd(u8, full_line, " ");
+        const trimmed = mem.trimEnd(
+            u8,
+            full_line,
+            " ",
+        );
 
         if (trimmed.len == 0) {
             try output.appendSlice(gpa, full_line);
@@ -43,7 +51,12 @@ pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
         const content = full_line[indent_len..trimmed.len];
         const indent = full_line[0..indent_len];
 
-        if (tryExpandSingleLine(gpa, &output, indent, content)) |expanded| {
+        if (tryExpandSingleLine(
+            gpa,
+            &output,
+            indent,
+            content,
+        )) |expanded| {
             if (expanded) {
                 try output.append(gpa, '\n');
                 li += 1;
@@ -51,7 +64,12 @@ pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
             }
         } else |_| return error.OutOfMemory;
 
-        const consumed = try tryExpandMultiLine(gpa, &output, all_lines.items, li);
+        const consumed = try tryExpandMultiLine(
+            gpa,
+            &output,
+            all_lines.items,
+            li,
+        );
         if (consumed > 0) {
             li += consumed;
             continue;
@@ -219,19 +237,36 @@ test "enforces braces for single-line control flow" {
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
-const keywords = [_][]const u8{ "if ", "while ", "for " };
+const keywords = [_][]const u8{
+    "if ",
+    "while ",
+    "for ",
+};
 
-fn tryExpandSingleLine(gpa: Allocator, output: *std.ArrayList(u8), indent: []const u8, content: []const u8) !bool {
+fn tryExpandSingleLine(
+    gpa: Allocator,
+    output: *std.ArrayList(u8),
+    indent: []const u8,
+    content: []const u8,
+) !bool {
     if (content.len == 0) return false;
     if (content[content.len - 1] == ',') return false;
 
-    if (mem.startsWith(u8, content, "} else ")) {
+    if (mem.startsWith(
+        u8,
+        content,
+        "} else ",
+    )) {
         const after_else = content[7..];
         if (after_else.len == 0) return false;
         if (after_else[0] == '{') return false;
 
         for (keywords) |kw| {
-            if (mem.startsWith(u8, after_else, kw)) return false;
+            if (mem.startsWith(
+                u8,
+                after_else,
+                kw,
+            )) return false;
         }
 
         try output.appendSlice(gpa, indent);
@@ -247,13 +282,21 @@ fn tryExpandSingleLine(gpa: Allocator, output: *std.ArrayList(u8), indent: []con
     }
 
     for (keywords) |kw| {
-        if (!mem.startsWith(u8, content, kw)) continue;
+        if (!mem.startsWith(
+            u8,
+            content,
+            kw,
+        )) continue;
 
         const body_start = findBodyStart(content) orelse continue;
         const body = content[body_start..];
         if (body.len == 0 or body[0] == '{') continue;
 
-        if (mem.startsWith(u8, content, "if ")) {
+        if (mem.startsWith(
+            u8,
+            content,
+            "if ",
+        )) {
             if (findInlineElse(body)) |else_offset| {
                 const if_body = body[0..else_offset];
                 const after_else = else_offset + 5;
@@ -296,7 +339,11 @@ fn tryExpandSingleLine(gpa: Allocator, output: *std.ArrayList(u8), indent: []con
         return true;
     }
 
-    if (mem.indexOf(u8, content, " = if (")) |eq_if_pos| {
+    if (mem.indexOf(
+        u8,
+        content,
+        " = if (",
+    )) |eq_if_pos| {
         const if_start = eq_if_pos + 3;
         const after_if = content[if_start..];
         const body_start = findBodyStart(after_if) orelse return false;
@@ -308,7 +355,11 @@ fn tryExpandSingleLine(gpa: Allocator, output: *std.ArrayList(u8), indent: []con
             const after_else_off = else_offset + 5;
             const else_body_start = if (after_else_off < body.len and body[after_else_off] == ' ') after_else_off + 1 else after_else_off;
             const else_body_raw = body[else_body_start..];
-            const else_body = if (mem.endsWith(u8, else_body_raw, ";"))
+            const else_body = if (mem.endsWith(
+                u8,
+                else_body_raw,
+                ";",
+            ))
                 else_body_raw[0 .. else_body_raw.len - 1]
             else
                 else_body_raw;
@@ -344,17 +395,34 @@ fn tryExpandSingleLine(gpa: Allocator, output: *std.ArrayList(u8), indent: []con
 ///   else
 ///       OTHER_BODY;
 /// ```
-fn tryExpandMultiLine(gpa: Allocator, output: *std.ArrayList(u8), lines: []const []const u8, start: usize) !usize {
+fn tryExpandMultiLine(
+    gpa: Allocator,
+    output: *std.ArrayList(u8),
+    lines: []const []const u8,
+    start: usize,
+) !usize {
     const first = lines[start];
     const indent_len = leadingSpaces(first);
-    const trimmed = mem.trimEnd(u8, first, " ");
+    const trimmed = mem.trimEnd(
+        u8,
+        first,
+        " ",
+    );
     const content = first[indent_len..trimmed.len];
     const indent = first[0..indent_len];
 
-    const has_assign = mem.indexOf(u8, content, " = ") != null;
+    const has_assign = mem.indexOf(
+        u8,
+        content,
+        " = ",
+    ) != null;
     if (!has_assign) return 0;
 
-    const if_pos = mem.indexOf(u8, content, "if (") orelse return 0;
+    const if_pos = mem.indexOf(
+        u8,
+        content,
+        "if (",
+    ) orelse return 0;
     const after_if = content[if_pos..];
 
     const body_start_opt = findBodyStart(after_if);
@@ -366,7 +434,15 @@ fn tryExpandMultiLine(gpa: Allocator, output: *std.ArrayList(u8), lines: []const
     if (start + 1 >= lines.len) return 0;
 
     const body_line_raw = lines[start + 1];
-    const body_trimmed = mem.trimStart(u8, mem.trimEnd(u8, body_line_raw, " "), " ");
+    const body_trimmed = mem.trimStart(
+        u8,
+        mem.trimEnd(
+            u8,
+            body_line_raw,
+            " ",
+        ),
+        " ",
+    );
     if (body_trimmed.len == 0 or body_trimmed[0] == '{') return 0;
 
     var consumed: usize = 2;
@@ -375,8 +451,20 @@ fn tryExpandMultiLine(gpa: Allocator, output: *std.ArrayList(u8), lines: []const
     var else_body_raw: ?[]const u8 = null;
 
     if (start + 2 < lines.len) {
-        const candidate = mem.trimStart(u8, mem.trimEnd(u8, lines[start + 2], " "), " ");
-        if (mem.eql(u8, candidate, "else")) {
+        const candidate = mem.trimStart(
+            u8,
+            mem.trimEnd(
+                u8,
+                lines[start + 2],
+                " ",
+            ),
+            " ",
+        );
+        if (mem.eql(
+            u8,
+            candidate,
+            "else",
+        )) {
             else_line_raw = lines[start + 2];
             consumed = 3;
             if (start + 3 < lines.len) {
@@ -402,7 +490,15 @@ fn tryExpandMultiLine(gpa: Allocator, output: *std.ArrayList(u8), lines: []const
         try output.appendSlice(gpa, "} else {\n");
 
         if (else_body_raw) |eb| {
-            const eb_trimmed = mem.trimStart(u8, mem.trimEnd(u8, eb, " "), " ");
+            const eb_trimmed = mem.trimStart(
+                u8,
+                mem.trimEnd(
+                    u8,
+                    eb,
+                    " ",
+                ),
+                " ",
+            );
             try output.appendSlice(gpa, indent);
             try output.appendSlice(gpa, "    ");
             try output.appendSlice(gpa, eb_trimmed);
@@ -460,7 +556,11 @@ fn findInlineElse(body: []const u8) ?usize {
         } else if (body[i] == ')') {
             if (depth > 0) depth -= 1;
         } else if (depth == 0 and i + 5 <= body.len) {
-            if (mem.eql(u8, body[i .. i + 5], " else")) {
+            if (mem.eql(
+                u8,
+                body[i .. i + 5],
+                " else",
+            )) {
                 if (i + 5 == body.len or body[i + 5] == ' ') return i;
             }
         }

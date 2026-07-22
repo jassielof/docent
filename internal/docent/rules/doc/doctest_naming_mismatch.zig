@@ -29,7 +29,11 @@ pub const default_severity: severity.Level = .warn;
 pub const prose_title = "Doctest naming mismatch";
 
 /// Full configuration for `doctest_naming_mismatch`: severity and scan mode, with no rule-specific options.
-pub const Rule = category.Rule(default_severity, struct {}, scan.RuleScanConfig.public_api_surface);
+pub const Rule = category.Rule(
+    default_severity,
+    struct {},
+    scan.RuleScanConfig.public_api_surface,
+);
 
 /// Walks `tree` and appends diagnostics when doctest names disagree with declarations.
 pub fn check(
@@ -76,12 +80,20 @@ pub fn check(
                         try diagnostics.append(allocator, .{
                             .rule = rule_name,
                             .severity_level = severity_level,
-                            .subject = try utils.ownedSubject(msg_allocator, .function, unquoted),
+                            .subject = try utils.ownedSubject(
+                                msg_allocator,
+                                .function,
+                                unquoted,
+                            ),
                             .detail = "use identifier-style `test` instead of a string literal",
                             .file = file,
                             .line = loc.line + 1,
                             .column = loc.column + 1,
-                            .source_line = try utils.dupSourceLine(tree, name_token, msg_allocator),
+                            .source_line = try utils.dupSourceLine(
+                                tree,
+                                name_token,
+                                msg_allocator,
+                            ),
                             .symbol_len = raw.len,
                         });
                     }

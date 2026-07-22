@@ -49,17 +49,37 @@ const RuleSet = struct {
         return out;
     }
 
-    fn addRules(self: *RuleSet, allocator: std.mem.Allocator, names: []const u8) !void {
-        const rest = std.mem.trim(u8, names, " \t");
+    fn addRules(
+        self: *RuleSet,
+        allocator: std.mem.Allocator,
+        names: []const u8,
+    ) !void {
+        const rest = std.mem.trim(
+            u8,
+            names,
+            " \t",
+        );
         if (rest.len == 0) {
             self.all = true;
             return;
         }
-        var it = std.mem.tokenizeAny(u8, rest, ",");
+        var it = std.mem.tokenizeAny(
+            u8,
+            rest,
+            ",",
+        );
         while (it.next()) |raw| {
-            const name = std.mem.trim(u8, raw, " \t");
+            const name = std.mem.trim(
+                u8,
+                raw,
+                " \t",
+            );
             if (name.len == 0) continue;
-            if (std.mem.eql(u8, name, "*")) {
+            if (std.mem.eql(
+                u8,
+                name,
+                "*",
+            )) {
                 self.all = true;
                 continue;
             }
@@ -115,7 +135,12 @@ pub const Table = struct {
     }
 
     /// Returns true when `rule` at `line` is suppressed. `forbid` diagnostics are never suppressed.
-    pub fn isSuppressed(self: *const Table, rule: []const u8, line: usize, severity_level: severity.Level) bool {
+    pub fn isSuppressed(
+        self: *const Table,
+        rule: []const u8,
+        line: usize,
+        severity_level: severity.Level,
+    ) bool {
         if (severity_level == .forbid) return false;
         if (self.line_rules.get(line)) |set| {
             if (set.contains(rule)) return true;
@@ -152,7 +177,11 @@ fn lineCommentBody(line: []const u8) ?[]const u8 {
         if (in_string or c != '/' or line[i + 1] != '/') continue;
         if (i + 2 < line.len and line[i + 2] == '/') return null;
         if (i + 2 < line.len and line[i + 2] == '!') return null;
-        return std.mem.trim(u8, line[i + 2 .. line.len], " \t");
+        return std.mem.trim(
+            u8,
+            line[i + 2 .. line.len],
+            " \t",
+        );
     }
     return null;
 }
@@ -170,12 +199,24 @@ fn parseDirective(body: []const u8) ?struct { kind: DirectiveKind, rules_text: [
     };
 
     for (prefixes) |entry| {
-        if (!std.mem.startsWith(u8, body, entry.prefix)) continue;
+        if (!std.mem.startsWith(
+            u8,
+            body,
+            entry.prefix,
+        )) continue;
         var rules_text = body[entry.prefix.len..];
         if (rules_text.len > 0 and rules_text[0] == ' ') {
-            rules_text = std.mem.trim(u8, rules_text[1..], " \t");
+            rules_text = std.mem.trim(
+                u8,
+                rules_text[1..],
+                " \t",
+            );
         } else {
-            rules_text = std.mem.trim(u8, rules_text, " \t");
+            rules_text = std.mem.trim(
+                u8,
+                rules_text,
+                " \t",
+            );
         }
         if (rules_text.len > 0 and rules_text[rules_text.len - 1] == 0) {
             rules_text = rules_text[0 .. rules_text.len - 1];
@@ -185,7 +226,11 @@ fn parseDirective(body: []const u8) ?struct { kind: DirectiveKind, rules_text: [
     return null;
 }
 
-fn mergeRuleSet(into: *RuleSet, from: RuleSet, allocator: std.mem.Allocator) !void {
+fn mergeRuleSet(
+    into: *RuleSet,
+    from: RuleSet,
+    allocator: std.mem.Allocator,
+) !void {
     if (from.all) into.all = true;
     var it = from.rules.keyIterator();
     while (it.next()) |key| {
@@ -209,7 +254,11 @@ fn putLineRules(
         gop.value_ptr.* = try incoming.clone(allocator);
         return;
     }
-    try mergeRuleSet(gop.value_ptr, incoming, allocator);
+    try mergeRuleSet(
+        gop.value_ptr,
+        incoming,
+        allocator,
+    );
 }
 
 /// Builds a suppression table from `tree`.
@@ -231,9 +280,17 @@ pub fn collectFromTree(allocator: std.mem.Allocator, tree: *const Ast) !Table {
     const source = tree.source;
 
     while (line_start <= source.len) {
-        const line_end = std.mem.indexOfScalar(u8, source[line_start..], '\n') orelse source.len - line_start;
+        const line_end = std.mem.indexOfScalar(
+            u8,
+            source[line_start..],
+            '\n',
+        ) orelse source.len - line_start;
         const raw_line = source[line_start .. line_start + line_end];
-        const line = if (std.mem.endsWith(u8, raw_line, "\r"))
+        const line = if (std.mem.endsWith(
+            u8,
+            raw_line,
+            "\r",
+        ))
             raw_line[0 .. raw_line.len - 1]
         else
             raw_line;
@@ -241,8 +298,18 @@ pub fn collectFromTree(allocator: std.mem.Allocator, tree: *const Ast) !Table {
         if (lineCommentBody(line)) |body| {
             if (parseDirective(body)) |parsed| {
                 switch (parsed.kind) {
-                    .ignore_line => try putLineRules(&table.line_rules, allocator, line_number, parsed.rules_text),
-                    .ignore_next => try putLineRules(&table.next_line_rules, allocator, line_number + 1, parsed.rules_text),
+                    .ignore_line => try putLineRules(
+                        &table.line_rules,
+                        allocator,
+                        line_number,
+                        parsed.rules_text,
+                    ),
+                    .ignore_next => try putLineRules(
+                        &table.next_line_rules,
+                        allocator,
+                        line_number + 1,
+                        parsed.rules_text,
+                    ),
                     .ignore_start => {
                         var rules = RuleSet.init(allocator);
                         try rules.addRules(allocator, parsed.rules_text);
@@ -289,7 +356,11 @@ pub fn filterDiagnostics(
     var index: usize = 0;
     while (index < diagnostics.items.len) {
         const diagnostic = diagnostics.items[index];
-        if (table.isSuppressed(diagnostic.rule, diagnostic.line, diagnostic.severity_level)) {
+        if (table.isSuppressed(
+            diagnostic.rule,
+            diagnostic.line,
+            diagnostic.severity_level,
+        )) {
             _ = diagnostics.orderedRemove(index);
             continue;
         }
@@ -302,13 +373,21 @@ test "line docent:ignore suppresses on same line" {
     const source =
         \\pub fn ok() void {} // docent:ignore identifier_case
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        std.testing.allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
     defer table.deinit(std.testing.allocator);
 
-    try std.testing.expect(table.isSuppressed("identifier_case", 1, .warn));
+    try std.testing.expect(table.isSuppressed(
+        "identifier_case",
+        1,
+        .warn,
+    ));
 }
 
 test "doc comment pragmas are not suppressions" {
@@ -316,13 +395,21 @@ test "doc comment pragmas are not suppressions" {
         \\/// docent:ignore identifier_case
         \\pub fn bad_name() void {}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        std.testing.allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
     defer table.deinit(std.testing.allocator);
 
-    try std.testing.expect(!table.isSuppressed("identifier_case", 2, .warn));
+    try std.testing.expect(!table.isSuppressed(
+        "identifier_case",
+        2,
+        .warn,
+    ));
 }
 
 test "docent:ignore-next suppresses following line" {
@@ -330,14 +417,26 @@ test "docent:ignore-next suppresses following line" {
         \\// docent:ignore-next identifier_case
         \\pub fn bad_name() void {}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        std.testing.allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
     defer table.deinit(std.testing.allocator);
 
-    try std.testing.expect(table.isSuppressed("identifier_case", 2, .warn));
-    try std.testing.expect(!table.isSuppressed("identifier_case", 1, .warn));
+    try std.testing.expect(table.isSuppressed(
+        "identifier_case",
+        2,
+        .warn,
+    ));
+    try std.testing.expect(!table.isSuppressed(
+        "identifier_case",
+        1,
+        .warn,
+    ));
 }
 
 test "docent:ignore-start and docent:ignore-end define a block" {
@@ -348,15 +447,31 @@ test "docent:ignore-start and docent:ignore-end define a block" {
         \\// docent:ignore-end identifier_case
         \\pub fn three() void {}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        std.testing.allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
     defer table.deinit(std.testing.allocator);
 
-    try std.testing.expect(table.isSuppressed("identifier_case", 2, .warn));
-    try std.testing.expect(table.isSuppressed("identifier_case", 3, .warn));
-    try std.testing.expect(!table.isSuppressed("identifier_case", 5, .warn));
+    try std.testing.expect(table.isSuppressed(
+        "identifier_case",
+        2,
+        .warn,
+    ));
+    try std.testing.expect(table.isSuppressed(
+        "identifier_case",
+        3,
+        .warn,
+    ));
+    try std.testing.expect(!table.isSuppressed(
+        "identifier_case",
+        5,
+        .warn,
+    ));
 }
 
 test "forbid severity is never suppressed" {
@@ -364,26 +479,42 @@ test "forbid severity is never suppressed" {
         \\// docent:ignore missing_doc_comment
         \\pub fn foo() void {}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        std.testing.allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
     defer table.deinit(std.testing.allocator);
 
-    try std.testing.expect(!table.isSuppressed("missing_doc_comment", 2, .forbid));
+    try std.testing.expect(!table.isSuppressed(
+        "missing_doc_comment",
+        2,
+        .forbid,
+    ));
 }
 
 test "docent:disable is an alias for docent:ignore" {
     const source =
         \\pub fn heavy() void {} // docent:disable cognitive_complexity
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        std.testing.allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
     defer table.deinit(std.testing.allocator);
 
-    try std.testing.expect(table.isSuppressed("cognitive_complexity", 1, .warn));
+    try std.testing.expect(table.isSuppressed(
+        "cognitive_complexity",
+        1,
+        .warn,
+    ));
 }
 
 test "filterDiagnostics removes suppressed entries" {
@@ -414,7 +545,11 @@ test "filterDiagnostics removes suppressed entries" {
         try table.line_rules.put(2, try set.clone(std.testing.allocator));
     }
 
-    filterDiagnostics(std.testing.allocator, &diagnostics, &table);
+    filterDiagnostics(
+        std.testing.allocator,
+        &diagnostics,
+        &table,
+    );
     try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
     try std.testing.expectEqualStrings("missing_doc_comment", diagnostics.items[0].rule);
 }

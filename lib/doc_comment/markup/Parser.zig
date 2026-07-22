@@ -142,7 +142,11 @@ const Block = struct {
     /// (e.g. for a blockquote, this would be everything except the leading
     /// `>`). If unsuccessful, returns null.
     fn match(b: Block, line: []const u8) ?[]const u8 {
-        const unindented = mem.trimStart(u8, line, " \t");
+        const unindented = mem.trimStart(
+            u8,
+            line,
+            " \t",
+        );
         const indent = line.len - unindented.len;
         return switch (b.tag) {
             .list => line,
@@ -158,15 +162,27 @@ const Block = struct {
             .table_row => null,
             .heading => null,
             .code_block => code_block: {
-                const trimmed = mem.trimEnd(u8, unindented, " \t");
-                if (mem.indexOfNone(u8, trimmed, "`") != null or trimmed.len != b.data.code_block.fence_len) {
+                const trimmed = mem.trimEnd(
+                    u8,
+                    unindented,
+                    " \t",
+                );
+                if (mem.indexOfNone(
+                    u8,
+                    trimmed,
+                    "`",
+                ) != null or trimmed.len != b.data.code_block.fence_len) {
                     const effective_indent = @min(indent, b.data.code_block.indent);
                     break :code_block line[effective_indent..];
                 } else {
                     break :code_block null;
                 }
             },
-            .blockquote => if (mem.startsWith(u8, unindented, ">"))
+            .blockquote => if (mem.startsWith(
+                u8,
+                unindented,
+                ">",
+            ))
                 unindented[1..]
             else
                 null,
@@ -227,7 +243,11 @@ pub fn feedLine(p: *Parser, line: []const u8) Allocator.Error!void {
         p.pending_blocks.items.len > 0 and
         p.pending_blocks.getLast().tag == .paragraph)
     {
-        try p.addScratchStringLine(mem.trimStart(u8, rest_line, " \t"));
+        try p.addScratchStringLine(mem.trimStart(
+            u8,
+            rest_line,
+            " \t",
+        ));
         return;
     }
 
@@ -263,7 +283,11 @@ pub fn feedLine(p: *Parser, line: []const u8) Allocator.Error!void {
         last_pending_block.canAccept()
     else
         .blocks;
-    const rest_line_trimmed = mem.trimStart(u8, rest_line, " \t");
+    const rest_line_trimmed = mem.trimStart(
+        u8,
+        rest_line,
+        " \t",
+    );
     switch (can_accept) {
         .blocks => {
             // If we're inside a list item and the rest of the line is blank, it
@@ -510,7 +534,11 @@ fn appendBlockStart(p: *Parser, block_start: BlockStart) !void {
 }
 
 fn startBlock(p: *Parser, line: []const u8) !?BlockStart {
-    const unindented = mem.trimStart(u8, line, " \t");
+    const unindented = mem.trimStart(
+        u8,
+        line,
+        " \t",
+    );
     const indent = line.len - unindented.len;
     if (isThematicBreak(line)) {
         // Thematic breaks take precedence over list items.
@@ -575,21 +603,33 @@ const ListItemStart = struct {
 };
 
 fn startListItem(unindented_line: []const u8) ?ListItemStart {
-    if (mem.startsWith(u8, unindented_line, "- ")) {
+    if (mem.startsWith(
+        u8,
+        unindented_line,
+        "- ",
+    )) {
         return .{
             .marker = .@"-",
             .number = undefined,
             .marker_len = 2,
             .rest = unindented_line[2..],
         };
-    } else if (mem.startsWith(u8, unindented_line, "* ")) {
+    } else if (mem.startsWith(
+        u8,
+        unindented_line,
+        "* ",
+    )) {
         return .{
             .marker = .@"*",
             .number = undefined,
             .marker_len = 2,
             .rest = unindented_line[2..],
         };
-    } else if (mem.startsWith(u8, unindented_line, "+ ")) {
+    } else if (mem.startsWith(
+        u8,
+        unindented_line,
+        "+ ",
+    )) {
         return .{
             .marker = .@"+",
             .number = undefined,
@@ -598,15 +638,31 @@ fn startListItem(unindented_line: []const u8) ?ListItemStart {
         };
     }
 
-    const number_end = mem.indexOfNone(u8, unindented_line, "0123456789") orelse return null;
+    const number_end = mem.indexOfNone(
+        u8,
+        unindented_line,
+        "0123456789",
+    ) orelse return null;
     const after_number = unindented_line[number_end..];
-    const marker: Block.Data.ListMarker = if (mem.startsWith(u8, after_number, ". "))
+    const marker: Block.Data.ListMarker = if (mem.startsWith(
+        u8,
+        after_number,
+        ". ",
+    ))
         .number_dot
-    else if (mem.startsWith(u8, after_number, ") "))
+    else if (mem.startsWith(
+        u8,
+        after_number,
+        ") ",
+    ))
         .number_paren
     else
         return null;
-    const number = std.fmt.parseInt(u30, unindented_line[0..number_end], 10) catch return null;
+    const number = std.fmt.parseInt(
+        u30,
+        unindented_line[0..number_end],
+        10,
+    ) catch return null;
     if (number > 999_999_999) return null;
     return .{
         .marker = marker,
@@ -623,9 +679,21 @@ const TableRowStart = struct {
 
 fn startTableRow(unindented_line: []const u8) ?TableRowStart {
     if (unindented_line.len < 2 or
-        !mem.startsWith(u8, unindented_line, "|") or
-        mem.endsWith(u8, unindented_line, "\\|") or
-        !mem.endsWith(u8, unindented_line, "|")) return null;
+        !mem.startsWith(
+            u8,
+            unindented_line,
+            "|",
+        ) or
+        mem.endsWith(
+            u8,
+            unindented_line,
+            "\\|",
+        ) or
+        !mem.endsWith(
+            u8,
+            unindented_line,
+            "|",
+        )) return null;
 
     var cells_buffer: [max_table_columns][]const u8 = undefined;
     var cells: ArrayList([]const u8) = .initBuffer(&cells_buffer);
@@ -643,10 +711,25 @@ fn startTableRow(unindented_line: []const u8) ?TableRowStart {
                 // Ignoring pipes in code spans allows table cells to contain
                 // code using ||, for example.
                 const open_start = i;
-                i = mem.indexOfNonePos(u8, table_row_content, i, "`") orelse return null;
+                i = mem.indexOfNonePos(
+                    u8,
+                    table_row_content,
+                    i,
+                    "`",
+                ) orelse return null;
                 const open_len = i - open_start;
-                while (mem.indexOfScalarPos(u8, table_row_content, i, '`')) |close_start| {
-                    i = mem.indexOfNonePos(u8, table_row_content, close_start, "`") orelse return null;
+                while (mem.indexOfScalarPos(
+                    u8,
+                    table_row_content,
+                    i,
+                    '`',
+                )) |close_start| {
+                    i = mem.indexOfNonePos(
+                        u8,
+                        table_row_content,
+                        close_start,
+                        "`",
+                    ) orelse return null;
                     const close_len = i - close_start;
                     if (close_len == open_len) break;
                 } else return null;
@@ -798,15 +881,27 @@ fn startCodeBlock(p: *Parser, unindented_line: []const u8) !?CodeBlockStart {
     } else "";
     // Code block tags may not contain backticks, since that would create
     // potential confusion with inline code spans.
-    if (fence_len < 3 or mem.indexOfScalar(u8, tag_bytes, '`') != null) return null;
+    if (fence_len < 3 or mem.indexOfScalar(
+        u8,
+        tag_bytes,
+        '`',
+    ) != null) return null;
     return .{
-        .tag = try p.addString(mem.trim(u8, tag_bytes, " ")),
+        .tag = try p.addString(mem.trim(
+            u8,
+            tag_bytes,
+            " ",
+        )),
         .fence_len = fence_len,
     };
 }
 
 fn startBlockquote(unindented_line: []const u8) ?[]const u8 {
-    return if (mem.startsWith(u8, unindented_line, ">"))
+    return if (mem.startsWith(
+        u8,
+        unindented_line,
+        ">",
+    ))
         unindented_line[1..]
     else
         null;
@@ -1075,7 +1170,11 @@ const InlineParser = struct {
         });
     }
 
-    fn encodeLinkTarget(ip: *InlineParser, start: usize, end: usize) !StringIndex {
+    fn encodeLinkTarget(
+        ip: *InlineParser,
+        start: usize,
+        end: usize,
+    ) !StringIndex {
         // For efficiency, we can encode directly into string_bytes rather than
         // creating a temporary string and then encoding it, since this process
         // is entirely linear.
@@ -1285,7 +1384,11 @@ const InlineParser = struct {
                 const close_len = @min(opener.data.emphasis.run_len, len);
                 const opener_end = opener.start + opener.data.emphasis.run_len;
 
-                const emphasis = try ip.encodeEmphasis(opener_end, start, close_len);
+                const emphasis = try ip.encodeEmphasis(
+                    opener_end,
+                    start,
+                    close_len,
+                );
                 const emphasis_start = opener_end - close_len;
                 const emphasis_len = start - emphasis_start + close_len;
                 try ip.completed_inlines.append(ip.parent.allocator, .{
@@ -1328,7 +1431,12 @@ const InlineParser = struct {
     /// Encodes emphasis specified by a run of `run_len` emphasis characters,
     /// with `start..end` being the range of content contained within the
     /// emphasis.
-    fn encodeEmphasis(ip: *InlineParser, start: usize, end: usize, run_len: usize) !Node.Index {
+    fn encodeEmphasis(
+        ip: *InlineParser,
+        start: usize,
+        end: usize,
+        run_len: usize,
+    ) !Node.Index {
         const children = try ip.encodeChildren(start, end);
         var inner = switch (run_len % 3) {
             1 => try ip.parent.addNode(.{
@@ -1384,12 +1492,27 @@ const InlineParser = struct {
     /// parsing.
     fn parseCodeSpan(ip: *InlineParser) !void {
         const opener_start = ip.pos;
-        ip.pos = mem.indexOfNonePos(u8, ip.content, ip.pos, "`") orelse ip.content.len;
+        ip.pos = mem.indexOfNonePos(
+            u8,
+            ip.content,
+            ip.pos,
+            "`",
+        ) orelse ip.content.len;
         const opener_len = ip.pos - opener_start;
 
         const start = ip.pos;
-        const end = while (mem.indexOfScalarPos(u8, ip.content, ip.pos, '`')) |closer_start| {
-            ip.pos = mem.indexOfNonePos(u8, ip.content, closer_start, "`") orelse ip.content.len;
+        const end = while (mem.indexOfScalarPos(
+            u8,
+            ip.content,
+            ip.pos,
+            '`',
+        )) |closer_start| {
+            ip.pos = mem.indexOfNonePos(
+                u8,
+                ip.content,
+                closer_start,
+                "`",
+            ) orelse ip.content.len;
             const closer_len = ip.pos - closer_start;
 
             if (closer_len == opener_len) break closer_start;
@@ -1404,8 +1527,16 @@ const InlineParser = struct {
             "";
         // This single space removal rule allows code spans to be written which
         // start or end with backticks.
-        if (mem.startsWith(u8, content, " `")) content = content[1..];
-        if (mem.endsWith(u8, content, "` ")) content = content[0 .. content.len - 1];
+        if (mem.startsWith(
+            u8,
+            content,
+            " `",
+        )) content = content[1..];
+        if (mem.endsWith(
+            u8,
+            content,
+            "` ",
+        )) content = content[0 .. content.len - 1];
 
         const text = try ip.parent.addNode(.{
             .tag = .code_span,
@@ -1425,7 +1556,11 @@ const InlineParser = struct {
 
     /// Encodes children parsed in the content range `start..end`. The children
     /// will be text nodes and any completed inlines within the range.
-    fn encodeChildren(ip: *InlineParser, start: usize, end: usize) !ExtraIndex {
+    fn encodeChildren(
+        ip: *InlineParser,
+        start: usize,
+        end: usize,
+    ) !ExtraIndex {
         const scratch_extra_top = ip.parent.scratch_extra.items.len;
         defer ip.parent.scratch_extra.shrinkRetainingCapacity(scratch_extra_top);
 
@@ -1461,7 +1596,11 @@ const InlineParser = struct {
 
     /// Encodes textual content `ip.content[start..end]` to `scratch_extra`. The
     /// encoded content may include both `text` and `line_break` nodes.
-    fn encodeTextNode(ip: *InlineParser, start: usize, end: usize) !void {
+    fn encodeTextNode(
+        ip: *InlineParser,
+        start: usize,
+        end: usize,
+    ) !void {
         // For efficiency, we can encode directly into string_bytes rather than
         // creating a temporary string and then encoding it, since this process
         // is entirely linear.
@@ -1569,13 +1708,21 @@ const InlineParser = struct {
 fn parseInlines(p: *Parser, content: []const u8) !ExtraIndex {
     var ip: InlineParser = .{
         .parent = p,
-        .content = mem.trim(u8, content, " \t\n"),
+        .content = mem.trim(
+            u8,
+            content,
+            " \t\n",
+        ),
     };
     defer ip.deinit();
     return try ip.parse();
 }
 
-pub fn extraData(p: Parser, comptime T: type, index: ExtraIndex) ExtraData(T) {
+pub fn extraData(
+    p: Parser,
+    comptime T: type,
+    index: ExtraIndex,
+) ExtraData(T) {
     const fields = @typeInfo(T).@"struct".fields;
     var i: usize = @intFromEnum(index);
     var result: T = undefined;
@@ -1629,7 +1776,11 @@ fn addScratchStringLine(p: *Parser, line: []const u8) !void {
 }
 
 fn isBlank(line: []const u8) bool {
-    return mem.indexOfNone(u8, line, " \t") == null;
+    return mem.indexOfNone(
+        u8,
+        line,
+        " \t",
+    ) == null;
 }
 
 fn isPunctuation(c: u8) bool {

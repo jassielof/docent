@@ -49,7 +49,11 @@ pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
 
 /// Parses TOML config text into the dynamic value tree.
 pub fn parseRoot(allocator: std.mem.Allocator, text: []const u8) Error!toml.DynamicValue {
-    const trimmed = std.mem.trim(u8, text, " \t\r\n");
+    const trimmed = std.mem.trim(
+        u8,
+        text,
+        " \t\r\n",
+    );
 
     if (trimmed.len == 0) {
         const empty = try toml.Table.create(allocator);
@@ -68,17 +72,45 @@ pub fn decode(allocator: std.mem.Allocator, root: toml.DynamicValue) Error!@This
 
     var cfg: @This() = .{};
     errdefer cfg.deinit(allocator);
-    if (table.get("doc")) |value| try rule_decode.decodeInto(Doc, value, &cfg.doc);
+    if (table.get("doc")) |value| try rule_decode.decodeInto(
+        Doc,
+        value,
+        &cfg.doc,
+    );
     cfg.doc.resolveScanModes();
-    if (table.get("style")) |value| try rule_decode.decodeInto(Style, value, &cfg.style);
+    if (table.get("style")) |value| try rule_decode.decodeInto(
+        Style,
+        value,
+        &cfg.style,
+    );
     cfg.style.resolveScanModes();
-    if (table.get("complexity")) |value| try rule_decode.decodeInto(Complexity, value, &cfg.complexity);
+    if (table.get("complexity")) |value| try rule_decode.decodeInto(
+        Complexity,
+        value,
+        &cfg.complexity,
+    );
     cfg.complexity.resolveScanModes();
-    if (table.get("size")) |value| try rule_decode.decodeInto(Size, value, &cfg.size);
+    if (table.get("size")) |value| try rule_decode.decodeInto(
+        Size,
+        value,
+        &cfg.size,
+    );
     cfg.size.resolveScanModes();
-    if (table.get("fmt")) |value| try decodeFmt(allocator, value, &cfg.fmt);
-    if (table.get("check")) |value| try decodeCheck(allocator, value, &cfg.check);
-    if (table.get("typeset")) |value| try decodeTypeset(allocator, value, &cfg.typeset);
+    if (table.get("fmt")) |value| try decodeFmt(
+        allocator,
+        value,
+        &cfg.fmt,
+    );
+    if (table.get("check")) |value| try decodeCheck(
+        allocator,
+        value,
+        &cfg.check,
+    );
+    if (table.get("typeset")) |value| try decodeTypeset(
+        allocator,
+        value,
+        &cfg.typeset,
+    );
     return cfg;
 }
 
@@ -122,7 +154,11 @@ fn applyLevel(slot: *severity.Level, configured: ?severity.Level) Error!void {
     slot.* = level;
 }
 
-fn decodeFmt(allocator: std.mem.Allocator, value: toml.DynamicValue, out: *Fmt) Error!void {
+fn decodeFmt(
+    allocator: std.mem.Allocator,
+    value: toml.DynamicValue,
+    out: *Fmt,
+) Error!void {
     const table = switch (value) {
         .table => |t| t,
         else => return,
@@ -197,7 +233,11 @@ fn decodeFmt(allocator: std.mem.Allocator, value: toml.DynamicValue, out: *Fmt) 
     }
 }
 
-fn decodeCheck(allocator: std.mem.Allocator, value: toml.DynamicValue, out: *Check) Error!void {
+fn decodeCheck(
+    allocator: std.mem.Allocator,
+    value: toml.DynamicValue,
+    out: *Check,
+) Error!void {
     const table = switch (value) {
         .table => |t| t,
         else => return,
@@ -210,7 +250,11 @@ fn decodeCheck(allocator: std.mem.Allocator, value: toml.DynamicValue, out: *Che
     if (table.get("exclude_targets")) |v| out.exclude_targets = try decodeStringList(allocator, v);
 }
 
-fn decodeTypeset(allocator: std.mem.Allocator, value: toml.DynamicValue, out: *Typeset) Error!void {
+fn decodeTypeset(
+    allocator: std.mem.Allocator,
+    value: toml.DynamicValue,
+    out: *Typeset,
+) Error!void {
     const table = switch (value) {
         .table => |t| t,
         else => return,

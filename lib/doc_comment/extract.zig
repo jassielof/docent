@@ -37,7 +37,12 @@ pub fn shouldCheckDocCommentTarget(
 ) bool {
     if (!public_api_only) return true;
     for (tree.rootDecls()) |decl| {
-        if (findDocCommentVisibility(tree, documented_first_token, false, decl)) |visible| return visible;
+        if (findDocCommentVisibility(
+            tree,
+            documented_first_token,
+            false,
+            decl,
+        )) |visible| return visible;
     }
     return false;
 }
@@ -51,7 +56,13 @@ pub fn resolveDocCommentSubject(
     msg_allocator: std.mem.Allocator,
 ) std.mem.Allocator.Error!Subject {
     for (tree.rootDecls()) |decl| {
-        if (try findSubjectInNode(tree, documented_first_token, null, decl, msg_allocator)) |subject| {
+        if (try findSubjectInNode(
+            tree,
+            documented_first_token,
+            null,
+            decl,
+            msg_allocator,
+        )) |subject| {
             return subject;
         }
     }
@@ -70,7 +81,11 @@ pub fn fileIsNamespace(tree: *const Ast) bool {
 
 test fileIsNamespace {
     const ns_source = "pub const x = 1;\n" ++ "\x00";
-    var ns_tree = try std.zig.Ast.parse(std.testing.allocator, ns_source, .zig);
+    var ns_tree = try std.zig.Ast.parse(
+        std.testing.allocator,
+        ns_source,
+        .zig,
+    );
     defer ns_tree.deinit(std.testing.allocator);
     try std.testing.expect(fileIsNamespace(&ns_tree));
 
@@ -78,7 +93,11 @@ test fileIsNamespace {
         \\//! Structure file
         \\x: u8,
     ++ "\x00";
-    var struct_tree = try std.zig.Ast.parse(std.testing.allocator, struct_source, .zig);
+    var struct_tree = try std.zig.Ast.parse(
+        std.testing.allocator,
+        struct_source,
+        .zig,
+    );
     defer struct_tree.deinit(std.testing.allocator);
     try std.testing.expect(!fileIsNamespace(&struct_tree));
 }
@@ -110,12 +129,20 @@ pub fn containerDocBlockIsFullyBlank(tree: *const Ast) bool {
 
 test containerDocBlockIsFullyBlank {
     const blank = "//!\n//!\npub fn f() void {}\n" ++ "\x00";
-    var tree = try std.zig.Ast.parse(std.testing.allocator, blank, .zig);
+    var tree = try std.zig.Ast.parse(
+        std.testing.allocator,
+        blank,
+        .zig,
+    );
     defer tree.deinit(std.testing.allocator);
     try std.testing.expect(containerDocBlockIsFullyBlank(&tree));
 
     const text = "//! Module docs.\npub fn f() void {}\n" ++ "\x00";
-    var tree2 = try std.zig.Ast.parse(std.testing.allocator, text, .zig);
+    var tree2 = try std.zig.Ast.parse(
+        std.testing.allocator,
+        text,
+        .zig,
+    );
     defer tree2.deinit(std.testing.allocator);
     try std.testing.expect(!containerDocBlockIsFullyBlank(&tree2));
 }
@@ -127,7 +154,11 @@ fn findDocCommentVisibility(
     node: Ast.Node.Index,
 ) ?bool {
     if (tree.firstToken(node) == documented_first_token) {
-        return visibilityAtNode(tree, node, inside_public_container);
+        return visibilityAtNode(
+            tree,
+            node,
+            inside_public_container,
+        );
     }
 
     if (tree.fullVarDecl(node)) |var_decl| {
@@ -137,7 +168,12 @@ fn findDocCommentVisibility(
             var buf: [2]Ast.Node.Index = undefined;
             if (tree.fullContainerDecl(&buf, init_node)) |container| {
                 for (container.ast.members) |member| {
-                    if (findDocCommentVisibility(tree, documented_first_token, child_inside, member)) |visible| {
+                    if (findDocCommentVisibility(
+                        tree,
+                        documented_first_token,
+                        child_inside,
+                        member,
+                    )) |visible| {
                         return visible;
                     }
                 }
@@ -151,7 +187,12 @@ fn findDocCommentVisibility(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
-                if (findDocCommentVisibility(tree, documented_first_token, inside_public_container, member)) |visible| {
+                if (findDocCommentVisibility(
+                    tree,
+                    documented_first_token,
+                    inside_public_container,
+                    member,
+                )) |visible| {
                     return visible;
                 }
             }
@@ -161,7 +202,11 @@ fn findDocCommentVisibility(
     return null;
 }
 
-fn visibilityAtNode(tree: *const Ast, node: Ast.Node.Index, inside_public_container: bool) bool {
+fn visibilityAtNode(
+    tree: *const Ast,
+    node: Ast.Node.Index,
+    inside_public_container: bool,
+) bool {
     if (tree.fullContainerField(node) != null) return inside_public_container;
 
     if (tree.nodeTag(node) == .fn_decl) {
@@ -183,7 +228,12 @@ fn findSubjectInNode(
     msg_allocator: std.mem.Allocator,
 ) std.mem.Allocator.Error!?Subject {
     if (tree.firstToken(node) == documented_first_token) {
-        return try subjectForDeclNode(tree, node, enum_container != null, msg_allocator);
+        return try subjectForDeclNode(
+            tree,
+            node,
+            enum_container != null,
+            msg_allocator,
+        );
     }
 
     if (tree.fullVarDecl(node)) |var_decl| {
@@ -193,7 +243,13 @@ fn findSubjectInNode(
             var buf: [2]Ast.Node.Index = undefined;
             if (tree.fullContainerDecl(&buf, init_node)) |container| {
                 for (container.ast.members) |member| {
-                    if (try findSubjectInNode(tree, documented_first_token, child_enum, member, msg_allocator)) |subject| {
+                    if (try findSubjectInNode(
+                        tree,
+                        documented_first_token,
+                        child_enum,
+                        member,
+                        msg_allocator,
+                    )) |subject| {
                         return subject;
                     }
                 }
@@ -208,7 +264,13 @@ fn findSubjectInNode(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
-                if (try findSubjectInNode(tree, documented_first_token, child_enum, member, msg_allocator)) |subject| {
+                if (try findSubjectInNode(
+                    tree,
+                    documented_first_token,
+                    child_enum,
+                    member,
+                    msg_allocator,
+                )) |subject| {
                     return subject;
                 }
             }

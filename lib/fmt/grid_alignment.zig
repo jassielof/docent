@@ -17,7 +17,11 @@ const Allocator = std.mem.Allocator;
 
 const format_test_assertions = @import("format_test_assertions.zig");
 
-const AlignKind = enum { colon, equals, none };
+const AlignKind = enum {
+    colon,
+    equals,
+    none,
+};
 
 const LineInfo = struct {
     raw: []const u8,
@@ -93,7 +97,11 @@ pub fn alignGrid(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
 
     var line_start: usize = 0;
     while (line_start < input.len) {
-        const rel_end = mem.indexOfScalar(u8, input[line_start..], '\n') orelse input.len - line_start;
+        const rel_end = mem.indexOfScalar(
+            u8,
+            input[line_start..],
+            '\n',
+        ) orelse input.len - line_start;
         try lines.append(gpa, input[line_start .. line_start + rel_end]);
         line_start += rel_end + 1;
     }
@@ -120,12 +128,21 @@ pub fn alignGrid(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
             const next = classifyLine(lines.items[group_end]);
             if (next.kind != group_kind) break;
             // Blank line breaks the group.
-            if (mem.trim(u8, lines.items[group_end], " \t").len == 0) break;
+            if (mem.trim(
+                u8,
+                lines.items[group_end],
+                " \t",
+            ).len == 0) break;
             group_end += 1;
         }
 
         if (group_end - i >= 2) {
-            try emitAlignedGroup(gpa, &output, lines.items[i..group_end], group_kind);
+            try emitAlignedGroup(
+                gpa,
+                &output,
+                lines.items[i..group_end],
+                group_kind,
+            );
         } else {
             try output.appendSlice(gpa, lines.items[i]);
             try output.append(gpa, '\n');
@@ -179,7 +196,11 @@ fn emitAlignedGroup(
         // Left part up to (but not including) the alignment target.
         try output.appendSlice(gpa, raw[0..info.target]);
         const before = displayWidth(raw[0..info.target]);
-        try appendSpaces(gpa, output, max_before - before);
+        try appendSpaces(
+            gpa,
+            output,
+            max_before - before,
+        );
         try output.append(gpa, raw[info.target]); // ':' or '='
 
         if (kind == .colon) {
@@ -193,7 +214,11 @@ fn emitAlignedGroup(
                 try output.appendSlice(gpa, type_part);
                 if (any_equals_after) {
                     const type_width = displayWidth(type_part);
-                    try appendSpaces(gpa, output, max_between_colon_eq - type_width);
+                    try appendSpaces(
+                        gpa,
+                        output,
+                        max_between_colon_eq - type_width,
+                    );
                 }
                 var after_eq = eq + 1;
                 while (after_eq < raw.len and raw[after_eq] == ' ') after_eq += 1;
@@ -217,10 +242,34 @@ fn emitAlignedGroup(
 }
 
 fn classifyLine(raw: []const u8) LineInfo {
-    const trimmed = mem.trim(u8, raw, " \t");
-    if (trimmed.len == 0) return .{ .raw = raw, .kind = .none, .target = 0 };
-    if (mem.startsWith(u8, trimmed, "//") or mem.startsWith(u8, trimmed, "///") or mem.startsWith(u8, trimmed, "//!")) {
-        return .{ .raw = raw, .kind = .none, .target = 0 };
+    const trimmed = mem.trim(
+        u8,
+        raw,
+        " \t",
+    );
+    if (trimmed.len == 0) return .{
+        .raw = raw,
+        .kind = .none,
+        .target = 0,
+    };
+    if (mem.startsWith(
+        u8,
+        trimmed,
+        "//",
+    ) or mem.startsWith(
+        u8,
+        trimmed,
+        "///",
+    ) or mem.startsWith(
+        u8,
+        trimmed,
+        "//!",
+    )) {
+        return .{
+            .raw = raw,
+            .kind = .none,
+            .target = 0,
+        };
     }
 
     // Multi-line function params: `name: Type,` or `name: Type`
@@ -230,7 +279,11 @@ fn classifyLine(raw: []const u8) LineInfo {
     if (findTopLevelChar(raw, ':')) |colon| {
         // Avoid `::` or labels in weird places — require identifier-ish before colon.
         if (colon > 0 and isIdentChar(raw[colon - 1])) {
-            const eq_after = findTopLevelCharFrom(raw, '=', colon + 1);
+            const eq_after = findTopLevelCharFrom(
+                raw,
+                '=',
+                colon + 1,
+            );
             return .{
                 .raw = raw,
                 .kind = .colon,
@@ -243,26 +296,52 @@ fn classifyLine(raw: []const u8) LineInfo {
     // `const`/`var`/`comptime` decls with `=`.
     if (looksLikeDecl(trimmed)) {
         if (findTopLevelChar(raw, '=')) |eq| {
-            return .{ .raw = raw, .kind = .equals, .target = eq };
+            return .{
+                .raw = raw,
+                .kind = .equals,
+                .target = eq,
+            };
         }
     }
 
-    return .{ .raw = raw, .kind = .none, .target = 0 };
+    return .{
+        .raw = raw,
+        .kind = .none,
+        .target = 0,
+    };
 }
 
 fn looksLikeDecl(trimmed: []const u8) bool {
-    const prefixes = [_][]const u8{ "pub const ", "pub var ", "const ", "var ", "comptime " };
+    const prefixes = [_][]const u8{
+        "pub const ",
+        "pub var ",
+        "const ",
+        "var ",
+        "comptime ",
+    };
     for (prefixes) |p| {
-        if (mem.startsWith(u8, trimmed, p)) return true;
+        if (mem.startsWith(
+            u8,
+            trimmed,
+            p,
+        )) return true;
     }
     return false;
 }
 
 fn findTopLevelChar(line: []const u8, needle: u8) ?usize {
-    return findTopLevelCharFrom(line, needle, 0);
+    return findTopLevelCharFrom(
+        line,
+        needle,
+        0,
+    );
 }
 
-fn findTopLevelCharFrom(line: []const u8, needle: u8, start: usize) ?usize {
+fn findTopLevelCharFrom(
+    line: []const u8,
+    needle: u8,
+    start: usize,
+) ?usize {
     var depth_paren: usize = 0;
     var depth_brace: usize = 0;
     var depth_bracket: usize = 0;
@@ -306,7 +385,11 @@ fn displayWidth(s: []const u8) usize {
     return s.len;
 }
 
-fn appendSpaces(gpa: Allocator, output: *std.ArrayList(u8), count: usize) !void {
+fn appendSpaces(
+    gpa: Allocator,
+    output: *std.ArrayList(u8),
+    count: usize,
+) !void {
     var j: usize = 0;
     while (j < count) : (j += 1) {
         try output.append(gpa, ' ');

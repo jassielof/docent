@@ -116,27 +116,57 @@ pub const Plan = struct {
     }
 };
 
-fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
+fn realPathFileAlloc(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+    const len = try std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    );
     return allocator.dupe(u8, buffer[0..len]);
 }
 
 fn isReadableLocalFile(io: std.Io, path: []const u8) bool {
-    const file = std.Io.Dir.cwd().openFile(io, path, .{}) catch return false;
+    const file = std.Io.Dir.cwd().openFile(
+        io,
+        path,
+        .{},
+    ) catch return false;
     file.close(io);
     return true;
 }
 
-fn collectBuildFiles(allocator: std.mem.Allocator, io: std.Io, project_root: []const u8, out: *std.ArrayList([]const u8)) !void {
-    try targeting.collectBuildScriptLintFiles(allocator, io, project_root, out);
+fn collectBuildFiles(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    project_root: []const u8,
+    out: *std.ArrayList([]const u8),
+) !void {
+    try targeting.collectBuildScriptLintFiles(
+        allocator,
+        io,
+        project_root,
+        out,
+    );
 }
 
 /// Resolves which files Docent would lint for the given options and project layout.
-pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan {
+pub fn gather(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    options: Options,
+) !Plan {
     var package: manifest.PackageMeta = undefined;
     if (options.manifest_path) |mp| {
-        package = try manifest.loadPackageMeta(allocator, io, mp);
+        package = try manifest.loadPackageMeta(
+            allocator,
+            io,
+            mp,
+        );
     } else {
         package = try manifest.loadNearestPackageMeta(allocator, io);
     }
@@ -146,7 +176,11 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
     defer manifest.deinitOwnedPaths(allocator, &exclude_roots);
 
     if (package.manifest_path) |manifest_path| {
-        exclude_roots = manifest.loadDependencyPathRoots(allocator, io, manifest_path) catch .empty;
+        exclude_roots = manifest.loadDependencyPathRoots(
+            allocator,
+            io,
+            manifest_path,
+        ) catch .empty;
     }
 
     var duped_bin_names = try allocator.alloc([]const u8, options.bin_names.len);
@@ -220,7 +254,11 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
         explicit_targeting.apply_exclude_roots = false;
 
         for (options.positionals) |raw| {
-            const resolved = try resolveUserPath(allocator, package.project_root, raw);
+            const resolved = try resolveUserPath(
+                allocator,
+                package.project_root,
+                raw,
+            );
             errdefer allocator.free(resolved);
 
             switch (path_mode) {
@@ -244,7 +282,11 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
             allocator.free(resolved);
         }
     } else {
-        var scanned = try build_scan.scanProjectBuildScript(allocator, io, package.project_root);
+        var scanned = try build_scan.scanProjectBuildScript(
+            allocator,
+            io,
+            package.project_root,
+        );
         defer if (scanned) |*s| s.deinit(allocator);
 
         if (scanned) |scan| {
@@ -261,14 +303,24 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
                         });
                         continue;
                     }
-                    const matches = targeting.matchesTarget(targeting_options, t.name, t.kind);
+                    const matches = targeting.matchesTarget(
+                        targeting_options,
+                        t.name,
+                        t.kind,
+                    );
                     if (!matches) {
                         try resolved_targets.append(allocator, .{
                             .name = try allocator.dupe(u8, t.name),
                             .kind = t.kind,
                             .root_source_file = try allocator.dupe(u8, t.root_source_file),
                             .status = .skipped,
-                            .reason = try targeting.skipReason(allocator, options.color_profile, t.kind, targeting_options, t.name),
+                            .reason = try targeting.skipReason(
+                                allocator,
+                                options.color_profile,
+                                t.kind,
+                                targeting_options,
+                                t.name,
+                            ),
                             .files = &.{},
                         });
                     } else {
@@ -288,7 +340,11 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
                                 .files = &.{},
                             });
                         } else {
-                            var reachable = try reach.collectReachablePublicFiles(allocator, io, abs_root);
+                            var reachable = try reach.collectReachablePublicFiles(
+                                allocator,
+                                io,
+                                abs_root,
+                            );
                             defer reach.deinitOwnedPaths(allocator, &reachable);
 
                             var filtered: std.ArrayList([]const u8) = .empty;
@@ -339,7 +395,11 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
             }
 
             if (package.manifest_path) |manifest_path| {
-                var loaded_paths = manifest.loadPackagePaths(allocator, io, manifest_path) catch |err| switch (err) {
+                var loaded_paths = manifest.loadPackagePaths(
+                    allocator,
+                    io,
+                    manifest_path,
+                ) catch |err| switch (err) {
                     error.ManifestPathsNotFound => blk: {
                         var fb = std.ArrayList([]const u8).empty;
                         try fb.append(allocator, try allocator.dupe(u8, "."));
@@ -365,9 +425,18 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
                     try std.fs.path.join(allocator, &.{ package.project_root, raw });
                 errdefer allocator.free(resolved);
 
-                const stat = std.Io.Dir.cwd().statFile(io, resolved, .{}) catch |err| switch (err) {
+                const stat = std.Io.Dir.cwd().statFile(
+                    io,
+                    resolved,
+                    .{},
+                ) catch |err| switch (err) {
                     error.IsDir => {
-                        var dir_files = try targeting.collectDirectoryLintTargets(allocator, io, resolved, targeting_options);
+                        var dir_files = try targeting.collectDirectoryLintTargets(
+                            allocator,
+                            io,
+                            resolved,
+                            targeting_options,
+                        );
                         defer targeting.deinitOwnedPaths(allocator, &dir_files);
                         for (dir_files.items) |f| {
                             try extra_lint_files.append(allocator, try allocator.dupe(u8, f));
@@ -382,7 +451,12 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
                 };
 
                 if (stat.kind == .directory) {
-                    var dir_files = try targeting.collectDirectoryLintTargets(allocator, io, resolved, targeting_options);
+                    var dir_files = try targeting.collectDirectoryLintTargets(
+                        allocator,
+                        io,
+                        resolved,
+                        targeting_options,
+                    );
                     defer targeting.deinitOwnedPaths(allocator, &dir_files);
                     for (dir_files.items) |f| {
                         try extra_lint_files.append(allocator, try allocator.dupe(u8, f));
@@ -399,11 +473,22 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
         }
 
         if (targeting_options.build_script) {
-            try collectBuildFiles(allocator, io, package.project_root, &extra_lint_files);
+            try collectBuildFiles(
+                allocator,
+                io,
+                package.project_root,
+                &extra_lint_files,
+            );
         }
 
         if (options.deps) {
-            try appendDependencyLintFiles(allocator, io, duped_exclude_roots, targeting_options, &extra_lint_files);
+            try appendDependencyLintFiles(
+                allocator,
+                io,
+                duped_exclude_roots,
+                targeting_options,
+                &extra_lint_files,
+            );
         }
     }
 
@@ -425,7 +510,12 @@ fn appendDependencyLintFiles(
     extra_lint_files: *std.ArrayList([]const u8),
 ) !void {
     for (dependency_roots) |dep_root| {
-        var dep_files = try targeting.collectDirectoryLintTargets(allocator, io, dep_root, options);
+        var dep_files = try targeting.collectDirectoryLintTargets(
+            allocator,
+            io,
+            dep_root,
+            options,
+        );
         defer targeting.deinitOwnedPaths(allocator, &dep_files);
 
         for (dep_files.items) |path| {
@@ -435,7 +525,11 @@ fn appendDependencyLintFiles(
     }
 }
 
-fn resolveUserPath(allocator: std.mem.Allocator, project_root: []const u8, raw: []const u8) ![]const u8 {
+fn resolveUserPath(
+    allocator: std.mem.Allocator,
+    project_root: []const u8,
+    raw: []const u8,
+) ![]const u8 {
     if (std.fs.path.isAbsolute(raw)) return try allocator.dupe(u8, raw);
     return try std.fs.path.join(allocator, &.{ project_root, raw });
 }
@@ -448,17 +542,32 @@ fn collectModuleRootLintFiles(
     extra: *std.ArrayList([]const u8),
     module_roots: *std.ArrayList([]const u8),
 ) !void {
-    const stat = std.Io.Dir.cwd().statFile(io, resolved, .{}) catch return;
+    const stat = std.Io.Dir.cwd().statFile(
+        io,
+        resolved,
+        .{},
+    ) catch return;
 
     if (stat.kind == .directory) {
         var entrypoints: std.ArrayList([]const u8) = .empty;
         defer targeting.deinitOwnedPaths(allocator, &entrypoints);
-        try targeting.collectDirectoryEntrypoints(allocator, io, resolved, options, &entrypoints);
+        try targeting.collectDirectoryEntrypoints(
+            allocator,
+            io,
+            resolved,
+            options,
+            &entrypoints,
+        );
         for (entrypoints.items) |entry| {
             try module_roots.append(allocator, try allocator.dupe(u8, entry));
         }
 
-        var files = try targeting.collectDirectoryLintTargets(allocator, io, resolved, options);
+        var files = try targeting.collectDirectoryLintTargets(
+            allocator,
+            io,
+            resolved,
+            options,
+        );
         defer targeting.deinitOwnedPaths(allocator, &files);
         for (files.items) |path| {
             try extra.append(allocator, try allocator.dupe(u8, path));
@@ -466,9 +575,17 @@ fn collectModuleRootLintFiles(
         return;
     }
 
-    if (!std.mem.endsWith(u8, std.fs.path.basename(resolved), ".zig")) return;
+    if (!std.mem.endsWith(
+        u8,
+        std.fs.path.basename(resolved),
+        ".zig",
+    )) return;
 
-    const abs = realPathFileAlloc(allocator, io, resolved) catch try allocator.dupe(u8, resolved);
+    const abs = realPathFileAlloc(
+        allocator,
+        io,
+        resolved,
+    ) catch try allocator.dupe(u8, resolved);
     if (targeting.shouldSkipLintFile(abs, options)) {
         allocator.free(abs);
         return;
@@ -476,7 +593,11 @@ fn collectModuleRootLintFiles(
     errdefer allocator.free(abs);
     try module_roots.append(allocator, abs);
 
-    var reachable = try reach.collectReachablePublicFiles(allocator, io, abs);
+    var reachable = try reach.collectReachablePublicFiles(
+        allocator,
+        io,
+        abs,
+    );
     defer reach.deinitOwnedPaths(allocator, &reachable);
 
     for (reachable.items) |path| {
@@ -493,16 +614,34 @@ fn collectRecursiveLintFiles(
     options: targeting.Options,
     extra: *std.ArrayList([]const u8),
 ) !void {
-    const stat = std.Io.Dir.cwd().statFile(io, resolved, .{}) catch return;
+    const stat = std.Io.Dir.cwd().statFile(
+        io,
+        resolved,
+        .{},
+    ) catch return;
 
     if (stat.kind == .directory) {
-        try targeting.collectRecursiveZigFiles(allocator, io, resolved, options, extra);
+        try targeting.collectRecursiveZigFiles(
+            allocator,
+            io,
+            resolved,
+            options,
+            extra,
+        );
         return;
     }
 
-    if (!std.mem.endsWith(u8, std.fs.path.basename(resolved), ".zig")) return;
+    if (!std.mem.endsWith(
+        u8,
+        std.fs.path.basename(resolved),
+        ".zig",
+    )) return;
 
-    const abs = realPathFileAlloc(allocator, io, resolved) catch try allocator.dupe(u8, resolved);
+    const abs = realPathFileAlloc(
+        allocator,
+        io,
+        resolved,
+    ) catch try allocator.dupe(u8, resolved);
     if (targeting.shouldSkipLintFile(abs, options)) {
         allocator.free(abs);
         return;
@@ -512,7 +651,11 @@ fn collectRecursiveLintFiles(
 
 fn targetNameExcluded(exclude_targets: []const []const u8, name: []const u8) bool {
     for (exclude_targets) |excluded| {
-        if (std.mem.eql(u8, excluded, name)) return true;
+        if (std.mem.eql(
+            u8,
+            excluded,
+            name,
+        )) return true;
     }
     return false;
 }

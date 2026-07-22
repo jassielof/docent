@@ -80,14 +80,22 @@ pub const File = struct {
     pub const Index = enum(u32) {
         _,
 
-        fn add_decl(i: Index, node: Ast.Node.Index, parent_decl: Decl.Index) Oom!Decl.Index {
+        fn add_decl(
+            i: Index,
+            node: Ast.Node.Index,
+            parent_decl: Decl.Index,
+        ) Oom!Decl.Index {
             try active.decls.append(gpa, .{
                 .ast_node = node,
                 .file = i,
                 .parent = parent_decl,
             });
             const decl_index: Decl.Index = @enumFromInt(active.decls.items.len - 1);
-            try i.get().node_decls.put(gpa, node, decl_index);
+            try i.get().node_decls.put(
+                gpa,
+                node,
+                decl_index,
+            );
             return decl_index;
         }
 
@@ -145,7 +153,11 @@ pub const File = struct {
                 => {
                     var buf: [1]Ast.Node.Index = undefined;
                     const full = ast.fullFnProto(&buf, node).?;
-                    return categorize_func(file_index, node, full);
+                    return categorize_func(
+                        file_index,
+                        node,
+                        full,
+                    );
                 },
 
                 else => unreachable,
@@ -212,7 +224,11 @@ pub const File = struct {
                 .identifier => {
                     const name_token = ast.nodeMainToken(node);
                     const ident_name = ast.tokenSlice(name_token);
-                    if (std.mem.eql(u8, ident_name, "type"))
+                    if (std.mem.eql(
+                        u8,
+                        ident_name,
+                        "type",
+                    ))
                         return .type_type;
 
                     if (isPrimitiveNonType(ident_name))
@@ -251,7 +267,11 @@ pub const File = struct {
                 => {
                     var buf: [2]Ast.Node.Index = undefined;
                     const params = ast.builtinCallParams(&buf, node).?;
-                    return categorize_builtin_call(file_index, node, params);
+                    return categorize_builtin_call(
+                        file_index,
+                        node,
+                        params,
+                    );
                 },
 
                 .call_one,
@@ -260,7 +280,11 @@ pub const File = struct {
                 .call_comma,
                 => {
                     var buf: [1]Ast.Node.Index = undefined;
-                    return categorize_call(file_index, node, ast.fullCall(&buf, node).?);
+                    return categorize_call(
+                        file_index,
+                        node,
+                        ast.fullCall(&buf, node).?,
+                    );
                 },
 
                 .if_simple,
@@ -330,7 +354,11 @@ pub const File = struct {
             const ast = file_index.get_ast();
             const builtin_token = ast.nodeMainToken(node);
             const builtin_name = ast.tokenSlice(builtin_token);
-            if (std.mem.eql(u8, builtin_name, "@import")) {
+            if (std.mem.eql(
+                u8,
+                builtin_name,
+                "@import",
+            )) {
                 const str_lit_token = ast.nodeMainToken(params[0]);
                 const str_bytes = ast.tokenSlice(str_lit_token);
                 const file_path = std.zig.string_literal.parseAlloc(gpa, str_bytes) catch @panic("OOM");
@@ -351,7 +379,11 @@ pub const File = struct {
                 } else {
                     log.warn("import target '{s}' did not resolve to any file", .{resolved_path});
                 }
-            } else if (std.mem.eql(u8, builtin_name, "@This")) {
+            } else if (std.mem.eql(
+                u8,
+                builtin_name,
+                "@This",
+            )) {
                 if (file_index.get().node_decls.get(node)) |decl_index| {
                     return .{ .alias = decl_index };
                 } else {
@@ -407,7 +439,11 @@ pub fn add_file(file_name: []const u8, bytes: []u8) !File.Index {
     const ast = try parse(file_name, bytes);
     assert(ast.errors.len == 0);
     const file_index: File.Index = @enumFromInt(active.files.entries.len);
-    try active.files.put(gpa, file_name, .{ .ast = ast });
+    try active.files.put(
+        gpa,
+        file_name,
+        .{ .ast = ast },
+    );
 
     var w: Walk = .{
         .file = file_index,
@@ -416,7 +452,13 @@ pub fn add_file(file_name: []const u8, bytes: []u8) !File.Index {
     scope.* = .{ .tag = .top };
 
     const decl_index = try file_index.add_decl(.root, .none);
-    try struct_decl(&w, scope, decl_index, .root, ast.containerDeclRoot());
+    try struct_decl(
+        &w,
+        scope,
+        decl_index,
+        .root,
+        ast.containerDeclRoot(),
+    );
 
     const file = file_index.get();
     shrinkToFit(&file.ident_decls);
@@ -446,7 +488,11 @@ fn parse(file_name: []const u8, source: []u8) Oom!Ast {
         break :s source[0 .. source.len - 1 :0];
     };
 
-    var ast = try Ast.parse(gpa, adjusted_source, .zig);
+    var ast = try Ast.parse(
+        gpa,
+        adjusted_source,
+        .zig,
+    );
     if (ast.errors.len > 0) {
         defer ast.deinit(gpa);
 
@@ -464,7 +510,11 @@ fn parse(file_name: []const u8, source: []u8) Oom!Ast {
                 file_name, err_loc.line + 1, err_loc.column + 1, rendered_err.written(),
             });
         }
-        return Ast.parse(gpa, "", .zig);
+        return Ast.parse(
+            gpa,
+            "",
+            .zig,
+        );
     }
     return ast;
 }
@@ -472,7 +522,11 @@ fn parse(file_name: []const u8, source: []u8) Oom!Ast {
 pub const Scope = struct {
     tag: Tag,
 
-    const Tag = enum { top, local, namespace };
+    const Tag = enum {
+        top,
+        local,
+        namespace,
+    };
 
     const Local = struct {
         base: Scope = .{ .tag = .local },
@@ -513,7 +567,11 @@ pub const Scope = struct {
         }
     }
 
-    pub fn lookup(start_scope: *Scope, ast: *const Ast, name: []const u8) ?Ast.Node.Index {
+    pub fn lookup(
+        start_scope: *Scope,
+        ast: *const Ast,
+        name: []const u8,
+    ) ?Ast.Node.Index {
         var it: *Scope = start_scope;
         while (true) switch (it.tag) {
             .top => break,
@@ -521,7 +579,11 @@ pub const Scope = struct {
                 const local: *Local = @alignCast(@fieldParentPtr("base", it));
                 const name_token = ast.nodeMainToken(local.var_node) + 1;
                 const ident_name = ast.tokenSlice(name_token);
-                if (std.mem.eql(u8, ident_name, name)) {
+                if (std.mem.eql(
+                    u8,
+                    ident_name,
+                    name,
+                )) {
                     return local.var_node;
                 }
                 it = local.parent;
@@ -552,14 +614,22 @@ fn struct_decl(
         .parent = scope,
         .decl_index = parent_decl,
     };
-    try w.file.get().scopes.putNoClobber(gpa, node, &namespace.base);
+    try w.file.get().scopes.putNoClobber(
+        gpa,
+        node,
+        &namespace.base,
+    );
     try w.scanDecls(namespace, container_decl.ast.members);
 
     for (container_decl.ast.members) |member| switch (ast.nodeTag(member)) {
         .container_field_init,
         .container_field_align,
         .container_field,
-        => try w.container_field(&namespace.base, parent_decl, ast.fullContainerField(member).?),
+        => try w.container_field(
+            &namespace.base,
+            parent_decl,
+            ast.fullContainerField(member).?,
+        ),
 
         .fn_proto,
         .fn_proto_multi,
@@ -572,11 +642,20 @@ fn struct_decl(
             const fn_name_token = full.ast.fn_token + 1;
             const fn_name = ast.tokenSlice(fn_name_token);
             if (namespace.doctests.get(fn_name)) |doctest_node| {
-                try w.file.get().doctests.put(gpa, member, doctest_node);
+                try w.file.get().doctests.put(
+                    gpa,
+                    member,
+                    doctest_node,
+                );
             }
             const decl_index = try w.file.add_decl(member, parent_decl);
             const body = if (ast.nodeTag(member) == .fn_decl) ast.nodeData(member).node_and_node[1].toOptional() else .none;
-            try w.fn_decl(&namespace.base, decl_index, body, full);
+            try w.fn_decl(
+                &namespace.base,
+                decl_index,
+                body,
+                full,
+            );
         },
 
         .global_var_decl,
@@ -585,13 +664,25 @@ fn struct_decl(
         .aligned_var_decl,
         => {
             const decl_index = try w.file.add_decl(member, parent_decl);
-            try w.global_var_decl(&namespace.base, decl_index, ast.fullVarDecl(member).?);
+            try w.global_var_decl(
+                &namespace.base,
+                decl_index,
+                ast.fullVarDecl(member).?,
+            );
         },
 
         .@"comptime",
-        => try w.expr(&namespace.base, parent_decl, ast.nodeData(member).node),
+        => try w.expr(
+            &namespace.base,
+            parent_decl,
+            ast.nodeData(member).node,
+        ),
 
-        .test_decl => try w.expr(&namespace.base, parent_decl, ast.nodeData(member).opt_token_and_node[1]),
+        .test_decl => try w.expr(
+            &namespace.base,
+            parent_decl,
+            ast.nodeData(member).opt_token_and_node[1],
+        ),
 
         else => unreachable,
     };
@@ -603,11 +694,31 @@ fn comptime_decl(
     parent_decl: Decl.Index,
     full: Ast.full.VarDecl,
 ) Oom!void {
-    try w.expr(scope, parent_decl, full.ast.type_node);
-    try w.maybe_expr(scope, parent_decl, full.ast.align_node);
-    try w.maybe_expr(scope, parent_decl, full.ast.addrspace_node);
-    try w.maybe_expr(scope, parent_decl, full.ast.section_node);
-    try w.expr(scope, parent_decl, full.ast.init_node);
+    try w.expr(
+        scope,
+        parent_decl,
+        full.ast.type_node,
+    );
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.align_node,
+    );
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.addrspace_node,
+    );
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.section_node,
+    );
+    try w.expr(
+        scope,
+        parent_decl,
+        full.ast.init_node,
+    );
 }
 
 fn global_var_decl(
@@ -616,11 +727,31 @@ fn global_var_decl(
     parent_decl: Decl.Index,
     full: Ast.full.VarDecl,
 ) Oom!void {
-    try w.maybe_expr(scope, parent_decl, full.ast.type_node);
-    try w.maybe_expr(scope, parent_decl, full.ast.align_node);
-    try w.maybe_expr(scope, parent_decl, full.ast.addrspace_node);
-    try w.maybe_expr(scope, parent_decl, full.ast.section_node);
-    try w.maybe_expr(scope, parent_decl, full.ast.init_node);
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.type_node,
+    );
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.align_node,
+    );
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.addrspace_node,
+    );
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.section_node,
+    );
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.init_node,
+    );
 }
 
 fn container_field(
@@ -629,9 +760,21 @@ fn container_field(
     parent_decl: Decl.Index,
     full: Ast.full.ContainerField,
 ) Oom!void {
-    try w.maybe_expr(scope, parent_decl, full.ast.type_expr);
-    try w.maybe_expr(scope, parent_decl, full.ast.align_expr);
-    try w.maybe_expr(scope, parent_decl, full.ast.value_expr);
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.type_expr,
+    );
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.align_expr,
+    );
+    try w.maybe_expr(
+        scope,
+        parent_decl,
+        full.ast.value_expr,
+    );
 }
 
 fn fn_decl(
@@ -642,21 +785,71 @@ fn fn_decl(
     full: Ast.full.FnProto,
 ) Oom!void {
     for (full.ast.params) |param| {
-        try expr(w, scope, parent_decl, param);
+        try expr(
+            w,
+            scope,
+            parent_decl,
+            param,
+        );
     }
-    try expr(w, scope, parent_decl, full.ast.return_type.unwrap().?);
-    try maybe_expr(w, scope, parent_decl, full.ast.align_expr);
-    try maybe_expr(w, scope, parent_decl, full.ast.addrspace_expr);
-    try maybe_expr(w, scope, parent_decl, full.ast.section_expr);
-    try maybe_expr(w, scope, parent_decl, full.ast.callconv_expr);
-    try maybe_expr(w, scope, parent_decl, body);
+    try expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.return_type.unwrap().?,
+    );
+    try maybe_expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.align_expr,
+    );
+    try maybe_expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.addrspace_expr,
+    );
+    try maybe_expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.section_expr,
+    );
+    try maybe_expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.callconv_expr,
+    );
+    try maybe_expr(
+        w,
+        scope,
+        parent_decl,
+        body,
+    );
 }
 
-fn maybe_expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.OptionalIndex) Oom!void {
-    if (node.unwrap()) |n| return expr(w, scope, parent_decl, n);
+fn maybe_expr(
+    w: *Walk,
+    scope: *Scope,
+    parent_decl: Decl.Index,
+    node: Ast.Node.OptionalIndex,
+) Oom!void {
+    if (node.unwrap()) |n| return expr(
+        w,
+        scope,
+        parent_decl,
+        n,
+    );
 }
 
-fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) Oom!void {
+fn expr(
+    w: *Walk,
+    scope: *Scope,
+    parent_decl: Decl.Index,
+    node: Ast.Node.Index,
+) Oom!void {
     const ast = w.file.get_ast();
     switch (ast.nodeTag(node)) {
         .root => unreachable, // Top-level declaration.
@@ -739,14 +932,34 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         .switch_range,
         => {
             const lhs, const rhs = ast.nodeData(node).node_and_node;
-            try expr(w, scope, parent_decl, lhs);
-            try expr(w, scope, parent_decl, rhs);
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                lhs,
+            );
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                rhs,
+            );
         },
 
         .assign_destructure => {
             const full = ast.assignDestructure(node);
-            for (full.ast.variables) |variable_node| try expr(w, scope, parent_decl, variable_node);
-            _ = try expr(w, scope, parent_decl, full.ast.value_expr);
+            for (full.ast.variables) |variable_node| try expr(
+                w,
+                scope,
+                parent_decl,
+                variable_node,
+            );
+            _ = try expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.value_expr,
+            );
         },
 
         .bool_not,
@@ -761,28 +974,66 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         .@"suspend",
         .@"resume",
         .@"try",
-        => try expr(w, scope, parent_decl, ast.nodeData(node).node),
+        => try expr(
+            w,
+            scope,
+            parent_decl,
+            ast.nodeData(node).node,
+        ),
         .unwrap_optional,
         .grouped_expression,
-        => try expr(w, scope, parent_decl, ast.nodeData(node).node_and_token[0]),
-        .@"return" => try maybe_expr(w, scope, parent_decl, ast.nodeData(node).opt_node),
+        => try expr(
+            w,
+            scope,
+            parent_decl,
+            ast.nodeData(node).node_and_token[0],
+        ),
+        .@"return" => try maybe_expr(
+            w,
+            scope,
+            parent_decl,
+            ast.nodeData(node).opt_node,
+        ),
 
-        .anyframe_type => try expr(w, scope, parent_decl, ast.nodeData(node).token_and_node[1]),
-        .@"break" => try maybe_expr(w, scope, parent_decl, ast.nodeData(node).opt_token_and_opt_node[1]),
+        .anyframe_type => try expr(
+            w,
+            scope,
+            parent_decl,
+            ast.nodeData(node).token_and_node[1],
+        ),
+        .@"break" => try maybe_expr(
+            w,
+            scope,
+            parent_decl,
+            ast.nodeData(node).opt_token_and_opt_node[1],
+        ),
 
         .identifier => {
             const ident_token = ast.nodeMainToken(node);
             const ident_name = ast.tokenSlice(ident_token);
             if (scope.lookup(ast, ident_name)) |var_node| {
-                try w.file.get().ident_decls.put(gpa, ident_token, var_node);
+                try w.file.get().ident_decls.put(
+                    gpa,
+                    ident_token,
+                    var_node,
+                );
             }
         },
         .field_access => {
             const object_node, const field_ident = ast.nodeData(node).node_and_token;
-            try w.file.get().token_parents.put(gpa, field_ident, node);
+            try w.file.get().token_parents.put(
+                gpa,
+                field_ident,
+                node,
+            );
             // This will populate the left-most field object if it is an
             // identifier, allowing rendering code to piece together the link.
-            try expr(w, scope, parent_decl, object_node);
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                object_node,
+            );
         },
 
         .string_literal,
@@ -806,7 +1057,12 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
                 // .asm_output nodes.
                 _ = n;
             }
-            try expr(w, scope, parent_decl, full.ast.template);
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.template,
+            );
         },
 
         .builtin_call_two,
@@ -816,7 +1072,13 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         => {
             var buf: [2]Ast.Node.Index = undefined;
             const params = ast.builtinCallParams(&buf, node).?;
-            return builtin_call(w, scope, parent_decl, node, params);
+            return builtin_call(
+                w,
+                scope,
+                parent_decl,
+                node,
+                params,
+            );
         },
 
         .call_one,
@@ -826,9 +1088,19 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         => {
             var buf: [1]Ast.Node.Index = undefined;
             const full = ast.fullCall(&buf, node).?;
-            try expr(w, scope, parent_decl, full.ast.fn_expr);
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.fn_expr,
+            );
             for (full.ast.params) |param| {
-                try expr(w, scope, parent_decl, param);
+                try expr(
+                    w,
+                    scope,
+                    parent_decl,
+                    param,
+                );
             }
         },
 
@@ -836,16 +1108,36 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         .@"if",
         => {
             const full = ast.fullIf(node).?;
-            try expr(w, scope, parent_decl, full.ast.cond_expr);
-            try expr(w, scope, parent_decl, full.ast.then_expr);
-            try maybe_expr(w, scope, parent_decl, full.ast.else_expr);
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.cond_expr,
+            );
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.then_expr,
+            );
+            try maybe_expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.else_expr,
+            );
         },
 
         .while_simple,
         .while_cont,
         .@"while",
         => {
-            try while_expr(w, scope, parent_decl, ast.fullWhile(node).?);
+            try while_expr(
+                w,
+                scope,
+                parent_decl,
+                ast.fullWhile(node).?,
+            );
         },
 
         .for_simple, .@"for" => {
@@ -853,19 +1145,59 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
             for (full.ast.inputs) |input| {
                 if (ast.nodeTag(input) == .for_range) {
                     const start, const end = ast.nodeData(input).node_and_opt_node;
-                    try expr(w, scope, parent_decl, start);
-                    try maybe_expr(w, scope, parent_decl, end);
+                    try expr(
+                        w,
+                        scope,
+                        parent_decl,
+                        start,
+                    );
+                    try maybe_expr(
+                        w,
+                        scope,
+                        parent_decl,
+                        end,
+                    );
                 } else {
-                    try expr(w, scope, parent_decl, input);
+                    try expr(
+                        w,
+                        scope,
+                        parent_decl,
+                        input,
+                    );
                 }
             }
-            try expr(w, scope, parent_decl, full.ast.then_expr);
-            try maybe_expr(w, scope, parent_decl, full.ast.else_expr);
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.then_expr,
+            );
+            try maybe_expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.else_expr,
+            );
         },
 
-        .slice => return slice(w, scope, parent_decl, ast.slice(node)),
-        .slice_open => return slice(w, scope, parent_decl, ast.sliceOpen(node)),
-        .slice_sentinel => return slice(w, scope, parent_decl, ast.sliceSentinel(node)),
+        .slice => return slice(
+            w,
+            scope,
+            parent_decl,
+            ast.slice(node),
+        ),
+        .slice_open => return slice(
+            w,
+            scope,
+            parent_decl,
+            ast.sliceOpen(node),
+        ),
+        .slice_sentinel => return slice(
+            w,
+            scope,
+            parent_decl,
+            ast.sliceSentinel(node),
+        ),
 
         .block_two,
         .block_two_semicolon,
@@ -874,7 +1206,12 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         => {
             var buf: [2]Ast.Node.Index = undefined;
             const statements = ast.blockStatements(&buf, node).?;
-            return block(w, scope, parent_decl, statements);
+            return block(
+                w,
+                scope,
+                parent_decl,
+                statements,
+            );
         },
 
         .ptr_type_aligned,
@@ -883,12 +1220,42 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         .ptr_type_bit_range,
         => {
             const full = ast.fullPtrType(node).?;
-            try maybe_expr(w, scope, parent_decl, full.ast.align_node);
-            try maybe_expr(w, scope, parent_decl, full.ast.addrspace_node);
-            try maybe_expr(w, scope, parent_decl, full.ast.sentinel);
-            try maybe_expr(w, scope, parent_decl, full.ast.bit_range_start);
-            try maybe_expr(w, scope, parent_decl, full.ast.bit_range_end);
-            try expr(w, scope, parent_decl, full.ast.child_type);
+            try maybe_expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.align_node,
+            );
+            try maybe_expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.addrspace_node,
+            );
+            try maybe_expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.sentinel,
+            );
+            try maybe_expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.bit_range_start,
+            );
+            try maybe_expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.bit_range_end,
+            );
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.child_type,
+            );
         },
 
         .container_decl,
@@ -905,25 +1272,61 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         .tagged_union_two_trailing,
         => {
             var buf: [2]Ast.Node.Index = undefined;
-            return struct_decl(w, scope, parent_decl, node, ast.fullContainerDecl(&buf, node).?);
+            return struct_decl(
+                w,
+                scope,
+                parent_decl,
+                node,
+                ast.fullContainerDecl(&buf, node).?,
+            );
         },
 
         .array_type_sentinel => {
             const len_expr, const extra_index = ast.nodeData(node).node_and_extra;
             const extra = ast.extraData(extra_index, Ast.Node.ArrayTypeSentinel);
-            try expr(w, scope, parent_decl, len_expr);
-            try expr(w, scope, parent_decl, extra.elem_type);
-            try expr(w, scope, parent_decl, extra.sentinel);
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                len_expr,
+            );
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                extra.elem_type,
+            );
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                extra.sentinel,
+            );
         },
         .@"switch", .switch_comma => {
             const full = ast.fullSwitch(node).?;
-            try expr(w, scope, parent_decl, full.ast.condition);
+            try expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.condition,
+            );
             for (full.ast.cases) |case_node| {
                 const case = ast.fullSwitchCase(case_node).?;
                 for (case.ast.values) |value_node| {
-                    try expr(w, scope, parent_decl, value_node);
+                    try expr(
+                        w,
+                        scope,
+                        parent_decl,
+                        value_node,
+                    );
                 }
-                try expr(w, scope, parent_decl, case.ast.target_expr);
+                try expr(
+                    w,
+                    scope,
+                    parent_decl,
+                    case.ast.target_expr,
+                );
             }
         },
 
@@ -938,9 +1341,19 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         => {
             var buf: [2]Ast.Node.Index = undefined;
             const full = ast.fullArrayInit(&buf, node).?;
-            try maybe_expr(w, scope, parent_decl, full.ast.type_expr);
+            try maybe_expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.type_expr,
+            );
             for (full.ast.elements) |elem| {
-                try expr(w, scope, parent_decl, elem);
+                try expr(
+                    w,
+                    scope,
+                    parent_decl,
+                    elem,
+                );
             }
         },
 
@@ -955,9 +1368,19 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         => {
             var buf: [2]Ast.Node.Index = undefined;
             const full = ast.fullStructInit(&buf, node).?;
-            try maybe_expr(w, scope, parent_decl, full.ast.type_expr);
+            try maybe_expr(
+                w,
+                scope,
+                parent_decl,
+                full.ast.type_expr,
+            );
             for (full.ast.fields) |field| {
-                try expr(w, scope, parent_decl, field);
+                try expr(
+                    w,
+                    scope,
+                    parent_decl,
+                    field,
+                );
             }
         },
 
@@ -967,16 +1390,47 @@ fn expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, node: Ast.Node.Index) 
         .fn_proto,
         => {
             var buf: [1]Ast.Node.Index = undefined;
-            return fn_decl(w, scope, parent_decl, .none, ast.fullFnProto(&buf, node).?);
+            return fn_decl(
+                w,
+                scope,
+                parent_decl,
+                .none,
+                ast.fullFnProto(&buf, node).?,
+            );
         },
     }
 }
 
-fn slice(w: *Walk, scope: *Scope, parent_decl: Decl.Index, full: Ast.full.Slice) Oom!void {
-    try expr(w, scope, parent_decl, full.ast.sliced);
-    try expr(w, scope, parent_decl, full.ast.start);
-    try maybe_expr(w, scope, parent_decl, full.ast.end);
-    try maybe_expr(w, scope, parent_decl, full.ast.sentinel);
+fn slice(
+    w: *Walk,
+    scope: *Scope,
+    parent_decl: Decl.Index,
+    full: Ast.full.Slice,
+) Oom!void {
+    try expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.sliced,
+    );
+    try expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.start,
+    );
+    try maybe_expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.end,
+    );
+    try maybe_expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.sentinel,
+    );
 }
 
 fn builtin_call(
@@ -989,12 +1443,25 @@ fn builtin_call(
     const ast = w.file.get_ast();
     const builtin_token = ast.nodeMainToken(node);
     const builtin_name = ast.tokenSlice(builtin_token);
-    if (std.mem.eql(u8, builtin_name, "@This")) {
-        try w.file.get().node_decls.put(gpa, node, scope.getNamespaceDecl());
+    if (std.mem.eql(
+        u8,
+        builtin_name,
+        "@This",
+    )) {
+        try w.file.get().node_decls.put(
+            gpa,
+            node,
+            scope.getNamespaceDecl(),
+        );
     }
 
     for (params) |param| {
-        try expr(w, scope, parent_decl, param);
+        try expr(
+            w,
+            scope,
+            parent_decl,
+            param,
+        );
     }
 }
 
@@ -1016,13 +1483,22 @@ fn block(
             .aligned_var_decl,
             => {
                 const full = ast.fullVarDecl(node).?;
-                try global_var_decl(w, scope, parent_decl, full);
+                try global_var_decl(
+                    w,
+                    scope,
+                    parent_decl,
+                    full,
+                );
                 const local = try gpa.create(Scope.Local);
                 local.* = .{
                     .parent = scope,
                     .var_node = node,
                 };
-                try w.file.get().scopes.putNoClobber(gpa, node, &local.base);
+                try w.file.get().scopes.putNoClobber(
+                    gpa,
+                    node,
+                    &local.base,
+                );
                 scope = &local.base;
             },
 
@@ -1030,24 +1506,73 @@ fn block(
                 log.debug("walk assign_destructure not implemented yet", .{});
             },
 
-            .grouped_expression => try expr(w, scope, parent_decl, ast.nodeData(node).node_and_token[0]),
+            .grouped_expression => try expr(
+                w,
+                scope,
+                parent_decl,
+                ast.nodeData(node).node_and_token[0],
+            ),
 
-            .@"defer" => try expr(w, scope, parent_decl, ast.nodeData(node).node),
-            .@"errdefer" => try expr(w, scope, parent_decl, ast.nodeData(node).opt_token_and_node[1]),
+            .@"defer" => try expr(
+                w,
+                scope,
+                parent_decl,
+                ast.nodeData(node).node,
+            ),
+            .@"errdefer" => try expr(
+                w,
+                scope,
+                parent_decl,
+                ast.nodeData(node).opt_token_and_node[1],
+            ),
 
-            else => try expr(w, scope, parent_decl, node),
+            else => try expr(
+                w,
+                scope,
+                parent_decl,
+                node,
+            ),
         }
     }
 }
 
-fn while_expr(w: *Walk, scope: *Scope, parent_decl: Decl.Index, full: Ast.full.While) Oom!void {
-    try expr(w, scope, parent_decl, full.ast.cond_expr);
-    try maybe_expr(w, scope, parent_decl, full.ast.cont_expr);
-    try expr(w, scope, parent_decl, full.ast.then_expr);
-    try maybe_expr(w, scope, parent_decl, full.ast.else_expr);
+fn while_expr(
+    w: *Walk,
+    scope: *Scope,
+    parent_decl: Decl.Index,
+    full: Ast.full.While,
+) Oom!void {
+    try expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.cond_expr,
+    );
+    try maybe_expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.cont_expr,
+    );
+    try expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.then_expr,
+    );
+    try maybe_expr(
+        w,
+        scope,
+        parent_decl,
+        full.ast.else_expr,
+    );
 }
 
-fn scanDecls(w: *Walk, namespace: *Scope.Namespace, members: []const Ast.Node.Index) Oom!void {
+fn scanDecls(
+    w: *Walk,
+    namespace: *Scope.Namespace,
+    members: []const Ast.Node.Index,
+) Oom!void {
     const ast = w.file.get_ast();
 
     for (members) |member_node| {
@@ -1075,7 +1600,11 @@ fn scanDecls(w: *Walk, namespace: *Scope.Namespace, members: []const Ast.Node.In
                     const is_doctest = ast.tokenTag(ident_token) == .identifier;
                     if (is_doctest) {
                         const token_bytes = ast.tokenSlice(ident_token);
-                        try namespace.doctests.put(gpa, token_bytes, member_node);
+                        try namespace.doctests.put(
+                            gpa,
+                            token_bytes,
+                            member_node,
+                        );
                     }
                 }
                 continue;
@@ -1085,15 +1614,35 @@ fn scanDecls(w: *Walk, namespace: *Scope.Namespace, members: []const Ast.Node.In
         };
 
         const token_bytes = ast.tokenSlice(name_token);
-        try namespace.names.put(gpa, token_bytes, member_node);
+        try namespace.names.put(
+            gpa,
+            token_bytes,
+            member_node,
+        );
     }
 }
 
 pub fn isPrimitiveNonType(name: []const u8) bool {
-    return std.mem.eql(u8, name, "undefined") or
-        std.mem.eql(u8, name, "null") or
-        std.mem.eql(u8, name, "true") or
-        std.mem.eql(u8, name, "false");
+    return std.mem.eql(
+        u8,
+        name,
+        "undefined",
+    ) or
+        std.mem.eql(
+            u8,
+            name,
+            "null",
+        ) or
+        std.mem.eql(
+            u8,
+            name,
+            "true",
+        ) or
+        std.mem.eql(
+            u8,
+            name,
+            "false",
+        );
 }
 
 //test {

@@ -35,7 +35,11 @@ pub const Options = struct {
 };
 
 /// Full configuration for `cognitive_complexity`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.reachability_traversal);
+pub const Rule = category.Rule(
+    default_severity,
+    Options,
+    scan.RuleScanConfig.reachability_traversal,
+);
 
 /// Default cognitive-complexity threshold recommended by Sonar Source; see <https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103/3>.
 pub const default_threshold: u32 = 15;
@@ -62,7 +66,13 @@ pub fn check(
     defer fns.deinit(allocator);
 
     for (tree.rootDecls()) |decl| {
-        try collectFunctions(tree, decl, public_api_only, allocator, &fns);
+        try collectFunctions(
+            tree,
+            decl,
+            public_api_only,
+            allocator,
+            &fns,
+        );
     }
 
     for (fns.items) |fn_node| {
@@ -78,7 +88,11 @@ pub fn check(
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
-            .subject = try utils.ownedSubject(msg_allocator, .function, name),
+            .subject = try utils.ownedSubject(
+                msg_allocator,
+                .function,
+                name,
+            ),
             .detail = try std.fmt.allocPrint(
                 msg_allocator,
                 "cognitive complexity {d} exceeds threshold {d}",
@@ -87,7 +101,11 @@ pub fn check(
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
-            .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+            .source_line = try utils.dupSourceLine(
+                tree,
+                name_tok,
+                msg_allocator,
+            ),
             .symbol_len = name.len,
         });
     }
@@ -118,7 +136,13 @@ fn collectFunctions(
                 var buf: [2]Ast.Node.Index = undefined;
                 if (tree.fullContainerDecl(&buf, init_node)) |container| {
                     for (container.ast.members) |member| {
-                        try collectFunctions(tree, member, public_api_only, allocator, out);
+                        try collectFunctions(
+                            tree,
+                            member,
+                            public_api_only,
+                            allocator,
+                            out,
+                        );
                     }
                 }
             }
@@ -130,7 +154,13 @@ fn collectFunctions(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
-                try collectFunctions(tree, member, public_api_only, allocator, out);
+                try collectFunctions(
+                    tree,
+                    member,
+                    public_api_only,
+                    allocator,
+                    out,
+                );
             }
         }
     }
@@ -176,7 +206,14 @@ fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
         const first = tree.firstToken(node);
         const last = tree.lastToken(node);
         if (first < body_first or last > body_last) continue;
-        score += nodeIncrement(tree, node, body_first, body_last, fn_name, regions.items);
+        score += nodeIncrement(
+            tree,
+            node,
+            body_first,
+            body_last,
+            fn_name,
+            regions.items,
+        );
     }
     return score;
 }
@@ -214,7 +251,11 @@ fn nodeIncrement(
             var inc: u32 = if (isElseIf(tree, if_full))
                 1
             else
-                1 + nestingLevel(tree, node, regions);
+                1 + nestingLevel(
+                    tree,
+                    node,
+                    regions,
+                );
 
             if (if_full.ast.else_expr.unwrap()) |else_node| {
                 if (!isIfTag(tree.nodeTag(else_node))) inc += 1;
@@ -229,10 +270,28 @@ fn nodeIncrement(
         .@"switch",
         .switch_comma,
         .@"catch",
-        => return 1 + nestingLevel(tree, node, regions),
-        .bool_and, .bool_or => return if (isLogicalSequenceStart(tree, node, body_first, body_last)) 1 else 0,
-        .@"break", .@"continue" => return if (isLoopLabelJump(tree, node, body_first, body_last)) 1 else 0,
-        .call, .call_comma, .call_one, .call_one_comma => return if (isDirectRecursion(tree, node, fn_name)) 1 else 0,
+        => return 1 + nestingLevel(
+            tree,
+            node,
+            regions,
+        ),
+        .bool_and, .bool_or => return if (isLogicalSequenceStart(
+            tree,
+            node,
+            body_first,
+            body_last,
+        )) 1 else 0,
+        .@"break", .@"continue" => return if (isLoopLabelJump(
+            tree,
+            node,
+            body_first,
+            body_last,
+        )) 1 else 0,
+        .call, .call_comma, .call_one, .call_one_comma => return if (isDirectRecursion(
+            tree,
+            node,
+            fn_name,
+        )) 1 else 0,
         else => return 0,
     }
 }
@@ -249,7 +308,12 @@ fn nestingLevel(
     var level: u32 = 0;
     for (regions) |ancestor| {
         if (ancestor == node) continue;
-        if (regionContains(tree, ancestor, first, last)) level += 1;
+        if (regionContains(
+            tree,
+            ancestor,
+            first,
+            last,
+        )) level += 1;
     }
     return level;
 }
@@ -265,35 +329,70 @@ fn regionContains(
     switch (tree.nodeTag(ancestor)) {
         .if_simple, .@"if" => {
             const if_full = tree.fullIf(ancestor).?;
-            if (spanContains(tree, if_full.ast.then_expr, first, last)) return true;
+            if (spanContains(
+                tree,
+                if_full.ast.then_expr,
+                first,
+                last,
+            )) return true;
             if (if_full.ast.else_expr.unwrap()) |else_node| {
                 // An `else if` does not open a new nesting region of its own here; the inner `if`
                 // node contributes its own then-branch region instead.
-                if (!isIfTag(tree.nodeTag(else_node)) and spanContains(tree, else_node, first, last)) return true;
+                if (!isIfTag(tree.nodeTag(else_node)) and spanContains(
+                    tree,
+                    else_node,
+                    first,
+                    last,
+                )) return true;
             }
             return false;
         },
         .while_simple, .while_cont, .@"while" => {
             const while_full = tree.fullWhile(ancestor).?;
-            return spanContains(tree, while_full.ast.then_expr, first, last);
+            return spanContains(
+                tree,
+                while_full.ast.then_expr,
+                first,
+                last,
+            );
         },
         .for_simple, .@"for" => {
             const for_full = tree.fullFor(ancestor).?;
-            return spanContains(tree, for_full.ast.then_expr, first, last);
+            return spanContains(
+                tree,
+                for_full.ast.then_expr,
+                first,
+                last,
+            );
         },
         .@"switch", .switch_comma => {
             const switch_full = tree.fullSwitch(ancestor).?;
             const cond_last = tree.lastToken(switch_full.ast.condition);
             return first > cond_last and first >= tree.firstToken(ancestor) and last <= tree.lastToken(ancestor);
         },
-        .@"catch" => return spanContains(tree, tree.nodeData(ancestor).node_and_node[1], first, last),
-        .fn_decl => return spanContains(tree, tree.nodeData(ancestor).node_and_node[1], first, last),
+        .@"catch" => return spanContains(
+            tree,
+            tree.nodeData(ancestor).node_and_node[1],
+            first,
+            last,
+        ),
+        .fn_decl => return spanContains(
+            tree,
+            tree.nodeData(ancestor).node_and_node[1],
+            first,
+            last,
+        ),
         else => return false,
     }
 }
 
 /// Returns whether the token span of `region` contains `[first, last]`.
-fn spanContains(tree: *const Ast, region: Ast.Node.Index, first: Ast.TokenIndex, last: Ast.TokenIndex) bool {
+fn spanContains(
+    tree: *const Ast,
+    region: Ast.Node.Index,
+    first: Ast.TokenIndex,
+    last: Ast.TokenIndex,
+) bool {
     return tree.firstToken(region) <= first and last <= tree.lastToken(region);
 }
 
@@ -368,7 +467,11 @@ fn isLoopLabelJump(
         const lf = tree.firstToken(loop);
         const ll = tree.lastToken(loop);
         if (lf < body_first or ll > body_last) continue;
-        if (lf <= node_first and node_last <= ll and std.mem.eql(u8, tree.tokenSlice(lt), label_name)) {
+        if (lf <= node_first and node_last <= ll and std.mem.eql(
+            u8,
+            tree.tokenSlice(lt),
+            label_name,
+        )) {
             return true;
         }
     }
@@ -376,19 +479,31 @@ fn isLoopLabelJump(
 }
 
 /// Returns whether a call node invokes `fn_name` directly (by identifier).
-fn isDirectRecursion(tree: *const Ast, node: Ast.Node.Index, fn_name: []const u8) bool {
+fn isDirectRecursion(
+    tree: *const Ast,
+    node: Ast.Node.Index,
+    fn_name: []const u8,
+) bool {
     if (fn_name.len == 0) return false;
     var buf: [1]Ast.Node.Index = undefined;
     const call = tree.fullCall(&buf, node) orelse return false;
     if (tree.nodeTag(call.ast.fn_expr) != .identifier) return false;
-    return std.mem.eql(u8, tree.tokenSlice(tree.nodeMainToken(call.ast.fn_expr)), fn_name);
+    return std.mem.eql(
+        u8,
+        tree.tokenSlice(tree.nodeMainToken(call.ast.fn_expr)),
+        fn_name,
+    );
 }
 
 // --- Tests ---
 
 fn complexityOfFirstFn(source: [:0]const u8) !u32 {
     const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(allocator);
 
     for (tree.rootDecls()) |decl| {

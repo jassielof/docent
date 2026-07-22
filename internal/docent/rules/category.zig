@@ -9,7 +9,11 @@ const severity = @import("../severity.zig");
 /// Builds a rule's full config type: a `level` severity, an optional `scan_mode`, and an `options` sub-space.
 ///
 /// `default_severity` seeds `level`, `OptionsType` is the rule's granular knobs, and `default_scan` is the category scan mode applied when `scan_mode` is still `null`. Each rule keeps its own documented `OptionsType`; only this universal envelope is shared.
-pub fn Rule(comptime default_severity: severity.Level, comptime OptionsType: type, comptime default_scan: scan.RuleScanConfig) type {
+pub fn Rule(
+    comptime default_severity: severity.Level,
+    comptime OptionsType: type,
+    comptime default_scan: scan.RuleScanConfig,
+) type {
     return struct {
         /// Severity at which violations are reported; the TOML key is `level`.
         level: severity.Level = default_severity,
@@ -31,7 +35,11 @@ pub fn Rule(comptime default_severity: severity.Level, comptime OptionsType: typ
 /// Fills each rule's unset (`null`) scan mode with the category default; call once after decoding.
 pub fn resolveScanModes(self: anytype) void {
     inline for (std.meta.fields(@TypeOf(self.*))) |field| {
-        if (comptime std.mem.eql(u8, field.name, "scan_mode")) continue;
+        if (comptime std.mem.eql(
+            u8,
+            field.name,
+            "scan_mode",
+        )) continue;
         if (@field(self, field.name).scan_mode == null) {
             @field(self, field.name).scan_mode = self.scan_mode;
         }
@@ -42,7 +50,11 @@ pub fn resolveScanModes(self: anytype) void {
 pub fn applyRunScanMode(self: anytype, mode: scan.RuleScanConfig) void {
     self.scan_mode = mode;
     inline for (std.meta.fields(@TypeOf(self.*))) |field| {
-        if (comptime std.mem.eql(u8, field.name, "scan_mode")) continue;
+        if (comptime std.mem.eql(
+            u8,
+            field.name,
+            "scan_mode",
+        )) continue;
         @field(self, field.name).scan_mode = mode;
     }
 }

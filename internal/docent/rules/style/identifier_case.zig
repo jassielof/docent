@@ -86,7 +86,11 @@ pub const Options = struct {
 };
 
 /// Full configuration for `identifier_case`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.reachability_traversal);
+pub const Rule = category.Rule(
+    default_severity,
+    Options,
+    scan.RuleScanConfig.reachability_traversal,
+);
 
 /// The expected case plus the diagnostic subject kind for a classified declaration.
 const Classification = struct {
@@ -113,7 +117,15 @@ pub fn check(
     const options = rule.options;
     const public_api_only = rule.publicApiOnly();
 
-    try checkStructFileName(tree, severity_level, file, options, allocator, msg_allocator, diagnostics);
+    try checkStructFileName(
+        tree,
+        severity_level,
+        file,
+        options,
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
 
     var namespace_cache = std.StringHashMap(bool).init(allocator);
     defer {
@@ -123,7 +135,20 @@ pub fn check(
     }
 
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity_level, file, public_api_only, options, .field, allocator, io, &namespace_cache, msg_allocator, diagnostics);
+        try checkNode(
+            tree,
+            decl,
+            severity_level,
+            file,
+            public_api_only,
+            options,
+            .field,
+            allocator,
+            io,
+            &namespace_cache,
+            msg_allocator,
+            diagnostics,
+        );
     }
 }
 
@@ -152,7 +177,17 @@ fn checkNode(
                         options.types
                     else
                         options.functions;
-                    try checkName(tree, name_tok, expected, .function, severity_level, file, allocator, msg_allocator, diagnostics);
+                    try checkName(
+                        tree,
+                        name_tok,
+                        expected,
+                        .function,
+                        severity_level,
+                        file,
+                        allocator,
+                        msg_allocator,
+                        diagnostics,
+                    );
                 }
             }
         }
@@ -161,21 +196,79 @@ fn checkNode(
 
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.ast.init_node.unwrap()) |init_node| {
-            try checkImportFilenameExpr(tree, init_node, severity_level, file, options, allocator, io, namespace_cache, msg_allocator, diagnostics);
-            try checkImportBinding(tree, var_decl, init_node, severity_level, file, options, allocator, io, namespace_cache, msg_allocator, diagnostics);
+            try checkImportFilenameExpr(
+                tree,
+                init_node,
+                severity_level,
+                file,
+                options,
+                allocator,
+                io,
+                namespace_cache,
+                msg_allocator,
+                diagnostics,
+            );
+            try checkImportBinding(
+                tree,
+                var_decl,
+                init_node,
+                severity_level,
+                file,
+                options,
+                allocator,
+                io,
+                namespace_cache,
+                msg_allocator,
+                diagnostics,
+            );
         }
         if (utils.isPubVisibility(tree, var_decl.visib_token) or !public_api_only) {
             const name_tok = var_decl.ast.mut_token + 1;
-            if (classifyVarDecl(tree, var_decl, options)) |c| {
-                try checkName(tree, name_tok, c.case, c.kind, severity_level, file, allocator, msg_allocator, diagnostics);
+            if (classifyVarDecl(
+                tree,
+                var_decl,
+                options,
+            )) |c| {
+                try checkName(
+                    tree,
+                    name_tok,
+                    c.case,
+                    c.kind,
+                    severity_level,
+                    file,
+                    allocator,
+                    msg_allocator,
+                    diagnostics,
+                );
             }
             if (var_decl.ast.init_node.unwrap()) |init_node| {
                 if (tree.nodeTag(init_node) == .error_set_decl) {
-                    try checkErrorSetValues(tree, init_node, severity_level, file, options, allocator, msg_allocator, diagnostics);
+                    try checkErrorSetValues(
+                        tree,
+                        init_node,
+                        severity_level,
+                        file,
+                        options,
+                        allocator,
+                        msg_allocator,
+                        diagnostics,
+                    );
                 }
             }
         }
-        try checkVarDeclInit(tree, var_decl, severity_level, file, public_api_only, options, allocator, io, namespace_cache, msg_allocator, diagnostics);
+        try checkVarDeclInit(
+            tree,
+            var_decl,
+            severity_level,
+            file,
+            public_api_only,
+            options,
+            allocator,
+            io,
+            namespace_cache,
+            msg_allocator,
+            diagnostics,
+        );
         return;
     }
 
@@ -184,14 +277,37 @@ fn checkNode(
         if (tree.fullContainerDecl(&buf, node)) |container| {
             const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, node)) .enumerator else member_field_kind;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity_level, file, public_api_only, options, child_kind, allocator, io, namespace_cache, msg_allocator, diagnostics);
+                try checkNode(
+                    tree,
+                    member,
+                    severity_level,
+                    file,
+                    public_api_only,
+                    options,
+                    child_kind,
+                    allocator,
+                    io,
+                    namespace_cache,
+                    msg_allocator,
+                    diagnostics,
+                );
             }
         }
         return;
     }
 
     if (tree.fullContainerField(node)) |field| {
-        try checkName(tree, field.ast.main_token, options.constants, member_field_kind, severity_level, file, allocator, msg_allocator, diagnostics);
+        try checkName(
+            tree,
+            field.ast.main_token,
+            options.constants,
+            member_field_kind,
+            severity_level,
+            file,
+            allocator,
+            msg_allocator,
+            diagnostics,
+        );
         return;
     }
 }
@@ -219,7 +335,20 @@ fn checkVarDeclInit(
     if (tree.fullContainerDecl(&buf, init_node)) |container| {
         const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, init_node)) .enumerator else .field;
         for (container.ast.members) |member| {
-            try checkNode(tree, member, severity_level, file, public_api_only, options, child_kind, allocator, io, namespace_cache, msg_allocator, diagnostics);
+            try checkNode(
+                tree,
+                member,
+                severity_level,
+                file,
+                public_api_only,
+                options,
+                child_kind,
+                allocator,
+                io,
+                namespace_cache,
+                msg_allocator,
+                diagnostics,
+            );
         }
     }
 }
@@ -241,7 +370,11 @@ fn getImportLiteral(tree: *const Ast, node: Ast.Node.Index) ?ImportLiteral {
 
     const builtin_tok = tree.nodeMainToken(node);
     if (tree.tokenTag(builtin_tok) != .builtin) return null;
-    if (!std.mem.eql(u8, tree.tokenSlice(builtin_tok), "@import")) return null;
+    if (!std.mem.eql(
+        u8,
+        tree.tokenSlice(builtin_tok),
+        "@import",
+    )) return null;
 
     const args = tree.nodeData(node).opt_node_and_opt_node;
     const arg_node = args[0].unwrap() orelse return null;
@@ -275,14 +408,30 @@ fn checkStructFileName(
 ) std.mem.Allocator.Error!void {
     const file_case = options.struct_file_case;
     const base = std.fs.path.basename(file);
-    if (std.mem.eql(u8, base, "root.zig") or std.mem.eql(u8, base, "main.zig")) return;
-    if (!std.mem.endsWith(u8, base, ".zig")) return;
+    if (std.mem.eql(
+        u8,
+        base,
+        "root.zig",
+    ) or std.mem.eql(
+        u8,
+        base,
+        "main.zig",
+    )) return;
+    if (!std.mem.endsWith(
+        u8,
+        base,
+        ".zig",
+    )) return;
     const stem = base[0 .. base.len - ".zig".len];
 
     if (!doc_comment.fileIsNamespace(tree)) {
         if (file_case.matches(stem)) return;
 
-        const expected_stem = try naming_case.suggestFilenameStem(msg_allocator, stem, file_case);
+        const expected_stem = try naming_case.suggestFilenameStem(
+            msg_allocator,
+            stem,
+            file_case,
+        );
         defer msg_allocator.free(expected_stem);
 
         const report_tok: Ast.TokenIndex = if (tree.rootDecls().len > 0) tree.firstToken(tree.rootDecls()[0]) else 0;
@@ -295,12 +444,20 @@ fn checkStructFileName(
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
-            .subject = try utils.ownedSubject(msg_allocator, .source_file, base),
+            .subject = try utils.ownedSubject(
+                msg_allocator,
+                .source_file,
+                base,
+            ),
             .detail = detail,
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
-            .source_line = try utils.dupSourceLine(tree, report_tok, msg_allocator),
+            .source_line = try utils.dupSourceLine(
+                tree,
+                report_tok,
+                msg_allocator,
+            ),
             .symbol_len = stem.len,
         });
         return;
@@ -322,7 +479,11 @@ fn checkStructFileName(
 
         const snake_from_name = try naming_case.pascalCaseStemToSnake(msg_allocator, name);
         defer msg_allocator.free(snake_from_name);
-        const expected_stem = try naming_case.identifierToFilenameStem(msg_allocator, name, file_case);
+        const expected_stem = try naming_case.identifierToFilenameStem(
+            msg_allocator,
+            name,
+            file_case,
+        );
         defer msg_allocator.free(expected_stem);
 
         // Only dedicated struct modules pair a filename stem with the struct name.
@@ -330,26 +491,50 @@ fn checkStructFileName(
         // Snake-case stem pairing (init_options.zig + InitOptions) applies only with
         // struct_file_case = snake_case (Tiger Style), not when a namespace file
         // happens to share a stem with the snake_case form of an inner struct (report.zig + Report).
-        const stem_pairs_with_struct = std.mem.eql(u8, stem, expected_stem) or
-            (file_case == .snake and std.mem.eql(u8, stem, snake_from_name));
+        const stem_pairs_with_struct = std.mem.eql(
+            u8,
+            stem,
+            expected_stem,
+        ) or
+            (file_case == .snake and std.mem.eql(
+                u8,
+                stem,
+                snake_from_name,
+            ));
         if (!stem_pairs_with_struct) continue;
-        if (std.mem.eql(u8, stem, expected_stem)) continue;
+        if (std.mem.eql(
+            u8,
+            stem,
+            expected_stem,
+        )) continue;
 
         const loc = tree.tokenLocation(0, name_tok);
         const detail = try std.fmt.allocPrint(
             msg_allocator,
             "struct file should use {s} filename \"{s}.zig\" for struct '{s}'",
-            .{ file_case.label(), expected_stem, name },
+            .{
+                file_case.label(),
+                expected_stem,
+                name,
+            },
         );
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
-            .subject = try utils.ownedSubject(msg_allocator, .structure, name),
+            .subject = try utils.ownedSubject(
+                msg_allocator,
+                .structure,
+                name,
+            ),
             .detail = detail,
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
-            .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+            .source_line = try utils.dupSourceLine(
+                tree,
+                name_tok,
+                msg_allocator,
+            ),
             .symbol_len = name.len,
         });
     }
@@ -371,14 +556,34 @@ fn checkImportBinding(
     if (isImportMemberReexport(tree, init_node)) return;
 
     const lit = getImportLiteral(tree, init_node) orelse return;
-    if (!std.mem.endsWith(u8, lit.path, ".zig")) return;
+    if (!std.mem.endsWith(
+        u8,
+        lit.path,
+        ".zig",
+    )) return;
 
-    const file_kind = try resolveImportedFileKind(lit.path, file, allocator, io, namespace_cache) orelse return;
+    const file_kind = try resolveImportedFileKind(
+        lit.path,
+        file,
+        allocator,
+        io,
+        namespace_cache,
+    ) orelse return;
     const expected = if (file_kind == .namespace) options.namespaces else options.types;
     const kind: Diagnostic.SubjectKind = if (file_kind == .namespace) .namespace else .structure;
 
     const name_tok = var_decl.ast.mut_token + 1;
-    try checkName(tree, name_tok, expected, kind, severity_level, file, allocator, msg_allocator, diagnostics);
+    try checkName(
+        tree,
+        name_tok,
+        expected,
+        kind,
+        severity_level,
+        file,
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
 }
 
 fn checkImportFilenameExpr(
@@ -394,7 +599,18 @@ fn checkImportFilenameExpr(
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     const lit = getImportLiteral(tree, node) orelse return;
-    try checkImportFilename(tree, lit, severity_level, file, options, allocator, io, namespace_cache, msg_allocator, diagnostics);
+    try checkImportFilename(
+        tree,
+        lit,
+        severity_level,
+        file,
+        options,
+        allocator,
+        io,
+        namespace_cache,
+        msg_allocator,
+        diagnostics,
+    );
 }
 
 fn checkImportFilename(
@@ -409,24 +625,46 @@ fn checkImportFilename(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    if (!std.mem.endsWith(u8, lit.path, ".zig")) return;
+    if (!std.mem.endsWith(
+        u8,
+        lit.path,
+        ".zig",
+    )) return;
     if (std.fs.path.isAbsolute(lit.path)) return;
 
     const basename = std.fs.path.basename(lit.path);
     if (basename.len <= ".zig".len) return;
 
     const stem = basename[0 .. basename.len - ".zig".len];
-    const file_kind = try resolveImportedFileKind(lit.path, file, allocator, io, namespace_cache) orelse return;
+    const file_kind = try resolveImportedFileKind(
+        lit.path,
+        file,
+        allocator,
+        io,
+        namespace_cache,
+    ) orelse return;
     const loc = tree.tokenLocation(0, lit.str_tok);
 
     if (file_kind == .structure and !options.struct_file_case.matches(stem)) {
-        const expected_stem = try naming_case.suggestFilenameStem(msg_allocator, stem, options.struct_file_case);
+        const expected_stem = try naming_case.suggestFilenameStem(
+            msg_allocator,
+            stem,
+            options.struct_file_case,
+        );
         defer msg_allocator.free(expected_stem);
-        const expected = try std.fmt.allocPrint(msg_allocator, "{s}.zig", .{expected_stem});
+        const expected = try std.fmt.allocPrint(
+            msg_allocator,
+            "{s}.zig",
+            .{expected_stem},
+        );
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
-            .subject = try utils.ownedSubject(msg_allocator, .source_file, basename),
+            .subject = try utils.ownedSubject(
+                msg_allocator,
+                .source_file,
+                basename,
+            ),
             .detail = try std.fmt.allocPrint(
                 msg_allocator,
                 "struct file should use {s} filename; expected \"{s}\"",
@@ -435,7 +673,11 @@ fn checkImportFilename(
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
-            .source_line = try utils.dupSourceLine(tree, lit.str_tok, msg_allocator),
+            .source_line = try utils.dupSourceLine(
+                tree,
+                lit.str_tok,
+                msg_allocator,
+            ),
             .symbol_len = lit.path.len,
         });
         return;
@@ -447,21 +689,41 @@ fn checkImportFilename(
     const detail: []const u8 = if (options.namespaces == .snake) blk: {
         const snake_stem = try naming_case.pascalCaseStemToSnake(msg_allocator, stem);
         defer msg_allocator.free(snake_stem);
-        const expected = try std.fmt.allocPrint(msg_allocator, "{s}.zig", .{snake_stem});
-        break :blk try std.fmt.allocPrint(msg_allocator, "namespace file should use snake_case filename; expected \"{s}\"", .{expected});
+        const expected = try std.fmt.allocPrint(
+            msg_allocator,
+            "{s}.zig",
+            .{snake_stem},
+        );
+        break :blk try std.fmt.allocPrint(
+            msg_allocator,
+            "namespace file should use snake_case filename; expected \"{s}\"",
+            .{expected},
+        );
     } else blk: {
-        break :blk try std.fmt.allocPrint(msg_allocator, "namespace file should use {s} filename", .{options.namespaces.label()});
+        break :blk try std.fmt.allocPrint(
+            msg_allocator,
+            "namespace file should use {s} filename",
+            .{options.namespaces.label()},
+        );
     };
 
     try diagnostics.append(allocator, .{
         .rule = rule_name,
         .severity_level = severity_level,
-        .subject = try utils.ownedSubject(msg_allocator, .source_file, basename),
+        .subject = try utils.ownedSubject(
+            msg_allocator,
+            .source_file,
+            basename,
+        ),
         .detail = detail,
         .file = file,
         .line = loc.line + 1,
         .column = loc.column + 1,
-        .source_line = try utils.dupSourceLine(tree, lit.str_tok, msg_allocator),
+        .source_line = try utils.dupSourceLine(
+            tree,
+            lit.str_tok,
+            msg_allocator,
+        ),
         .symbol_len = lit.path.len,
     });
 }
@@ -499,7 +761,11 @@ fn resolveImportedFileKind(
         ) catch break :blk null;
         defer allocator.free(source);
 
-        var imported = std.zig.Ast.parse(allocator, source, .zig) catch break :blk null;
+        var imported = std.zig.Ast.parse(
+            allocator,
+            source,
+            .zig,
+        ) catch break :blk null;
         defer imported.deinit(allocator);
 
         break :blk doc_comment.fileIsNamespace(&imported);
@@ -513,7 +779,11 @@ fn resolveImportedFileKind(
 }
 
 /// Determines the expected case for the *name* of a `var`/`const`, or null when it should be skipped.
-fn classifyVarDecl(tree: *const Ast, var_decl: Ast.full.VarDecl, options: Options) ?Classification {
+fn classifyVarDecl(
+    tree: *const Ast,
+    var_decl: Ast.full.VarDecl,
+    options: Options,
+) ?Classification {
     const is_const = tree.tokenTag(var_decl.ast.mut_token) == .keyword_const;
     const init_node = var_decl.ast.init_node.unwrap() orelse return null;
     const tag = tree.nodeTag(init_node);
@@ -567,7 +837,17 @@ fn checkErrorSetValues(
             .identifier, .string_literal => {
                 const name = tree.tokenSlice(tok);
                 if (isExemptName(name)) continue;
-                try checkName(tree, tok, expected, .error_value, severity_level, file, allocator, msg_allocator, diagnostics);
+                try checkName(
+                    tree,
+                    tok,
+                    expected,
+                    .error_value,
+                    severity_level,
+                    file,
+                    allocator,
+                    msg_allocator,
+                    diagnostics,
+                );
             },
             else => {},
         }
@@ -594,12 +874,24 @@ fn checkName(
     try diagnostics.append(allocator, .{
         .rule = rule_name,
         .severity_level = severity_level,
-        .subject = try utils.ownedSubject(msg_allocator, kind, name),
-        .detail = try std.fmt.allocPrint(msg_allocator, "should be {s}", .{expected.label()}),
+        .subject = try utils.ownedSubject(
+            msg_allocator,
+            kind,
+            name,
+        ),
+        .detail = try std.fmt.allocPrint(
+            msg_allocator,
+            "should be {s}",
+            .{expected.label()},
+        ),
         .file = file,
         .line = loc.line + 1,
         .column = loc.column + 1,
-        .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+        .source_line = try utils.dupSourceLine(
+            tree,
+            name_tok,
+            msg_allocator,
+        ),
         .symbol_len = name.len,
     });
 }
@@ -608,7 +900,11 @@ fn checkName(
 fn isGenericFunction(tree: *const Ast, proto: Ast.full.FnProto) bool {
     const return_type = proto.ast.return_type.unwrap() orelse return false;
     if (tree.nodeTag(return_type) != .identifier) return false;
-    return std.mem.eql(u8, tree.tokenSlice(tree.nodeMainToken(return_type)), "type");
+    return std.mem.eql(
+        u8,
+        tree.tokenSlice(tree.nodeMainToken(return_type)),
+        "type",
+    );
 }
 
 /// True when a container declaration declares at least one field (as opposed to only declarations).
@@ -663,15 +959,31 @@ fn isAliasInit(tag: Ast.Node.Tag) bool {
 fn isExemptName(name: []const u8) bool {
     if (name.len == 0) return true;
     if (name[0] == '@') return true;
-    return std.mem.eql(u8, name, "_");
+    return std.mem.eql(
+        u8,
+        name,
+        "_",
+    );
 }
 
 test "inactive severity yields no diagnostics" {
     const base = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(base, "pub fn DoThing() void {}", .zig);
+    var tree = try std.zig.Ast.parse(
+        base,
+        "pub fn DoThing() void {}",
+        .zig,
+    );
     defer tree.deinit(base);
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
-    try check(&tree, .{ .level = .allow }, "<test>", base, std.testing.io, base, &diagnostics);
+    try check(
+        &tree,
+        .{ .level = .allow },
+        "<test>",
+        base,
+        std.testing.io,
+        base,
+        &diagnostics,
+    );
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

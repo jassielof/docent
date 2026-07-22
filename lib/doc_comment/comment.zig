@@ -8,27 +8,51 @@ const Ast = std.zig.Ast;
 
 /// Text after the `///` or `//!` prefix, trimmed of leading horizontal whitespace.
 pub fn lineBody(slice: []const u8) []const u8 {
-    const prefix: []const u8 = if (std.mem.startsWith(u8, slice, "//!"))
+    const prefix: []const u8 = if (std.mem.startsWith(
+        u8,
+        slice,
+        "//!",
+    ))
         "//!"
-    else if (std.mem.startsWith(u8, slice, "///"))
+    else if (std.mem.startsWith(
+        u8,
+        slice,
+        "///",
+    ))
         "///"
     else
         return slice;
 
-    return std.mem.trim(u8, slice[prefix.len..], " \t");
+    return std.mem.trim(
+        u8,
+        slice[prefix.len..],
+        " \t",
+    );
 }
 
 /// True when a `///` or `//!` token has no text after the doc-comment prefix.
 pub fn isEmptyLine(slice: []const u8) bool {
-    const prefix: []const u8 = if (std.mem.startsWith(u8, slice, "//!"))
+    const prefix: []const u8 = if (std.mem.startsWith(
+        u8,
+        slice,
+        "//!",
+    ))
         "//!"
-    else if (std.mem.startsWith(u8, slice, "///"))
+    else if (std.mem.startsWith(
+        u8,
+        slice,
+        "///",
+    ))
         "///"
     else
         return false;
 
     const rest = slice[prefix.len..];
-    return std.mem.trim(u8, rest, " \t\r\n").len == 0;
+    return std.mem.trim(
+        u8,
+        rest,
+        " \t\r\n",
+    ).len == 0;
 }
 
 /// The first paragraph of a contiguous doc-comment block (lines until a blank `///`/`//!` line).
@@ -88,7 +112,11 @@ pub fn summaryWords(
         if (body.len == 0) continue;
         if (report_tok == null) report_tok = token;
 
-        var it = std.mem.tokenizeAny(u8, body, " \t");
+        var it = std.mem.tokenizeAny(
+            u8,
+            body,
+            " \t",
+        );
         while (it.next()) |word| try words.append(allocator, word);
     }
     return report_tok;
@@ -96,7 +124,11 @@ pub fn summaryWords(
 
 /// True when `text` ends with `.`, `!`, or `?` (after trimming trailing whitespace).
 pub fn endsWithTerminalPunctuation(text: []const u8) bool {
-    const trimmed = std.mem.trim(u8, text, " \t\r\n");
+    const trimmed = std.mem.trim(
+        u8,
+        text,
+        " \t\r\n",
+    );
     if (trimmed.len == 0) return true;
     return switch (trimmed[trimmed.len - 1]) {
         '.', '!', '?' => true,
@@ -154,10 +186,19 @@ test "firstParagraph stops at blank line" {
         \\/// Line three
         \\pub fn foo() void {}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        std.testing.allocator,
+        source,
+        .zig,
+    );
     defer tree.deinit(std.testing.allocator);
 
-    const para = try firstParagraph(&tree, 0, 3, std.testing.allocator);
+    const para = try firstParagraph(
+        &tree,
+        0,
+        3,
+        std.testing.allocator,
+    );
     defer std.testing.allocator.free(para.text);
     try std.testing.expectEqualStrings("Line one", para.text);
     try std.testing.expectEqual(@as(?Ast.TokenIndex, 0), para.last_line_token);

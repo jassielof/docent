@@ -115,7 +115,11 @@ pub fn readParsedFile(
     );
     errdefer allocator.free(source);
 
-    const tree = std.zig.Ast.parse(allocator, source, .zig) catch {
+    const tree = std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    ) catch {
         allocator.free(source);
         return error.ParseFailed;
     };
@@ -124,18 +128,38 @@ pub fn readParsedFile(
 }
 
 /// Searches `decl` (a root-level node) for a declaration named `name`.
-pub fn findNamedDecl(tree: *const Ast, decl: Ast.Node.Index, name: []const u8) ?FoundDecl {
+pub fn findNamedDecl(
+    tree: *const Ast,
+    decl: Ast.Node.Index,
+    name: []const u8,
+) ?FoundDecl {
     if (tree.fullVarDecl(decl)) |vd| {
         const nt = vd.ast.mut_token + 1;
-        if (std.mem.eql(u8, tree.tokenSlice(nt), name))
-            return .{ .node = decl, .first_tok = vd.firstToken(), .name_tok = nt };
+        if (std.mem.eql(
+            u8,
+            tree.tokenSlice(nt),
+            name,
+        ))
+            return .{
+                .node = decl,
+                .first_tok = vd.firstToken(),
+                .name_tok = nt,
+            };
     }
     if (tree.nodeTag(decl) == .fn_decl) {
         var buf: [1]Ast.Node.Index = undefined;
         if (tree.fullFnProto(&buf, decl)) |proto| {
             if (proto.name_token) |nt| {
-                if (std.mem.eql(u8, tree.tokenSlice(nt), name))
-                    return .{ .node = decl, .first_tok = proto.firstToken(), .name_tok = nt };
+                if (std.mem.eql(
+                    u8,
+                    tree.tokenSlice(nt),
+                    name,
+                ))
+                    return .{
+                        .node = decl,
+                        .first_tok = proto.firstToken(),
+                        .name_tok = nt,
+                    };
             }
         }
     }
@@ -171,7 +195,15 @@ pub fn resolveMissingDocReexport(
     ctx: *anyopaque,
     callbacks: MissingDocCallbacks,
 ) std.mem.Allocator.Error!bool {
-    resolveMissingDocReexportImpl(info, decl_name, current_file, allocator, io, ctx, callbacks) catch |err| switch (err) {
+    resolveMissingDocReexportImpl(
+        info,
+        decl_name,
+        current_file,
+        allocator,
+        io,
+        ctx,
+        callbacks,
+    ) catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
         else => return true,
     };
@@ -211,7 +243,11 @@ pub fn isTargetDocumented(
     allocator: std.mem.Allocator,
     io: std.Io,
 ) std.mem.Allocator.Error!bool {
-    const imported_path = try resolveImportedPath(allocator, current_file, info.import_path);
+    const imported_path = try resolveImportedPath(
+        allocator,
+        current_file,
+        info.import_path,
+    );
     defer allocator.free(imported_path);
 
     const outcome = resolveDocForSymbolInFile(
@@ -243,9 +279,21 @@ pub fn resolveWholeModuleReexport(
     io: std.Io,
     ctx: *anyopaque,
     predicate: *const fn (tree: *const Ast) bool,
-    on_match: *const fn (ctx: *anyopaque, tree: *const Ast, file_path: []const u8) anyerror!void,
+    on_match: *const fn (
+        ctx: *anyopaque,
+        tree: *const Ast,
+        file_path: []const u8,
+    ) anyerror!void,
 ) std.mem.Allocator.Error!void {
-    resolveWholeModuleReexportImpl(info, current_file, allocator, io, ctx, predicate, on_match) catch |err| switch (err) {
+    resolveWholeModuleReexportImpl(
+        info,
+        current_file,
+        allocator,
+        io,
+        ctx,
+        predicate,
+        on_match,
+    ) catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
         else => {},
     };
@@ -260,7 +308,11 @@ fn resolveMissingDocReexportImpl(
     ctx: *anyopaque,
     callbacks: MissingDocCallbacks,
 ) !void {
-    const imported_path = try resolveImportedPath(allocator, current_file, info.import_path);
+    const imported_path = try resolveImportedPath(
+        allocator,
+        current_file,
+        info.import_path,
+    );
     defer allocator.free(imported_path);
 
     _ = try resolveDocForSymbolInFile(
@@ -282,19 +334,35 @@ fn resolveWholeModuleReexportImpl(
     io: std.Io,
     ctx: *anyopaque,
     predicate: *const fn (tree: *const Ast) bool,
-    on_match: *const fn (ctx: *anyopaque, tree: *const Ast, file_path: []const u8) anyerror!void,
+    on_match: *const fn (
+        ctx: *anyopaque,
+        tree: *const Ast,
+        file_path: []const u8,
+    ) anyerror!void,
 ) !void {
     if (info.field_name != null) return;
 
-    const imported_path = try resolveImportedPath(allocator, current_file, info.import_path);
+    const imported_path = try resolveImportedPath(
+        allocator,
+        current_file,
+        info.import_path,
+    );
     defer allocator.free(imported_path);
 
-    var parsed = readParsedFile(allocator, io, imported_path) catch return;
+    var parsed = readParsedFile(
+        allocator,
+        io,
+        imported_path,
+    ) catch return;
     defer allocator.free(parsed.source);
     defer parsed.tree.deinit(allocator);
 
     if (!predicate(&parsed.tree)) return;
-    try on_match(ctx, &parsed.tree, imported_path);
+    try on_match(
+        ctx,
+        &parsed.tree,
+        imported_path,
+    );
 }
 
 fn resolveDocForSymbolInFile(
@@ -319,24 +387,42 @@ fn resolveDocForSymbolInFile(
     );
     defer allocator.free(source);
 
-    var imported_tree = try std.zig.Ast.parse(allocator, source, .zig);
+    var imported_tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
     defer imported_tree.deinit(allocator);
 
     if (symbol_name) |sym_name| {
         for (imported_tree.rootDecls()) |decl| {
-            const found = findNamedDecl(&imported_tree, decl, sym_name) orelse continue;
+            const found = findNamedDecl(
+                &imported_tree,
+                decl,
+                sym_name,
+            ) orelse continue;
             if (hasLineDocComment(&imported_tree, found.first_tok)) {
                 return .documented;
             }
 
             if (imported_tree.fullVarDecl(found.node)) |vd| {
                 const init_node = vd.ast.init_node.unwrap() orelse {
-                    try callbacks.on_undocumented_member(ctx, &imported_tree, found.name_tok, display_symbol, file_path);
+                    try callbacks.on_undocumented_member(
+                        ctx,
+                        &imported_tree,
+                        found.name_tok,
+                        display_symbol,
+                        file_path,
+                    );
                     return .undocumented;
                 };
 
                 if (getInfo(&imported_tree, init_node)) |nested| {
-                    const nested_imported_path = try resolveImportedPath(allocator, file_path, nested.import_path);
+                    const nested_imported_path = try resolveImportedPath(
+                        allocator,
+                        file_path,
+                        nested.import_path,
+                    );
                     defer allocator.free(nested_imported_path);
 
                     return try resolveDocForSymbolInFile(
@@ -352,7 +438,13 @@ fn resolveDocForSymbolInFile(
                 }
             }
 
-            try callbacks.on_undocumented_member(ctx, &imported_tree, found.name_tok, display_symbol, file_path);
+            try callbacks.on_undocumented_member(
+                ctx,
+                &imported_tree,
+                found.name_tok,
+                display_symbol,
+                file_path,
+            );
             return .undocumented;
         }
 
@@ -363,7 +455,11 @@ fn resolveDocForSymbolInFile(
         return .documented;
     }
 
-    try callbacks.on_undocumented_whole_module(ctx, &imported_tree, file_path);
+    try callbacks.on_undocumented_whole_module(
+        ctx,
+        &imported_tree,
+        file_path,
+    );
     return .undocumented;
 }
 
@@ -376,7 +472,11 @@ fn findLocalImportPath(tree: *const Ast, alias: []const u8) ?[]const u8 {
     for (tree.rootDecls()) |decl| {
         if (tree.fullVarDecl(decl)) |vd| {
             const name_tok = vd.ast.mut_token + 1;
-            if (!std.mem.eql(u8, tree.tokenSlice(name_tok), alias)) continue;
+            if (!std.mem.eql(
+                u8,
+                tree.tokenSlice(name_tok),
+                alias,
+            )) continue;
             const init_node = vd.ast.init_node.unwrap() orelse continue;
             if (getImportPath(tree, init_node)) |path| return path;
         }
@@ -396,7 +496,11 @@ fn getImportPath(tree: *const Ast, node: Ast.Node.Index) ?[]const u8 {
 
     const builtin_tok = tree.nodeMainToken(node);
     if (tree.tokenTag(builtin_tok) != .builtin) return null;
-    if (!std.mem.eql(u8, tree.tokenSlice(builtin_tok), "@import")) return null;
+    if (!std.mem.eql(
+        u8,
+        tree.tokenSlice(builtin_tok),
+        "@import",
+    )) return null;
 
     const args = tree.nodeData(node).opt_node_and_opt_node;
     const arg_node = args[0].unwrap() orelse return null;

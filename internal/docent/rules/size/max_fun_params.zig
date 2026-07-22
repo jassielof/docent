@@ -32,7 +32,11 @@ pub const Options = struct {
 };
 
 /// Full configuration for `max_fun_params`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.reachability_traversal);
+pub const Rule = category.Rule(
+    default_severity,
+    Options,
+    scan.RuleScanConfig.reachability_traversal,
+);
 
 /// Default maximum parameter count; functions with more parameters are flagged.
 pub const default_threshold: u32 = 7;
@@ -57,7 +61,13 @@ pub fn check(
     defer fns.deinit(allocator);
 
     for (tree.rootDecls()) |decl| {
-        try collectFunctions(tree, decl, public_api_only, allocator, &fns);
+        try collectFunctions(
+            tree,
+            decl,
+            public_api_only,
+            allocator,
+            &fns,
+        );
     }
 
     for (fns.items) |fn_node| {
@@ -73,7 +83,11 @@ pub fn check(
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
-            .subject = try utils.ownedSubject(msg_allocator, .function, name),
+            .subject = try utils.ownedSubject(
+                msg_allocator,
+                .function,
+                name,
+            ),
             .detail = try std.fmt.allocPrint(
                 msg_allocator,
                 "{d} parameters exceeds threshold {d}",
@@ -82,7 +96,11 @@ pub fn check(
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
-            .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+            .source_line = try utils.dupSourceLine(
+                tree,
+                name_tok,
+                msg_allocator,
+            ),
             .symbol_len = name.len,
         });
     }
@@ -112,7 +130,13 @@ fn collectFunctions(
                 var cbuf: [2]Ast.Node.Index = undefined;
                 if (tree.fullContainerDecl(&cbuf, init_node)) |container| {
                     for (container.ast.members) |member| {
-                        try collectFunctions(tree, member, public_api_only, allocator, out);
+                        try collectFunctions(
+                            tree,
+                            member,
+                            public_api_only,
+                            allocator,
+                            out,
+                        );
                     }
                 }
             }
@@ -124,7 +148,13 @@ fn collectFunctions(
         var cbuf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&cbuf, node)) |container| {
             for (container.ast.members) |member| {
-                try collectFunctions(tree, member, public_api_only, allocator, out);
+                try collectFunctions(
+                    tree,
+                    member,
+                    public_api_only,
+                    allocator,
+                    out,
+                );
             }
         }
     }
@@ -141,7 +171,11 @@ test "counts parameters from the function prototype" {
         const source =
             \\fn f(a: u32, b: i32, comptime T: type) void {}
         ++ "\x00";
-        var tree = try std.zig.Ast.parse(std.testing.allocator, source, .zig);
+        var tree = try std.zig.Ast.parse(
+            std.testing.allocator,
+            source,
+            .zig,
+        );
         defer tree.deinit(std.testing.allocator);
         for (tree.rootDecls()) |decl| {
             if (tree.nodeTag(decl) == .fn_decl) break :count functionParamCount(&tree, decl);
@@ -153,10 +187,21 @@ test "counts parameters from the function prototype" {
 
 test "inactive severity yields no diagnostics" {
     const base = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(base, "pub fn f(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}", .zig);
+    var tree = try std.zig.Ast.parse(
+        base,
+        "pub fn f(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}",
+        .zig,
+    );
     defer tree.deinit(base);
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
-    try check(&tree, .{ .level = .allow, .options = .{ .threshold = 7 } }, "<test>", base, base, &diagnostics);
+    try check(
+        &tree,
+        .{ .level = .allow, .options = .{ .threshold = 7 } },
+        "<test>",
+        base,
+        base,
+        &diagnostics,
+    );
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

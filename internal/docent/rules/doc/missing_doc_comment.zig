@@ -42,7 +42,11 @@ pub const Options = struct {
 };
 
 /// Full configuration for `missing_doc_comment`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.public_api_surface);
+pub const Rule = category.Rule(
+    default_severity,
+    Options,
+    scan.RuleScanConfig.public_api_surface,
+);
 
 /// Walks `tree` and appends diagnostics for undocumented public items.
 ///
@@ -62,10 +66,31 @@ pub fn check(
     if (!rule.level.isActive()) return;
     const severity_level = rule.level;
     const options = rule.options;
-    try checkModuleDocComment(tree, severity_level, file, require_module_doc, module_name, allocator, msg_allocator, diagnostics);
+    try checkModuleDocComment(
+        tree,
+        severity_level,
+        file,
+        require_module_doc,
+        module_name,
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
     const public_api_only = rule.publicApiOnly();
     for (tree.rootDecls()) |decl| {
-        try checkNode(tree, decl, severity_level, file, public_api_only, options, .field, allocator, io, msg_allocator, diagnostics);
+        try checkNode(
+            tree,
+            decl,
+            severity_level,
+            file,
+            public_api_only,
+            options,
+            .field,
+            allocator,
+            io,
+            msg_allocator,
+            diagnostics,
+        );
     }
 }
 
@@ -84,13 +109,21 @@ fn checkModuleDocComment(
 
     const display_name = utils.moduleDisplayName(file, module_name);
     const first_src = if (tree.tokens.len > 0)
-        try utils.dupSourceLine(tree, 0, msg_allocator)
+        try utils.dupSourceLine(
+            tree,
+            0,
+            msg_allocator,
+        )
     else
         "";
     try diagnostics.append(allocator, .{
         .rule = rule_name,
         .severity_level = severity_level,
-        .subject = try utils.ownedSubject(msg_allocator, .module, display_name),
+        .subject = try utils.ownedSubject(
+            msg_allocator,
+            .module,
+            display_name,
+        ),
         .file = file,
         .line = 1,
         .column = 1,
@@ -112,7 +145,11 @@ fn isPubVisibility(tree: *const Ast, visib_token: ?Ast.TokenIndex) bool {
     return tree.tokenTag(vt) == .keyword_pub;
 }
 
-fn shouldCheckDecl(tree: *const Ast, visib_token: ?Ast.TokenIndex, public_api_only: bool) bool {
+fn shouldCheckDecl(
+    tree: *const Ast,
+    visib_token: ?Ast.TokenIndex,
+    public_api_only: bool,
+) bool {
     if (!public_api_only) return true;
     return isPubVisibility(tree, visib_token);
 }
@@ -135,7 +172,11 @@ fn checkNode(
     if (tag == .fn_decl) {
         var buf: [1]Ast.Node.Index = undefined;
         if (tree.fullFnProto(&buf, node)) |proto| {
-            if (shouldCheckDecl(tree, proto.visib_token, public_api_only)) {
+            if (shouldCheckDecl(
+                tree,
+                proto.visib_token,
+                public_api_only,
+            )) {
                 if (!hasDocComment(tree, proto.firstToken())) {
                     const name_tok = proto.name_token orelse proto.ast.fn_token;
                     const name = tree.tokenSlice(name_tok);
@@ -143,16 +184,32 @@ fn checkNode(
                     try diagnostics.append(allocator, .{
                         .rule = rule_name,
                         .severity_level = severity_level,
-                        .subject = try utils.ownedSubject(msg_allocator, .function, name),
+                        .subject = try utils.ownedSubject(
+                            msg_allocator,
+                            .function,
+                            name,
+                        ),
                         .file = file,
                         .line = loc.line + 1,
                         .column = loc.column + 1,
-                        .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+                        .source_line = try utils.dupSourceLine(
+                            tree,
+                            name_tok,
+                            msg_allocator,
+                        ),
                         .symbol_len = name.len,
                     });
                 }
                 if (options.check_parameters) {
-                    try checkFunctionParams(tree, proto, severity_level, file, allocator, msg_allocator, diagnostics);
+                    try checkFunctionParams(
+                        tree,
+                        proto,
+                        severity_level,
+                        file,
+                        allocator,
+                        msg_allocator,
+                        diagnostics,
+                    );
                 }
             }
         }
@@ -160,7 +217,11 @@ fn checkNode(
     }
 
     if (tree.fullVarDecl(node)) |var_decl| {
-        if (shouldCheckDecl(tree, var_decl.visib_token, public_api_only) and
+        if (shouldCheckDecl(
+            tree,
+            var_decl.visib_token,
+            public_api_only,
+        ) and
             !hasDocComment(tree, var_decl.firstToken()))
         {
             const name_tok = var_decl.ast.mut_token + 1;
@@ -193,16 +254,35 @@ fn checkNode(
                 try diagnostics.append(allocator, .{
                     .rule = rule_name,
                     .severity_level = severity_level,
-                    .subject = try utils.ownedSubject(msg_allocator, pubVarDeclSubjectKind(tree, var_decl), name),
+                    .subject = try utils.ownedSubject(
+                        msg_allocator,
+                        pubVarDeclSubjectKind(tree, var_decl),
+                        name,
+                    ),
                     .file = file,
                     .line = loc.line + 1,
                     .column = loc.column + 1,
-                    .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+                    .source_line = try utils.dupSourceLine(
+                        tree,
+                        name_tok,
+                        msg_allocator,
+                    ),
                     .symbol_len = name.len,
                 });
             }
         }
-        try checkVarDeclInit(tree, var_decl, severity_level, file, public_api_only, options, allocator, io, msg_allocator, diagnostics);
+        try checkVarDeclInit(
+            tree,
+            var_decl,
+            severity_level,
+            file,
+            public_api_only,
+            options,
+            allocator,
+            io,
+            msg_allocator,
+            diagnostics,
+        );
         return;
     }
 
@@ -214,7 +294,19 @@ fn checkNode(
             else
                 member_field_kind;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity_level, file, public_api_only, options, child_member_kind, allocator, io, msg_allocator, diagnostics);
+                try checkNode(
+                    tree,
+                    member,
+                    severity_level,
+                    file,
+                    public_api_only,
+                    options,
+                    child_member_kind,
+                    allocator,
+                    io,
+                    msg_allocator,
+                    diagnostics,
+                );
             }
         }
         return;
@@ -228,11 +320,19 @@ fn checkNode(
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity_level = severity_level,
-                .subject = try utils.ownedSubject(msg_allocator, member_field_kind, name),
+                .subject = try utils.ownedSubject(
+                    msg_allocator,
+                    member_field_kind,
+                    name,
+                ),
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
-                .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+                .source_line = try utils.dupSourceLine(
+                    tree,
+                    name_tok,
+                    msg_allocator,
+                ),
                 .symbol_len = name.len,
             });
         }
@@ -255,16 +355,28 @@ fn checkFunctionParams(
         if (param.first_doc_comment != null) continue;
 
         const name = tree.tokenSlice(name_tok);
-        if (std.mem.eql(u8, name, "_")) continue;
+        if (std.mem.eql(
+            u8,
+            name,
+            "_",
+        )) continue;
         const loc = tree.tokenLocation(0, name_tok);
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
-            .subject = try utils.ownedSubject(msg_allocator, .parameter, name),
+            .subject = try utils.ownedSubject(
+                msg_allocator,
+                .parameter,
+                name,
+            ),
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
-            .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+            .source_line = try utils.dupSourceLine(
+                tree,
+                name_tok,
+                msg_allocator,
+            ),
             .symbol_len = name.len,
         });
     }
@@ -282,11 +394,24 @@ fn checkVarDeclInit(
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
-    if (public_api_only and !shouldCheckDecl(tree, var_decl.visib_token, true)) return;
+    if (public_api_only and !shouldCheckDecl(
+        tree,
+        var_decl.visib_token,
+        true,
+    )) return;
 
     const init_node = var_decl.ast.init_node.unwrap() orelse return;
     if (tree.nodeTag(init_node) == .error_set_decl) {
-        try checkErrorSetMembers(tree, init_node, severity_level, file, options.check_errors, allocator, msg_allocator, diagnostics);
+        try checkErrorSetMembers(
+            tree,
+            init_node,
+            severity_level,
+            file,
+            options.check_errors,
+            allocator,
+            msg_allocator,
+            diagnostics,
+        );
         return;
     }
     if (isContainerDecl(tree.nodeTag(init_node))) {
@@ -297,7 +422,19 @@ fn checkVarDeclInit(
             else
                 .field;
             for (container.ast.members) |member| {
-                try checkNode(tree, member, severity_level, file, public_api_only, options, child_member_kind, allocator, io, msg_allocator, diagnostics);
+                try checkNode(
+                    tree,
+                    member,
+                    severity_level,
+                    file,
+                    public_api_only,
+                    options,
+                    child_member_kind,
+                    allocator,
+                    io,
+                    msg_allocator,
+                    diagnostics,
+                );
             }
         }
     }
@@ -327,11 +464,19 @@ fn checkErrorSetMembers(
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
-            .subject = try utils.ownedSubject(msg_allocator, .error_value, name),
+            .subject = try utils.ownedSubject(
+                msg_allocator,
+                .error_value,
+                name,
+            ),
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
-            .source_line = try utils.dupSourceLine(tree, tok, msg_allocator),
+            .source_line = try utils.dupSourceLine(
+                tree,
+                tok,
+                msg_allocator,
+            ),
             .symbol_len = name.len,
         });
     }
@@ -356,12 +501,20 @@ fn onUndocumentedReexportMember(
     try ctx.diagnostics.append(ctx.allocator, .{
         .rule = rule_name,
         .severity_level = ctx.severity_level,
-        .subject = try utils.ownedSubject(ctx.msg_allocator, .function, display_symbol),
+        .subject = try utils.ownedSubject(
+            ctx.msg_allocator,
+            .function,
+            display_symbol,
+        ),
         .detail = "re-exported without documentation",
         .file = try vereda.path.toPosixSeparators(ctx.msg_allocator, file_path),
         .line = loc.line + 1,
         .column = loc.column + 1,
-        .source_line = try utils.dupSourceLine(tree, name_tok, ctx.msg_allocator),
+        .source_line = try utils.dupSourceLine(
+            tree,
+            name_tok,
+            ctx.msg_allocator,
+        ),
         .symbol_len = display_symbol.len,
     });
 }
@@ -384,11 +537,19 @@ fn onUndocumentedReexportWholeModule(
     try ctx.diagnostics.append(ctx.allocator, .{
         .rule = rule_name,
         .severity_level = ctx.severity_level,
-        .subject = try utils.ownedSubject(ctx.msg_allocator, subject_kind, source_basename),
+        .subject = try utils.ownedSubject(
+            ctx.msg_allocator,
+            subject_kind,
+            source_basename,
+        ),
         .file = try vereda.path.toPosixSeparators(ctx.msg_allocator, file_path),
         .line = line + 1,
         .column = column + 1,
-        .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(tree, 0, ctx.msg_allocator) else "",
+        .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(
+            tree,
+            0,
+            ctx.msg_allocator,
+        ) else "",
         .symbol_len = source_basename.len,
     });
 }
@@ -413,12 +574,26 @@ test "private function parameters are not checked under public_api_only" {
         \\    _ = allocator;
         \\}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(base, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        base,
+        source,
+        .zig,
+    );
     defer tree.deinit(base);
 
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
 
-    try check(&tree, .{ .scan_mode = scan.RuleScanConfig.public_api_surface, .options = .{ .check_parameters = true } }, "<test>", false, null, base, std.testing.io, msg_arena.allocator(), &diagnostics);
+    try check(
+        &tree,
+        .{ .scan_mode = scan.RuleScanConfig.public_api_surface, .options = .{ .check_parameters = true } },
+        "<test>",
+        false,
+        null,
+        base,
+        std.testing.io,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }

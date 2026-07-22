@@ -37,7 +37,12 @@ test "reindents using two spaces" {
         \\
     ;
 
-    const formatted = try reindent(gpa, input, .space, 2);
+    const formatted = try reindent(
+        gpa,
+        input,
+        .space,
+        2,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
     try format_test_assertions.expectValidZig(formatted);
@@ -78,12 +83,22 @@ test "reindents using tabs" {
         "\n" ++
         "fn doSomething() void {}\n";
 
-    const formatted = try reindent(gpa, input, .tab, 4);
+    const formatted = try reindent(
+        gpa,
+        input,
+        .tab,
+        4,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
     try format_test_assertions.expectValidZig(formatted);
 
-    const formatted_expected = try reindent(gpa, expected, .tab, 4);
+    const formatted_expected = try reindent(
+        gpa,
+        expected,
+        .tab,
+        4,
+    );
     defer gpa.free(formatted_expected);
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
@@ -105,8 +120,16 @@ pub const Style = enum {
 
     /// Parses TOML / schema spellings (`space`, `tab`).
     pub fn fromConfigString(text: []const u8) ?Style {
-        if (mem.eql(u8, text, "space")) return .space;
-        if (mem.eql(u8, text, "tab")) return .tab;
+        if (mem.eql(
+            u8,
+            text,
+            "space",
+        )) return .space;
+        if (mem.eql(
+            u8,
+            text,
+            "tab",
+        )) return .tab;
         return null;
     }
 };
@@ -120,7 +143,12 @@ pub const Style = enum {
 /// editor chooses to display it. A partial group (leftover spaces that
 /// don't complete a full indent level) can't be represented as a fractional
 /// tab, so it's always preserved as plain spaces, regardless of `style`.
-pub fn reindent(gpa: Allocator, input: []const u8, style: Style, width: u8) Allocator.Error![]u8 {
+pub fn reindent(
+    gpa: Allocator,
+    input: []const u8,
+    style: Style,
+    width: u8,
+) Allocator.Error![]u8 {
     std.debug.assert(width > 0);
     if (style == .space and width == 4) {
         return gpa.dupe(u8, input);
@@ -137,7 +165,11 @@ pub fn reindent(gpa: Allocator, input: []const u8, style: Style, width: u8) Allo
 
     var line_start: usize = 0;
     while (line_start < input.len) {
-        const line_end = mem.indexOfScalar(u8, input[line_start..], '\n') orelse input.len - line_start;
+        const line_end = mem.indexOfScalar(
+            u8,
+            input[line_start..],
+            '\n',
+        ) orelse input.len - line_start;
         const full_line = input[line_start .. line_start + line_end];
         line_start += line_end + 1;
 

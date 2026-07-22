@@ -32,7 +32,11 @@ pub const Options = struct {
 };
 
 /// Full configuration for `cyclomatic_complexity`: severity, scan mode, and the documented `Options` sub-space.
-pub const Rule = category.Rule(default_severity, Options, scan.RuleScanConfig.reachability_traversal);
+pub const Rule = category.Rule(
+    default_severity,
+    Options,
+    scan.RuleScanConfig.reachability_traversal,
+);
 
 /// Number of linearly independent paths through a function control-flow graph (McCabe *V(G)*).
 pub const Complexity = u32;
@@ -75,7 +79,13 @@ pub fn check(
     defer fns.deinit(allocator);
 
     for (tree.rootDecls()) |decl| {
-        try collectFunctions(tree, decl, public_api_only, allocator, &fns);
+        try collectFunctions(
+            tree,
+            decl,
+            public_api_only,
+            allocator,
+            &fns,
+        );
     }
 
     for (fns.items) |fn_node| {
@@ -91,7 +101,11 @@ pub fn check(
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
-            .subject = try utils.ownedSubject(msg_allocator, .function, name),
+            .subject = try utils.ownedSubject(
+                msg_allocator,
+                .function,
+                name,
+            ),
             .detail = try std.fmt.allocPrint(
                 msg_allocator,
                 "cyclomatic complexity {d} exceeds threshold {d}",
@@ -100,7 +114,11 @@ pub fn check(
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
-            .source_line = try utils.dupSourceLine(tree, name_tok, msg_allocator),
+            .source_line = try utils.dupSourceLine(
+                tree,
+                name_tok,
+                msg_allocator,
+            ),
             .symbol_len = name.len,
         });
     }
@@ -130,7 +148,13 @@ fn collectFunctions(
                 var buf: [2]Ast.Node.Index = undefined;
                 if (tree.fullContainerDecl(&buf, init_node)) |container| {
                     for (container.ast.members) |member| {
-                        try collectFunctions(tree, member, public_api_only, allocator, out);
+                        try collectFunctions(
+                            tree,
+                            member,
+                            public_api_only,
+                            allocator,
+                            out,
+                        );
                     }
                 }
             }
@@ -142,7 +166,13 @@ fn collectFunctions(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
-                try collectFunctions(tree, member, public_api_only, allocator, out);
+                try collectFunctions(
+                    tree,
+                    member,
+                    public_api_only,
+                    allocator,
+                    out,
+                );
             }
         }
     }
@@ -156,7 +186,11 @@ const GraphMetrics = struct {
 
 fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) Complexity {
     const metrics = graphMetrics(tree, fn_node);
-    return formula(metrics.edges, metrics.nodes, metrics.connected_components);
+    return formula(
+        metrics.edges,
+        metrics.nodes,
+        metrics.connected_components,
+    );
 }
 
 /// Derives *N* and *E* for a single-function graph from its decision-point count. For structured control flow with one connected component, *V(G) = 1 + d* where *d* is the number of decision points. That is equivalent to *V(G) = E − N + 2* when *N = d + 1*, *E = 2d*, and *P = 1*.
@@ -210,7 +244,19 @@ fn nodeIncrement(tree: *const Ast, node: Ast.Node.Index) u32 {
 }
 
 test "formula computes V(G) = E - N + 2P" {
-    try std.testing.expectEqual(@as(Complexity, 1), formula(0, 1, 1));
-    try std.testing.expectEqual(@as(Complexity, 3), formula(4, 3, 1));
-    try std.testing.expectEqual(@as(Complexity, 5), formula(8, 5, 1));
+    try std.testing.expectEqual(@as(Complexity, 1), formula(
+        0,
+        1,
+        1,
+    ));
+    try std.testing.expectEqual(@as(Complexity, 3), formula(
+        4,
+        3,
+        1,
+    ));
+    try std.testing.expectEqual(@as(Complexity, 5), formula(
+        8,
+        5,
+        1,
+    ));
 }

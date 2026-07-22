@@ -130,7 +130,11 @@ pub fn get_child(decl: *const Decl, name: []const u8) ?Decl.Index {
         .type_function => {
             // Find a decl with this function as the parent, with a name matching `name`
             for (Walk.active.decls.items, 0..) |*candidate, i| {
-                if (candidate.parent != .none and candidate.parent.get() == decl and std.mem.eql(u8, candidate.extra_info().name, name)) {
+                if (candidate.parent != .none and candidate.parent.get() == decl and std.mem.eql(
+                    u8,
+                    candidate.extra_info().name,
+                    name,
+                )) {
                     return @enumFromInt(i);
                 }
             }
@@ -225,7 +229,11 @@ pub fn append_path(decl: *const Decl, list: *ArrayList(u8)) Oom!void {
         '/' => byte.* = '.',
         else => continue,
     };
-    if (std.mem.endsWith(u8, list.items, ".zig")) {
+    if (std.mem.endsWith(
+        u8,
+        list.items,
+        ".zig",
+    )) {
         list.items.len -= 3;
     } else {
         list.appendAssumeCapacity('.');
@@ -255,7 +263,11 @@ pub fn findFirstDocComment(ast: *const Ast, token: Ast.TokenIndex) Ast.OptionalT
 
 /// Successively looks up each component.
 pub fn find(search_string: []const u8) Decl.Index {
-    var path_components = std.mem.splitScalar(u8, search_string, '.');
+    var path_components = std.mem.splitScalar(
+        u8,
+        search_string,
+        '.',
+    );
     const file = Walk.active.modules.get(path_components.first()) orelse return .none;
     var current_decl_index = file.findRootDecl();
     while (path_components.next()) |component| {

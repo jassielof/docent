@@ -27,10 +27,18 @@ pub const Error = error{
 };
 
 /// Overlays `value` (a TOML table, or a bare severity string for a rule) onto the defaulted `out`, writing only the keys present in the TOML.
-pub fn decodeInto(comptime T: type, value: toml.DynamicValue, out: *T) Error!void {
+pub fn decodeInto(
+    comptime T: type,
+    value: toml.DynamicValue,
+    out: *T,
+) Error!void {
     if (comptime @hasField(T, "level")) {
         if (value.stringSlice()) |text| {
-            setLevel(T, out, try parseSeverity(text));
+            setLevel(
+                T,
+                out,
+                try parseSeverity(text),
+            );
             return;
         }
     }
@@ -41,21 +49,45 @@ pub fn decodeInto(comptime T: type, value: toml.DynamicValue, out: *T) Error!voi
     };
 
     inline for (std.meta.fields(T)) |field| {
-        if (comptime std.mem.eql(u8, field.name, "level")) {
+        if (comptime std.mem.eql(
+            u8,
+            field.name,
+            "level",
+        )) {
             if (table.get("level")) |level_value| {
                 const text = level_value.stringSlice() orelse return error.InvalidSeverity;
-                setLevel(T, out, try parseSeverity(text));
+                setLevel(
+                    T,
+                    out,
+                    try parseSeverity(text),
+                );
             }
-        } else if (comptime std.mem.eql(u8, field.name, "options")) {
-            try decodeInto(field.type, value, &@field(out, field.name));
+        } else if (comptime std.mem.eql(
+            u8,
+            field.name,
+            "options",
+        )) {
+            try decodeInto(
+                field.type,
+                value,
+                &@field(out, field.name),
+            );
         } else if (table.get(field.name)) |field_value| {
-            try decodeField(field.type, field_value, &@field(out, field.name));
+            try decodeField(
+                field.type,
+                field_value,
+                &@field(out, field.name),
+            );
         }
     }
 }
 
 /// Writes `new` to `out.level`, preserving a `forbid` already in place since `forbid` cannot be relaxed.
-fn setLevel(comptime T: type, out: *T, new: severity.Level) void {
+fn setLevel(
+    comptime T: type,
+    out: *T,
+    new: severity.Level,
+) void {
     if (out.level == .forbid and new != .forbid) return;
     out.level = new;
 }
@@ -64,11 +96,19 @@ fn parseSeverity(text: []const u8) Error!severity.Level {
     return std.meta.stringToEnum(severity.Level, text) orelse error.InvalidSeverity;
 }
 
-fn decodeField(comptime F: type, value: toml.DynamicValue, out: *F) Error!void {
+fn decodeField(
+    comptime F: type,
+    value: toml.DynamicValue,
+    out: *F,
+) Error!void {
     switch (@typeInfo(F)) {
         .optional => |opt| {
             var child: opt.child = undefined;
-            try decodeField(opt.child, value, &child);
+            try decodeField(
+                opt.child,
+                value,
+                &child,
+            );
             out.* = child;
         },
         .@"struct" => {
@@ -76,7 +116,11 @@ fn decodeField(comptime F: type, value: toml.DynamicValue, out: *F) Error!void {
                 const text = value.stringSlice() orelse return error.ConfigParseFailed;
                 out.* = F.fromConfigString(text) orelse return error.InvalidScanMode;
             } else {
-                try decodeInto(F, value, out);
+                try decodeInto(
+                    F,
+                    value,
+                    out,
+                );
             }
         },
         .@"enum" => out.* = try decodeEnum(F, value),

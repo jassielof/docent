@@ -66,7 +66,11 @@ pub fn discover(allocator: std.mem.Allocator, io: std.Io) ?StdRoot {
 /// Extracts the string value of `.key = "..."` from `zig env`'s ZON-ish
 /// output (not JSON -- Zig removed the JSON output mode).
 fn extractZonString(text: []const u8, key: []const u8) ?[]const u8 {
-    const key_idx = std.mem.indexOf(u8, text, key) orelse return null;
+    const key_idx = std.mem.indexOf(
+        u8,
+        text,
+        key,
+    ) orelse return null;
     var i = key_idx + key.len;
     while (i < text.len and text[i] != '"') : (i += 1) {
         if (text[i] == '\n') return null; // no `=` before end of line: not a match
@@ -129,15 +133,28 @@ pub const Collector = struct {
     /// this is the first reference to reach it. Returns `null` if no
     /// candidate file matches, or the trailing segments (if any) don't
     /// resolve within it -- callers fall back to plain unlinked text.
-    pub fn resolve(self: *Collector, allocator: std.mem.Allocator, io: std.Io, path: []const u8) !?Decl.Index {
-        var it = std.mem.splitScalar(u8, path, '.');
+    pub fn resolve(
+        self: *Collector,
+        allocator: std.mem.Allocator,
+        io: std.Io,
+        path: []const u8,
+    ) !?Decl.Index {
+        var it = std.mem.splitScalar(
+            u8,
+            path,
+            '.',
+        );
         _ = it.first(); // "std"
         var segments: std.ArrayList([]const u8) = .empty;
         defer segments.deinit(allocator);
         while (it.next()) |seg| try segments.append(allocator, seg);
         if (segments.items.len == 0) return null;
 
-        const found = try self.locateFile(allocator, io, segments.items) orelse return null;
+        const found = try self.locateFile(
+            allocator,
+            io,
+            segments.items,
+        ) orelse return null;
 
         var current = found.root_decl;
         for (segments.items[found.matched_len..]) |seg| {
@@ -157,7 +174,12 @@ pub const Collector = struct {
         matched_len: usize,
     };
 
-    fn locateFile(self: *Collector, allocator: std.mem.Allocator, io: std.Io, segments: []const []const u8) !?Located {
+    fn locateFile(
+        self: *Collector,
+        allocator: std.mem.Allocator,
+        io: std.Io,
+        segments: []const []const u8,
+    ) !?Located {
         var k = segments.len;
         while (k >= 1) : (k -= 1) {
             const prefix = segments[0..k];
@@ -167,7 +189,12 @@ pub const Collector = struct {
                 return .{ .root_decl = decl, .matched_len = k };
             }
 
-            if (try self.tryWalkCandidate(allocator, io, prefix, module_name)) |decl| {
+            if (try self.tryWalkCandidate(
+                allocator,
+                io,
+                prefix,
+                module_name,
+            )) |decl| {
                 return .{ .root_decl = decl, .matched_len = k };
             }
         }
@@ -185,12 +212,20 @@ pub const Collector = struct {
         const base = prefix[prefix.len - 1];
 
         for ([2][]const u8{ base, toSnakeCase(allocator, base) catch base }) |filename_base| {
-            const rel = try joinPathZig(allocator, dirs, filename_base);
+            const rel = try joinPathZig(
+                allocator,
+                dirs,
+                filename_base,
+            );
             defer allocator.free(rel);
             const abs = try std.fs.path.join(allocator, &.{ self.root.dir, rel });
             defer allocator.free(abs);
 
-            const stat = std.Io.Dir.cwd().statFile(io, abs, .{}) catch continue;
+            const stat = std.Io.Dir.cwd().statFile(
+                io,
+                abs,
+                .{},
+            ) catch continue;
             if (stat.kind != .file) continue;
 
             const source = std.Io.Dir.cwd().readFileAllocOptions(
@@ -202,10 +237,22 @@ pub const Collector = struct {
                 null,
             ) catch continue;
 
-            const key = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ module_name, std.fs.path.basename(abs) });
+            const key = try std.fmt.allocPrint(
+                allocator,
+                "{s}/{s}",
+                .{ module_name, std.fs.path.basename(abs) },
+            );
             const decl = Walk.add_file(key, source) catch continue;
-            try Walk.active.modules.put(std.heap.page_allocator, module_name, decl);
-            try self.walked.put(allocator, module_name, Walk.File.Index.findRootDecl(decl));
+            try Walk.active.modules.put(
+                std.heap.page_allocator,
+                module_name,
+                decl,
+            );
+            try self.walked.put(
+                allocator,
+                module_name,
+                Walk.File.Index.findRootDecl(decl),
+            );
             const root_decl = Walk.File.Index.findRootDecl(decl);
             try self.pending.append(allocator, .{ .root_decl = root_decl, .name = module_name });
             return root_decl;
@@ -225,7 +272,11 @@ fn joinDotted(allocator: std.mem.Allocator, segments: []const []const u8) ![]con
     return try out.toOwnedSlice(allocator);
 }
 
-fn joinPathZig(allocator: std.mem.Allocator, dirs: []const []const u8, filename_base: []const u8) ![]const u8 {
+fn joinPathZig(
+    allocator: std.mem.Allocator,
+    dirs: []const []const u8,
+    filename_base: []const u8,
+) ![]const u8 {
     var out: std.ArrayList(u8) = .empty;
     errdefer out.deinit(allocator);
     for (dirs) |d| {

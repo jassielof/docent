@@ -64,9 +64,21 @@ pub const RuleScanConfig = struct {
     }
 
     pub fn fromConfigString(text: []const u8) ?RuleScanConfig {
-        if (std.mem.eql(u8, text, "public")) return public_api_surface;
-        if (std.mem.eql(u8, text, "all")) return reachability_traversal;
-        if (std.mem.eql(u8, text, "filesystem")) return filesystem;
+        if (std.mem.eql(
+            u8,
+            text,
+            "public",
+        )) return public_api_surface;
+        if (std.mem.eql(
+            u8,
+            text,
+            "all",
+        )) return reachability_traversal;
+        if (std.mem.eql(
+            u8,
+            text,
+            "filesystem",
+        )) return filesystem;
         return null;
     }
 

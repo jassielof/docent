@@ -33,11 +33,23 @@ pub const TargetArgs = struct {
 /// Merges CLI target flags with `[check]` from `.config/docent.toml`.
 /// CLI bools OR with config (either may enable a target class). `exclude_targets`
 /// comes from config only.
-pub fn gatherPlan(allocator: std.mem.Allocator, io: std.Io, args: TargetArgs) !status_plan.Plan {
-    var cfg: Config = config.loadConfigFromCli(allocator, io, args.config_path) catch .{};
+pub fn gatherPlan(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    args: TargetArgs,
+) !status_plan.Plan {
+    var cfg: Config = config.loadConfigFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch .{};
     defer cfg.deinit(allocator);
 
-    const resolved_manifest = try resolveManifestPath(allocator, io, args.manifest_path);
+    const resolved_manifest = try resolveManifestPath(
+        allocator,
+        io,
+        args.manifest_path,
+    );
     defer if (resolved_manifest) |p| allocator.free(p);
 
     return status_plan.gather(allocator, io, .{
@@ -182,16 +194,36 @@ pub fn textFormat(mode: cli_types.OutputMode) output.TextFormat {
 pub fn allocPathDisplayRoot(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
     const manifest_path = manifest.findNearestManifestPath(allocator, io) catch |err| switch (err) {
         error.OutOfMemory => return err,
-        else => return realPathFileAlloc(allocator, io, "."),
+        else => return realPathFileAlloc(
+            allocator,
+            io,
+            ".",
+        ),
     };
     defer allocator.free(manifest_path);
-    const dir = std.fs.path.dirname(manifest_path) orelse return realPathFileAlloc(allocator, io, ".");
-    return realPathFileAlloc(allocator, io, dir);
+    const dir = std.fs.path.dirname(manifest_path) orelse return realPathFileAlloc(
+        allocator,
+        io,
+        ".",
+    );
+    return realPathFileAlloc(
+        allocator,
+        io,
+        dir,
+    );
 }
 
-fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
+fn realPathFileAlloc(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+    const len = try std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    );
     return allocator.dupe(u8, buffer[0..len]);
 }
 
@@ -205,30 +237,68 @@ pub fn printCheckResults(
     path_display_root: ?[]const u8,
 ) !void {
     if (args.format == .json) {
-        try output.printJsonStdout(io, allocator, diagnostics);
+        try output.printJsonStdout(
+            io,
+            allocator,
+            diagnostics,
+        );
         return;
     }
 
-    const text_options = output.stderrTextOptions(io, textFormat(args.format), .auto, path_display_root);
-    try output.printDiagnosticsStderr(io, diagnostics, text_options);
+    const text_options = output.stderrTextOptions(
+        io,
+        textFormat(args.format),
+        .auto,
+        path_display_root,
+    );
+    try output.printDiagnosticsStderr(
+        io,
+        diagnostics,
+        text_options,
+    );
     const had_diagnostics = summary.errors > 0 or summary.warnings > 0;
-    try output.printSummaryStderr(io, summary, output.stderrSummaryOptions(io, summary_label, .auto), had_diagnostics);
+    try output.printSummaryStderr(
+        io,
+        summary,
+        output.stderrSummaryOptions(
+            io,
+            summary_label,
+            .auto,
+        ),
+        had_diagnostics,
+    );
 }
 
-fn resolveManifestPath(allocator: std.mem.Allocator, io: std.Io, raw: ?[]const u8) !?[]u8 {
+fn resolveManifestPath(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    raw: ?[]const u8,
+) !?[]u8 {
     const path = raw orelse return null;
 
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const abs_len = std.Io.Dir.cwd().realPathFile(io, path, &buffer) catch
+    const abs_len = std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    ) catch
         return error.FileNotFound;
     const abs = buffer[0..abs_len];
 
-    if (std.mem.endsWith(u8, abs, "build.zig.zon")) {
+    if (std.mem.endsWith(
+        u8,
+        abs,
+        "build.zig.zon",
+    )) {
         return try allocator.dupe(u8, abs);
     }
 
     const candidate = try std.fs.path.join(allocator, &.{ abs, "build.zig.zon" });
-    const stat = std.Io.Dir.cwd().statFile(io, candidate, .{}) catch {
+    const stat = std.Io.Dir.cwd().statFile(
+        io,
+        candidate,
+        .{},
+    ) catch {
         allocator.free(candidate);
         return error.FileNotFound;
     };
@@ -236,7 +306,11 @@ fn resolveManifestPath(allocator: std.mem.Allocator, io: std.Io, raw: ?[]const u
     return candidate;
 }
 
-pub fn printStderr(io: std.Io, comptime fmt: []const u8, fmt_args: anytype) !void {
+pub fn printStderr(
+    io: std.Io,
+    comptime fmt: []const u8,
+    fmt_args: anytype,
+) !void {
     var buf: [4096]u8 = undefined;
     var stderr = std.Io.File.stderr().writer(io, &buf);
     try stderr.interface.print(fmt, fmt_args);
@@ -271,11 +345,35 @@ pub const RuleCategory = enum {
             "redundant_doc_comment",
         };
         for (doc_rules) |name| {
-            if (std.mem.eql(u8, rule, name)) return .doc;
+            if (std.mem.eql(
+                u8,
+                rule,
+                name,
+            )) return .doc;
         }
-        if (std.mem.eql(u8, rule, "identifier_case")) return .style;
-        if (std.mem.eql(u8, rule, "cognitive_complexity") or std.mem.eql(u8, rule, "cyclomatic_complexity")) return .complexity;
-        if (std.mem.eql(u8, rule, "max_fun_params") or std.mem.eql(u8, rule, "line_length_limit")) return .size;
+        if (std.mem.eql(
+            u8,
+            rule,
+            "identifier_case",
+        )) return .style;
+        if (std.mem.eql(
+            u8,
+            rule,
+            "cognitive_complexity",
+        ) or std.mem.eql(
+            u8,
+            rule,
+            "cyclomatic_complexity",
+        )) return .complexity;
+        if (std.mem.eql(
+            u8,
+            rule,
+            "max_fun_params",
+        ) or std.mem.eql(
+            u8,
+            rule,
+            "line_length_limit",
+        )) return .size;
         return null;
     }
 };
@@ -298,7 +396,11 @@ pub fn appendDiagnosticCounts(
 
         var matched = false;
         for (rows.items) |*row| {
-            if (row.category == category and row.severity == d.severity_level and std.mem.eql(u8, row.rule, d.rule)) {
+            if (row.category == category and row.severity == d.severity_level and std.mem.eql(
+                u8,
+                row.rule,
+                d.rule,
+            )) {
                 row.count += 1;
                 matched = true;
                 break;
@@ -316,7 +418,12 @@ pub fn appendDiagnosticCounts(
 }
 
 fn stderrColorProfile(io: std.Io) carnaval.ColorProfile {
-    const tty_config = std.Io.Terminal.Mode.detect(io, std.Io.File.stderr(), false, false) catch .no_color;
+    const tty_config = std.Io.Terminal.Mode.detect(
+        io,
+        std.Io.File.stderr(),
+        false,
+        false,
+    ) catch .no_color;
     const detected = carnaval.colorProfileForHandle(std.Io.File.stderr().handle);
     if (tty_config == .no_color) return .none;
     return if (detected == .none) .ansi16 else detected;
@@ -331,16 +438,37 @@ fn formatSummaryLine(
     errdefer aw.deinit();
 
     var count_buf: [32]u8 = undefined;
-    const count_text = try std.fmt.bufPrint(&count_buf, "{d}", .{row.count});
-    try carnaval.Style.init().bolded().renderWithProfile(count_text, &aw.writer, profile);
+    const count_text = try std.fmt.bufPrint(
+        &count_buf,
+        "{d}",
+        .{row.count},
+    );
+    try carnaval.Style.init().bolded().renderWithProfile(
+        count_text,
+        &aw.writer,
+        profile,
+    );
     try aw.writer.writeAll(" ");
-    try output.writeSeverityRuleTag(&aw.writer, row.severity, row.rule, profile);
+    try output.writeSeverityRuleTag(
+        &aw.writer,
+        row.severity,
+        row.rule,
+        profile,
+    );
 
     return aw.toOwnedSlice();
 }
 
-fn printCategoryHeading(writer: *std.Io.Writer, profile: carnaval.ColorProfile, title: []const u8) !void {
-    try carnaval.Style.init().bolded().renderWithProfile(title, writer, profile);
+fn printCategoryHeading(
+    writer: *std.Io.Writer,
+    profile: carnaval.ColorProfile,
+    title: []const u8,
+) !void {
+    try carnaval.Style.init().bolded().renderWithProfile(
+        title,
+        writer,
+        profile,
+    );
     try writer.writeAll("\n");
 }
 
@@ -351,13 +479,45 @@ pub fn printCategorizedEffectiveRules(
     rule_set: RuleSeverities,
 ) !void {
     var any_category = false;
-    try printEffectiveRulesCategory(allocator, w, profile, rule_set, .doc, &any_category);
-    try printEffectiveRulesCategory(allocator, w, profile, rule_set, .style, &any_category);
-    try printEffectiveRulesCategory(allocator, w, profile, rule_set, .complexity, &any_category);
-    try printEffectiveRulesCategory(allocator, w, profile, rule_set, .size, &any_category);
+    try printEffectiveRulesCategory(
+        allocator,
+        w,
+        profile,
+        rule_set,
+        .doc,
+        &any_category,
+    );
+    try printEffectiveRulesCategory(
+        allocator,
+        w,
+        profile,
+        rule_set,
+        .style,
+        &any_category,
+    );
+    try printEffectiveRulesCategory(
+        allocator,
+        w,
+        profile,
+        rule_set,
+        .complexity,
+        &any_category,
+    );
+    try printEffectiveRulesCategory(
+        allocator,
+        w,
+        profile,
+        rule_set,
+        .size,
+        &any_category,
+    );
 
     if (!any_category) {
-        try carnaval.Style.init().dimmed().renderWithProfile("  (none)\n", w, profile);
+        try carnaval.Style.init().dimmed().renderWithProfile(
+            "  (none)\n",
+            w,
+            profile,
+        );
     }
 }
 
@@ -384,14 +544,23 @@ fn printEffectiveRulesCategory(
         const level = @field(rule_set, field.name);
         var buf: [512]u8 = undefined;
         var line_writer = std.Io.Writer.fixed(&buf);
-        try output.writeSeverityRuleTag(&line_writer, level, field.name, profile);
+        try output.writeSeverityRuleTag(
+            &line_writer,
+            level,
+            field.name,
+            profile,
+        );
         try lines.append(allocator, try allocator.dupe(u8, line_writer.buffered()));
     }
 
     if (lines.items.len == 0) return;
 
     if (any_category.*) try w.writeAll("\n");
-    try printCategoryHeading(w, profile, category.heading());
+    try printCategoryHeading(
+        w,
+        profile,
+        category.heading(),
+    );
     try carnaval.renderList(lines.items, w, .{
         .style = .bullet,
         .indent = "  ",
@@ -400,9 +569,18 @@ fn printEffectiveRulesCategory(
     any_category.* = true;
 }
 
-pub fn printCategorizedSummary(allocator: std.mem.Allocator, io: std.Io, rows: []const RuleCountRow) !void {
+pub fn printCategorizedSummary(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    rows: []const RuleCountRow,
+) !void {
     const profile = stderrColorProfile(io);
-    const categories = [_]RuleCategory{ .doc, .style, .complexity, .size };
+    const categories = [_]RuleCategory{
+        .doc,
+        .style,
+        .complexity,
+        .size,
+    };
 
     var buf: [8192]u8 = undefined;
     var stderr = std.Io.File.stderr().writer(io, &buf);
@@ -419,13 +597,21 @@ pub fn printCategorizedSummary(allocator: std.mem.Allocator, io: std.Io, rows: [
 
         for (rows) |row| {
             if (row.category != category) continue;
-            try lines.append(allocator, try formatSummaryLine(allocator, row, profile));
+            try lines.append(allocator, try formatSummaryLine(
+                allocator,
+                row,
+                profile,
+            ));
         }
 
         if (lines.items.len == 0) continue;
 
         if (any_category) try writer.writeAll("\n");
-        try printCategoryHeading(writer, profile, category.heading());
+        try printCategoryHeading(
+            writer,
+            profile,
+            category.heading(),
+        );
         try carnaval.renderList(lines.items, writer, .{
             .style = .bullet,
             .indent = "  ",
@@ -436,7 +622,11 @@ pub fn printCategorizedSummary(allocator: std.mem.Allocator, io: std.Io, rows: [
     }
 
     if (!any_category) {
-        try carnaval.Style.init().dimmed().renderWithProfile("No issues found.\n", writer, profile);
+        try carnaval.Style.init().dimmed().renderWithProfile(
+            "No issues found.\n",
+            writer,
+            profile,
+        );
     }
 
     try writer.flush();

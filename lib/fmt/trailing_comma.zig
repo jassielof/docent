@@ -201,19 +201,33 @@ pub fn addTrailingCommas(gpa: Allocator, input: []const u8) Allocator.Error![]u8
 
     var line_start: usize = 0;
     while (line_start < input.len) {
-        const line_end = mem.indexOfScalar(u8, input[line_start..], '\n') orelse input.len - line_start;
+        const line_end = mem.indexOfScalar(
+            u8,
+            input[line_start..],
+            '\n',
+        ) orelse input.len - line_start;
         const full_line = input[line_start .. line_start + line_end];
         line_start += line_end + 1;
 
         const indent_len = leadingSpaces(full_line);
-        try expandLine(gpa, &output, full_line, indent_len);
+        try expandLine(
+            gpa,
+            &output,
+            full_line,
+            indent_len,
+        );
         if (line_start <= input.len) try output.append(gpa, '\n');
     }
 
     return output.toOwnedSlice(gpa);
 }
 
-fn expandLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8, base_indent: usize) !void {
+fn expandLine(
+    gpa: Allocator,
+    output: *std.ArrayList(u8),
+    line: []const u8,
+    base_indent: usize,
+) !void {
     // Zig multiline string literals use a double-backslash prefix on every
     // content line. Their content is not Zig code and must pass through verbatim.
     if (isMultilineStringLine(line)) {
@@ -240,7 +254,12 @@ fn expandLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8, base
 
         if (c == '(' or c == '{') {
             const close: u8 = if (c == '(') ')' else '}';
-            if (findMatchingClose(line, pos, c, close)) |close_pos| {
+            if (findMatchingClose(
+                line,
+                pos,
+                c,
+                close,
+            )) |close_pos| {
                 const inner = line[pos + 1 .. close_pos];
                 // Zig style: expand when there are 3+ items (2+ top-level commas).
                 // Function decls use the same threshold as calls and aggregates —
@@ -256,14 +275,35 @@ fn expandLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8, base
                     try output.append(gpa, '\n');
 
                     for (items) |item| {
-                        const trimmed = mem.trimStart(u8, mem.trimEnd(u8, item, " "), " ");
-                        try appendSpaces(gpa, output, item_indent);
-                        try expandLine(gpa, output, trimmed, item_indent);
+                        const trimmed = mem.trimStart(
+                            u8,
+                            mem.trimEnd(
+                                u8,
+                                item,
+                                " ",
+                            ),
+                            " ",
+                        );
+                        try appendSpaces(
+                            gpa,
+                            output,
+                            item_indent,
+                        );
+                        try expandLine(
+                            gpa,
+                            output,
+                            trimmed,
+                            item_indent,
+                        );
                         try output.append(gpa, ',');
                         try output.append(gpa, '\n');
                     }
 
-                    try appendSpaces(gpa, output, base_indent);
+                    try appendSpaces(
+                        gpa,
+                        output,
+                        base_indent,
+                    );
                     try output.append(gpa, close);
                     pos = close_pos + 1;
                     continue;
@@ -277,8 +317,16 @@ fn expandLine(gpa: Allocator, output: *std.ArrayList(u8), line: []const u8, base
 }
 
 fn isMultilineStringLine(line: []const u8) bool {
-    const trimmed = mem.trimStart(u8, line, " \t");
-    return mem.startsWith(u8, trimmed, "\\\\");
+    const trimmed = mem.trimStart(
+        u8,
+        line,
+        " \t",
+    );
+    return mem.startsWith(
+        u8,
+        trimmed,
+        "\\\\",
+    );
 }
 
 fn splitTopLevel(gpa: Allocator, inner: []const u8) ![][]const u8 {
@@ -322,7 +370,11 @@ fn splitTopLevel(gpa: Allocator, inner: []const u8) ![][]const u8 {
     return items.toOwnedSlice(gpa);
 }
 
-fn appendSpaces(gpa: Allocator, output: *std.ArrayList(u8), count: usize) !void {
+fn appendSpaces(
+    gpa: Allocator,
+    output: *std.ArrayList(u8),
+    count: usize,
+) !void {
     var j: usize = 0;
     while (j < count) : (j += 1) {
         try output.append(gpa, ' ');
@@ -336,7 +388,12 @@ fn leadingSpaces(line: []const u8) usize {
     return line.len;
 }
 
-fn findMatchingClose(line: []const u8, start: usize, open: u8, close: u8) ?usize {
+fn findMatchingClose(
+    line: []const u8,
+    start: usize,
+    open: u8,
+    close: u8,
+) ?usize {
     var depth: usize = 0;
     var i = start;
     while (i < line.len) : (i += 1) {
@@ -385,7 +442,11 @@ fn countTopLevelCommas(inner: []const u8) usize {
 }
 
 fn hasTrailingComma(inner: []const u8) bool {
-    const trimmed = mem.trimEnd(u8, inner, " ");
+    const trimmed = mem.trimEnd(
+        u8,
+        inner,
+        " ",
+    );
     return trimmed.len > 0 and trimmed[trimmed.len - 1] == ',';
 }
 

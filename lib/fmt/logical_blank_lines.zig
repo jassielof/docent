@@ -224,7 +224,11 @@ pub fn enforceLogicalBlankLines(gpa: Allocator, input: []const u8) Allocator.Err
 
     var line_start: usize = 0;
     while (line_start < input.len) {
-        const line_end = mem.indexOfScalar(u8, input[line_start..], '\n') orelse input.len - line_start;
+        const line_end = mem.indexOfScalar(
+            u8,
+            input[line_start..],
+            '\n',
+        ) orelse input.len - line_start;
         try lines.append(gpa, input[line_start .. line_start + line_end]);
         line_start += line_end + 1;
     }
@@ -237,16 +241,36 @@ pub fn enforceLogicalBlankLines(gpa: Allocator, input: []const u8) Allocator.Err
     var prev_content: ?[]const u8 = null;
 
     for (lines.items, 0..) |line, i| {
-        const trimmed = mem.trimStart(u8, mem.trimEnd(u8, line, " "), " ");
+        const trimmed = mem.trimStart(
+            u8,
+            mem.trimEnd(
+                u8,
+                line,
+                " ",
+            ),
+            " ",
+        );
         const is_blank = trimmed.len == 0;
 
         if (is_blank) {
             if (prev_was_blank) continue;
             if (prev_content) |pc| {
-                if (mem.endsWith(u8, pc, "{")) continue;
+                if (mem.endsWith(
+                    u8,
+                    pc,
+                    "{",
+                )) continue;
             }
             if (i + 1 < lines.items.len) {
-                const next_trimmed = mem.trimStart(u8, mem.trimEnd(u8, lines.items[i + 1], " "), " ");
+                const next_trimmed = mem.trimStart(
+                    u8,
+                    mem.trimEnd(
+                        u8,
+                        lines.items[i + 1],
+                        " ",
+                    ),
+                    " ",
+                );
                 if (next_trimmed.len > 0 and next_trimmed[0] == '}') continue;
                 // Keep defer/errdefer glued to the preceding initialization.
                 if (isDeferLine(next_trimmed)) continue;
@@ -289,9 +313,21 @@ fn needsBlankAfter(prev_trimmed: []const u8) bool {
     if (prev_trimmed.len == 0) return false;
 
     // Only "closing brace" lines — not one-liners like `fn foo() void {}`.
-    if (mem.eql(u8, prev_trimmed, "}") or
-        mem.eql(u8, prev_trimmed, "};") or
-        mem.endsWith(u8, prev_trimmed, "};"))
+    if (mem.eql(
+        u8,
+        prev_trimmed,
+        "}",
+    ) or
+        mem.eql(
+            u8,
+            prev_trimmed,
+            "};",
+        ) or
+        mem.endsWith(
+            u8,
+            prev_trimmed,
+            "};",
+        ))
     {
         return true;
     }
@@ -305,50 +341,142 @@ fn needsBlankAfter(prev_trimmed: []const u8) bool {
 fn needsBlankBefore(next_trimmed: []const u8, prev_trimmed: []const u8) bool {
     if (!isFlowTerminator(next_trimmed)) return false;
     // First statement in a block (including the sole-statement case).
-    if (mem.endsWith(u8, prev_trimmed, "{")) return false;
+    if (mem.endsWith(
+        u8,
+        prev_trimmed,
+        "{",
+    )) return false;
     return true;
 }
 
 fn isFlowTerminator(trimmed: []const u8) bool {
-    if (mem.startsWith(u8, trimmed, "return ") or mem.eql(u8, trimmed, "return;")) return true;
-    if (mem.startsWith(u8, trimmed, "continue ") or mem.eql(u8, trimmed, "continue;")) return true;
-    if (mem.eql(u8, trimmed, "break;") or mem.startsWith(u8, trimmed, "break ")) return true;
+    if (mem.startsWith(
+        u8,
+        trimmed,
+        "return ",
+    ) or mem.eql(
+        u8,
+        trimmed,
+        "return;",
+    )) return true;
+    if (mem.startsWith(
+        u8,
+        trimmed,
+        "continue ",
+    ) or mem.eql(
+        u8,
+        trimmed,
+        "continue;",
+    )) return true;
+    if (mem.eql(
+        u8,
+        trimmed,
+        "break;",
+    ) or mem.startsWith(
+        u8,
+        trimmed,
+        "break ",
+    )) return true;
     return false;
 }
 
 fn isDeferLine(trimmed: []const u8) bool {
-    return mem.startsWith(u8, trimmed, "defer ") or
-        mem.startsWith(u8, trimmed, "errdefer ") or
-        mem.eql(u8, trimmed, "defer") or
-        mem.eql(u8, trimmed, "errdefer");
+    return mem.startsWith(
+        u8,
+        trimmed,
+        "defer ",
+    ) or
+        mem.startsWith(
+            u8,
+            trimmed,
+            "errdefer ",
+        ) or
+        mem.eql(
+            u8,
+            trimmed,
+            "defer",
+        ) or
+        mem.eql(
+            u8,
+            trimmed,
+            "errdefer",
+        );
 }
 
 fn isImportRelated(trimmed: []const u8) bool {
-    if (mem.indexOf(u8, trimmed, "@import") != null) return true;
+    if (mem.indexOf(
+        u8,
+        trimmed,
+        "@import",
+    ) != null) return true;
     return isModuleAlias(trimmed);
 }
 
 /// `const Foo = bar.baz;` / `pub const Foo = bar.baz;` — aliases kept with imports.
 fn isModuleAlias(trimmed: []const u8) bool {
     var line = trimmed;
-    if (mem.startsWith(u8, line, "pub ")) line = mem.trimStart(u8, line[4..], " ");
-    if (!mem.startsWith(u8, line, "const ")) return false;
+    if (mem.startsWith(
+        u8,
+        line,
+        "pub ",
+    )) line = mem.trimStart(
+        u8,
+        line[4..],
+        " ",
+    );
+    if (!mem.startsWith(
+        u8,
+        line,
+        "const ",
+    )) return false;
 
-    const eq = mem.indexOf(u8, line, " = ") orelse return false;
+    const eq = mem.indexOf(
+        u8,
+        line,
+        " = ",
+    ) orelse return false;
     const rhs = line[eq + 3 ..];
-    if (mem.indexOf(u8, rhs, "@") != null) return false;
-    if (mem.indexOf(u8, rhs, "(") != null) return false;
-    if (mem.indexOf(u8, rhs, "{") != null) return false;
-    if (mem.indexOf(u8, rhs, ".") == null) return false;
+    if (mem.indexOf(
+        u8,
+        rhs,
+        "@",
+    ) != null) return false;
+    if (mem.indexOf(
+        u8,
+        rhs,
+        "(",
+    ) != null) return false;
+    if (mem.indexOf(
+        u8,
+        rhs,
+        "{",
+    ) != null) return false;
+    if (mem.indexOf(
+        u8,
+        rhs,
+        ".",
+    ) == null) return false;
     return true;
 }
 
 fn suppressesBlank(next_trimmed: []const u8) bool {
     if (next_trimmed.len == 0) return true;
     if (next_trimmed[0] == '}') return true;
-    if (mem.startsWith(u8, next_trimmed, "} ")) return true;
-    if (mem.startsWith(u8, next_trimmed, "else")) return true;
-    if (mem.startsWith(u8, next_trimmed, "catch")) return true;
+    if (mem.startsWith(
+        u8,
+        next_trimmed,
+        "} ",
+    )) return true;
+    if (mem.startsWith(
+        u8,
+        next_trimmed,
+        "else",
+    )) return true;
+    if (mem.startsWith(
+        u8,
+        next_trimmed,
+        "catch",
+    )) return true;
     if (next_trimmed[0] == ')') return true;
     return false;
 }

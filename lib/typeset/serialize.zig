@@ -69,13 +69,29 @@ pub fn emitPackage(
     tool_version: []const u8,
     generated_at: []const u8,
 ) !schema.DocsFile {
-    const module_nodes = try emitModuleList(allocator, io, modules, include_private, external_refs_table, std_collector, zig_version);
+    const module_nodes = try emitModuleList(
+        allocator,
+        io,
+        modules,
+        include_private,
+        external_refs_table,
+        std_collector,
+        zig_version,
+    );
 
     var appendix_nodes: std.ArrayList(schema.DeclNode) = .empty;
     errdefer appendix_nodes.deinit(allocator);
     try appendix_nodes.appendSlice(
         allocator,
-        try emitModuleList(allocator, io, appendix, include_private, external_refs_table, std_collector, zig_version),
+        try emitModuleList(
+            allocator,
+            io,
+            appendix,
+            include_private,
+            external_refs_table,
+            std_collector,
+            zig_version,
+        ),
     );
 
     // Drain `std.*` references discovered while emitting `modules`/`appendix`
@@ -95,7 +111,11 @@ pub fn emitPackage(
             };
             defer ctx.expanded.deinit();
 
-            var node = try emitDecl(allocator, p.root_decl, &ctx);
+            var node = try emitDecl(
+                allocator,
+                p.root_decl,
+                &ctx,
+            );
             if (node.name.len == 0) node.name = try allocator.dupe(u8, p.name);
             try appendix_nodes.append(allocator, node);
         }
@@ -136,7 +156,11 @@ fn emitModuleList(
         };
         defer ctx.expanded.deinit();
 
-        var node = try emitDecl(allocator, m.root_decl, &ctx);
+        var node = try emitDecl(
+            allocator,
+            m.root_decl,
+            &ctx,
+        );
         if (node.name.len == 0) node.name = try allocator.dupe(u8, m.name);
         try nodes.append(allocator, node);
     }
@@ -156,7 +180,11 @@ pub fn writeToFile(
     defer buf.deinit(allocator);
 
     var allocating = Writer.Allocating.fromArrayList(allocator, &buf);
-    try std.json.Stringify.value(docs_file, .{ .whitespace = .indent_2 }, &allocating.writer);
+    try std.json.Stringify.value(
+        docs_file,
+        .{ .whitespace = .indent_2 },
+        &allocating.writer,
+    );
     buf = allocating.toArrayList();
 
     if (std.fs.path.dirname(output_path)) |dir| {
@@ -190,14 +218,38 @@ fn classify(decl_index: Decl.Index) Classification {
                 .container_kind = containerKindOfNode(decl.file.get_ast(), node),
                 .resolved = current,
             },
-            .global_variable => return .{ .kind = .@"var", .container_kind = null, .resolved = current },
-            .function, .type_function => return .{ .kind = .@"fn", .container_kind = null, .resolved = current },
-            .error_set => return .{ .kind = .error_set, .container_kind = null, .resolved = current },
-            .global_const, .primitive => return .{ .kind = .@"const", .container_kind = null, .resolved = current },
-            .type, .type_type => return .{ .kind = .type_alias, .container_kind = null, .resolved = current },
+            .global_variable => return .{
+                .kind = .@"var",
+                .container_kind = null,
+                .resolved = current,
+            },
+            .function, .type_function => return .{
+                .kind = .@"fn",
+                .container_kind = null,
+                .resolved = current,
+            },
+            .error_set => return .{
+                .kind = .error_set,
+                .container_kind = null,
+                .resolved = current,
+            },
+            .global_const, .primitive => return .{
+                .kind = .@"const",
+                .container_kind = null,
+                .resolved = current,
+            },
+            .type, .type_type => return .{
+                .kind = .type_alias,
+                .container_kind = null,
+                .resolved = current,
+            },
         }
     }
-    return .{ .kind = .@"const", .container_kind = null, .resolved = current };
+    return .{
+        .kind = .@"const",
+        .container_kind = null,
+        .resolved = current,
+    };
 }
 
 fn containerKindOfNode(ast: *const Ast, node: Ast.Node.Index) ?schema.ContainerKind {
@@ -235,7 +287,11 @@ const Ctx = struct {
     io: std.Io,
 };
 
-fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, ctx: *Ctx) anyerror!schema.DeclNode {
+fn emitDecl(
+    allocator: std.mem.Allocator,
+    decl_index: Decl.Index,
+    ctx: *Ctx,
+) anyerror!schema.DeclNode {
     const original = decl_index.get();
     const info = original.extra_info();
 
@@ -264,7 +320,11 @@ fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, ctx: *Ctx) any
             if (target_ast.fullFnProto(&buf, proto_node)) |full| {
                 if (full.ast.return_type.unwrap()) |rt|
                     return_type = try allocator.dupe(u8, returnTypeSource(target_ast, rt));
-                params = try emitParams(allocator, target_ast, full);
+                params = try emitParams(
+                    allocator,
+                    target_ast,
+                    full,
+                );
             }
         },
         .@"const", .@"var", .type_alias => {
@@ -275,14 +335,23 @@ fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, ctx: *Ctx) any
                 .error_set => |n| n,
                 else => target.ast_node,
             };
-            fields = try emitErrorSetFields(allocator, target_ast, node);
+            fields = try emitErrorSetFields(
+                allocator,
+                target_ast,
+                node,
+            );
         },
         .container => {
             const node = switch (target.categorize()) {
                 .namespace, .container => |n| n,
                 else => target.ast_node,
             };
-            fields = try emitContainerFields(allocator, target_ast, node, cls.container_kind);
+            fields = try emitContainerFields(
+                allocator,
+                target_ast,
+                node,
+                cls.container_kind,
+            );
 
             // Only structs and the module root act as namespaces that can
             // hold further sub-decls; enums/unions/opaques are value-shaped
@@ -305,14 +374,24 @@ fn emitDecl(allocator: std.mem.Allocator, decl_index: Decl.Index, ctx: *Ctx) any
             if (is_namespace_kind) {
                 const gop = try ctx.expanded.getOrPut(cls.resolved);
                 if (!gop.found_existing) {
-                    decls = try emitChildren(allocator, cls.resolved, ctx);
+                    decls = try emitChildren(
+                        allocator,
+                        cls.resolved,
+                        ctx,
+                    );
                 }
             }
         },
         .field => unreachable, // `classify` never produces `.field`; struct/enum/union members surface as `FieldNode`, not `DeclNode`.
     }
 
-    const doc_pair = try renderDocComment(allocator, original.file.get_ast(), info.first_doc_comment, decl_index, ctx);
+    const doc_pair = try renderDocComment(
+        allocator,
+        original.file.get_ast(),
+        info.first_doc_comment,
+        decl_index,
+        ctx,
+    );
 
     return .{
         .id = id,
@@ -346,7 +425,11 @@ fn emitChildren(
         if (d.parent != container_index) continue;
         if (!d.is_pub() and !ctx.include_private) continue;
         const child_index: Decl.Index = @enumFromInt(i);
-        try list.append(allocator, try emitDecl(allocator, child_index, ctx));
+        try list.append(allocator, try emitDecl(
+            allocator,
+            child_index,
+            ctx,
+        ));
     }
 
     return try list.toOwnedSlice(allocator);
@@ -387,11 +470,19 @@ fn returnTypeSource(ast: *const Ast, node: Ast.Node.Index) []const u8 {
 /// already carried by `DeclNode.visibility`, so the signature text doesn't
 /// need to repeat it (matches the Appendix A example, which omits `pub`).
 fn stripLeadingModifiers(source: []const u8) []const u8 {
-    if (std.mem.startsWith(u8, source, "pub ")) return source["pub ".len..];
+    if (std.mem.startsWith(
+        u8,
+        source,
+        "pub ",
+    )) return source["pub ".len..];
     return source;
 }
 
-fn emitParams(allocator: std.mem.Allocator, ast: *const Ast, full: Ast.full.FnProto) ![]const schema.ParamNode {
+fn emitParams(
+    allocator: std.mem.Allocator,
+    ast: *const Ast,
+    full: Ast.full.FnProto,
+) ![]const schema.ParamNode {
     var list: std.ArrayList(schema.ParamNode) = .empty;
     errdefer list.deinit(allocator);
 
@@ -457,7 +548,11 @@ fn emitContainerFields(
 /// Port of the old WASM `main.zig`'s `addErrorsFromNode`, minus the HTML
 /// output and the "prefer the member with docs" merge logic (no
 /// `merge_error_sets` support yet -- see the module doc comment).
-fn emitErrorSetFields(allocator: std.mem.Allocator, ast: *const Ast, node: Ast.Node.Index) ![]const schema.FieldNode {
+fn emitErrorSetFields(
+    allocator: std.mem.Allocator,
+    ast: *const Ast,
+    node: Ast.Node.Index,
+) ![]const schema.FieldNode {
     var list: std.ArrayList(schema.FieldNode) = .empty;
     errdefer list.deinit(allocator);
 
@@ -507,7 +602,11 @@ fn renderDocComment(
     origin: Decl.Index,
     ctx: *Ctx,
 ) !DocPair {
-    const first = first_doc_comment.unwrap() orelse return .{ .doc = null, .summary = null, .link_targets = null };
+    const first = first_doc_comment.unwrap() orelse return .{
+        .doc = null,
+        .summary = null,
+        .link_targets = null,
+    };
     // `Decl.findFirstDocComment` (Decl.zig) returns the boundary
     // token it stopped scanning backward at *unconditionally* -- when there
     // is no preceding doc comment at all, that boundary token is the decl's
@@ -518,7 +617,11 @@ fn renderDocComment(
     // lines like `pub const scan = @import("scan.zig");`.
     const doc_kind = ast.tokenTag(first);
     if (doc_kind != .doc_comment and doc_kind != .container_doc_comment)
-        return .{ .doc = null, .summary = null, .link_targets = null };
+        return .{
+            .doc = null,
+            .summary = null,
+            .link_targets = null,
+        };
 
     var parser = try markdown.Parser.init(allocator);
     defer parser.deinit();
@@ -531,9 +634,21 @@ fn renderDocComment(
     var doc = try parser.endInput();
     defer doc.deinit(allocator);
 
-    const render_result = try typst.renderToTypst(allocator, ctx.io, doc, origin, ctx.zig_version, ctx.refs, ctx.std_bundle);
+    const render_result = try typst.renderToTypst(
+        allocator,
+        ctx.io,
+        doc,
+        origin,
+        ctx.zig_version,
+        ctx.refs,
+        ctx.std_bundle,
+    );
     defer allocator.free(render_result.markup);
-    const rendered = try allocator.dupe(u8, std.mem.trimEnd(u8, render_result.markup, " \t\r\n"));
+    const rendered = try allocator.dupe(u8, std.mem.trimEnd(
+        u8,
+        render_result.markup,
+        " \t\r\n",
+    ));
     const summary = try firstParagraphPlainText(allocator, doc);
 
     return .{
@@ -560,7 +675,11 @@ fn firstParagraphPlainText(allocator: std.mem.Allocator, doc: markdown.Document)
 
     const para_data = doc.nodes.items(.data)[@intFromEnum(first)];
     for (doc.extraChildren(para_data.container.children)) |child| {
-        markdown.renderInlineNodeText(doc, child, &allocating.writer) catch |err| switch (err) {
+        markdown.renderInlineNodeText(
+            doc,
+            child,
+            &allocating.writer,
+        ) catch |err| switch (err) {
             error.WriteFailed => return error.OutOfMemory,
         };
     }

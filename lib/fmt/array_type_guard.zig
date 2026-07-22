@@ -44,7 +44,11 @@ pub fn findPathologicalArrayType(tree: *const Ast, max_depth: usize) ?Pathologic
         const node: Ast.Node.Index = @enumFromInt(raw);
         if (!isArrayType(tree, node)) continue;
 
-        const depth = lengthNestingDepth(tree, node, max_depth + 1);
+        const depth = lengthNestingDepth(
+            tree,
+            node,
+            max_depth + 1,
+        );
         if (depth > max_depth) return .{ .node = node, .depth = depth };
     }
     return null;
@@ -60,7 +64,11 @@ fn isArrayType(tree: *const Ast, node: Ast.Node.Index) bool {
 /// Counts how many array types are chained through each other's length expression starting at
 /// `node`, stopping early once `limit` is reached — the caller only needs to know whether the
 /// chain exceeds its threshold, not its exact length past that point.
-fn lengthNestingDepth(tree: *const Ast, node: Ast.Node.Index, limit: usize) usize {
+fn lengthNestingDepth(
+    tree: *const Ast,
+    node: Ast.Node.Index,
+    limit: usize,
+) usize {
     var depth: usize = 0;
     var current = node;
     while (depth < limit) {
@@ -85,12 +93,21 @@ fn nestedLengthArraySource(allocator: std.mem.Allocator, depth: usize) ![:0]u8 {
         expr.clearRetainingCapacity();
         try expr.appendSlice(allocator, wrapped.items);
     }
-    return std.fmt.allocPrintSentinel(allocator, "const T = {s};\n", .{expr.items}, 0);
+    return std.fmt.allocPrintSentinel(
+        allocator,
+        "const T = {s};\n",
+        .{expr.items},
+        0,
+    );
 }
 
 test "ordinary declarations are not flagged" {
     const gpa = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(gpa, "const a: [3]u8 = undefined;\nconst b: [3][4][5]u8 = undefined;\n", .zig);
+    var tree = try std.zig.Ast.parse(
+        gpa,
+        "const a: [3]u8 = undefined;\nconst b: [3][4][5]u8 = undefined;\n",
+        .zig,
+    );
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
@@ -102,7 +119,11 @@ test "a chain within the configured limit is not flagged" {
     const source = try nestedLengthArraySource(gpa, 10);
     defer gpa.free(source);
 
-    var tree = try std.zig.Ast.parse(gpa, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        gpa,
+        source,
+        .zig,
+    );
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
@@ -114,7 +135,11 @@ test "a chain past the configured limit is flagged (zig#35714)" {
     const source = try nestedLengthArraySource(gpa, 24);
     defer gpa.free(source);
 
-    var tree = try std.zig.Ast.parse(gpa, source, .zig);
+    var tree = try std.zig.Ast.parse(
+        gpa,
+        source,
+        .zig,
+    );
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
@@ -132,7 +157,11 @@ test "multi-dimensional arrays nested through the element type are not flagged" 
     defer source.deinit(gpa);
     try source.appendSlice(gpa, "const T = ");
     for (1..25) |dim| {
-        const segment = try std.fmt.allocPrint(gpa, "[{d}]", .{dim});
+        const segment = try std.fmt.allocPrint(
+            gpa,
+            "[{d}]",
+            .{dim},
+        );
         defer gpa.free(segment);
         try source.appendSlice(gpa, segment);
     }
@@ -140,7 +169,11 @@ test "multi-dimensional arrays nested through the element type are not flagged" 
     const source_z = try gpa.dupeZ(u8, source.items);
     defer gpa.free(source_z);
 
-    var tree = try std.zig.Ast.parse(gpa, source_z, .zig);
+    var tree = try std.zig.Ast.parse(
+        gpa,
+        source_z,
+        .zig,
+    );
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);

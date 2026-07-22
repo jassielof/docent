@@ -26,7 +26,11 @@ pub const default_severity: severity.Level = .warn;
 pub const prose_title = "Blank doc comment";
 
 /// Full configuration for `blank_doc_comment`: severity and scan mode, with no rule-specific options.
-pub const Rule = category.Rule(default_severity, struct {}, scan.RuleScanConfig.public_api_surface);
+pub const Rule = category.Rule(
+    default_severity,
+    struct {},
+    scan.RuleScanConfig.public_api_surface,
+);
 
 /// Walks `tree` and appends diagnostics for vacuous doc comments.
 ///
@@ -71,9 +75,21 @@ pub fn check(
             const slice = tree.tokenSlice(tok);
             const loc = tree.tokenLocation(0, tok);
             const subject = if (tag == .container_doc_comment)
-                try containerDocSubject(tree, file, module_name, is_module_entry, msg_allocator)
+                try containerDocSubject(
+                    tree,
+                    file,
+                    module_name,
+                    is_module_entry,
+                    msg_allocator,
+                )
             else
-                utils.diagnosticSubjectFromDoc(try doc_comment.resolveDocCommentSubject(tree, @intCast(i), file, module_name, msg_allocator));
+                utils.diagnosticSubjectFromDoc(try doc_comment.resolveDocCommentSubject(
+                    tree,
+                    @intCast(i),
+                    file,
+                    module_name,
+                    msg_allocator,
+                ));
             try diagnostics.append(allocator, .{
                 .rule = rule_name,
                 .severity_level = severity_level,
@@ -81,14 +97,28 @@ pub fn check(
                 .file = file,
                 .line = loc.line + 1,
                 .column = loc.column + 1,
-                .source_line = try utils.dupSourceLine(tree, tok, msg_allocator),
+                .source_line = try utils.dupSourceLine(
+                    tree,
+                    tok,
+                    msg_allocator,
+                ),
                 .symbol_len = slice.len,
             });
         }
     }
 
     for (tree.rootDecls()) |decl| {
-        try checkReexportedWholeModules(tree, decl, file, public_api_only, severity_level, allocator, io, msg_allocator, diagnostics);
+        try checkReexportedWholeModules(
+            tree,
+            decl,
+            file,
+            public_api_only,
+            severity_level,
+            allocator,
+            io,
+            msg_allocator,
+            diagnostics,
+        );
     }
 }
 
@@ -100,7 +130,11 @@ fn containerDocSubject(
     msg_allocator: std.mem.Allocator,
 ) std.mem.Allocator.Error!Diagnostic.Subject {
     if (is_module_entry) {
-        return try utils.ownedSubject(msg_allocator, .module, utils.moduleDisplayName(file, module_name));
+        return try utils.ownedSubject(
+            msg_allocator,
+            .module,
+            utils.moduleDisplayName(file, module_name),
+        );
     }
     return try utils.ownedSubject(
         msg_allocator,
@@ -114,7 +148,11 @@ fn isPubVisibility(tree: *const Ast, visib_token: ?Ast.TokenIndex) bool {
     return tree.tokenTag(vt) == .keyword_pub;
 }
 
-fn shouldCheckDecl(tree: *const Ast, visib_token: ?Ast.TokenIndex, public_api_only: bool) bool {
+fn shouldCheckDecl(
+    tree: *const Ast,
+    visib_token: ?Ast.TokenIndex,
+    public_api_only: bool,
+) bool {
     if (!public_api_only) return true;
     return isPubVisibility(tree, visib_token);
 }
@@ -136,7 +174,11 @@ fn checkReexportedWholeModules(
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
     if (tree.fullVarDecl(node)) |var_decl| {
-        if (shouldCheckDecl(tree, var_decl.visib_token, public_api_only) and
+        if (shouldCheckDecl(
+            tree,
+            var_decl.visib_token,
+            public_api_only,
+        ) and
             !hasDocComment(tree, var_decl.firstToken()))
         {
             if (var_decl.ast.init_node.unwrap()) |init_node| {
@@ -168,7 +210,17 @@ fn checkReexportedWholeModules(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, init_node)) |container| {
             for (container.ast.members) |member| {
-                try checkReexportedWholeModules(tree, member, file, public_api_only, severity_level, allocator, io, msg_allocator, diagnostics);
+                try checkReexportedWholeModules(
+                    tree,
+                    member,
+                    file,
+                    public_api_only,
+                    severity_level,
+                    allocator,
+                    io,
+                    msg_allocator,
+                    diagnostics,
+                );
             }
         }
         return;
@@ -179,7 +231,17 @@ fn checkReexportedWholeModules(
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
-                try checkReexportedWholeModules(tree, member, file, public_api_only, severity_level, allocator, io, msg_allocator, diagnostics);
+                try checkReexportedWholeModules(
+                    tree,
+                    member,
+                    file,
+                    public_api_only,
+                    severity_level,
+                    allocator,
+                    io,
+                    msg_allocator,
+                    diagnostics,
+                );
             }
         }
     }
@@ -192,7 +254,11 @@ const BlankWholeModuleContext = struct {
     diagnostics: *std.ArrayList(Diagnostic),
 };
 
-fn onBlankWholeModuleReexport(ctx_ptr: *anyopaque, tree: *const Ast, file_path: []const u8) !void {
+fn onBlankWholeModuleReexport(
+    ctx_ptr: *anyopaque,
+    tree: *const Ast,
+    file_path: []const u8,
+) !void {
     const ctx: *BlankWholeModuleContext = @ptrCast(@alignCast(ctx_ptr));
     const source_basename = std.fs.path.basename(file_path);
     const subject_kind = utils.diagnosticSubjectKindFromDoc(doc_comment.exposedSourceFileSubjectKind(tree));
@@ -207,11 +273,19 @@ fn onBlankWholeModuleReexport(ctx_ptr: *anyopaque, tree: *const Ast, file_path: 
     try ctx.diagnostics.append(ctx.allocator, .{
         .rule = rule_name,
         .severity_level = ctx.severity_level,
-        .subject = try utils.ownedSubject(ctx.msg_allocator, subject_kind, source_basename),
+        .subject = try utils.ownedSubject(
+            ctx.msg_allocator,
+            subject_kind,
+            source_basename,
+        ),
         .file = try vereda.path.toPosixSeparators(ctx.msg_allocator, file_path),
         .line = line + 1,
         .column = column + 1,
-        .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(tree, 0, ctx.msg_allocator) else "",
+        .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(
+            tree,
+            0,
+            ctx.msg_allocator,
+        ) else "",
         .symbol_len = if (tree.tokens.len > 0) tree.tokenSlice(0).len else source_basename.len,
     });
 }

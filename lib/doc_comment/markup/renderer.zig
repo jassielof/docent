@@ -21,8 +21,17 @@ pub fn Renderer(comptime Context: type) type {
 
         const Self = @This();
 
-        pub fn render(r: Self, doc: Document, writer: *Writer) Writer.Error!void {
-            try r.renderFn(r, doc, .root, writer);
+        pub fn render(
+            r: Self,
+            doc: Document,
+            writer: *Writer,
+        ) Writer.Error!void {
+            try r.renderFn(
+                r,
+                doc,
+                .root,
+                writer,
+            );
         }
 
         pub fn renderDefault(
@@ -35,7 +44,12 @@ pub fn Renderer(comptime Context: type) type {
             switch (doc.nodes.items(.tag)[@intFromEnum(node)]) {
                 .root => {
                     for (doc.extraChildren(data.container.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                 },
                 .list => {
@@ -49,7 +63,12 @@ pub fn Renderer(comptime Context: type) type {
                         try writer.writeAll("<ul>\n");
                     }
                     for (doc.extraChildren(data.list.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                     if (data.list.start.asNumber() != null) {
                         try writer.writeAll("</ol>\n");
@@ -63,10 +82,20 @@ pub fn Renderer(comptime Context: type) type {
                         if (data.list_item.tight and doc.nodes.items(.tag)[@intFromEnum(child)] == .paragraph) {
                             const para_data = doc.nodes.items(.data)[@intFromEnum(child)];
                             for (doc.extraChildren(para_data.container.children)) |para_child| {
-                                try r.renderFn(r, doc, para_child, writer);
+                                try r.renderFn(
+                                    r,
+                                    doc,
+                                    para_child,
+                                    writer,
+                                );
                             }
                         } else {
-                            try r.renderFn(r, doc, child, writer);
+                            try r.renderFn(
+                                r,
+                                doc,
+                                child,
+                                writer,
+                            );
                         }
                     }
                     try writer.writeAll("</li>\n");
@@ -74,14 +103,24 @@ pub fn Renderer(comptime Context: type) type {
                 .table => {
                     try writer.writeAll("<table>\n");
                     for (doc.extraChildren(data.container.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                     try writer.writeAll("</table>\n");
                 },
                 .table_row => {
                     try writer.writeAll("<tr>\n");
                     for (doc.extraChildren(data.container.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                     try writer.writeAll("</tr>\n");
                 },
@@ -97,7 +136,12 @@ pub fn Renderer(comptime Context: type) type {
                     }
 
                     for (doc.extraChildren(data.table_cell.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
 
                     if (data.table_cell.info.header) {
@@ -109,7 +153,12 @@ pub fn Renderer(comptime Context: type) type {
                 .heading => {
                     try writer.print("<h{d}>", .{data.heading.level});
                     for (doc.extraChildren(data.heading.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                     try writer.print("</h{d}>\n", .{data.heading.level});
                 },
@@ -120,14 +169,24 @@ pub fn Renderer(comptime Context: type) type {
                 .blockquote => {
                     try writer.writeAll("<blockquote>\n");
                     for (doc.extraChildren(data.container.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                     try writer.writeAll("</blockquote>\n");
                 },
                 .paragraph => {
                     try writer.writeAll("<p>");
                     for (doc.extraChildren(data.container.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                     try writer.writeAll("</p>\n");
                 },
@@ -138,7 +197,12 @@ pub fn Renderer(comptime Context: type) type {
                     const target = doc.string(data.link.target);
                     try writer.print("<a href=\"{f}\">", .{fmtHtml(target)});
                     for (doc.extraChildren(data.link.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                     try writer.writeAll("</a>");
                 },
@@ -150,21 +214,35 @@ pub fn Renderer(comptime Context: type) type {
                     const target = doc.string(data.link.target);
                     try writer.print("<img src=\"{f}\" alt=\"", .{fmtHtml(target)});
                     for (doc.extraChildren(data.link.children)) |child| {
-                        try renderInlineNodeText(doc, child, writer);
+                        try renderInlineNodeText(
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                     try writer.writeAll("\" />");
                 },
                 .strong => {
                     try writer.writeAll("<strong>");
                     for (doc.extraChildren(data.container.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                     try writer.writeAll("</strong>");
                 },
                 .emphasis => {
                     try writer.writeAll("<em>");
                     for (doc.extraChildren(data.container.children)) |child| {
-                        try r.renderFn(r, doc, child, writer);
+                        try r.renderFn(
+                            r,
+                            doc,
+                            child,
+                            writer,
+                        );
                     }
                     try writer.writeAll("</em>");
                 },
@@ -208,17 +286,29 @@ pub fn renderInlineNodeText(
 
         .link, .image => {
             for (doc.extraChildren(data.link.children)) |child| {
-                try renderInlineNodeText(doc, child, writer);
+                try renderInlineNodeText(
+                    doc,
+                    child,
+                    writer,
+                );
             }
         },
         .strong => {
             for (doc.extraChildren(data.container.children)) |child| {
-                try renderInlineNodeText(doc, child, writer);
+                try renderInlineNodeText(
+                    doc,
+                    child,
+                    writer,
+                );
             }
         },
         .emphasis => {
             for (doc.extraChildren(data.container.children)) |child| {
-                try renderInlineNodeText(doc, child, writer);
+                try renderInlineNodeText(
+                    doc,
+                    child,
+                    writer,
+                );
             }
         },
         .autolink, .code_span, .text => {
