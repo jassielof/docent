@@ -5,8 +5,9 @@
 //! short title shown in messages such as `Warning: Missing doc comment on field 'x'.`
 
 const std = @import("std");
-const RuleSeverities = @import("RuleSeverities.zig");
+
 const rules = @import("rules.zig");
+const RuleSeverities = @import("RuleSeverities.zig");
 
 fn proseTitleForRule(comptime rule_name: []const u8) []const u8 {
     if (std.mem.eql(

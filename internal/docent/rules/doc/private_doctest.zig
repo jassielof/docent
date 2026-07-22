@@ -4,9 +4,10 @@
 
 const std = @import("std");
 const Ast = std.zig.Ast;
+
 const Diagnostic = @import("../../Diagnostic.zig");
-const severity = @import("../../severity.zig");
 const scan = @import("../../scan.zig");
+const severity = @import("../../severity.zig");
 const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 

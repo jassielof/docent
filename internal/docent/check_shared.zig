@@ -5,7 +5,6 @@ const std = @import("std");
 const carnaval = @import("carnaval");
 const fangz = @import("fangz");
 
-const cli_types = @import("types.zig");
 const config = @import("config.zig");
 const Diagnostic = @import("Diagnostic.zig");
 const manifest = @import("manifest.zig");
@@ -14,6 +13,7 @@ const RuleSeverities = @import("RuleSeverities.zig");
 const Config = @import("schemas/Config.zig");
 const SeverityLevel = @import("severity.zig").Level;
 const status_plan = @import("status_plan.zig");
+const cli_types = @import("types.zig");
 
 pub const TargetArgs = struct {
     positionals: []const []const u8 = &.{},

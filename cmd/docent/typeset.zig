@@ -31,8 +31,8 @@
 
 const std = @import("std");
 
-const fangz = @import("fangz");
 const docent = @import("docent");
+const fangz = @import("fangz");
 const typeset = @import("typeset");
 
 pub fn register(root: *fangz.Command) !void {

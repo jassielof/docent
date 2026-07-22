@@ -3,6 +3,7 @@
 //! A category struct is a `scan_mode` field (the category default) plus one `Rule` field per rule. These free functions operate generically on any such struct, so each category delegates instead of repeating the field walk.
 
 const std = @import("std");
+
 const scan = @import("../scan.zig");
 const severity = @import("../severity.zig");
 

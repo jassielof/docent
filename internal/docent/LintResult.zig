@@ -1,6 +1,7 @@
 //! Aggregated diagnostics produced by linting one or more source files.
 
 const std = @import("std");
+
 const Diagnostic = @import("Diagnostic.zig");
 const severity = @import("severity.zig");
 

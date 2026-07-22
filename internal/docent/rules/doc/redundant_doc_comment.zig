@@ -2,11 +2,12 @@
 
 const std = @import("std");
 const Ast = std.zig.Ast;
+
 const Diagnostic = @import("../../Diagnostic.zig");
-const severity = @import("../../severity.zig");
 const scan = @import("../../scan.zig");
-const category = @import("../category.zig");
 const alias = @import("../../scan/alias.zig");
+const severity = @import("../../severity.zig");
+const category = @import("../category.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {

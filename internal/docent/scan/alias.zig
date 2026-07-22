@@ -20,10 +20,11 @@
 
 const std = @import("std");
 const Ast = std.zig.Ast;
+
+const doc_comment = @import("doc_comment");
 const vereda = @import("vereda");
 
 const helpers = @import("../rules/utils/helpers.zig");
-const doc_comment = @import("doc_comment");
 
 /// Extracted info about a potential re-export expression.
 pub const Info = struct {
