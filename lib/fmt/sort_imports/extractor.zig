@@ -1,14 +1,14 @@
 const std = @import("std");
 const mem = std.mem;
-const Ast = std.zig.Ast;
 const Allocator = std.mem.Allocator;
+const Ast = std.zig.Ast;
 
+const classifier = @import("classifier.zig");
 const types = @import("types.zig");
 const ImportEntry = types.ImportEntry;
-const Visibility = types.Visibility;
 const ImportShape = types.ImportShape;
 const SourceKind = types.SourceKind;
-const classifier = @import("classifier.zig");
+const Visibility = types.Visibility;
 
 pub const ExtractionResult = struct {
     entries: []ImportEntry,

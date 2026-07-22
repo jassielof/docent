@@ -5,26 +5,26 @@
 
 // NOTE: It'll be ideal to migrate to Ziggy once it's more stable.
 const std = @import("std");
+
+const fmt_mod = @import("fmt");
+const naming_case = @import("identifier_style");
 const toml = @import("toml");
 
+const complexity_rules = @import("../rules/complexity.zig");
+const rule_decode = @import("../rules/decode.zig");
+const doc_rules = @import("../rules/doc.zig");
+const size_rules = @import("../rules/size.zig");
+const style_rules = @import("../rules/style.zig");
 const RuleSeverities = @import("../RuleSeverities.zig");
 const scan = @import("../scan.zig");
 const severity = @import("../severity.zig");
-const rule_decode = @import("../rules/decode.zig");
-const doc_rules = @import("../rules/doc.zig");
-const style_rules = @import("../rules/style.zig");
-const complexity_rules = @import("../rules/complexity.zig");
-const size_rules = @import("../rules/size.zig");
-const naming_case = @import("identifier_style");
-const fmt_mod = @import("fmt");
 const TargetSelect = @import("TargetSelect.zig");
 
-pub const Error = rule_decode.Error;
-
-pub const Doc = doc_rules.Doc;
-pub const Style = style_rules.Style;
 pub const Complexity = complexity_rules.Complexity;
+pub const Error = rule_decode.Error;
+pub const Doc = doc_rules.Doc;
 pub const Size = size_rules.Size;
+pub const Style = style_rules.Style;
 pub const Check = TargetSelect.Check;
 pub const Typeset = TargetSelect.Typeset;
 

@@ -127,21 +127,21 @@
 const std = @import("std");
 const testing = std.testing;
 
-pub const Document = @import("markup/Document.zig");
-pub const Parser = @import("markup/Parser.zig");
-pub const Renderer = @import("markup/renderer.zig").Renderer;
-pub const renderNodeInlineText = @import("markup/renderer.zig").renderInlineNodeText;
-pub const renderInlineNodeText = @import("markup/renderer.zig").renderInlineNodeText;
-pub const fmtHtml = @import("markup/renderer.zig").fmtHtml;
-
-pub const paragraph = @import("markup/paragraph.zig");
-pub const heading = @import("markup/heading.zig");
-pub const table = @import("markup/table.zig");
-pub const list = @import("markup/list.zig");
-pub const code_block = @import("markup/code_block.zig");
 pub const blockquote = @import("markup/blockquote.zig");
-pub const thematic_break = @import("markup/thematic_break.zig");
+pub const code_block = @import("markup/code_block.zig");
+pub const Document = @import("markup/Document.zig");
+pub const heading = @import("markup/heading.zig");
 pub const @"inline" = @import("markup/inline.zig");
+pub const list = @import("markup/list.zig");
+pub const paragraph = @import("markup/paragraph.zig");
+pub const Parser = @import("markup/Parser.zig");
+pub const table = @import("markup/table.zig");
+pub const thematic_break = @import("markup/thematic_break.zig");
+
+pub const fmtHtml = @import("markup/renderer.zig").fmtHtml;
+pub const Renderer = @import("markup/renderer.zig").Renderer;
+pub const renderInlineNodeText = @import("markup/renderer.zig").renderInlineNodeText;
+pub const renderNodeInlineText = @import("markup/renderer.zig").renderInlineNodeText;
 
 // Avoid exposing main to other files merely importing this one.
 pub const main = if (@import("root") == @This())
