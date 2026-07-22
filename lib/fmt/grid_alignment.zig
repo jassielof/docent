@@ -30,8 +30,34 @@ const LineInfo = struct {
 
 test "aligns fields and declarations" {
     const gpa = std.testing.allocator;
-    const input = @embedFile("fixtures/grid_alignment/input.zig");
-    const expected = @embedFile("fixtures/grid_alignment/expected.zig");
+    const input =
+        \\const std = @import("std");
+        \\
+        \\const Point = struct {
+        \\    x: i32,
+        \\    longer_name: i32,
+        \\    z: i32 = 0,
+        \\};
+        \\
+        \\const a = 1;
+        \\const longer = 2;
+        \\const b = 3;
+        \\
+    ;
+    const expected =
+        \\const std = @import("std");
+        \\
+        \\const Point = struct {
+        \\    x          : i32,
+        \\    longer_name: i32,
+        \\    z          : i32 = 0,
+        \\};
+        \\
+        \\const a      = 1;
+        \\const longer = 2;
+        \\const b      = 3;
+        \\
+    ;
 
     const formatted = try alignGrid(gpa, input);
     defer gpa.free(formatted);
@@ -45,7 +71,10 @@ test "aligns fields and declarations" {
 
 test "does not alter a single-line group" {
     const gpa = std.testing.allocator;
-    const expected = @embedFile("fixtures/grid_alignment/expected_single.zig");
+    const expected =
+        \\const only = 1;
+        \\
+    ;
 
     const formatted = try alignGrid(gpa, expected);
     defer gpa.free(formatted);

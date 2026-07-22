@@ -141,8 +141,87 @@ fn endsWithBlockBrace(content: []const u8) bool {
 
 test "converts braces to Allman style" {
     const gpa = std.testing.allocator;
-    const input = @embedFile("fixtures/brace_style/input.zig");
-    const expected = @embedFile("fixtures/brace_style/expected_allman.zig");
+    const input =
+        \\const std = @import("std");
+        \\
+        \\fn main() void {
+        \\    return;
+        \\}
+        \\
+        \\fn example(cond: bool, a: bool, b: bool) void {
+        \\    if (cond) {
+        \\        std.debug.print("body", .{});
+        \\    } else {
+        \\        std.debug.print("other", .{});
+        \\    }
+        \\
+        \\    if (a) {
+        \\        std.debug.print("x", .{});
+        \\    } else if (b) {
+        \\        std.debug.print("y", .{});
+        \\    } else {
+        \\        std.debug.print("z", .{});
+        \\    }
+        \\
+        \\    const val = doSomething() catch |err| {
+        \\        _ = err;
+        \\    };
+        \\    _ = val;
+        \\
+        \\    const x = .{ .a = 1 };
+        \\    _ = x;
+        \\    if (cond) {}
+        \\}
+        \\
+        \\fn doSomething() !void {}
+        \\
+    ;
+    const expected =
+        \\const std = @import("std");
+        \\
+        \\fn main() void
+        \\{
+        \\    return;
+        \\}
+        \\
+        \\fn example(cond: bool, a: bool, b: bool) void
+        \\{
+        \\    if (cond)
+        \\    {
+        \\        std.debug.print("body", .{});
+        \\    }
+        \\    else
+        \\    {
+        \\        std.debug.print("other", .{});
+        \\    }
+        \\
+        \\    if (a)
+        \\    {
+        \\        std.debug.print("x", .{});
+        \\    }
+        \\    else if (b)
+        \\    {
+        \\        std.debug.print("y", .{});
+        \\    }
+        \\    else
+        \\    {
+        \\        std.debug.print("z", .{});
+        \\    }
+        \\
+        \\    const val = doSomething() catch |err|
+        \\    {
+        \\        _ = err;
+        \\    };
+        \\    _ = val;
+        \\
+        \\    const x = .{ .a = 1 };
+        \\    _ = x;
+        \\    if (cond) {}
+        \\}
+        \\
+        \\fn doSomething() !void {}
+        \\
+    ;
 
     const formatted = try convertToAllman(gpa, input);
     defer gpa.free(formatted);
@@ -156,9 +235,122 @@ test "converts braces to Allman style" {
 
 test "dispatches brace style conversion" {
     const gpa = std.testing.allocator;
-    const input = @embedFile("fixtures/brace_style/input.zig");
-    const allman_expected = @embedFile("fixtures/brace_style/expected_allman.zig");
-    const k_r_expected = @embedFile("fixtures/brace_style/expected_k_r.zig");
+    const input =
+        \\const std = @import("std");
+        \\
+        \\fn main() void {
+        \\    return;
+        \\}
+        \\
+        \\fn example(cond: bool, a: bool, b: bool) void {
+        \\    if (cond) {
+        \\        std.debug.print("body", .{});
+        \\    } else {
+        \\        std.debug.print("other", .{});
+        \\    }
+        \\
+        \\    if (a) {
+        \\        std.debug.print("x", .{});
+        \\    } else if (b) {
+        \\        std.debug.print("y", .{});
+        \\    } else {
+        \\        std.debug.print("z", .{});
+        \\    }
+        \\
+        \\    const val = doSomething() catch |err| {
+        \\        _ = err;
+        \\    };
+        \\    _ = val;
+        \\
+        \\    const x = .{ .a = 1 };
+        \\    _ = x;
+        \\    if (cond) {}
+        \\}
+        \\
+        \\fn doSomething() !void {}
+        \\
+    ;
+    const allman_expected =
+        \\const std = @import("std");
+        \\
+        \\fn main() void
+        \\{
+        \\    return;
+        \\}
+        \\
+        \\fn example(cond: bool, a: bool, b: bool) void
+        \\{
+        \\    if (cond)
+        \\    {
+        \\        std.debug.print("body", .{});
+        \\    }
+        \\    else
+        \\    {
+        \\        std.debug.print("other", .{});
+        \\    }
+        \\
+        \\    if (a)
+        \\    {
+        \\        std.debug.print("x", .{});
+        \\    }
+        \\    else if (b)
+        \\    {
+        \\        std.debug.print("y", .{});
+        \\    }
+        \\    else
+        \\    {
+        \\        std.debug.print("z", .{});
+        \\    }
+        \\
+        \\    const val = doSomething() catch |err|
+        \\    {
+        \\        _ = err;
+        \\    };
+        \\    _ = val;
+        \\
+        \\    const x = .{ .a = 1 };
+        \\    _ = x;
+        \\    if (cond) {}
+        \\}
+        \\
+        \\fn doSomething() !void {}
+        \\
+    ;
+    const k_r_expected =
+        \\const std = @import("std");
+        \\
+        \\fn main() void {
+        \\    return;
+        \\}
+        \\
+        \\fn example(cond: bool, a: bool, b: bool) void {
+        \\    if (cond) {
+        \\        std.debug.print("body", .{});
+        \\    } else {
+        \\        std.debug.print("other", .{});
+        \\    }
+        \\
+        \\    if (a) {
+        \\        std.debug.print("x", .{});
+        \\    } else if (b) {
+        \\        std.debug.print("y", .{});
+        \\    } else {
+        \\        std.debug.print("z", .{});
+        \\    }
+        \\
+        \\    const val = doSomething() catch |err| {
+        \\        _ = err;
+        \\    };
+        \\    _ = val;
+        \\
+        \\    const x = .{ .a = 1 };
+        \\    _ = x;
+        \\    if (cond) {}
+        \\}
+        \\
+        \\fn doSomething() !void {}
+        \\
+    ;
 
     const allman_formatted = try convert(gpa, input, .allman);
     defer gpa.free(allman_formatted);
