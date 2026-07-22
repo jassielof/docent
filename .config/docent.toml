@@ -1,8 +1,8 @@
 #:schema ../schemas/docent.schema.json
 
 [fmt]
-include = ["src/", "modules/"]
-exclude = ["dependencies/", "vendor/", "tests/fixtures/"]
+include = ["lib/", "internal/", "cmd/"]
+exclude = ["dependencies/", "vendor/", "tests/fixtures/", "lib/fmt/fixtures/"]
 sort_imports = false
 single_line_braces = false
 logical_blank_lines = false
