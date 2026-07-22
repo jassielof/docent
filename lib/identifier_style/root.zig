@@ -64,11 +64,31 @@ pub const Style = enum {
 
     /// Parses TOML / schema spellings (`snake_case`, `camelCase`, `PascalCase`, `kebab-case`, `@"kebab-case"`).
     pub fn fromConfigString(text: []const u8) ?Style {
-        if (std.mem.eql(u8, text, "snake_case")) return .snake;
-        if (std.mem.eql(u8, text, "camelCase")) return .camel;
-        if (std.mem.eql(u8, text, "PascalCase")) return .pascal;
-        if (std.mem.eql(u8, text, "kebab-case")) return .kebab;
-        if (std.mem.eql(u8, text, "@\"kebab-case\"")) return .kebab;
+        if (std.mem.eql(
+            u8,
+            text,
+            "snake_case",
+        )) return .snake;
+        if (std.mem.eql(
+            u8,
+            text,
+            "camelCase",
+        )) return .camel;
+        if (std.mem.eql(
+            u8,
+            text,
+            "PascalCase",
+        )) return .pascal;
+        if (std.mem.eql(
+            u8,
+            text,
+            "kebab-case",
+        )) return .kebab;
+        if (std.mem.eql(
+            u8,
+            text,
+            "@\"kebab-case\"",
+        )) return .kebab;
         return null;
     }
 };
@@ -152,7 +172,11 @@ test "fromConfigString accepts schema spellings" {
 ///
 /// Heuristic for `.snake` and `.kebab`; see the module docs for where the word-boundary guess can
 /// diverge from what a human would write.
-pub fn identifierToFilenameStem(allocator: std.mem.Allocator, name: []const u8, case: Style) std.mem.Allocator.Error![]u8 {
+pub fn identifierToFilenameStem(
+    allocator: std.mem.Allocator,
+    name: []const u8,
+    case: Style,
+) std.mem.Allocator.Error![]u8 {
     return switch (case) {
         .snake => pascalCaseStemToSnake(allocator, name),
         .pascal => allocator.dupe(u8, name),
@@ -165,11 +189,19 @@ pub fn identifierToFilenameStem(allocator: std.mem.Allocator, name: []const u8, 
 ///
 /// Round-trips `stem` through a PascalCase intermediate, so this is a heuristic suggestion, not a
 /// guaranteed-correct rename; see the module docs.
-pub fn suggestFilenameStem(allocator: std.mem.Allocator, stem: []const u8, case: Style) std.mem.Allocator.Error![]u8 {
+pub fn suggestFilenameStem(
+    allocator: std.mem.Allocator,
+    stem: []const u8,
+    case: Style,
+) std.mem.Allocator.Error![]u8 {
     if (case.matches(stem)) return allocator.dupe(u8, stem);
     const pascal = try snakeOrKebabStemToPascal(allocator, stem);
     defer allocator.free(pascal);
-    return identifierToFilenameStem(allocator, pascal, case);
+    return identifierToFilenameStem(
+        allocator,
+        pascal,
+        case,
+    );
 }
 
 /// Converts a PascalCase or mixed-case stem to `snake_case`.
@@ -240,7 +272,11 @@ fn pascalCaseStemToKebab(allocator: std.mem.Allocator, stem: []const u8) std.mem
 }
 
 test "pascalCaseStemToKebab mirrors the snake_case split with hyphens" {
-    const stem = try identifierToFilenameStem(std.testing.allocator, "DiagnosticMessage", .kebab);
+    const stem = try identifierToFilenameStem(
+        std.testing.allocator,
+        "DiagnosticMessage",
+        .kebab,
+    );
     defer std.testing.allocator.free(stem);
     try std.testing.expectEqualStrings("diagnostic-message", stem);
 }
@@ -289,16 +325,28 @@ fn snakeCaseStemToPascal(allocator: std.mem.Allocator, stem: []const u8) std.mem
 }
 
 test "suggestFilenameStem round-trips through snake_case and kebab-case" {
-    const from_pascal = try suggestFilenameStem(std.testing.allocator, "DiagnosticMessage", .snake);
+    const from_pascal = try suggestFilenameStem(
+        std.testing.allocator,
+        "DiagnosticMessage",
+        .snake,
+    );
     defer std.testing.allocator.free(from_pascal);
     try std.testing.expectEqualStrings("diagnostic_message", from_pascal);
 
-    const from_kebab = try suggestFilenameStem(std.testing.allocator, "diagnostic-message", .pascal);
+    const from_kebab = try suggestFilenameStem(
+        std.testing.allocator,
+        "diagnostic-message",
+        .pascal,
+    );
     defer std.testing.allocator.free(from_kebab);
     try std.testing.expectEqualStrings("DiagnosticMessage", from_kebab);
 
     // Already matching: returned unchanged rather than re-derived.
-    const unchanged = try suggestFilenameStem(std.testing.allocator, "already_snake", .snake);
+    const unchanged = try suggestFilenameStem(
+        std.testing.allocator,
+        "already_snake",
+        .snake,
+    );
     defer std.testing.allocator.free(unchanged);
     try std.testing.expectEqualStrings("already_snake", unchanged);
 }
@@ -311,7 +359,11 @@ test "suggestFilenameStem does not losslessly round-trip acronyms (documented li
     defer std.testing.allocator.free(snake);
     try std.testing.expectEqualStrings("io_error", snake);
 
-    const back = try suggestFilenameStem(std.testing.allocator, snake, .pascal);
+    const back = try suggestFilenameStem(
+        std.testing.allocator,
+        snake,
+        .pascal,
+    );
     defer std.testing.allocator.free(back);
     try std.testing.expectEqualStrings("IoError", back);
 }

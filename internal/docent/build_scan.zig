@@ -52,7 +52,11 @@ const CallInfo = struct {
     params_len: usize = 0,
 };
 
-fn matchBuilderCall(tree: std.zig.Ast, node: std.zig.Ast.Node.Index, b_name: []const u8) ?CallInfo {
+fn matchBuilderCall(
+    tree: std.zig.Ast,
+    node: std.zig.Ast.Node.Index,
+    b_name: []const u8,
+) ?CallInfo {
     const tag = tree.nodeTag(node);
     var fn_expr: std.zig.Ast.Node.Index = undefined;
     var call_info = CallInfo{ .method = "", .params_len = 0 };
@@ -86,7 +90,11 @@ fn matchBuilderCall(tree: std.zig.Ast, node: std.zig.Ast.Node.Index, b_name: []c
 
         if (tree.nodeTag(lhs) == .identifier) {
             const receiver = tree.tokenSlice(tree.nodeMainToken(lhs));
-            if (std.mem.eql(u8, receiver, b_name)) {
+            if (std.mem.eql(
+                u8,
+                receiver,
+                b_name,
+            )) {
                 call_info.method = tree.tokenSlice(tok);
                 return call_info;
             }
@@ -95,7 +103,12 @@ fn matchBuilderCall(tree: std.zig.Ast, node: std.zig.Ast.Node.Index, b_name: []c
     return null;
 }
 
-fn getPathOrString(tree: std.zig.Ast, node: std.zig.Ast.Node.Index, b_name: []const u8, var_paths: std.StringHashMap([]const u8)) ?[]const u8 {
+fn getPathOrString(
+    tree: std.zig.Ast,
+    node: std.zig.Ast.Node.Index,
+    b_name: []const u8,
+    var_paths: std.StringHashMap([]const u8),
+) ?[]const u8 {
     const tag = tree.nodeTag(node);
     if (tag == .string_literal) {
         const slice = tree.tokenSlice(tree.nodeMainToken(node));
@@ -105,9 +118,22 @@ fn getPathOrString(tree: std.zig.Ast, node: std.zig.Ast.Node.Index, b_name: []co
     } else if (tag == .identifier) {
         const ident = tree.tokenSlice(tree.nodeMainToken(node));
         return var_paths.get(ident);
-    } else if (matchBuilderCall(tree, node, b_name)) |call| {
-        if (std.mem.eql(u8, call.method, "path") and call.params_len > 0) {
-            return getPathOrString(tree, call.params[0], b_name, var_paths);
+    } else if (matchBuilderCall(
+        tree,
+        node,
+        b_name,
+    )) |call| {
+        if (std.mem.eql(
+            u8,
+            call.method,
+            "path",
+        ) and call.params_len > 0) {
+            return getPathOrString(
+                tree,
+                call.params[0],
+                b_name,
+                var_paths,
+            );
         }
     }
     return null;
@@ -127,7 +153,15 @@ fn resolveModuleSource(
         const ref_var = tree.tokenSlice(tree.nodeMainToken(node));
         return var_paths.get(ref_var);
     }
-    return try scanCall(tree, node, b_name, var_paths, targets, dependencies, allocator);
+    return try scanCall(
+        tree,
+        node,
+        b_name,
+        var_paths,
+        targets,
+        dependencies,
+        allocator,
+    );
 }
 
 fn scanCall(
@@ -141,12 +175,29 @@ fn scanCall(
 ) anyerror!?[]const u8 {
     var resolved_src: ?[]const u8 = null;
 
-    if (matchBuilderCall(tree, node, b_name)) |call| {
-        if (std.mem.eql(u8, call.method, "dependency") and call.params_len > 0) {
-            if (getPathOrString(tree, call.params[0], b_name, var_paths.*)) |dep_name| {
+    if (matchBuilderCall(
+        tree,
+        node,
+        b_name,
+    )) |call| {
+        if (std.mem.eql(
+            u8,
+            call.method,
+            "dependency",
+        ) and call.params_len > 0) {
+            if (getPathOrString(
+                tree,
+                call.params[0],
+                b_name,
+                var_paths.*,
+            )) |dep_name| {
                 var found = false;
                 for (dependencies.items) |d| {
-                    if (std.mem.eql(u8, d, dep_name)) {
+                    if (std.mem.eql(
+                        u8,
+                        d,
+                        dep_name,
+                    )) {
                         found = true;
                         break;
                     }
@@ -156,13 +207,41 @@ fn scanCall(
                 }
             }
         } else {
-            const is_lib = std.mem.eql(u8, call.method, "addLibrary") or
-                std.mem.eql(u8, call.method, "addSharedLibrary") or
-                std.mem.eql(u8, call.method, "addStaticLibrary") or
-                std.mem.eql(u8, call.method, "addModule") or
-                std.mem.eql(u8, call.method, "createModule");
-            const is_bin = std.mem.eql(u8, call.method, "addExecutable");
-            const is_test = std.mem.eql(u8, call.method, "addTest");
+            const is_lib = std.mem.eql(
+                u8,
+                call.method,
+                "addLibrary",
+            ) or
+                std.mem.eql(
+                    u8,
+                    call.method,
+                    "addSharedLibrary",
+                ) or
+                std.mem.eql(
+                    u8,
+                    call.method,
+                    "addStaticLibrary",
+                ) or
+                std.mem.eql(
+                    u8,
+                    call.method,
+                    "addModule",
+                ) or
+                std.mem.eql(
+                    u8,
+                    call.method,
+                    "createModule",
+                );
+            const is_bin = std.mem.eql(
+                u8,
+                call.method,
+                "addExecutable",
+            );
+            const is_test = std.mem.eql(
+                u8,
+                call.method,
+                "addTest",
+            );
 
             if (is_lib or is_bin or is_test) {
                 var name: ?[]const u8 = null;
@@ -170,14 +249,35 @@ fn scanCall(
 
                 const kind: TargetKind = if (is_lib) .lib else if (is_bin) .bin else .test_target;
 
-                if (std.mem.eql(u8, call.method, "addModule") or std.mem.eql(u8, call.method, "createModule")) {
-                    const opts_node = if (std.mem.eql(u8, call.method, "addModule") and call.params_len > 1)
+                if (std.mem.eql(
+                    u8,
+                    call.method,
+                    "addModule",
+                ) or std.mem.eql(
+                    u8,
+                    call.method,
+                    "createModule",
+                )) {
+                    const opts_node = if (std.mem.eql(
+                        u8,
+                        call.method,
+                        "addModule",
+                    ) and call.params_len > 1)
                         call.params[1]
                     else
                         call.params[0];
 
-                    if (std.mem.eql(u8, call.method, "addModule") and call.params_len > 0) {
-                        name = getPathOrString(tree, call.params[0], b_name, var_paths.*);
+                    if (std.mem.eql(
+                        u8,
+                        call.method,
+                        "addModule",
+                    ) and call.params_len > 0) {
+                        name = getPathOrString(
+                            tree,
+                            call.params[0],
+                            b_name,
+                            var_paths.*,
+                        );
                     }
 
                     var struct_buf: [2]std.zig.Ast.Node.Index = undefined;
@@ -186,8 +286,17 @@ fn scanCall(
                             const first_tok = tree.firstToken(field_node);
                             if (tree.tokens.items(.tag)[first_tok - 1] == .equal) {
                                 const field_name = tree.tokenSlice(first_tok - 2);
-                                if (std.mem.eql(u8, field_name, "root_source_file")) {
-                                    root_src = getPathOrString(tree, field_node, b_name, var_paths.*);
+                                if (std.mem.eql(
+                                    u8,
+                                    field_name,
+                                    "root_source_file",
+                                )) {
+                                    root_src = getPathOrString(
+                                        tree,
+                                        field_node,
+                                        b_name,
+                                        var_paths.*,
+                                    );
                                 }
                             }
                         }
@@ -201,12 +310,42 @@ fn scanCall(
                                 const first_tok = tree.firstToken(field_node);
                                 if (tree.tokens.items(.tag)[first_tok - 1] == .equal) {
                                     const field_name = tree.tokenSlice(first_tok - 2);
-                                    if (std.mem.eql(u8, field_name, "name")) {
-                                        name = getPathOrString(tree, field_node, b_name, var_paths.*);
-                                    } else if (std.mem.eql(u8, field_name, "root_source_file")) {
-                                        root_src = getPathOrString(tree, field_node, b_name, var_paths.*);
-                                    } else if (std.mem.eql(u8, field_name, "root_module")) {
-                                        root_src = try resolveModuleSource(tree, field_node, b_name, var_paths, targets, dependencies, allocator);
+                                    if (std.mem.eql(
+                                        u8,
+                                        field_name,
+                                        "name",
+                                    )) {
+                                        name = getPathOrString(
+                                            tree,
+                                            field_node,
+                                            b_name,
+                                            var_paths.*,
+                                        );
+                                    } else if (std.mem.eql(
+                                        u8,
+                                        field_name,
+                                        "root_source_file",
+                                    )) {
+                                        root_src = getPathOrString(
+                                            tree,
+                                            field_node,
+                                            b_name,
+                                            var_paths.*,
+                                        );
+                                    } else if (std.mem.eql(
+                                        u8,
+                                        field_name,
+                                        "root_module",
+                                    )) {
+                                        root_src = try resolveModuleSource(
+                                            tree,
+                                            field_node,
+                                            b_name,
+                                            var_paths,
+                                            targets,
+                                            dependencies,
+                                            allocator,
+                                        );
                                     }
                                 }
                             }
@@ -218,7 +357,15 @@ fn scanCall(
                     const target_name = name orelse "default";
                     var found = false;
                     for (targets.items) |t| {
-                        if (std.mem.eql(u8, t.name, target_name) and t.kind == kind and std.mem.eql(u8, t.root_source_file, src)) {
+                        if (std.mem.eql(
+                            u8,
+                            t.name,
+                            target_name,
+                        ) and t.kind == kind and std.mem.eql(
+                            u8,
+                            t.root_source_file,
+                            src,
+                        )) {
                             found = true;
                             break;
                         }
@@ -240,32 +387,80 @@ fn scanCall(
     switch (tag) {
         .call, .call_comma => {
             const call = tree.callFull(node);
-            const r = try scanCall(tree, call.ast.fn_expr, b_name, var_paths, targets, dependencies, allocator);
+            const r = try scanCall(
+                tree,
+                call.ast.fn_expr,
+                b_name,
+                var_paths,
+                targets,
+                dependencies,
+                allocator,
+            );
             if (r) |s| resolved_src = s;
             for (call.ast.params) |param| {
-                const pr = try scanCall(tree, param, b_name, var_paths, targets, dependencies, allocator);
+                const pr = try scanCall(
+                    tree,
+                    param,
+                    b_name,
+                    var_paths,
+                    targets,
+                    dependencies,
+                    allocator,
+                );
                 if (pr) |s| resolved_src = s;
             }
         },
         .call_one, .call_one_comma => {
             const data = tree.nodeData(node).node_and_opt_node;
-            const r1 = try scanCall(tree, data[0], b_name, var_paths, targets, dependencies, allocator);
+            const r1 = try scanCall(
+                tree,
+                data[0],
+                b_name,
+                var_paths,
+                targets,
+                dependencies,
+                allocator,
+            );
             if (r1) |s| resolved_src = s;
             if (data[1].unwrap()) |arg| {
-                const r2 = try scanCall(tree, arg, b_name, var_paths, targets, dependencies, allocator);
+                const r2 = try scanCall(
+                    tree,
+                    arg,
+                    b_name,
+                    var_paths,
+                    targets,
+                    dependencies,
+                    allocator,
+                );
                 if (r2) |s| resolved_src = s;
             }
         },
         .field_access => {
             const data = tree.nodeData(node).node_and_token;
-            const r = try scanCall(tree, data[0], b_name, var_paths, targets, dependencies, allocator);
+            const r = try scanCall(
+                tree,
+                data[0],
+                b_name,
+                var_paths,
+                targets,
+                dependencies,
+                allocator,
+            );
             if (r) |s| resolved_src = s;
         },
         .struct_init, .struct_init_comma, .struct_init_dot, .struct_init_dot_comma => {
             var struct_buf: [2]std.zig.Ast.Node.Index = undefined;
             if (tree.fullStructInit(&struct_buf, node)) |struct_init| {
                 for (struct_init.ast.fields) |field| {
-                    const r = try scanCall(tree, field, b_name, var_paths, targets, dependencies, allocator);
+                    const r = try scanCall(
+                        tree,
+                        field,
+                        b_name,
+                        var_paths,
+                        targets,
+                        dependencies,
+                        allocator,
+                    );
                     if (r) |s| resolved_src = s;
                 }
             }
@@ -281,7 +476,11 @@ pub fn scanBuildScript(allocator: std.mem.Allocator, build_text: []const u8) !Re
     const build_text_z = try allocator.dupeZ(u8, build_text);
     defer allocator.free(build_text_z);
 
-    var tree = try std.zig.Ast.parse(allocator, build_text_z, .zig);
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        build_text_z,
+        .zig,
+    );
     defer tree.deinit(allocator);
 
     var var_paths = std.StringHashMap([]const u8).init(allocator);
@@ -308,7 +507,11 @@ pub fn scanBuildScript(allocator: std.mem.Allocator, build_text: []const u8) !Re
             var buf: [1]std.zig.Ast.Node.Index = undefined;
             const proto = tree.fullFnProto(&buf, decl) orelse continue;
             const fn_name = tree.tokenSlice(proto.name_token orelse continue);
-            if (!std.mem.eql(u8, fn_name, "build")) continue;
+            if (!std.mem.eql(
+                u8,
+                fn_name,
+                "build",
+            )) continue;
 
             var b_name: []const u8 = "b";
             if (proto.ast.params.len > 0) {
@@ -329,10 +532,23 @@ pub fn scanBuildScript(allocator: std.mem.Allocator, build_text: []const u8) !Re
                     const var_name = tree.tokenSlice(var_decl.ast.mut_token + 1);
                     const init_node = var_decl.ast.init_node.unwrap() orelse continue;
 
-                    if (getPathOrString(tree, init_node, b_name, var_paths)) |str| {
+                    if (getPathOrString(
+                        tree,
+                        init_node,
+                        b_name,
+                        var_paths,
+                    )) |str| {
                         try var_paths.put(var_name, str);
                     } else {
-                        const src = try scanCall(tree, init_node, b_name, &var_paths, &targets, &dependencies, allocator);
+                        const src = try scanCall(
+                            tree,
+                            init_node,
+                            b_name,
+                            &var_paths,
+                            &targets,
+                            &dependencies,
+                            allocator,
+                        );
                         if (src) |s| {
                             try var_paths.put(var_name, s);
                         }
@@ -340,7 +556,15 @@ pub fn scanBuildScript(allocator: std.mem.Allocator, build_text: []const u8) !Re
                 } else if (tag == .assign) {
                     const lhs = tree.nodeData(stmt).node_and_node[0];
                     const rhs = tree.nodeData(stmt).node_and_node[1];
-                    const src = try scanCall(tree, rhs, b_name, &var_paths, &targets, &dependencies, allocator);
+                    const src = try scanCall(
+                        tree,
+                        rhs,
+                        b_name,
+                        &var_paths,
+                        &targets,
+                        &dependencies,
+                        allocator,
+                    );
                     if (src) |s| {
                         if (tree.nodeTag(lhs) == .identifier) {
                             const var_name = tree.tokenSlice(tree.nodeMainToken(lhs));
@@ -348,7 +572,15 @@ pub fn scanBuildScript(allocator: std.mem.Allocator, build_text: []const u8) !Re
                         }
                     }
                 } else {
-                    _ = try scanCall(tree, stmt, b_name, &var_paths, &targets, &dependencies, allocator);
+                    _ = try scanCall(
+                        tree,
+                        stmt,
+                        b_name,
+                        &var_paths,
+                        &targets,
+                        &dependencies,
+                        allocator,
+                    );
                 }
             }
         }
@@ -365,10 +597,18 @@ pub fn scanBuildScript(allocator: std.mem.Allocator, build_text: []const u8) !Re
 
     for (targets.items, 0..) |t, i| {
         var keep = true;
-        if (t.kind == .lib and std.mem.eql(u8, t.name, "default")) {
+        if (t.kind == .lib and std.mem.eql(
+            u8,
+            t.name,
+            "default",
+        )) {
             for (targets.items, 0..) |other, j| {
                 if (i == j) continue;
-                if (std.mem.eql(u8, t.root_source_file, other.root_source_file)) {
+                if (std.mem.eql(
+                    u8,
+                    t.root_source_file,
+                    other.root_source_file,
+                )) {
                     keep = false;
                     break;
                 }
@@ -391,11 +631,20 @@ pub fn scanBuildScript(allocator: std.mem.Allocator, build_text: []const u8) !Re
 }
 
 /// Reads and scans `build.zig` at `project_root/build.zig` when present.
-pub fn scanProjectBuildScript(allocator: std.mem.Allocator, io: std.Io, project_root: []const u8) !?Result {
+pub fn scanProjectBuildScript(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    project_root: []const u8,
+) !?Result {
     const build_path = try std.fs.path.join(allocator, &.{ project_root, "build.zig" });
     defer allocator.free(build_path);
 
-    const build_text = std.Io.Dir.cwd().readFileAlloc(io, build_path, allocator, .limited(2 * 1024 * 1024)) catch return null;
+    const build_text = std.Io.Dir.cwd().readFileAlloc(
+        io,
+        build_path,
+        allocator,
+        .limited(2 * 1024 * 1024),
+    ) catch return null;
     defer allocator.free(build_text);
 
     return try scanBuildScript(allocator, build_text);

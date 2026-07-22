@@ -28,28 +28,68 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const doc_options = docent.config.loadDocOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const doc_options = docent.config.loadDocOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    const complexity_options = docent.config.loadComplexityOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const complexity_options = docent.config.loadComplexityOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    const size_options = docent.config.loadSizeOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const size_options = docent.config.loadSizeOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    const style_options = docent.config.loadStyleOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const style_options = docent.config.loadStyleOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    var plan = check_shared.gatherPlan(allocator, io, args) catch |err| {
-        try check_shared.printStderr(io, "error: failed to build lint plan: {}\n", .{err});
+    var plan = check_shared.gatherPlan(
+        allocator,
+        io,
+        args,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: failed to build lint plan: {}\n",
+            .{err},
+        );
         std.process.exit(1);
     };
     defer plan.deinit(allocator);
@@ -67,7 +107,11 @@ fn run(ctx: *fangz.ParseContext) !void {
     const library_entry_roots_owned = blk: {
         if (plan.path_mode == .recursive) break :blk &.{};
         if (plan.path_mode == .module_root) break :blk plan.module_entry_roots;
-        const roots = docent.collectLibraryEntryRoots(allocator, io, plan.package.project_root) catch &.{};
+        const roots = docent.collectLibraryEntryRoots(
+            allocator,
+            io,
+            plan.package.project_root,
+        ) catch &.{};
         break :blk roots;
     };
     defer if (plan.path_mode == .project) {
@@ -102,7 +146,17 @@ fn run(ctx: *fangz.ParseContext) !void {
         for (rt.files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            if (try doc_check.lintPlanFile(allocator, io, path, doc_lint_options, library_entry_roots_owned, doc_opts, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try doc_check.lintPlanFile(
+                allocator,
+                io,
+                path,
+                doc_lint_options,
+                library_entry_roots_owned,
+                doc_opts,
+                &all_diagnostics,
+                &summary,
+                args.fail_fast,
+            )) {
                 should_stop = true;
                 break;
             }
@@ -113,7 +167,17 @@ fn run(ctx: *fangz.ParseContext) !void {
         for (plan.extra_lint_files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            if (try doc_check.lintPlanFile(allocator, io, path, doc_lint_options, library_entry_roots_owned, doc_opts, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try doc_check.lintPlanFile(
+                allocator,
+                io,
+                path,
+                doc_lint_options,
+                library_entry_roots_owned,
+                doc_opts,
+                &all_diagnostics,
+                &summary,
+                args.fail_fast,
+            )) {
                 should_stop = true;
                 break;
             }
@@ -124,22 +188,57 @@ fn run(ctx: *fangz.ParseContext) !void {
         var analyzed_files = docent.scan.target.PathSet.init(allocator);
         defer analyzed_files.deinit(allocator);
 
-        if (try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, style_opts, &all_diagnostics, &summary, args.fail_fast)) {
+        if (try style_check.analyzeReachableTargets(
+            allocator,
+            io,
+            &plan,
+            &analyzed_files,
+            style_opts,
+            &all_diagnostics,
+            &summary,
+            args.fail_fast,
+        )) {
             should_stop = true;
         } else {
             analyzed_files.clear(allocator);
-            if (try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, complexity_opts, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try complexity_check.analyzeReachableTargets(
+                allocator,
+                io,
+                &plan,
+                &analyzed_files,
+                complexity_opts,
+                &all_diagnostics,
+                &summary,
+                args.fail_fast,
+            )) {
                 should_stop = true;
             } else {
                 analyzed_files.clear(allocator);
-                if (try size_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, size_opts, &all_diagnostics, &summary, args.fail_fast)) {
+                if (try size_check.analyzeReachableTargets(
+                    allocator,
+                    io,
+                    &plan,
+                    &analyzed_files,
+                    size_opts,
+                    &all_diagnostics,
+                    &summary,
+                    args.fail_fast,
+                )) {
                     should_stop = true;
                 }
             }
         }
     }
 
-    try check_shared.printCheckResults(io, allocator, args, "docent check all", all_diagnostics.items, summary, path_display_root);
+    try check_shared.printCheckResults(
+        io,
+        allocator,
+        args,
+        "docent check all",
+        all_diagnostics.items,
+        summary,
+        path_display_root,
+    );
 
     if (summary.hasErrors()) std.process.exit(1);
 }

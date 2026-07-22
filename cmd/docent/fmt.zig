@@ -67,7 +67,11 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
     const cli_excluded = ctx.stringListFlag("exclude") orelse &.{};
     const input_paths = ctx.positionals.items;
 
-    var config: fmt.Config = docent.config.loadFmtOptionsFromCli(gpa, io, null) catch .{};
+    var config: fmt.Config = docent.config.loadFmtOptionsFromCli(
+        gpa,
+        io,
+        null,
+    ) catch .{};
     defer config.deinit(gpa);
 
     if (stdin_flag and input_paths.len != 0) {
@@ -96,13 +100,24 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
     };
 
     if (stdin_flag) {
-        return fmt.Formatter.formatStdin(gpa, io, opts, config);
+        return fmt.Formatter.formatStdin(
+            gpa,
+            io,
+            opts,
+            config,
+        );
     }
 
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buffer);
 
-    var formatter = fmt.Formatter.init(gpa, io, &stdout_writer, opts, config);
+    var formatter = fmt.Formatter.init(
+        gpa,
+        io,
+        &stdout_writer,
+        opts,
+        config,
+    );
     defer formatter.deinit();
 
     try formatter.formatPaths(paths, excluded.items);
