@@ -2,7 +2,8 @@
 
 const helpers = @import("utils/helpers.zig");
 pub const diagnosticSubjectFromDoc = helpers.diagnosticSubjectFromDoc;
-pub const diagnosticSubjectKindFromDoc = helpers.diagnosticSubjectKindFromDoc;
+pub const diagnosticSubjectKindFromDoc =
+    helpers.diagnosticSubjectKindFromDoc;
 pub const dupSourceLine = helpers.dupSourceLine;
 pub const isContainerDecl = helpers.isContainerDecl;
 pub const isEnumContainer = helpers.isEnumContainer;
