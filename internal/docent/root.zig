@@ -8,25 +8,41 @@ const vereda = @import("vereda");
 const suppressions = @import("suppressions.zig");
 pub const Suppressions = suppressions.Table;
 
-pub const build_scan = @import("build_scan.zig");
+// The reusable rule-checking engine (Diagnostic, severity, RuleScanConfig, category.Rule, and
+// every rule's check()) and project/target discovery (build.zig target parsing, CLI target
+// filtering, import-graph reachability) now live in their own public modules - `rules` and
+// `project_scan` respectively, see lib/rules/root.zig and lib/project_scan/root.zig - since
+// they're reusable outside the CLI (a language server wants the former directly; `typeset` wants
+// the latter). Everything below re-exports them under their old names so the rest of this CLI
+// module (and `cmd/docent`) doesn't need to change.
+const rules_mod = @import("rules");
+const project_scan_mod = @import("project_scan");
+
 pub const check_shared = @import("check_shared.zig");
 pub const config = @import("config.zig");
-pub const Diagnostic = @import("Diagnostic.zig");
+pub const Diagnostic = rules_mod.Diagnostic;
 pub const flags = @import("flags.zig");
-pub const LintOptions = @import("LintOptions.zig");
-pub const LintResult = @import("LintResult.zig");
+pub const LintOptions = rules_mod.LintOptions;
+pub const LintResult = rules_mod.LintResult;
 pub const manifest = @import("manifest.zig");
 pub const output = @import("output.zig");
 pub const rule_config = @import("rule_config.zig");
 pub const rule_metadata = @import("rule_metadata.zig");
-pub const rules = @import("rules.zig");
-pub const RuleSeverities = @import("RuleSeverities.zig");
+pub const rules = rules_mod;
+pub const RuleSeverities = rules_mod.RuleSeverities;
 pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
-pub const scan = @import("scan.zig");
+pub const build_scan = project_scan_mod.build_scan;
+pub const scan = struct {
+    pub const RuleScanConfig = rules_mod.scan.RuleScanConfig;
+    pub const ScanMode = rules_mod.scan.ScanMode;
+    pub const Visibility = rules_mod.scan.Visibility;
+    pub const target = project_scan_mod.target;
+    pub const reach = project_scan_mod.reach;
+};
 pub const Config = @import("schemas/Config.zig");
-pub const severity = @import("severity.zig");
-pub const SeverityLevel = severity.Level;
+pub const severity = rules_mod.severity;
+pub const SeverityLevel = rules_mod.SeverityLevel;
 pub const status_plan = @import("status_plan.zig");
 pub const types = @import("types.zig");
 

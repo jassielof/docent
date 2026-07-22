@@ -4,10 +4,11 @@ const std = @import("std");
 
 const carnaval = @import("carnaval");
 
-const build_scan = @import("build_scan.zig");
+const project_scan = @import("project_scan");
+const build_scan = project_scan.build_scan;
 const manifest = @import("manifest.zig");
-const reach = @import("scan/reach.zig");
-const targeting = @import("scan/target.zig");
+const reach = project_scan.reach;
+const targeting = project_scan.target;
 
 /// One build target after applying lint filters, with the files that would be checked.
 pub const ResolvedTarget = struct {

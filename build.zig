@@ -50,37 +50,59 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // The reusable rule-checking engine: Diagnostic, severity, RuleScanConfig, category.Rule, and
+    // every rule's check(). Public (unlike `docent` below) so a consumer that only wants to check
+    // an in-memory source file - e.g. a language server - can depend on it directly without any of
+    // docent's CLI-only concerns (TOML config, suppressions, output rendering).
+    const rules_mod = b.addModule("rules", .{
+        .root_source_file = b.path("lib/rules/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "doc_comment", .module = doc_comment_mod },
+            .{ .name = "identifier_style", .module = identifier_style_mod },
+            .{ .name = "vereda", .module = vereda_mod },
+        },
+    });
+
+    // Discovers which files/build targets a project-wide operation (the CLI, `typeset`) should
+    // operate over: build.zig target parsing, CLI target-selection filtering, import-graph
+    // reachability. Public so `typeset` can depend on just this instead of all of `docent`.
+    const project_scan_mod = b.addModule("project_scan", .{
+        .root_source_file = b.path("lib/project_scan/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "carnaval", .module = carnaval_mod },
+        },
+    });
+
     const typeset_mod = b.addModule("typeset", .{
         .root_source_file = b.path("lib/typeset/root.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = "doc_comment", .module = doc_comment_mod },
+            .{ .name = "project_scan", .module = project_scan_mod },
         },
     });
 
-    // TODO: This module should be internal (`createModule`) not public (`addModule`).
-    const mod = b.addModule(
-        "docent",
-        .{
-            .root_source_file = b.path("internal/docent/root.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "carnaval", .module = carnaval_mod },
-                .{ .name = "fangz", .module = fangz_mod },
-                .{ .name = "vereda", .module = vereda_mod },
-                .{ .name = "toml", .module = toml_mod },
-                .{ .name = "doc_comment", .module = doc_comment_mod },
-                .{ .name = "fmt", .module = fmt_mod },
-                .{ .name = "identifier_style", .module = identifier_style_mod },
-            },
+    const mod = b.createModule(.{
+        .root_source_file = b.path("internal/docent/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "carnaval", .module = carnaval_mod },
+            .{ .name = "fangz", .module = fangz_mod },
+            .{ .name = "vereda", .module = vereda_mod },
+            .{ .name = "toml", .module = toml_mod },
+            .{ .name = "doc_comment", .module = doc_comment_mod },
+            .{ .name = "fmt", .module = fmt_mod },
+            .{ .name = "identifier_style", .module = identifier_style_mod },
+            .{ .name = "rules", .module = rules_mod },
+            .{ .name = "project_scan", .module = project_scan_mod },
         },
-    );
-
-    // typeset needs docent.scan for reachability / entrypoint discovery.
-    // docent does not import typeset, so this is not a cycle.
-    typeset_mod.addImport("docent", mod);
+    });
 
     const docs_lib = b.addLibrary(.{
         .name = "docent",

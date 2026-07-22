@@ -15,9 +15,10 @@
 const std = @import("std");
 
 const toml = @import("toml");
+const rules = @import("rules");
 
-const scan = @import("../scan.zig");
-const severity = @import("../severity.zig");
+const scan = rules.scan;
+const severity = rules.severity;
 
 /// Decode errors surfaced to config loaders and `formatError`.
 pub const Error = error{

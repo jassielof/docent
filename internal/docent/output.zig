@@ -5,10 +5,11 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const carnaval = @import("carnaval");
+const rules = @import("rules");
 
-const Diagnostic = @import("Diagnostic.zig");
+const Diagnostic = rules.Diagnostic;
 const diagnostic_message = @import("diagnostic_message.zig");
-const severity = @import("severity.zig");
+const severity = rules.severity;
 
 /// Text layout for a single diagnostic line.
 pub const TextFormat = enum {

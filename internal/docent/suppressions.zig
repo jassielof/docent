@@ -21,8 +21,9 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
 
-const Diagnostic = @import("Diagnostic.zig");
-const severity = @import("severity.zig");
+const rules_mod = @import("rules");
+const Diagnostic = rules_mod.Diagnostic;
+const severity = rules_mod.severity;
 
 const RuleSet = struct {
     all: bool = false,

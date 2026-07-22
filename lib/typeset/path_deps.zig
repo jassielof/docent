@@ -12,8 +12,8 @@
 
 const std = @import("std");
 
-const docent = @import("docent");
-const target = docent.scan.target;
+const project_scan = @import("project_scan");
+const target = project_scan.target;
 
 pub const Entry = struct {
     /// The `.dependencies.<name>` key from build.zig.zon.

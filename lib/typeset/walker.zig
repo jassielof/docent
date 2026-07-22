@@ -36,9 +36,9 @@
 
 const std = @import("std");
 
-const docent = @import("docent");
-const reach = docent.scan.reach;
-const target = docent.scan.target;
+const project_scan = @import("project_scan");
+const reach = project_scan.reach;
+const target = project_scan.target;
 
 pub const Walk = @import("Walk.zig");
 pub const Decl = Walk.Decl;

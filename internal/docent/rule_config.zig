@@ -1,9 +1,10 @@
 const std = @import("std");
 
 const fangz = @import("fangz");
+const rules = @import("rules");
 
-const RuleSeverities = @import("RuleSeverities.zig");
-const SeverityLevel = @import("severity.zig").Level;
+const RuleSeverities = rules.RuleSeverities;
+const SeverityLevel = rules.SeverityLevel;
 
 pub const RuleConfigError = error{
     InvalidSeverity,

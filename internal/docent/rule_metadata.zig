@@ -6,8 +6,9 @@
 
 const std = @import("std");
 
-const rules = @import("rules.zig");
-const RuleSeverities = @import("RuleSeverities.zig");
+const rules_mod = @import("rules");
+const rules = rules_mod;
+const RuleSeverities = rules_mod.RuleSeverities;
 
 fn proseTitleForRule(comptime rule_name: []const u8) []const u8 {
     if (std.mem.eql(

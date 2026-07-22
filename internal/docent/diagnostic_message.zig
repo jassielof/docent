@@ -1,7 +1,7 @@
 //! Shared prose formatting for diagnostics (TTY, tests, and JSON).
 const std = @import("std");
 
-const Diagnostic = @import("Diagnostic.zig");
+const Diagnostic = @import("rules").Diagnostic;
 const rule_metadata = @import("rule_metadata.zig");
 
 /// Renders `Warning: Missing doc comment on field 'offset'.` into `buf`. Returns the written slice.
@@ -36,7 +36,7 @@ pub fn writeProse(writer: *std.Io.Writer, diagnostic: Diagnostic) !void {
     try writer.writeAll(".");
 }
 
-fn proseSeverityLabel(severity: @import("severity.zig").Level) []const u8 {
+fn proseSeverityLabel(severity: @import("rules").SeverityLevel) []const u8 {
     return switch (severity) {
         .warn => "Warning",
         .deny, .forbid => "Error",
