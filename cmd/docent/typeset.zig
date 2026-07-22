@@ -150,12 +150,20 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
     const prev_session = typeset.Walk.activate(&walk_session);
     defer _ = typeset.Walk.activate(prev_session);
 
-    var cfg: docent.Config = docent.config.loadConfigFromCli(ctx.allocator, io, null) catch .{};
+    var cfg: docent.Config = docent.config.loadConfigFromCli(
+        ctx.allocator,
+        io,
+        null,
+    ) catch .{};
     defer cfg.deinit(ctx.allocator);
 
     const paths = ctx.positionals.items;
     const cli_output = ctx.stringFlag("output") orelse "docs.json";
-    const output = if (std.mem.eql(u8, cli_output, "docs.json") and cfg.typeset.output_owned)
+    const output = if (std.mem.eql(
+        u8,
+        cli_output,
+        "docs.json",
+    ) and cfg.typeset.output_owned)
         cfg.typeset.output
     else
         cli_output;
@@ -175,7 +183,12 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
             else
                 std.fs.path.stem(path);
 
-            const root_decl = typeset.walker.walkModule(allocator, io, path, name) catch |err| {
+            const root_decl = typeset.walker.walkModule(
+                allocator,
+                io,
+                path,
+                name,
+            ) catch |err| {
                 std.process.fatal("failed to walk '{s}': {t}", .{ path, err });
             };
             try modules.append(allocator, .{ .root_decl = root_decl, .name = name });
@@ -214,13 +227,26 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
             // overwrite the first module's entry and corrupt its `Decl.fqn`
             // derivation. Disambiguate with the target kind when needed.
             const name = if (used_names.contains(rt.name))
-                try std.fmt.allocPrint(allocator, "{s}-{s}", .{ rt.name, @tagName(rt.kind) })
+                try std.fmt.allocPrint(
+                    allocator,
+                    "{s}-{s}",
+                    .{ rt.name, @tagName(rt.kind) },
+                )
             else
                 try allocator.dupe(u8, rt.name);
             try used_names.put(name, {});
 
-            const root_decl = typeset.walker.walkModule(allocator, io, abs_root, name) catch |err| {
-                std.process.fatal("failed to walk '{s}' ({s}): {t}", .{ abs_root, name, err });
+            const root_decl = typeset.walker.walkModule(
+                allocator,
+                io,
+                abs_root,
+                name,
+            ) catch |err| {
+                std.process.fatal("failed to walk '{s}' ({s}): {t}", .{
+                    abs_root,
+                    name,
+                    err,
+                });
             };
             try modules.append(allocator, .{ .root_decl = root_decl, .name = name });
         }
@@ -230,17 +256,29 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         // also walk nested `.path` deps (vereda → xdg).
         if (want_deps and plan.package.manifest_path != null) {
             var deps = if (deps_recursive)
-                typeset.path_deps.discoverRecursive(allocator, io, plan.package.manifest_path.?) catch |err| {
+                typeset.path_deps.discoverRecursive(
+                    allocator,
+                    io,
+                    plan.package.manifest_path.?,
+                ) catch |err| {
                     std.process.fatal("failed to read dependencies from '{s}': {t}", .{ plan.package.manifest_path.?, err });
                 }
             else
-                typeset.path_deps.discover(allocator, io, plan.package.manifest_path.?) catch |err| {
+                typeset.path_deps.discover(
+                    allocator,
+                    io,
+                    plan.package.manifest_path.?,
+                ) catch |err| {
                     std.process.fatal("failed to read dependencies from '{s}': {t}", .{ plan.package.manifest_path.?, err });
                 };
             defer typeset.path_deps.deinitEntries(allocator, &deps);
 
             for (deps.items) |dep| {
-                const root = typeset.path_deps.findRootModule(allocator, io, dep.root_dir) catch |err| {
+                const root = typeset.path_deps.findRootModule(
+                    allocator,
+                    io,
+                    dep.root_dir,
+                ) catch |err| {
                     std.process.fatal("failed to inspect dependency '{s}': {t}", .{ dep.name, err });
                 } orelse {
                     var stderr_buf: [256]u8 = undefined;
@@ -254,13 +292,26 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
                 };
 
                 const name = if (used_names.contains(dep.name))
-                    try std.fmt.allocPrint(allocator, "{s}-dep", .{dep.name})
+                    try std.fmt.allocPrint(
+                        allocator,
+                        "{s}-dep",
+                        .{dep.name},
+                    )
                 else
                     try allocator.dupe(u8, dep.name);
                 try used_names.put(name, {});
 
-                const root_decl = typeset.walker.walkModule(allocator, io, root, name) catch |err| {
-                    std.process.fatal("failed to walk dependency '{s}' ({s}): {t}", .{ dep.name, root, err });
+                const root_decl = typeset.walker.walkModule(
+                    allocator,
+                    io,
+                    root,
+                    name,
+                ) catch |err| {
+                    std.process.fatal("failed to walk dependency '{s}' ({s}): {t}", .{
+                        dep.name,
+                        root,
+                        err,
+                    });
                 };
                 try appendix.append(allocator, .{ .root_decl = root_decl, .name = name });
             }
@@ -273,7 +324,11 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
 
     var refs_table: typeset.external_refs.Table = .{};
     for (ctx.stringListFlag("external-refs") orelse &.{}) |path| {
-        refs_table.loadFile(allocator, io, path) catch |err| {
+        refs_table.loadFile(
+            allocator,
+            io,
+            path,
+        ) catch |err| {
             std.process.fatal("failed to load external refs '{s}': {t}", .{ path, err });
         };
     }
@@ -308,7 +363,12 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         std.process.fatal("failed to build docs.json: {t}", .{err});
     };
 
-    typeset.serialize.writeToFile(allocator, io, docs_file, output) catch |err| {
+    typeset.serialize.writeToFile(
+        allocator,
+        io,
+        docs_file,
+        output,
+    ) catch |err| {
         std.process.fatal("failed to write '{s}': {t}", .{ output, err });
     };
 

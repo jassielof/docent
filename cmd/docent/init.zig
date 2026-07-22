@@ -43,7 +43,11 @@ fn run(ctx: *fangz.ParseContext) !void {
     }
 
     if (!args.force and isReadableFile(io, config_path)) {
-        try printStderr(io, "error: '{s}' already exists (use --force to overwrite)\n", .{config_path});
+        try printStderr(
+            io,
+            "error: '{s}' already exists (use --force to overwrite)\n",
+            .{config_path},
+        );
         std.process.exit(1);
     }
 
@@ -57,12 +61,24 @@ fn run(ctx: *fangz.ParseContext) !void {
     defer file.close(io);
 
     try file.writeStreamingAll(io, content);
-    try printStderr(io, "Created {s}\n", .{config_path});
+    try printStderr(
+        io,
+        "Created {s}\n",
+        .{config_path},
+    );
 }
 
 fn renderDefaultConfig(allocator: std.mem.Allocator) ![]const u8 {
-    if (std.mem.startsWith(u8, default_config_file, "#:schema")) {
-        const rest_start = std.mem.indexOfScalar(u8, default_config_file, '\n') orelse default_config_file.len;
+    if (std.mem.startsWith(
+        u8,
+        default_config_file,
+        "#:schema",
+    )) {
+        const rest_start = std.mem.indexOfScalar(
+            u8,
+            default_config_file,
+            '\n',
+        ) orelse default_config_file.len;
         const rest = default_config_file[rest_start + 1 ..];
 
         var out = std.ArrayList(u8).empty;
@@ -72,16 +88,30 @@ fn renderDefaultConfig(allocator: std.mem.Allocator) ![]const u8 {
         return try out.toOwnedSlice(allocator);
     }
 
-    return try std.mem.replaceOwned(u8, allocator, local_schema_line, remote_schema_line, default_config_file);
+    return try std.mem.replaceOwned(
+        u8,
+        allocator,
+        local_schema_line,
+        remote_schema_line,
+        default_config_file,
+    );
 }
 
 fn isReadableFile(io: std.Io, path: []const u8) bool {
-    const file = std.Io.Dir.cwd().openFile(io, path, .{}) catch return false;
+    const file = std.Io.Dir.cwd().openFile(
+        io,
+        path,
+        .{},
+    ) catch return false;
     file.close(io);
     return true;
 }
 
-fn printStderr(io: std.Io, comptime fmt: []const u8, args: anytype) !void {
+fn printStderr(
+    io: std.Io,
+    comptime fmt: []const u8,
+    args: anytype,
+) !void {
     var buf: [4096]u8 = undefined;
     var stderr = std.Io.File.stderr().writer(io, &buf);
     try stderr.interface.print(fmt, args);
@@ -92,8 +122,24 @@ test "renderDefaultConfig uses the published schema URL" {
     const content = try renderDefaultConfig(std.testing.allocator);
     defer std.testing.allocator.free(content);
 
-    try std.testing.expect(std.mem.startsWith(u8, content, remote_schema_line));
-    try std.testing.expect(std.mem.indexOf(u8, content, local_schema_line) == null);
-    try std.testing.expect(std.mem.indexOf(u8, content, "[doc]") != null);
-    try std.testing.expect(std.mem.indexOf(u8, content, "[complexity.cognitive_complexity]") != null);
+    try std.testing.expect(std.mem.startsWith(
+        u8,
+        content,
+        remote_schema_line,
+    ));
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        content,
+        local_schema_line,
+    ) == null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        content,
+        "[doc]",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        content,
+        "[complexity.cognitive_complexity]",
+    ) != null);
 }

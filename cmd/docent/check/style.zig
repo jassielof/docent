@@ -25,13 +25,29 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const style_cfg = docent.config.loadStyleOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const style_cfg = docent.config.loadStyleOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    var plan = check_shared.gatherPlan(allocator, io, args) catch |err| {
-        try check_shared.printStderr(io, "error: failed to build lint plan: {}\n", .{err});
+    var plan = check_shared.gatherPlan(
+        allocator,
+        io,
+        args,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: failed to build lint plan: {}\n",
+            .{err},
+        );
         std.process.exit(1);
     };
     defer plan.deinit(allocator);
@@ -49,9 +65,26 @@ fn run(ctx: *fangz.ParseContext) !void {
     var analyzed_files = docent.scan.target.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
-    _ = try analyzeReachableTargets(allocator, io, &plan, &analyzed_files, style_cfg, &all_diagnostics, &summary, args.fail_fast);
+    _ = try analyzeReachableTargets(
+        allocator,
+        io,
+        &plan,
+        &analyzed_files,
+        style_cfg,
+        &all_diagnostics,
+        &summary,
+        args.fail_fast,
+    );
 
-    try check_shared.printCheckResults(io, allocator, args, "docent check style", all_diagnostics.items, summary, path_display_root);
+    try check_shared.printCheckResults(
+        io,
+        allocator,
+        args,
+        "docent check style",
+        all_diagnostics.items,
+        summary,
+        path_display_root,
+    );
 
     if (summary.hasErrors()) std.process.exit(1);
 }
@@ -75,22 +108,54 @@ pub fn analyzeReachableTargets(
             try std.fs.path.join(allocator, &.{ plan.package.project_root, rt.root_source_file });
         defer allocator.free(abs_root);
 
-        var reachable = docent.scan.reach.collectReachableFiles(allocator, io, abs_root) catch |err| {
-            try check_shared.printStderr(io, "error: failed to resolve reachable files for '{s}': {}\n", .{ rt.root_source_file, err });
+        var reachable = docent.scan.reach.collectReachableFiles(
+            allocator,
+            io,
+            abs_root,
+        ) catch |err| {
+            try check_shared.printStderr(
+                io,
+                "error: failed to resolve reachable files for '{s}': {}\n",
+                .{ rt.root_source_file, err },
+            );
             continue;
         };
         defer docent.scan.reach.deinitOwnedPaths(allocator, &reachable);
 
         for (reachable.items) |path| {
             if (docent.scan.target.shouldSkipLintFile(path, plan.targeting)) continue;
-            if (try analyzed_files.put(allocator, io, path)) continue;
-            if (try analyzeFile(allocator, io, path, style_cfg, all_diagnostics, summary, fail_fast)) return true;
+            if (try analyzed_files.put(
+                allocator,
+                io,
+                path,
+            )) continue;
+            if (try analyzeFile(
+                allocator,
+                io,
+                path,
+                style_cfg,
+                all_diagnostics,
+                summary,
+                fail_fast,
+            )) return true;
         }
     }
 
     for (plan.extra_lint_files) |path| {
-        if (try analyzed_files.put(allocator, io, path)) continue;
-        if (try analyzeFile(allocator, io, path, style_cfg, all_diagnostics, summary, fail_fast)) return true;
+        if (try analyzed_files.put(
+            allocator,
+            io,
+            path,
+        )) continue;
+        if (try analyzeFile(
+            allocator,
+            io,
+            path,
+            style_cfg,
+            all_diagnostics,
+            summary,
+            fail_fast,
+        )) return true;
     }
 
     return false;
@@ -105,8 +170,17 @@ fn analyzeFile(
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
 ) !bool {
-    var result = docent.lintStyleFile(allocator, io, path, style_cfg) catch |err| {
-        try check_shared.printStderr(io, "error: failed to analyze '{s}': {}\n", .{ path, err });
+    var result = docent.lintStyleFile(
+        allocator,
+        io,
+        path,
+        style_cfg,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: failed to analyze '{s}': {}\n",
+            .{ path, err },
+        );
         return false;
     };
     defer result.deinit();

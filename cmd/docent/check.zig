@@ -35,28 +35,68 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const doc_options = docent.config.loadDocOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const doc_options = docent.config.loadDocOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    const complexity_options = docent.config.loadComplexityOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const complexity_options = docent.config.loadComplexityOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    const size_options = docent.config.loadSizeOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const size_options = docent.config.loadSizeOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    const style_options = docent.config.loadStyleOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const style_options = docent.config.loadStyleOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    var plan = check_shared.gatherPlan(allocator, io, args) catch |err| {
-        try check_shared.printStderr(io, "error: failed to build lint plan: {}\n", .{err});
+    var plan = check_shared.gatherPlan(
+        allocator,
+        io,
+        args,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: failed to build lint plan: {}\n",
+            .{err},
+        );
         std.process.exit(1);
     };
     defer plan.deinit(allocator);
@@ -72,7 +112,11 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
     const library_entry_roots_owned = blk: {
         if (plan.path_mode == .recursive) break :blk &.{};
         if (plan.path_mode == .module_root) break :blk plan.module_entry_roots;
-        const roots = docent.collectLibraryEntryRoots(allocator, io, plan.package.project_root) catch &.{};
+        const roots = docent.collectLibraryEntryRoots(
+            allocator,
+            io,
+            plan.package.project_root,
+        ) catch &.{};
         break :blk roots;
     };
     defer if (plan.path_mode == .project) {
@@ -104,30 +148,85 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         for (rt.files) |path| {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
-            _ = try doc_check.lintPlanFile(allocator, io, path, doc_lint_options, library_entry_roots_owned, doc_opts, &all_diagnostics, &summary, .none);
+            _ = try doc_check.lintPlanFile(
+                allocator,
+                io,
+                path,
+                doc_lint_options,
+                library_entry_roots_owned,
+                doc_opts,
+                &all_diagnostics,
+                &summary,
+                .none,
+            );
         }
     }
 
     for (plan.extra_lint_files) |path| {
         const gptr = try linted_files.getOrPut(path);
         if (gptr.found_existing) continue;
-        _ = try doc_check.lintPlanFile(allocator, io, path, doc_lint_options, library_entry_roots_owned, doc_opts, &all_diagnostics, &summary, .none);
+        _ = try doc_check.lintPlanFile(
+            allocator,
+            io,
+            path,
+            doc_lint_options,
+            library_entry_roots_owned,
+            doc_opts,
+            &all_diagnostics,
+            &summary,
+            .none,
+        );
     }
 
     var analyzed_files = docent.scan.target.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
-    _ = try style_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, style_opts, &all_diagnostics, &summary, .none);
+    _ = try style_check.analyzeReachableTargets(
+        allocator,
+        io,
+        &plan,
+        &analyzed_files,
+        style_opts,
+        &all_diagnostics,
+        &summary,
+        .none,
+    );
     analyzed_files.clear(allocator);
-    _ = try complexity_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, complexity_opts, &all_diagnostics, &summary, .none);
+    _ = try complexity_check.analyzeReachableTargets(
+        allocator,
+        io,
+        &plan,
+        &analyzed_files,
+        complexity_opts,
+        &all_diagnostics,
+        &summary,
+        .none,
+    );
     analyzed_files.clear(allocator);
-    _ = try size_check.analyzeReachableTargets(allocator, io, &plan, &analyzed_files, size_opts, &all_diagnostics, &summary, .none);
+    _ = try size_check.analyzeReachableTargets(
+        allocator,
+        io,
+        &plan,
+        &analyzed_files,
+        size_opts,
+        &all_diagnostics,
+        &summary,
+        .none,
+    );
 
     var count_rows: std.ArrayList(check_shared.RuleCountRow) = .empty;
     defer count_rows.deinit(allocator);
 
-    try check_shared.appendDiagnosticCounts(allocator, all_diagnostics.items, &count_rows);
-    try check_shared.printCategorizedSummary(allocator, io, count_rows.items);
+    try check_shared.appendDiagnosticCounts(
+        allocator,
+        all_diagnostics.items,
+        &count_rows,
+    );
+    try check_shared.printCategorizedSummary(
+        allocator,
+        io,
+        count_rows.items,
+    );
 
     if (summary.errors > 0 or summary.warnings > 0) {
         std.process.exit(1);

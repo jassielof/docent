@@ -25,18 +25,42 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const doc_cfg = docent.config.loadDocOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const doc_cfg = docent.config.loadDocOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    const doc_scan_mode = docent.config.loadDocScanModeFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const doc_scan_mode = docent.config.loadDocScanModeFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    var plan = check_shared.gatherPlan(allocator, io, args) catch |err| {
-        try check_shared.printStderr(io, "error: failed to build lint plan: {}\n", .{err});
+    var plan = check_shared.gatherPlan(
+        allocator,
+        io,
+        args,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: failed to build lint plan: {}\n",
+            .{err},
+        );
         std.process.exit(1);
     };
     defer plan.deinit(allocator);
@@ -59,7 +83,11 @@ fn run(ctx: *fangz.ParseContext) !void {
     const library_entry_roots_owned = blk: {
         if (plan.path_mode == .recursive) break :blk &.{};
         if (plan.path_mode == .module_root) break :blk plan.module_entry_roots;
-        const roots = docent.collectLibraryEntryRoots(allocator, io, plan.package.project_root) catch &.{};
+        const roots = docent.collectLibraryEntryRoots(
+            allocator,
+            io,
+            plan.package.project_root,
+        ) catch &.{};
         break :blk roots;
     };
     defer if (plan.path_mode == .project) {
@@ -83,7 +111,17 @@ fn run(ctx: *fangz.ParseContext) !void {
                 const gptr = try linted_files.getOrPut(path);
                 if (gptr.found_existing) continue;
 
-                if (try lintPlanFile(allocator, io, path, lint_options, library_entry_roots_owned, doc_cfg, &all_diagnostics, &summary, args.fail_fast)) {
+                if (try lintPlanFile(
+                    allocator,
+                    io,
+                    path,
+                    lint_options,
+                    library_entry_roots_owned,
+                    doc_cfg,
+                    &all_diagnostics,
+                    &summary,
+                    args.fail_fast,
+                )) {
                     should_stop = true;
                     break;
                 }
@@ -97,13 +135,31 @@ fn run(ctx: *fangz.ParseContext) !void {
             const gptr = try linted_files.getOrPut(path);
             if (gptr.found_existing) continue;
 
-            if (try lintPlanFile(allocator, io, path, lint_options, library_entry_roots_owned, doc_cfg, &all_diagnostics, &summary, args.fail_fast)) {
+            if (try lintPlanFile(
+                allocator,
+                io,
+                path,
+                lint_options,
+                library_entry_roots_owned,
+                doc_cfg,
+                &all_diagnostics,
+                &summary,
+                args.fail_fast,
+            )) {
                 break;
             }
         }
     }
 
-    try check_shared.printCheckResults(io, allocator, args, "docent check doc", all_diagnostics.items, summary, path_display_root);
+    try check_shared.printCheckResults(
+        io,
+        allocator,
+        args,
+        "docent check doc",
+        all_diagnostics.items,
+        summary,
+        path_display_root,
+    );
 
     if (summary.hasErrors()) std.process.exit(1);
 }
@@ -119,8 +175,19 @@ pub fn lintPlanFile(
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
 ) !bool {
-    var result = docent.lintFile(allocator, io, path, lint_options, library_entry_roots, doc_cfg) catch |err| {
-        try check_shared.printStderr(io, "error: failed to lint '{s}': {}\n", .{ path, err });
+    var result = docent.lintFile(
+        allocator,
+        io,
+        path,
+        lint_options,
+        library_entry_roots,
+        doc_cfg,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: failed to lint '{s}': {}\n",
+            .{ path, err },
+        );
         return false;
     };
     defer result.deinit();

@@ -25,13 +25,29 @@ fn run(ctx: *fangz.ParseContext) !void {
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const complexity_cfg = docent.config.loadComplexityOptionsFromCli(allocator, io, args.config_path) catch |err| {
-        try check_shared.printStderr(io, "error: {s}\n", .{docent.config.formatError(err)});
+    const complexity_cfg = docent.config.loadComplexityOptionsFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
         std.process.exit(1);
     };
 
-    var plan = check_shared.gatherPlan(allocator, io, args) catch |err| {
-        try check_shared.printStderr(io, "error: failed to build lint plan: {}\n", .{err});
+    var plan = check_shared.gatherPlan(
+        allocator,
+        io,
+        args,
+    ) catch |err| {
+        try check_shared.printStderr(
+            io,
+            "error: failed to build lint plan: {}\n",
+            .{err},
+        );
         std.process.exit(1);
     };
     defer plan.deinit(allocator);
@@ -49,9 +65,26 @@ fn run(ctx: *fangz.ParseContext) !void {
     var analyzed_files = docent.scan.target.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
-    _ = try analyzeReachableTargets(allocator, io, &plan, &analyzed_files, complexity_cfg, &all_diagnostics, &summary, args.fail_fast);
+    _ = try analyzeReachableTargets(
+        allocator,
+        io,
+        &plan,
+        &analyzed_files,
+        complexity_cfg,
+        &all_diagnostics,
+        &summary,
+        args.fail_fast,
+    );
 
-    try check_shared.printCheckResults(io, allocator, args, "docent check complexity", all_diagnostics.items, summary, path_display_root);
+    try check_shared.printCheckResults(
+        io,
+        allocator,
+        args,
+        "docent check complexity",
+        all_diagnostics.items,
+        summary,
+        path_display_root,
+    );
 
     if (summary.hasErrors()) std.process.exit(1);
 }
@@ -81,21 +114,37 @@ pub fn analyzeReachableTargets(
             try std.fs.path.join(allocator, &.{ plan.package.project_root, rt.root_source_file });
         defer allocator.free(abs_root);
 
-        var reachable = docent.scan.reach.collectReachableFiles(allocator, io, abs_root) catch |err| {
-            try check_shared.printStderr(io, "error: failed to resolve reachable files for '{s}': {}\n", .{ rt.root_source_file, err });
+        var reachable = docent.scan.reach.collectReachableFiles(
+            allocator,
+            io,
+            abs_root,
+        ) catch |err| {
+            try check_shared.printStderr(
+                io,
+                "error: failed to resolve reachable files for '{s}': {}\n",
+                .{ rt.root_source_file, err },
+            );
             continue;
         };
         defer docent.scan.reach.deinitOwnedPaths(allocator, &reachable);
 
         for (reachable.items) |path| {
             if (docent.scan.target.shouldSkipLintFile(path, plan.targeting)) continue;
-            if (try analyzed_files.put(allocator, io, path)) continue;
+            if (try analyzed_files.put(
+                allocator,
+                io,
+                path,
+            )) continue;
             try paths.append(allocator, try allocator.dupe(u8, path));
         }
     }
 
     for (plan.extra_lint_files) |path| {
-        if (try analyzed_files.put(allocator, io, path)) continue;
+        if (try analyzed_files.put(
+            allocator,
+            io,
+            path,
+        )) continue;
         try paths.append(allocator, try allocator.dupe(u8, path));
     }
 
@@ -113,7 +162,11 @@ pub fn analyzeReachableTargets(
     };
 
     for (paths.items) |path| {
-        state.group.async(io, ParallelLintState.analyzeTask, .{ &state, path });
+        state.group.async(
+            io,
+            ParallelLintState.analyzeTask,
+            .{ &state, path },
+        );
     }
     try state.group.await(io);
 
@@ -132,10 +185,19 @@ const ParallelLintState = struct {
     hit_fail_fast: bool = false,
 
     fn analyzeTask(self: *ParallelLintState, path: []const u8) std.Io.Cancelable!void {
-        var result = docent.lintComplexityFile(self.allocator, self.io, path, self.complexity_cfg) catch |err| {
+        var result = docent.lintComplexityFile(
+            self.allocator,
+            self.io,
+            path,
+            self.complexity_cfg,
+        ) catch |err| {
             try self.mutex.lock(self.io);
             defer self.mutex.unlock(self.io);
-            check_shared.printStderr(self.io, "error: failed to analyze '{s}': {}\n", .{ path, err }) catch {};
+            check_shared.printStderr(
+                self.io,
+                "error: failed to analyze '{s}': {}\n",
+                .{ path, err },
+            ) catch {};
             return;
         };
         defer result.deinit();
