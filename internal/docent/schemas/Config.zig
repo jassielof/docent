@@ -92,7 +92,6 @@ pub fn applyRuleSeverities(cfg: @This(), rule_set: *RuleSeverities) Error!void {
 
 fn applyStyleSeverities(section: Style, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.identifier_case, section.identifier_case.level);
-    try applyLevel(&rule_set.line_length_limit, section.line_length_limit.level);
 }
 
 fn applyDocSeverities(section: Doc, rule_set: *RuleSeverities) Error!void {
@@ -114,6 +113,7 @@ fn applyComplexitySeverities(section: Complexity, rule_set: *RuleSeverities) Err
 
 fn applySizeSeverities(section: Size, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.max_fun_params, section.max_function_parameters.level);
+    try applyLevel(&rule_set.line_length_limit, section.line_length_limit.level);
 }
 
 fn applyLevel(slot: *severity.Level, configured: ?severity.Level) Error!void {
@@ -293,20 +293,20 @@ test "decode reads nested rule tables and section options" {
     try std.testing.expectEqual(@as(u32, 12), cfg.complexity.cognitive_complexity.options.threshold);
 }
 
-test "resolved style options read line_length_limit settings" {
+test "resolved size options read line_length_limit settings" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
     const root = try parseRoot(arena.allocator(),
-        \\[style.line_length_limit]
+        \\[size.line_length_limit]
         \\max_length = 80
         \\ignore_trailing_comments = true
     );
 
     var cfg = try decode(arena.allocator(), root);
     defer cfg.deinit(arena.allocator());
-    try std.testing.expectEqual(@as(u32, 80), cfg.style.line_length_limit.options.max_length);
-    try std.testing.expect(cfg.style.line_length_limit.options.ignore_trailing_comments);
+    try std.testing.expectEqual(@as(u32, 80), cfg.size.line_length_limit.options.max_length);
+    try std.testing.expect(cfg.size.line_length_limit.options.ignore_trailing_comments);
 }
 
 test "resolved style options read struct_file_case" {

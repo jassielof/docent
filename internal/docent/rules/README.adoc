@@ -72,6 +72,10 @@ threshold = 15
 [size.max_function_parameters]
 level = "allow"
 threshold = 7
+
+[size.line_length_limit]
+level = "warn"
+max_length = 100
 ----
 ====
 
@@ -79,7 +83,7 @@ Rule severities can be set as a string shorthand in a section table (for example
 
 Nested rule tables hold per-rule options. Under `[doc.missing_doc_comment]`, set `check_parameters = true` to make `missing_doc_comment` also require `///` on each named function parameter (disabled by default).
 
-Under `[complexity]`, rules such as `cognitive_complexity` accept a `threshold` alongside `level`. Under `[size]`, rules such as `max_function_parameters` accept a `threshold` alongside `level`. Omitted options fall back to the library defaults.
+Under `[complexity]`, rules such as `cognitive_complexity` accept a `threshold` alongside `level`. Under `[size]`, rules such as `max_function_parameters` accept a `threshold` alongside `level`, while `line_length_limit` accepts a maximum line length and comment-handling options. Omitted options fall back to the library defaults.
 
 .Options:
 * You can specify a custom path for the configuration file with `--config-path PATH` on `docent check`, `docent status`, and related commands.

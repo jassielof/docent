@@ -55,7 +55,7 @@ properties:
 
   style:
     type: "object"
-    description: "Naming conventions and file layout rules (module-API reachability scan)."
+    description: "Naming conventions (module-API reachability scan)."
     additionalProperties: false
     properties:
       scan_mode:
@@ -67,9 +67,6 @@ properties:
       identifier_case:
         $ref: "#/definitions/rule_identifier_case"
         description: "Identifiers should follow casing conventions."
-      line_length_limit:
-        $ref: "#/definitions/rule_line_length_limit"
-        description: "Physical line columns must stay within length limits."
 
   fmt:
     type: "object"
@@ -275,7 +272,7 @@ properties:
 
   size:
     type: "object"
-    description: "Threshold-based size rules (module-API reachability scan)."
+    description: "Source-size rules (module-API reachability scan)."
     additionalProperties: false
     properties:
       scan_mode:
@@ -286,6 +283,9 @@ properties:
       max_function_parameters:
         $ref: "#/definitions/rule_threshold"
         description: "Functions should not exceed the parameter count threshold."
+      line_length_limit:
+        $ref: "#/definitions/rule_line_length_limit"
+        description: "Physical line columns must stay within length limits."
 
 definitions:
   inline_suppression:

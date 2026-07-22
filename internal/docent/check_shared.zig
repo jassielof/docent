@@ -273,9 +273,9 @@ pub const RuleCategory = enum {
         for (doc_rules) |name| {
             if (std.mem.eql(u8, rule, name)) return .doc;
         }
-        if (std.mem.eql(u8, rule, "identifier_case") or std.mem.eql(u8, rule, "line_length_limit")) return .style;
+        if (std.mem.eql(u8, rule, "identifier_case")) return .style;
         if (std.mem.eql(u8, rule, "cognitive_complexity") or std.mem.eql(u8, rule, "cyclomatic_complexity")) return .complexity;
-        if (std.mem.eql(u8, rule, "max_fun_params")) return .size;
+        if (std.mem.eql(u8, rule, "max_fun_params") or std.mem.eql(u8, rule, "line_length_limit")) return .size;
         return null;
     }
 };
