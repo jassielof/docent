@@ -1,11 +1,4 @@
 //! The Docent module serves as the core library for the Docent CLI for documentation, style, and complexity checks for Zig projects.
-// TODO: Diagnostic outputs aren't possible to be piped, for example to ripgrep, doing:
-// docent on  main [!⇡] via  v0.16.0
-// ❯ ./zig-out/bin/docent.exe check complexity out>err
-
-// docent on  main [!⇡] via  v0.16.0
-// ❯ ./zig-out/bin/docent.exe check complexity err>out
-// Returns nothing in both cases, so it's impossible to pipe the output to ripgrep, at least via nushell with `... | rg "pattern"`. `
 
 const std = @import("std");
 const Ast = std.zig.Ast;
