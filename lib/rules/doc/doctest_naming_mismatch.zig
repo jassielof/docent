@@ -8,13 +8,14 @@
 //!
 //! - **String literal match:** A test that matches an existing public declaration by identifier — suggests rewriting it as a doctest.
 //! - **Casing mismatch:** A doctest identifier that has no matching public declaration but a case-variant of it does — suggests the correct casing. Currently limited to capitalization differences; snake_case normalization may be added later.
+const lint = @import("lint");
 const std = @import("std");
 const Ast = std.zig.Ast;
 
-const Diagnostic = @import("../Diagnostic.zig");
-const scan = @import("../scan.zig");
-const severity = @import("../severity.zig");
-const category = @import("../category.zig");
+const Diagnostic = lint.Diagnostic;
+const scan = lint.scan;
+const severity = lint.severity;
+const category = lint.category;
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {

@@ -1,9 +1,10 @@
+const lint = @import("lint");
 const std = @import("std");
 const Ast = std.zig.Ast;
 
 const doc_comment = @import("doc_comment");
 
-const Diagnostic = @import("../Diagnostic.zig");
+const Diagnostic = lint.Diagnostic;
 const RuleSeverities = @import("../RuleSeverities.zig");
 
 /// Extracts a copy of the source line containing `token`, trimmed of trailing

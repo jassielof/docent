@@ -1,11 +1,12 @@
 //! The `line_length_limit` namespace enforces a maximum physical line length in source files.
 
+const lint = @import("lint");
 const std = @import("std");
 
-const Diagnostic = @import("../Diagnostic.zig");
-const scan = @import("../scan.zig");
-const severity = @import("../severity.zig");
-const category = @import("../category.zig");
+const Diagnostic = lint.Diagnostic;
+const scan = lint.scan;
+const severity = lint.severity;
+const category = lint.category;
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {

@@ -14,13 +14,13 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
 
-const Diagnostic = @import("../Diagnostic.zig");
-const scan = @import("../scan.zig");
-const severity = @import("../severity.zig");
-const category = @import("../category.zig");
-const utils = @import("../utils.zig");
+const lint = @import("lint");
+const Diagnostic = lint.Diagnostic;
+const scan = lint.scan;
+const severity = lint.severity;
+const category = lint.category;
 
-const rule_name = utils.ruleIdWithName("cognitive_complexity");
+const rule_name = "cognitive_complexity";
 
 /// Default severity `warn`: high cognitive complexity is a maintainability signal worth surfacing without failing a fresh build.
 pub const default_severity: severity.Level = .warn;
@@ -88,7 +88,7 @@ pub fn check(
         try diagnostics.append(allocator, .{
             .rule = rule_name,
             .severity_level = severity_level,
-            .subject = try utils.ownedSubject(
+            .subject = try ownedSubject(
                 msg_allocator,
                 .function,
                 name,
@@ -101,7 +101,7 @@ pub fn check(
             .file = file,
             .line = loc.line + 1,
             .column = loc.column + 1,
-            .source_line = try utils.dupSourceLine(
+            .source_line = try dupSourceLine(
                 tree,
                 name_tok,
                 msg_allocator,
@@ -124,7 +124,7 @@ fn collectFunctions(
     if (tag == .fn_decl) {
         var buf: [1]Ast.Node.Index = undefined;
         if (tree.fullFnProto(&buf, node)) |proto| {
-            const include = if (public_api_only) utils.isPubVisibility(tree, proto.visib_token) else true;
+            const include = if (public_api_only) isPubVisibility(tree, proto.visib_token) else true;
             if (include) try out.append(allocator, node);
         }
         return;
@@ -132,7 +132,7 @@ fn collectFunctions(
 
     if (tree.fullVarDecl(node)) |var_decl| {
         if (var_decl.ast.init_node.unwrap()) |init_node| {
-            if (utils.isContainerDecl(tree.nodeTag(init_node))) {
+            if (isContainerDecl(tree.nodeTag(init_node))) {
                 var buf: [2]Ast.Node.Index = undefined;
                 if (tree.fullContainerDecl(&buf, init_node)) |container| {
                     for (container.ast.members) |member| {
@@ -150,7 +150,7 @@ fn collectFunctions(
         return;
     }
 
-    if (utils.isContainerDecl(tag)) {
+    if (isContainerDecl(tag)) {
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
             for (container.ast.members) |member| {
@@ -634,4 +634,39 @@ test "labeled block break is not penalized" {
 
 comptime {
     std.testing.refAllDecls(@This());
+}
+
+fn isPubVisibility(tree: *const Ast, visib_token: ?Ast.TokenIndex) bool {
+    const token = visib_token orelse return false;
+    return tree.tokenTag(token) == .keyword_pub;
+}
+
+fn isContainerDecl(tag: Ast.Node.Tag) bool {
+    return switch (tag) {
+        .container_decl,
+        .container_decl_trailing,
+        .container_decl_two,
+        .container_decl_two_trailing,
+        .container_decl_arg,
+        .container_decl_arg_trailing,
+        .tagged_union,
+        .tagged_union_trailing,
+        .tagged_union_two,
+        .tagged_union_two_trailing,
+        .tagged_union_enum_tag,
+        .tagged_union_enum_tag_trailing,
+        => true,
+        else => false,
+    };
+}
+
+fn ownedSubject(allocator: std.mem.Allocator, kind: Diagnostic.SubjectKind, name: []const u8) !Diagnostic.Subject {
+    return .{ .kind = kind, .name = try allocator.dupe(u8, name) };
+}
+
+fn dupSourceLine(tree: *const Ast, token: Ast.TokenIndex, allocator: std.mem.Allocator) ![]const u8 {
+    const loc = tree.tokenLocation(0, token);
+    var end = loc.line_start;
+    while (end < tree.source.len and tree.source[end] != '\n') end += 1;
+    return allocator.dupe(u8, std.mem.trimEnd(u8, tree.source[loc.line_start..end], "\r"));
 }

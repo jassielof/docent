@@ -2,15 +2,16 @@
 //!
 //! It'll check if the last character is a punctuation mark (e.g. period, exclamation/question mark).
 
+const lint = @import("lint");
 const std = @import("std");
 const Ast = std.zig.Ast;
 
 const doc_comment = @import("doc_comment");
 
-const Diagnostic = @import("../Diagnostic.zig");
-const scan = @import("../scan.zig");
-const severity = @import("../severity.zig");
-const category = @import("../category.zig");
+const Diagnostic = lint.Diagnostic;
+const scan = lint.scan;
+const severity = lint.severity;
+const category = lint.category;
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {

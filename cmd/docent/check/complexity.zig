@@ -1,4 +1,4 @@
-//! `docent check complexity` — cognitive and cyclomatic complexity rules.
+//! Individual cognitive and cyclomatic complexity check commands.
 
 const std = @import("std");
 
@@ -8,23 +8,39 @@ const cli_types = docent.types;
 const fangz = @import("fangz");
 
 pub fn register(check: *fangz.Command) !void {
-    const complexity_cmd = try check.addSubcommand(.{
-        .name = "complexity",
-        .brief = "Check function complexity",
-        .description = "Measure cognitive and cyclomatic complexity for every function reachable from the project's module roots. Thresholds are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
+    const cogni_cmd = try check.addSubcommand(.{
+        .name = "cogni",
+        .brief = "Check cognitive complexity",
+        .description = "Measure cognitive complexity for every reachable function.",
     });
+    try check_shared.registerCategoryPositionals(cogni_cmd);
+    try check_shared.registerOutputFlags(cogni_cmd);
+    cogni_cmd.setHooks(.{ .run = &runCogni });
 
-    try check_shared.registerCategoryPositionals(complexity_cmd);
-    try check_shared.registerOutputFlags(complexity_cmd);
-    complexity_cmd.setHooks(.{ .run = &run });
+    const cyclo_cmd = try check.addSubcommand(.{
+        .name = "cyclo",
+        .brief = "Check cyclomatic complexity",
+        .description = "Measure cyclomatic complexity for every reachable function.",
+    });
+    try check_shared.registerCategoryPositionals(cyclo_cmd);
+    try check_shared.registerOutputFlags(cyclo_cmd);
+    cyclo_cmd.setHooks(.{ .run = &runCyclo });
 }
 
-fn run(ctx: *fangz.ParseContext) !void {
+const Mode = enum { cogni, cyclo };
+fn runCogni(ctx: *fangz.ParseContext) !void {
+    try run(ctx, .cogni);
+}
+fn runCyclo(ctx: *fangz.ParseContext) !void {
+    try run(ctx, .cyclo);
+}
+
+fn run(ctx: *fangz.ParseContext, mode: Mode) !void {
     const allocator = ctx.allocator;
     const io = ctx.io;
     const args = try ctx.extract(check_shared.TargetArgs);
 
-    const complexity_cfg = docent.config.loadComplexityOptionsFromCli(
+    var complexity_cfg = docent.config.loadComplexityOptionsFromCli(
         allocator,
         io,
         args.config_path,
@@ -36,6 +52,10 @@ fn run(ctx: *fangz.ParseContext) !void {
         );
         std.process.exit(1);
     };
+    switch (mode) {
+        .cogni => complexity_cfg.cyclomatic_complexity.level = .allow,
+        .cyclo => complexity_cfg.cognitive_complexity.level = .allow,
+    }
 
     var plan = check_shared.gatherPlan(
         allocator,
@@ -79,7 +99,10 @@ fn run(ctx: *fangz.ParseContext) !void {
         io,
         allocator,
         args,
-        "docent check complexity",
+        switch (mode) {
+            .cogni => "docent check cogni",
+            .cyclo => "docent check cyclo",
+        },
         all_diagnostics.items,
         summary,
         path_display_root,

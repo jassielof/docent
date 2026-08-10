@@ -50,10 +50,29 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    // The reusable rule-checking engine: Diagnostic, severity, RuleScanConfig, category.Rule, and
-    // every rule's check(). Public (unlike `docent` below) so a consumer that only wants to check
-    // an in-memory source file - e.g. a language server - can depend on it directly without any of
-    // docent's CLI-only concerns (TOML config, suppressions, output rendering).
+    // Shared types used by independently consumable lint-rule modules.
+    const lint_mod = b.addModule("lint", .{
+        .root_source_file = b.path("lib/lint/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const cogni_mod = b.addModule("cogni", .{
+        .root_source_file = b.path("lib/cogni/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "lint", .module = lint_mod }},
+    });
+
+    const cyclo_mod = b.addModule("cyclo", .{
+        .root_source_file = b.path("lib/cyclo/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "lint", .module = lint_mod }},
+    });
+
+    // The reusable rule-checking engine aggregates independently-owned checks and their
+    // configuration. It depends on `cogni` and `cyclo`; neither complexity module depends on it.
     const rules_mod = b.addModule("rules", .{
         .root_source_file = b.path("lib/rules/root.zig"),
         .target = target,
@@ -62,6 +81,9 @@ pub fn build(b: *std.Build) void {
             .{ .name = "doc_comment", .module = doc_comment_mod },
             .{ .name = "identifier_style", .module = identifier_style_mod },
             .{ .name = "vereda", .module = vereda_mod },
+            .{ .name = "lint", .module = lint_mod },
+            .{ .name = "cogni", .module = cogni_mod },
+            .{ .name = "cyclo", .module = cyclo_mod },
         },
     });
 
@@ -100,6 +122,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "fmt", .module = fmt_mod },
             .{ .name = "identifier_style", .module = identifier_style_mod },
             .{ .name = "rules", .module = rules_mod },
+            .{ .name = "cogni", .module = cogni_mod },
+            .{ .name = "cyclo", .module = cyclo_mod },
             .{ .name = "project_scan", .module = project_scan_mod },
         },
     });
@@ -224,6 +248,11 @@ pub fn build(b: *std.Build) void {
 
     const run_rules_lib_tests = b.addRunArtifact(rules_lib_tests);
     test_step.dependOn(&run_rules_lib_tests.step);
+
+    const cogni_lib_tests = b.addTest(.{ .name = "Cognitive Complexity", .root_module = cogni_mod });
+    test_step.dependOn(&b.addRunArtifact(cogni_lib_tests).step);
+    const cyclo_lib_tests = b.addTest(.{ .name = "Cyclomatic Complexity", .root_module = cyclo_mod });
+    test_step.dependOn(&b.addRunArtifact(cyclo_lib_tests).step);
 
     const project_scan_lib_tests = b.addTest(.{
         .name = "Project Scan",

@@ -1,6 +1,7 @@
 //! Per-file options for `lintSource` / `lintFile`.
 
-const scan = @import("scan.zig");
+const lint = @import("lint");
+const scan = lint.scan;
 
 /// When set to `public_api_surface`, only `pub` declarations are checked; `reachability_traversal` includes every declaration in reachable files.
 scan_mode: scan.RuleScanConfig = .public_api_surface,

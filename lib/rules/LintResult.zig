@@ -1,9 +1,10 @@
 //! Aggregated diagnostics produced by linting one or more source files.
 
+const lint = @import("lint");
 const std = @import("std");
 
-const Diagnostic = @import("Diagnostic.zig");
-const severity = @import("severity.zig");
+const Diagnostic = lint.Diagnostic;
+const severity = lint.severity;
 
 /// Allocator used for the diagnostics list. Not used for message strings.
 allocator: std.mem.Allocator,

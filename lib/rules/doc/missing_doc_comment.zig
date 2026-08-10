@@ -10,17 +10,18 @@
 //! - [Unions and their members](https://ziglang.org/documentation/0.16.0/#union).
 //! - [Errors](https://ziglang.org/documentation/0.16.0/#Errors).
 //!   - Individual errors inside a set (or merged set) are checked when `check_errors` is enabled.
+const lint = @import("lint");
 const std = @import("std");
 const Ast = std.zig.Ast;
 
 const doc_comment = @import("doc_comment");
 const vereda = @import("vereda");
 
-const Diagnostic = @import("../Diagnostic.zig");
-const scan = @import("../scan.zig");
+const Diagnostic = lint.Diagnostic;
+const scan = lint.scan;
 const alias = @import("../scan/alias.zig");
-const severity = @import("../severity.zig");
-const category = @import("../category.zig");
+const severity = lint.severity;
+const category = lint.category;
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {

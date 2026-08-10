@@ -12,8 +12,9 @@
 //! ## Broken intra-doc links
 //!
 //! Zig itself allows it but strictly scoped to symbols within the same file, one cannot reference symbols from other files within the same module, this is done by backticks, but it's not documented, until it's properly designed and documented, this won't be documented. See <https://github.com/ziglang/zig/issues/19866>.
-const scan = @import("scan.zig");
-const category = @import("category.zig");
+const lint = @import("lint");
+const scan = lint.scan;
+const category = lint.category;
 
 /// Default scan mode for documentation rules; `public_api_surface` because doc comments are enforced on the public API by default.
 pub const default_scan_mode: scan.RuleScanConfig = .public_api_surface;

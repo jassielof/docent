@@ -26,69 +26,10 @@
 //! TOML `scan_mode = "public"` maps to `public_api_surface`; `"all"` maps to
 //! `reachability_traversal`. Both stay on the module-API graph.
 
-const std = @import("std");
+const lint = @import("lint");
 
-pub const ScanMode = enum {
-    reachability,
-    filesystem,
-};
-
-pub const Visibility = enum {
-    public_only,
-    include_internal,
-
-    pub fn isPublicOnly(self: Visibility) bool {
-        return self == .public_only;
-    }
-};
-
-pub const RuleScanConfig = struct {
-    mode: ScanMode,
-    visibility: Visibility,
-
-    pub const public_api_surface = RuleScanConfig{
-        .mode = .reachability,
-        .visibility = .public_only,
-    };
-    pub const reachability_traversal = RuleScanConfig{
-        .mode = .reachability,
-        .visibility = .include_internal,
-    };
-    pub const filesystem = RuleScanConfig{
-        .mode = .filesystem,
-        .visibility = .include_internal,
-    };
-
-    pub fn publicApiOnly(self: RuleScanConfig) bool {
-        return self.visibility.isPublicOnly();
-    }
-
-    pub fn fromConfigString(text: []const u8) ?RuleScanConfig {
-        if (std.mem.eql(
-            u8,
-            text,
-            "public",
-        )) return public_api_surface;
-        if (std.mem.eql(
-            u8,
-            text,
-            "all",
-        )) return reachability_traversal;
-        if (std.mem.eql(
-            u8,
-            text,
-            "filesystem",
-        )) return filesystem;
-        return null;
-    }
-
-    pub fn configString(self: RuleScanConfig) []const u8 {
-        if (self.mode == .filesystem) return "filesystem";
-        return switch (self.visibility) {
-            .public_only => "public",
-            .include_internal => "all",
-        };
-    }
-};
+pub const ScanMode = lint.scan.ScanMode;
+pub const Visibility = lint.scan.Visibility;
+pub const RuleScanConfig = lint.scan.RuleScanConfig;
 
 pub const alias = @import("scan/alias.zig");
