@@ -31,7 +31,7 @@ pub const TargetArgs = struct {
     fail_fast: cli_types.FailFast = cli_types.default_fail_fast,
 };
 
-/// CLI paths override `[check].include`; configured excludes always apply.
+/// CLI paths override `[check].include`; configured includes extend manifest paths unless disabled.
 pub fn gatherPlan(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -60,6 +60,7 @@ pub fn gatherPlan(
         .deps = args.deps,
         .build_script = args.build_script,
         .positionals = if (args.positionals.len > 0) args.positionals else cfg.check.include,
+        .inherit_manifest_paths = args.positionals.len == 0 and cfg.check.inherit_manifest,
         .exclude_paths = cfg.check.exclude,
         .manifest_path = resolved_manifest,
     });

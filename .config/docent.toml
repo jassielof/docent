@@ -1,7 +1,8 @@
 #:schema ../zig-out/schema/docent.schema.json
 
-# [check]
-# include = ["lib/"]
+[check]
+include = ["lib/"]
+inherit_manifest = false
 
 [fmt]
 include = ["lib/", "internal/", "cmd/"]

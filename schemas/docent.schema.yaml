@@ -166,7 +166,8 @@ properties:
     type: "object"
     description: >-
       Filesystem selection for `docent check`. When CLI paths are supplied they
-      override `include`; otherwise Docent scans `include`, then manifest paths.
+      override `include`; otherwise Docent scans `include`, then optionally
+      extends the scope with manifest paths.
       Category `scan_mode` still controls public versus all declarations per file.
     additionalProperties: false
     properties:
@@ -177,6 +178,12 @@ properties:
           minLength: 1
         default: []
         description: "Files or directories to scan when no CLI paths are given."
+      inherit_manifest:
+        type: "boolean"
+        default: true
+        description: >-
+          Extend `include` with the package paths from `build.zig.zon`. Set to
+          false to lint only the configured include paths.
       exclude:
         type: "array"
         items:

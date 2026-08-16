@@ -1,5 +1,6 @@
 //! Reports the effective lint plan: project metadata, lint targets, and rule severities.
 const std = @import("std");
+const builtin = @import("builtin");
 
 const carnaval = @import("carnaval");
 const docent = @import("docent");
@@ -103,6 +104,20 @@ fn run(ctx: *fangz.ParseContext) !void {
         std.process.exit(1);
     };
 
+    var cfg = docent.config.loadConfigFromCli(
+        allocator,
+        io,
+        args.config_path,
+    ) catch |err| {
+        try printStderr(
+            io,
+            "error: {s}\n",
+            .{docent.config.formatError(err)},
+        );
+        std.process.exit(1);
+    };
+    defer cfg.deinit(allocator);
+
     var plan = docent.status_plan.gather(allocator, io, .{
         .lib = args.lib,
         .bins = args.bins,
@@ -111,7 +126,9 @@ fn run(ctx: *fangz.ParseContext) !void {
         .test_names = args.@"test",
         .deps = args.deps,
         .build_script = args.build_script,
-        .positionals = args.positionals,
+        .positionals = if (args.positionals.len > 0) args.positionals else cfg.check.include,
+        .inherit_manifest_paths = args.positionals.len == 0 and cfg.check.inherit_manifest,
+        .exclude_paths = cfg.check.exclude,
         .color_profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle),
     }) catch |err| {
         try printStderr(
@@ -189,13 +206,9 @@ pub fn printStatusReport(
         try w.print("  manifest:  (none found)\n", .{});
     }
     if (config_path) |cp| {
-        const display = try formatDisplayPath(
-            allocator,
-            plan.package.project_root,
-            cp,
-        );
-        defer allocator.free(display);
-        try w.print("  config:    {s}\n", .{display});
+        try w.print("  config:    ", .{});
+        try writeNativePath(w, cp);
+        try w.print("\n", .{});
     } else {
         try w.print("  config:    (none found; using rule defaults)\n", .{});
     }
@@ -213,9 +226,9 @@ pub fn printStatusReport(
             .project => unreachable,
         };
         try w.print("  Path mode: {s} (build.zig target discovery skipped).\n", .{mode_label});
-        try w.print("  Target files:\n", .{});
-        for (plan.extra_lint_files) |path| {
-            const display = try formatDisplayPath(
+        try w.print("  Selected paths:\n", .{});
+        for (plan.selected_paths) |path| {
+            const display = try docent.scan.target.pathRelativeTo(
                 allocator,
                 plan.package.project_root,
                 path,
@@ -223,23 +236,18 @@ pub fn printStatusReport(
             defer allocator.free(display);
             try w.print("    - {s}\n", .{display});
         }
+        if (plan.manifest_paths.len > 0) {
+            try w.print("  Also inherited from manifest:\n", .{});
+            try printManifestPaths(allocator, w, plan);
+        }
         try w.print("\n", .{});
     } else {
         if (plan.resolved_targets.len == 0) {
-            try w.print("  No targets resolved from build.zig.\n", .{});
-            if (plan.extra_lint_files.len > 0) {
-                try w.print("  Fallback files (from build.zig.zon or project root):\n", .{});
-                for (plan.extra_lint_files) |path| {
-                    const display = try formatDisplayPath(
-                        allocator,
-                        plan.package.project_root,
-                        path,
-                    );
-                    defer allocator.free(display);
-                    try w.print("    - {s}\n", .{display});
-                }
+            if (plan.manifest_paths.len > 0) {
+                try w.print("  Inherited from manifest:\n", .{});
+                try printManifestPaths(allocator, w, plan);
             } else {
-                try w.print("  No source files found for linting.\n", .{});
+                try w.print("  No paths selected.\n", .{});
             }
             try w.print("\n", .{});
         } else {
@@ -253,7 +261,7 @@ pub fn printStatusReport(
             if (plan.extra_lint_files.len > 0) {
                 try w.print("  Extra/Build files:\n", .{});
                 for (plan.extra_lint_files) |f| {
-                    const display = try formatDisplayPath(
+                    const display = try docent.scan.target.pathRelativeTo(
                         allocator,
                         plan.package.project_root,
                         f,
@@ -317,16 +325,44 @@ pub fn printStatusReport(
     try w.flush();
 }
 
-fn formatDisplayPath(
+/// Writes a path using the host platform's conventional separator.
+fn writeNativePath(w: *std.Io.Writer, path: []const u8) !void {
+    if (builtin.os.tag != .windows) {
+        try w.print("{s}", .{path});
+        return;
+    }
+
+    for (path) |char| {
+        try w.writeByte(if (char == '/') '\\' else char);
+    }
+}
+
+fn printManifestPaths(
     allocator: std.mem.Allocator,
-    project_root: []const u8,
-    path: []const u8,
-) ![]const u8 {
-    return docent.scan.target.pathRelativeTo(
-        allocator,
-        project_root,
-        path,
-    );
+    w: *std.Io.Writer,
+    plan: docent.status_plan.Plan,
+) !void {
+    for (plan.manifest_paths) |path| {
+        const display = try docent.scan.target.pathRelativeTo(
+            allocator,
+            plan.package.project_root,
+            path,
+        );
+        defer allocator.free(display);
+        try w.print("    - {s}", .{display});
+        if (containsExcludedDependency(path, plan.targeting.exclude_roots)) {
+            try w.writeAll(" (declared path dependencies excluded)");
+        }
+        try w.writeAll("\n");
+    }
+}
+
+fn containsExcludedDependency(path: []const u8, excluded_roots: []const []const u8) bool {
+    for (excluded_roots) |root| {
+        if (!std.mem.startsWith(u8, root, path)) continue;
+        if (root.len == path.len or root[path.len] == '/' or root[path.len] == '\\') return true;
+    }
+    return false;
 }
 
 fn printResolvedTarget(

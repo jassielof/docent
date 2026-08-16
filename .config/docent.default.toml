@@ -17,14 +17,12 @@ auto_wrap = false
 max_line_length = 100
 grid_alignment = false
 
-# Module-API scan (check): target selection from build.zig. Category scan_mode
-# values are visibility inside the reachable graph (public vs all), not a
-# filesystem orphan walk.
+# Filesystem scan (check): with no explicit includes, paths are inherited from
+# build.zig.zon. Set inherit_manifest = false to lint only check.include.
 [check]
-# bins = false
-# tests = false
-# deps = false
-# exclude_targets = ["bench"]
+# include = ["src/"]
+# inherit_manifest = true
+# exclude = ["vendor/"]
 
 [typeset]
 # include_private = false

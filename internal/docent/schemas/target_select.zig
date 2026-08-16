@@ -11,6 +11,8 @@ const std = @import("std");
 pub const Check = struct {
     include: []const []const u8 = &.{},
     exclude: []const []const u8 = &.{},
+    /// Whether configured includes extend the package paths from `build.zig.zon`.
+    inherit_manifest: bool = true,
 
     pub fn deinit(self: *Check, allocator: std.mem.Allocator) void {
         freePathList(allocator, self.include);

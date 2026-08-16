@@ -241,6 +241,7 @@ fn decodeCheck(
     };
     if (table.get("include")) |v| out.include = try decodeStringList(allocator, v);
     if (table.get("exclude")) |v| out.exclude = try decodeStringList(allocator, v);
+    if (table.get("inherit_manifest")) |v| out.inherit_manifest = try decodeBool(v);
 }
 
 fn decodeTypeset(
@@ -534,6 +535,7 @@ test "decode reads check and typeset target selection" {
         \\[check]
         \\include = ["src", "tools/main.zig"]
         \\exclude = ["src/generated", "scratch"]
+        \\inherit_manifest = false
         \\
         \\[typeset]
         \\include_private = true
@@ -547,6 +549,7 @@ test "decode reads check and typeset target selection" {
     try std.testing.expectEqualStrings("src", cfg.check.include[0]);
     try std.testing.expectEqual(@as(usize, 2), cfg.check.exclude.len);
     try std.testing.expectEqualStrings("src/generated", cfg.check.exclude[0]);
+    try std.testing.expect(!cfg.check.inherit_manifest);
     try std.testing.expect(cfg.typeset.include_private);
     try std.testing.expect(cfg.typeset.bundle_std);
     try std.testing.expectEqualStrings("out/docs.json", cfg.typeset.output);

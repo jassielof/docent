@@ -70,6 +70,8 @@ pub const Options = struct {
     positionals: []const []const u8 = &.{},
     /// Filesystem paths excluded after discovery.
     exclude_paths: []const []const u8 = &.{},
+    /// Whether selected paths are extended with package paths from `build.zig.zon`.
+    inherit_manifest_paths: bool = true,
     /// When set, use this manifest instead of searching upward from cwd.
     manifest_path: ?[]const u8 = null,
     /// Terminal color profile for styled skip reasons in status output.
@@ -84,6 +86,10 @@ pub const Plan = struct {
     resolved_targets: []ResolvedTarget,
     /// Additional files to lint from explicit paths or manifest `.paths` fallback.
     extra_lint_files: []const []const u8,
+    /// Raw package paths inherited from `build.zig.zon` for status display.
+    manifest_paths: []const []const u8,
+    /// Explicit CLI or configured include paths for status display.
+    selected_paths: []const []const u8,
     /// How positional paths were interpreted.
     path_mode: PathMode,
     /// Module entry roots for `module_root` mode (`//!` and public reachability); empty otherwise.
@@ -98,6 +104,10 @@ pub const Plan = struct {
         allocator.free(self.resolved_targets);
         for (self.extra_lint_files) |f| allocator.free(f);
         allocator.free(self.extra_lint_files);
+        for (self.manifest_paths) |path| allocator.free(path);
+        allocator.free(self.manifest_paths);
+        for (self.selected_paths) |path| allocator.free(path);
+        allocator.free(self.selected_paths);
         for (self.module_entry_roots) |r| allocator.free(r);
         allocator.free(self.module_entry_roots);
 
@@ -112,6 +122,8 @@ pub const Plan = struct {
             .package = .{ .project_root = "" },
             .resolved_targets = &.{},
             .extra_lint_files = &.{},
+            .manifest_paths = &.{},
+            .selected_paths = &.{},
             .path_mode = .project,
             .module_entry_roots = &.{},
             .targeting = .{},
@@ -242,6 +254,18 @@ pub fn gather(
         extra_lint_files.deinit(allocator);
     }
 
+    var manifest_paths: std.ArrayList([]const u8) = .empty;
+    errdefer {
+        for (manifest_paths.items) |path| allocator.free(path);
+        manifest_paths.deinit(allocator);
+    }
+
+    var selected_paths: std.ArrayList([]const u8) = .empty;
+    errdefer {
+        for (selected_paths.items) |path| allocator.free(path);
+        selected_paths.deinit(allocator);
+    }
+
     var module_entry_roots_list: std.ArrayList([]const u8) = .empty;
     errdefer targeting.deinitOwnedPaths(allocator, &module_entry_roots_list);
 
@@ -258,6 +282,7 @@ pub fn gather(
                 raw,
             );
             errdefer allocator.free(resolved);
+            try selected_paths.append(allocator, try allocator.dupe(u8, resolved));
 
             switch (path_mode) {
                 .recursive => try collectRecursiveLintFiles(
@@ -271,7 +296,9 @@ pub fn gather(
             }
             allocator.free(resolved);
         }
-    } else {
+    }
+
+    if (options.inherit_manifest_paths) {
         // Check commands deliberately do not inspect build.zig.  A project's lint
         // scope is its explicit paths, or the top-level paths declared in the
         // manifest when no paths are supplied.
@@ -402,9 +429,11 @@ pub fn gather(
                 }
                 for (loaded_paths.items) |p| {
                     try fallback_paths.append(allocator, try allocator.dupe(u8, p));
+                    try manifest_paths.append(allocator, try allocator.dupe(u8, p));
                 }
             } else {
                 try fallback_paths.append(allocator, try allocator.dupe(u8, "."));
+                try manifest_paths.append(allocator, try allocator.dupe(u8, "."));
             }
 
             for (fallback_paths.items) |raw| {
@@ -478,6 +507,8 @@ pub fn gather(
         .package = package,
         .resolved_targets = try resolved_targets.toOwnedSlice(allocator),
         .extra_lint_files = try extra_lint_files.toOwnedSlice(allocator),
+        .manifest_paths = try manifest_paths.toOwnedSlice(allocator),
+        .selected_paths = try selected_paths.toOwnedSlice(allocator),
         .path_mode = path_mode,
         .module_entry_roots = try module_entry_roots_list.toOwnedSlice(allocator),
         .targeting = targeting_options,
