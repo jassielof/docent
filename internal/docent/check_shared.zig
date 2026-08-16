@@ -20,13 +20,7 @@ pub const TargetArgs = struct {
     positionals: []const []const u8 = &.{},
     config_path: ?[]const u8 = null,
     manifest_path: ?[]const u8 = null,
-    lib: bool = false,
-    bins: bool = false,
-    bin: []const []const u8 = &.{},
-    tests: bool = false,
-    @"test": []const []const u8 = &.{},
     deps: bool = false,
-    build_script: bool = false,
     format: cli_types.OutputMode = .pretty,
     fail_fast: cli_types.FailFast = cli_types.default_fail_fast,
 };
@@ -52,13 +46,7 @@ pub fn gatherPlan(
     defer if (resolved_manifest) |p| allocator.free(p);
 
     return status_plan.gather(allocator, io, .{
-        .lib = args.lib,
-        .bins = args.bins,
-        .bin_names = args.bin,
-        .tests = args.tests,
-        .test_names = args.@"test",
         .deps = args.deps,
-        .build_script = args.build_script,
         .positionals = if (args.positionals.len > 0) args.positionals else cfg.check.include,
         .inherit_manifest_paths = args.positionals.len == 0 and cfg.check.inherit_manifest,
         .exclude_paths = cfg.check.exclude,
@@ -99,48 +87,8 @@ pub fn registerTargetFlags(cmd: *fangz.Command, options: RegisterTargetFlagsOpti
     });
 
     try cmd.addFlag(bool, .{
-        .name = "lib",
-        .brief = "Analyze library targets only (default)",
-        .default = false,
-        .persistent = options.persistent,
-    });
-
-    try cmd.addFlag(bool, .{
-        .name = "bins",
-        .brief = "Analyze all binary targets",
-        .default = false,
-        .persistent = options.persistent,
-    });
-
-    try cmd.addFlag([]const []const u8, .{
-        .name = "bin",
-        .brief = "Analyze specific binary by name (repeatable)",
-        .persistent = options.persistent,
-    });
-
-    try cmd.addFlag(bool, .{
-        .name = "tests",
-        .brief = "Analyze all test targets",
-        .default = false,
-        .persistent = options.persistent,
-    });
-
-    try cmd.addFlag([]const []const u8, .{
-        .name = "test",
-        .brief = "Analyze specific test by name (repeatable)",
-        .persistent = options.persistent,
-    });
-
-    try cmd.addFlag(bool, .{
         .name = "deps",
         .brief = "Also analyze local path dependencies from build.zig.zon (.path entries only, not URL-based)",
-        .default = false,
-        .persistent = options.persistent,
-    });
-
-    try cmd.addFlag(bool, .{
-        .name = "build-script",
-        .brief = "Include the build script module and everything it depends on to be analyzed",
         .default = false,
         .persistent = options.persistent,
     });
