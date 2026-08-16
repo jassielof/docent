@@ -433,7 +433,7 @@ pub fn severityDisplayTag(level: severity.Level) []const u8 {
     };
 }
 
-/// Writes `warning[rule_id]` with diagnostic-style coloring.
+/// Writes a severity and rule identifier for categorized summaries.
 pub fn writeSeverityRuleTag(
     writer: *std.Io.Writer,
     level: severity.Level,
@@ -463,14 +463,6 @@ fn writePrettyDiagnostic(
     path_display_root: ?[]const u8,
 ) !void {
     const gutter = lineNumberWidth(diagnostic.line);
-
-    try writeSeverityRuleTag(
-        writer,
-        diagnostic.severity_level,
-        diagnostic.rule,
-        color_profile,
-    );
-    try writer.writeAll("\n");
 
     try writeProseLine(
         writer,
@@ -873,7 +865,7 @@ fn caretStyle(style: Style, diagnostic: Diagnostic) carnaval.Style {
     return if (diagnostic.severity_level.isError()) style.caret_error else style.caret_warning;
 }
 
-test "severity rule tag matches minimal diagnostic prefix" {
+test "severity rule tag formats categorized summary entries" {
     var buf: [128]u8 = undefined;
     var writer = std.Io.Writer.fixed(&buf);
     try writeSeverityRuleTag(
@@ -883,22 +875,6 @@ test "severity rule tag matches minimal diagnostic prefix" {
         .none,
     );
     try std.testing.expectEqualStrings("warning[missing_doc_comment]", writer.buffered());
-}
-
-test "severity rule tag uses cyan styling when color is enabled" {
-    var buf: [128]u8 = undefined;
-    var writer = std.Io.Writer.fixed(&buf);
-    try writeSeverityRuleTag(
-        &writer,
-        .warn,
-        "missing_doc_comment",
-        .ansi16,
-    );
-    try std.testing.expect(std.mem.indexOf(
-        u8,
-        writer.buffered(),
-        "\x1b[36m",
-    ) != null);
 }
 
 test "minimal formatter groups diagnostics by display path" {
@@ -1010,7 +986,7 @@ test "pretty formatter renders rustc-style block" {
     try std.testing.expect(std.mem.startsWith(
         u8,
         out.items,
-        "warning[missing_doc_comment]\n",
+        "Warning: Missing doc comment on function 'main'.\n",
     ));
     try std.testing.expect(std.mem.indexOf(
         u8,
@@ -1110,25 +1086,11 @@ test "writeDiagnostics separates pretty blocks with blank line" {
     );
     out = writer.toArrayList();
 
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "warning[") == null);
     try std.testing.expect(std.mem.indexOf(
         u8,
         out.items,
-        "warning[blank_doc_comment]\n",
-    ) != null);
-    try std.testing.expect(std.mem.indexOf(
-        u8,
-        out.items,
-        "warning[missing_doc_comment]\n",
-    ) != null);
-    try std.testing.expect(std.mem.indexOf(
-        u8,
-        out.items,
-        "warning[blank_doc_comment]\n",
-    ) != null);
-    try std.testing.expect(std.mem.indexOf(
-        u8,
-        out.items,
-        "\n\nwarning[missing_doc_comment]\n",
+        "\n\nWarning: Missing doc comment on field 'offset'.\n",
     ) != null);
 }
 
