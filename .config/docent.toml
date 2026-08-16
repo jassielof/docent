@@ -1,4 +1,7 @@
-#:schema ../schemas/docent.schema.json
+#:schema ../zig-out/schema/docent.schema.json
+
+[check]
+include = ["lib/"]
 
 [fmt]
 include = ["lib/", "internal/", "cmd/"]
@@ -9,6 +12,7 @@ trailing_comma = true
 sort_doctests = true
 
 [doc]
+scan_mode = "public"
 invalid_leading_phrase = "allow"
 missing_summary_terminal_punctuation = "allow"
 

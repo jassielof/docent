@@ -1,4 +1,4 @@
-#:schema ../schemas/docent.schema.json
+#:schema ../zig-out/schema/docent.schema.json
 
 # Filesystem scan (fmt): include/exclude apply to recursive directory walks,
 # including orphan .zig files. Check/typeset use build.zig module roots instead.

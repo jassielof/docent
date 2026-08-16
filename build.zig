@@ -306,6 +306,15 @@ pub fn build(b: *std.Build) void {
     const run_integration_tests = b.addRunArtifact(integration_tests);
     test_step.dependOn(&run_integration_tests.step);
 
+    const schema_step = b.step("schema", "Generate JSON schema from YAML");
+    const yq_cli = b.addSystemCommand(&.{"yq"});
+    yq_cli.addArgs(&.{"--output-format", "json"});
+    yq_cli.addFileArg(b.path("schemas/docent.schema.yaml"));
+    const schema_json = yq_cli.captureStdOut(.{});
+    const install_schema = b.addInstallFile(schema_json, "schema/docent.schema.json");
+    schema_step.dependOn(&install_schema.step);
+    b.getInstallStep().dependOn(schema_step);
+
     const check_step = b.step("check", "Run code quality checks");
 
     const fmt = b.addFmt(.{
@@ -315,7 +324,6 @@ pub fn build(b: *std.Build) void {
             "lib/",
             "internal/",
         },
-        .exclude_paths = &.{"lib/fmt/fixtures/"},
     });
     check_step.dependOn(&fmt.step);
 
