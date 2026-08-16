@@ -9,8 +9,8 @@
 const std = @import("std");
 
 pub const build_scan = @import("build_scan.zig");
-pub const target = @import("target.zig");
 pub const reach = @import("reach.zig");
+pub const target = @import("target.zig");
 
 comptime {
     std.testing.refAllDecls(@This());

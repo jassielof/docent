@@ -2,7 +2,6 @@ const std = @import("std");
 
 const fangz = @import("fangz");
 const rules = @import("rules");
-
 const RuleSeverities = rules.RuleSeverities;
 const SeverityLevel = rules.SeverityLevel;
 

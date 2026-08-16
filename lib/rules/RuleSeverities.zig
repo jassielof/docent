@@ -3,11 +3,12 @@
 //! Defaults are sourced from each rule module's `default_severity`. Project config overrides
 //! the returned value. Each rule module also exports `prose_title` for diagnostic messages.
 const lint = @import("lint");
-const doc = @import("doc.zig");
-const style = @import("style.zig");
-const complexity = @import("complexity.zig");
-const size = @import("size.zig");
 const severity = lint.severity;
+
+const complexity = @import("complexity.zig");
+const doc = @import("doc.zig");
+const size = @import("size.zig");
+const style = @import("style.zig");
 
 missing_doc_comment: severity.Level = doc.missing_doc_comment.default_severity,
 missing_doctest: severity.Level = doc.missing_doctest.default_severity,

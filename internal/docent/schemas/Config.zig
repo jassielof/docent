@@ -6,23 +6,22 @@ const std = @import("std");
 
 const fmt_mod = @import("fmt");
 const naming_case = @import("identifier_style");
-const toml = @import("toml");
-
 const rules = @import("rules");
-
 const complexity_rules = rules.complexity;
 pub const Complexity = complexity_rules.Complexity;
-const rule_decode = @import("../rules/decode.zig");
-pub const Error = rule_decode.Error;
 const doc_rules = rules.doc;
 pub const Doc = doc_rules.Doc;
+const RuleSeverities = rules.RuleSeverities;
+const scan = rules.scan;
+const severity = rules.severity;
 const size_rules = rules.size;
 pub const Size = size_rules.Size;
 const style_rules = rules.style;
 pub const Style = style_rules.Style;
-const RuleSeverities = rules.RuleSeverities;
-const scan = rules.scan;
-const severity = rules.severity;
+const toml = @import("toml");
+
+const rule_decode = @import("../rules/decode.zig");
+pub const Error = rule_decode.Error;
 const target_select = @import("target_select.zig");
 pub const Check = target_select.Check;
 pub const Typeset = target_select.Typeset;

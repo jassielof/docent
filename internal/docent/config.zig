@@ -6,6 +6,7 @@ const rules_mod = @import("rules");
 const rules = rules_mod;
 const RuleSeverities = rules_mod.RuleSeverities;
 const scan = rules_mod.scan;
+
 const Config = @import("schemas/Config.zig");
 
 /// Default config path relative to the project root.

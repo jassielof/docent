@@ -4,16 +4,15 @@ const std = @import("std");
 
 const carnaval = @import("carnaval");
 const fangz = @import("fangz");
-
 const rules = @import("rules");
+const Diagnostic = rules.Diagnostic;
+const RuleSeverities = rules.RuleSeverities;
+const SeverityLevel = rules.SeverityLevel;
 
 const config = @import("config.zig");
-const Diagnostic = rules.Diagnostic;
 const manifest = @import("manifest.zig");
 const output = @import("output.zig");
-const RuleSeverities = rules.RuleSeverities;
 const Config = @import("schemas/Config.zig");
-const SeverityLevel = rules.SeverityLevel;
 const status_plan = @import("status_plan.zig");
 const cli_types = @import("types.zig");
 

@@ -6,10 +6,10 @@ const builtin = @import("builtin");
 
 const carnaval = @import("carnaval");
 const rules = @import("rules");
-
 const Diagnostic = rules.Diagnostic;
-const diagnostic_message = @import("diagnostic_message.zig");
 const severity = rules.severity;
+
+const diagnostic_message = @import("diagnostic_message.zig");
 
 /// Text layout for a single diagnostic line.
 pub const TextFormat = enum {
@@ -144,7 +144,11 @@ pub fn writeDiagnostic(
             color_profile,
             options.path_display_root,
         ),
-        .minimal => try writeMinimalDiagnostics(writer, &.{diagnostic}, options),
+        .minimal => try writeMinimalDiagnostics(
+            writer,
+            &.{diagnostic},
+            options,
+        ),
     }
 }
 
@@ -155,7 +159,11 @@ pub fn writeDiagnostics(
     options: TextOptions,
 ) !void {
     if (options.format == .minimal) {
-        return writeMinimalDiagnostics(writer, diagnostics, options);
+        return writeMinimalDiagnostics(
+            writer,
+            diagnostics,
+            options,
+        );
     }
 
     var index: usize = 0;
@@ -246,7 +254,11 @@ pub fn writeSummaryWithPrefix(
     const warning_summary = try std.fmt.bufPrint(
         &warning_summary_buf,
         "{d} {s}",
-        .{ summary.warnings, countNoun(summary.warnings, "warning", "warnings") },
+        .{ summary.warnings, countNoun(
+            summary.warnings,
+            "warning",
+            "warnings",
+        ) },
     );
     try writer.writeAll(" generated ");
     try style.warning_style.renderWithProfile(
@@ -482,10 +494,19 @@ fn writePrettyDiagnostic(
         diagnostic.line,
         diagnostic.column,
     });
-    try style.location_style.renderWithProfile(location, writer, color_profile);
+    try style.location_style.renderWithProfile(
+        location,
+        writer,
+        color_profile,
+    );
     try writer.writeAll("\n");
 
-    try writeGutterPipe(writer, gutter, style, color_profile);
+    try writeGutterPipe(
+        writer,
+        gutter,
+        style,
+        color_profile,
+    );
     try writer.writeAll("\n");
 
     if (diagnostic.source_line.len > 0) {
@@ -512,7 +533,11 @@ fn writeMinimalDiagnostics(
     diagnostics: []const Diagnostic,
     options: TextOptions,
 ) !void {
-    const color_profile = resolveProfile(options.color, options.tty_config, options.color_profile);
+    const color_profile = resolveProfile(
+        options.color,
+        options.tty_config,
+        options.color_profile,
+    );
     const style = resolveStyle();
 
     var first_group = true;
@@ -543,7 +568,11 @@ fn writeMinimalDiagnostics(
                 &next_path_bufs[0],
                 &next_path_bufs[1],
             );
-            if (!std.mem.eql(u8, file_shown, next_file)) break;
+            if (!std.mem.eql(
+                u8,
+                file_shown,
+                next_file,
+            )) break;
 
             line_width = @max(line_width, lineNumberWidth(diagnostic.line));
             column_width = @max(column_width, lineNumberWidth(diagnostic.column));
@@ -555,14 +584,23 @@ fn writeMinimalDiagnostics(
 
         for (diagnostics[index..end]) |diagnostic| {
             if (diagnostic.severity_level == .allow) continue;
-            try writer.print("  {[0]d: >[1]}:{[2]d: <[3]}  ", .{ diagnostic.line, line_width, diagnostic.column, column_width });
+            try writer.print("  {[0]d: >[1]}:{[2]d: <[3]}  ", .{
+                diagnostic.line,
+                line_width,
+                diagnostic.column,
+                column_width,
+            });
             try severityLevelStyle(style, diagnostic.severity_level).renderWithProfile(
                 severityDisplayTag(diagnostic.severity_level),
                 writer,
                 color_profile,
             );
             try writer.writeAll("  ");
-            try style.rule_style.renderWithProfile(diagnostic.rule, writer, color_profile);
+            try style.rule_style.renderWithProfile(
+                diagnostic.rule,
+                writer,
+                color_profile,
+            );
             try writer.writeAll("\n");
         }
 
@@ -587,7 +625,11 @@ fn writeProseLine(
         return;
     };
 
-    const severity_end = (std.mem.indexOfScalar(u8, prose, ':') orelse 0) + 1;
+    const severity_end = (std.mem.indexOfScalar(
+        u8,
+        prose,
+        ':',
+    ) orelse 0) + 1;
     try severityLevelStyle(style, diagnostic.severity_level).renderWithProfile(
         prose[0..severity_end],
         writer,
@@ -658,7 +700,11 @@ fn writeGutterPipe(
     while (i < gutter + 1) : (i += 1) {
         try writer.writeByte(' ');
     }
-    try style.location_style.renderWithProfile("|", writer, color_profile);
+    try style.location_style.renderWithProfile(
+        "|",
+        writer,
+        color_profile,
+    );
 }
 
 fn writeSourceRow(
@@ -676,8 +722,16 @@ fn writeSourceRow(
         try writer.writeByte(' ');
     }
     var location_buf: [64]u8 = undefined;
-    const location = try std.fmt.bufPrint(&location_buf, "{d} | ", .{line});
-    try style.location_style.renderWithProfile(location, writer, color_profile);
+    const location = try std.fmt.bufPrint(
+        &location_buf,
+        "{d} | ",
+        .{line},
+    );
+    try style.location_style.renderWithProfile(
+        location,
+        writer,
+        color_profile,
+    );
     try writer.print("{s}\n", .{source_line});
 }
 
@@ -688,7 +742,12 @@ fn writeCaretRow(
     style: Style,
     color_profile: carnaval.ColorProfile,
 ) !void {
-    try writeGutterPipe(writer, gutter, style, color_profile);
+    try writeGutterPipe(
+        writer,
+        gutter,
+        style,
+        color_profile,
+    );
     try writer.writeAll(" ");
 
     const col0 = if (diagnostic.column > 0) diagnostic.column - 1 else 0;
@@ -1127,8 +1186,16 @@ test "warning-only summary uses warning styling for its count and label" {
         .tool_name = "docent check cogni",
     });
 
-    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "\x1b[33m") != null);
-    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "2 warnings") != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        writer.buffered(),
+        "\x1b[33m",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        writer.buffered(),
+        "2 warnings",
+    ) != null);
 }
 
 test "json formatter uses prose message" {

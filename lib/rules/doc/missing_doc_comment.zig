@@ -13,18 +13,18 @@
 //!   - Fields are checked when `check_fields` is enabled.
 //! - [Errors](https://ziglang.org/documentation/0.16.0/#Errors).
 //!   - Individual errors inside a set (or merged set) are checked when `check_errors` is enabled.
-const lint = @import("lint");
 const std = @import("std");
 const Ast = std.zig.Ast;
 
 const doc_comment = @import("doc_comment");
-const vereda = @import("vereda");
-
+const lint = @import("lint");
+const category = lint.category;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
-const alias = @import("../scan/alias.zig");
 const severity = lint.severity;
-const category = lint.category;
+const vereda = @import("vereda");
+
+const alias = @import("../scan/alias.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {

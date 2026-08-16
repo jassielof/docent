@@ -41,18 +41,18 @@
 //!
 //! It's worth noting it because it centers on 3 pillars: _Safety_, _Performance_, and _Experience_.
 
-const lint = @import("lint");
 const std = @import("std");
 const Ast = std.zig.Ast;
 
 const doc_comment = @import("doc_comment");
 const naming_case = @import("identifier_style");
-const vereda = @import("vereda");
-
+const lint = @import("lint");
+const category = lint.category;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
-const category = lint.category;
+const vereda = @import("vereda");
+
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -970,7 +970,11 @@ fn isThisCall(tree: *const Ast, node: Ast.Node.Index) bool {
 
     const builtin_tok = tree.nodeMainToken(node);
     if (tree.tokenTag(builtin_tok) != .builtin) return false;
-    if (!std.mem.eql(u8, tree.tokenSlice(builtin_tok), "@This")) return false;
+    if (!std.mem.eql(
+        u8,
+        tree.tokenSlice(builtin_tok),
+        "@This",
+    )) return false;
 
     const args = tree.nodeData(node).opt_node_and_opt_node;
     return args[0].unwrap() == null;

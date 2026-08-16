@@ -1,8 +1,8 @@
 //! Aggregated diagnostics produced by linting one or more source files.
 
-const lint = @import("lint");
 const std = @import("std");
 
+const lint = @import("lint");
 const Diagnostic = lint.Diagnostic;
 const severity = lint.severity;
 

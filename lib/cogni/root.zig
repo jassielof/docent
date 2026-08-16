@@ -15,10 +15,10 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 
 const lint = @import("lint");
+const category = lint.category;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
-const category = lint.category;
 
 const rule_name = "cognitive_complexity";
 
@@ -660,13 +660,25 @@ fn isContainerDecl(tag: Ast.Node.Tag) bool {
     };
 }
 
-fn ownedSubject(allocator: std.mem.Allocator, kind: Diagnostic.SubjectKind, name: []const u8) !Diagnostic.Subject {
+fn ownedSubject(
+    allocator: std.mem.Allocator,
+    kind: Diagnostic.SubjectKind,
+    name: []const u8,
+) !Diagnostic.Subject {
     return .{ .kind = kind, .name = try allocator.dupe(u8, name) };
 }
 
-fn dupSourceLine(tree: *const Ast, token: Ast.TokenIndex, allocator: std.mem.Allocator) ![]const u8 {
+fn dupSourceLine(
+    tree: *const Ast,
+    token: Ast.TokenIndex,
+    allocator: std.mem.Allocator,
+) ![]const u8 {
     const loc = tree.tokenLocation(0, token);
     var end = loc.line_start;
     while (end < tree.source.len and tree.source[end] != '\n') end += 1;
-    return allocator.dupe(u8, std.mem.trimEnd(u8, tree.source[loc.line_start..end], "\r"));
+    return allocator.dupe(u8, std.mem.trimEnd(
+        u8,
+        tree.source[loc.line_start..end],
+        "\r",
+    ));
 }

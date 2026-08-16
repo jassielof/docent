@@ -27,9 +27,8 @@
 //! `reachability_traversal`. Both stay on the module-API graph.
 
 const lint = @import("lint");
-
+pub const RuleScanConfig = lint.scan.RuleScanConfig;
 pub const ScanMode = lint.scan.ScanMode;
 pub const Visibility = lint.scan.Visibility;
-pub const RuleScanConfig = lint.scan.RuleScanConfig;
 
 pub const alias = @import("scan/alias.zig");

@@ -14,11 +14,10 @@
 
 const std = @import("std");
 
-const toml = @import("toml");
 const rules = @import("rules");
-
 const scan = rules.scan;
 const severity = rules.severity;
+const toml = @import("toml");
 
 /// Decode errors surfaced to config loaders and `formatError`.
 pub const Error = error{

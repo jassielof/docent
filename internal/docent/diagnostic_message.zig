@@ -2,6 +2,7 @@
 const std = @import("std");
 
 const Diagnostic = @import("rules").Diagnostic;
+
 const rule_metadata = @import("rule_metadata.zig");
 
 /// Renders `Warning: Missing doc comment on field 'offset'.` into `buf`. Returns the written slice.
@@ -22,7 +23,11 @@ pub fn writeProse(writer: *std.Io.Writer, diagnostic: Diagnostic) !void {
     try writer.print("{s}: {s}", .{ severity_label, rule_title });
 
     if (diagnostic.subject) |subject| {
-        const subject_label = if (std.mem.eql(u8, diagnostic.rule, "missing_doc_comment") and subject.kind == .namespace) "source file" else subject.kind.label();
+        const subject_label = if (std.mem.eql(
+            u8,
+            diagnostic.rule,
+            "missing_doc_comment",
+        ) and subject.kind == .namespace) "source file" else subject.kind.label();
         if (subject.name.len > 0) {
             try writer.print(" on {s} '{s}'", .{ subject_label, subject.name });
         } else {

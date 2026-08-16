@@ -1,14 +1,15 @@
 //! The `redundant_doc_comment` namespace checks for redundant doc comments on re-exports/aliases.
 
-const lint = @import("lint");
 const std = @import("std");
 const Ast = std.zig.Ast;
 
+const lint = @import("lint");
+const category = lint.category;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
-const alias = @import("../scan/alias.zig");
 const severity = lint.severity;
-const category = lint.category;
+
+const alias = @import("../scan/alias.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {

@@ -4,14 +4,15 @@
 //!
 //! See: <https://ziglang.org/documentation/0.16.0/#Doctests>.
 
-const lint = @import("lint");
 const std = @import("std");
 const Ast = std.zig.Ast;
 
+const lint = @import("lint");
+const category = lint.category;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
-const category = lint.category;
+
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {

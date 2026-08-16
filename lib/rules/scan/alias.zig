@@ -506,7 +506,11 @@ fn isImportRootedAlias(tree: *const Ast, alias: []const u8) bool {
     for (tree.rootDecls()) |decl| {
         const vd = tree.fullVarDecl(decl) orelse continue;
         const name_tok = vd.ast.mut_token + 1;
-        if (!std.mem.eql(u8, tree.tokenSlice(name_tok), alias)) continue;
+        if (!std.mem.eql(
+            u8,
+            tree.tokenSlice(name_tok),
+            alias,
+        )) continue;
 
         const init_node = vd.ast.init_node.unwrap() orelse return false;
         if (getImportPath(tree, init_node) != null) return true;

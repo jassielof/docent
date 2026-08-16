@@ -4,14 +4,15 @@
 //!
 //! A function is flagged when its parameter count is *strictly greater* than the threshold. It is reported by `docent check size`. Like other size checks, it measures *every* function in the import-closure reachable from the module roots.
 
-const lint = @import("lint");
 const std = @import("std");
 const Ast = std.zig.Ast;
 
+const lint = @import("lint");
+const category = lint.category;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
-const category = lint.category;
+
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {

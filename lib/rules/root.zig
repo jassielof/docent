@@ -22,20 +22,20 @@
 //!
 //! For examples, check the test suite.
 
-const lint = @import("lint");
 const std = @import("std");
 
+const lint = @import("lint");
+pub const category = lint.category;
 pub const Diagnostic = lint.Diagnostic;
 pub const severity = lint.severity;
 pub const SeverityLevel = severity.Level;
-pub const scan = @import("scan.zig");
-pub const category = lint.category;
-pub const LintResult = @import("LintResult.zig");
-pub const LintOptions = @import("LintOptions.zig");
-pub const RuleSeverities = @import("RuleSeverities.zig");
 
 pub const complexity = @import("complexity.zig");
 pub const doc = @import("doc.zig");
+pub const LintOptions = @import("LintOptions.zig");
+pub const LintResult = @import("LintResult.zig");
+pub const RuleSeverities = @import("RuleSeverities.zig");
+pub const scan = @import("scan.zig");
 pub const size = @import("size.zig");
 pub const style = @import("style.zig");
 

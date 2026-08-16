@@ -3,31 +3,30 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
 
+const project_scan_mod = @import("project_scan");
+pub const build_scan = project_scan_mod.build_scan;
+const rules_mod = @import("rules");
+// TODO: These re-exports that re-export the modules from the 'rules' module shouldn't happen, they should be consumed directly from the 'rules' module.
+pub const Diagnostic = rules_mod.Diagnostic;
+pub const LintOptions = rules_mod.LintOptions;
+pub const LintResult = rules_mod.LintResult;
+pub const rules = rules_mod;
+pub const RuleSeverities = rules_mod.RuleSeverities;
 const vereda = @import("vereda");
 
 const suppressions = @import("suppressions.zig");
 pub const Suppressions = suppressions.Table;
 
-
-const rules_mod = @import("rules");
-const project_scan_mod = @import("project_scan");
-
 pub const check_shared = @import("check_shared.zig");
 pub const config = @import("config.zig");
-// TODO: These re-exports that re-export the modules from the 'rules' module shouldn't happen, they should be consumed directly from the 'rules' module. 
-pub const Diagnostic = rules_mod.Diagnostic;
 pub const flags = @import("flags.zig");
-pub const LintOptions = rules_mod.LintOptions;
-pub const LintResult = rules_mod.LintResult;
 pub const manifest = @import("manifest.zig");
 pub const output = @import("output.zig");
 pub const rule_config = @import("rule_config.zig");
 pub const rule_metadata = @import("rule_metadata.zig");
-pub const rules = rules_mod;
-pub const RuleSeverities = rules_mod.RuleSeverities;
 pub const scaffold = @import("scaffold.zig");
 pub const addLintStep = scaffold.addLintStep;
-pub const build_scan = project_scan_mod.build_scan;
+
 pub const scan = struct {
     pub const RuleScanConfig = rules_mod.scan.RuleScanConfig;
     pub const ScanMode = rules_mod.scan.ScanMode;
