@@ -81,14 +81,14 @@ test "member-only re-export does not require module doc on imported file" {
     try utils.expectRuleAbsent(result, "blank_doc_comment");
 }
 
-test "redundant_doc_comment flags redundant doc comments on whole-module and member re-exports" {
+test "misplaced_doc_comment flags doc comments on whole-module and member re-exports" {
     const path = try harness.scenarioProjectRootPath("reexport_redundant_doc_comments");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .redundant_doc_comment = .warn }));
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .misplaced_doc_comment = .warn }));
     defer result.deinit();
 
-    try utils.expectRuleCount(result, "redundant_doc_comment", 2);
+    try utils.expectRuleCount(result, "misplaced_doc_comment", 2);
 
     try testing.expectEqual(@as(usize, 3), result.diagnostics.items[0].line);
     try testing.expectEqualStrings("helpers", result.diagnostics.items[0].subject.?.name);
@@ -97,12 +97,12 @@ test "redundant_doc_comment flags redundant doc comments on whole-module and mem
     try testing.expectEqualStrings("greet", result.diagnostics.items[1].subject.?.name);
 }
 
-test "redundant_doc_comment does not flag non-redundant doc comments" {
+test "misplaced_doc_comment flags doc comments even when the imported declaration is undocumented" {
     const path = try harness.scenarioProjectRootPath("reexport_non_redundant_doc_comments");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .redundant_doc_comment = .warn }));
+    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .misplaced_doc_comment = .warn }));
     defer result.deinit();
 
-    try utils.expectRuleAbsent(result, "redundant_doc_comment");
+    try utils.expectRuleCount(result, "misplaced_doc_comment", 3);
 }

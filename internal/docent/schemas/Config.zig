@@ -132,7 +132,7 @@ fn applyDocSeverities(section: Doc, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.private_doctest, section.private_doctest.level);
     try applyLevel(&rule_set.doctest_naming_mismatch, section.doctest_naming_mismatch.level);
     try applyLevel(&rule_set.invalid_leading_phrase, section.invalid_leading_phrase.level);
-    try applyLevel(&rule_set.redundant_doc_comment, section.redundant_doc_comment.level);
+    try applyLevel(&rule_set.misplaced_doc_comment, section.misplaced_doc_comment.level);
 }
 
 fn applyComplexitySeverities(section: Complexity, rule_set: *RuleSeverities) Error!void {

@@ -291,7 +291,7 @@ pub const RuleCategory = enum {
             "trailing_blank_doc_comment",
             "doctest_naming_mismatch",
             "invalid_leading_phrase",
-            "redundant_doc_comment",
+            "misplaced_doc_comment",
         };
         for (doc_rules) |name| {
             if (std.mem.eql(

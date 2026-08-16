@@ -124,20 +124,22 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         allocator.free(library_entry_roots_owned);
     };
 
-    var doc_opts = doc_options;
+    const doc_opts = doc_options;
     var style_opts = style_options;
     var complexity_opts = complexity_options;
     var size_opts = size_options;
     if (plan.path_mode == .recursive) {
-        doc_opts.applyRunScanMode(.reachability_traversal);
         style_opts.applyRunScanMode(.reachability_traversal);
         complexity_opts.applyRunScanMode(.reachability_traversal);
         size_opts.applyRunScanMode(.reachability_traversal);
     }
 
     const doc_lint_options: docent.LintOptions = switch (plan.path_mode) {
-        .project, .module_root => .{ .module_name = plan.package.name },
-        .recursive => .{},
+        .project, .module_root => .{
+            .scan_mode = doc_opts.scan_mode,
+            .module_name = plan.package.name,
+        },
+        .recursive => .{ .scan_mode = doc_opts.scan_mode },
     };
 
     var linted_files = std.StringHashMap(void).init(allocator);

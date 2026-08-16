@@ -49,9 +49,9 @@ properties:
       invalid_leading_phrase:
         $ref: "#/definitions/rule_invalid_leading_phrase"
         description: "Doc comment summaries should begin with a phrase naming the documented identifier."
-      redundant_doc_comment:
+      misplaced_doc_comment:
         $ref: "#/definitions/rule_simple"
-        description: "Re-exports should not carry doc comments if the target is already documented."
+        description: "Imports and re-exports should not carry doc comments; document the declaration in its defining module."
 
   style:
     type: "object"
@@ -311,7 +311,7 @@ definitions:
       - private_doctest
       - doctest_naming_mismatch
       - invalid_leading_phrase
-      - redundant_doc_comment
+      - misplaced_doc_comment
       - identifier_case
       - line_length_limit
       - cognitive_complexity

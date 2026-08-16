@@ -227,13 +227,12 @@ pub fn lintSource(
         msg,
         &result.diagnostics,
     );
-    try rules.doc.redundant_doc_comment.check(
+    try rules.doc.misplaced_doc_comment.check(
         &tree,
-        doc_cfg.redundant_doc_comment,
+        doc_cfg.misplaced_doc_comment,
         file_owned,
         options.module_name,
         allocator,
-        io,
         msg,
         &result.diagnostics,
     );

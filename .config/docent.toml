@@ -16,6 +16,7 @@ sort_doctests = true
 scan_mode = "public"
 invalid_leading_phrase = "allow"
 missing_summary_terminal_punctuation = "allow"
+misplaced_doc_comment = "warn"
 
 [doc.missing_doc_comment]
 level = "warn"

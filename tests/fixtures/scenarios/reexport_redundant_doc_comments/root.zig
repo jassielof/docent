@@ -1,7 +1,7 @@
 //! Test re-export with redundant doc comments.
 
-/// Redundant doc comment for whole-module
+/// Misplaced doc comment for whole-module import
 pub const helpers = @import("helpers.zig");
 
-/// Redundant doc comment for member
+/// Misplaced doc comment for member re-export
 pub const greet = helpers.greet;

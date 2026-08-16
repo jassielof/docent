@@ -54,8 +54,8 @@ fn proseTitleForRule(comptime rule_name: []const u8) []const u8 {
     if (std.mem.eql(
         u8,
         rule_name,
-        "redundant_doc_comment",
-    )) return rules.doc.redundant_doc_comment.prose_title;
+        "misplaced_doc_comment",
+    )) return rules.doc.misplaced_doc_comment.prose_title;
     if (std.mem.eql(
         u8,
         rule_name,

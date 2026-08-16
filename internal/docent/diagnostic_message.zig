@@ -96,6 +96,24 @@ test "prose with detail" {
     );
 }
 
+test "prose explains misplaced doc comments" {
+    var buf: [256]u8 = undefined;
+    const msg = try formatProse(.{
+        .rule = "misplaced_doc_comment",
+        .severity_level = .warn,
+        .message = "",
+        .subject = .{ .kind = .constant, .name = "helpers" },
+        .detail = "move it to the declaration in the imported module",
+        .file = "x.zig",
+        .line = 1,
+        .column = 1,
+    }, &buf);
+    try std.testing.expectEqualStrings(
+        "Warning: Misplaced doc comment on constant 'helpers' (move it to the declaration in the imported module).",
+        msg,
+    );
+}
+
 test "missing doc comment describes a namespace as a source file" {
     var buf: [128]u8 = undefined;
     const msg = try formatProse(.{

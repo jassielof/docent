@@ -102,7 +102,7 @@ fn applyDocSeverities(cfg: *docent.rules.doc.Doc, rule_set: docent.RuleSeveritie
     cfg.private_doctest.level = rule_set.private_doctest;
     cfg.doctest_naming_mismatch.level = rule_set.doctest_naming_mismatch;
     cfg.invalid_leading_phrase.level = rule_set.invalid_leading_phrase;
-    cfg.redundant_doc_comment.level = rule_set.redundant_doc_comment;
+    cfg.misplaced_doc_comment.level = rule_set.misplaced_doc_comment;
 }
 
 /// Returns a `RuleSeverities` with every doc rule at `.allow` except one set to `level`.
@@ -116,7 +116,7 @@ pub fn isolatedDocRule(comptime rule: []const u8, level: docent.SeverityLevel) d
         .trailing_blank_doc_comment = .allow,
         .doctest_naming_mismatch = .allow,
         .invalid_leading_phrase = .allow,
-        .redundant_doc_comment = .allow,
+        .misplaced_doc_comment = .allow,
     };
     @field(rs, rule) = level;
     return rs;

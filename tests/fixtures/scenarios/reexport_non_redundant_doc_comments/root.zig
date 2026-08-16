@@ -1,7 +1,10 @@
-//! Test re-export with non-redundant doc comments.
+//! Test re-export with doc comments on undocumented imported declarations.
 
-/// No target container doc comment, so this is NOT redundant
+/// This belongs in helpers.zig.
+const local_helpers = @import("helpers.zig");
+
+/// This belongs in helpers.zig.
 pub const helpers = @import("helpers.zig");
 
-/// Target is undocumented, so this is NOT redundant
+/// This belongs on greet in helpers.zig.
 pub const greet = helpers.greet;

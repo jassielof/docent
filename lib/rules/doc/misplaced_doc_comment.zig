@@ -1,4 +1,4 @@
-//! The `redundant_doc_comment` namespace checks for redundant doc comments on re-exports/aliases.
+//! The `misplaced_doc_comment` namespace checks for doc comments on imports and re-exports.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -22,23 +22,22 @@ const rule_name = utils.ruleIdFromSrc(srcLoc());
 pub const default_severity: severity.Level = .warn;
 
 /// Title for diagnostic prose (`Warning: {prose_title} on …`).
-pub const prose_title = "Redundant doc comment";
+pub const prose_title = "Misplaced doc comment";
 
-/// Full configuration for `redundant_doc_comment`: severity and scan mode, with no rule-specific options.
+/// Full configuration for `misplaced_doc_comment`: severity and scan mode, with no rule-specific options.
 pub const Rule = category.Rule(
     default_severity,
     struct {},
-    scan.RuleScanConfig.public_api_surface,
+    scan.RuleScanConfig.reachability_traversal,
 );
 
-/// Walks `tree` and appends diagnostics for redundant doc comments on re-exports.
+/// Walks `tree` and appends diagnostics for doc comments on imports and re-exports.
 pub fn check(
     tree: *const Ast,
     rule: Rule,
     file: []const u8,
     module_name: ?[]const u8,
     allocator: std.mem.Allocator,
-    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
@@ -55,7 +54,6 @@ pub fn check(
             file,
             public_api_only,
             allocator,
-            io,
             msg_allocator,
             diagnostics,
         );
@@ -69,7 +67,6 @@ fn checkNode(
     file: []const u8,
     public_api_only: bool,
     allocator: std.mem.Allocator,
-    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
@@ -85,41 +82,34 @@ fn checkNode(
             hasDocComment(tree, first_tok))
         {
             const init_node = var_decl.ast.init_node.unwrap() orelse return;
-            if (alias.getInfo(tree, init_node)) |info| {
+            if (alias.getInfo(tree, init_node) != null or alias.isModuleMemberReexport(tree, init_node)) {
                 const name_tok = var_decl.ast.mut_token + 1;
                 const name = tree.tokenSlice(name_tok);
-                if (try alias.isTargetDocumented(
-                    info,
-                    name,
-                    file,
-                    allocator,
-                    io,
-                )) {
-                    // Report redundant doc comment pointing to the first doc comment token
-                    var doc_tok = first_tok - 1;
-                    while (doc_tok > 0 and tree.tokenTag(doc_tok - 1) == .doc_comment) : (doc_tok -= 1) {}
+                // Point to the leading doc block rather than the imported binding.
+                var doc_tok = first_tok - 1;
+                while (doc_tok > 0 and tree.tokenTag(doc_tok - 1) == .doc_comment) : (doc_tok -= 1) {}
 
-                    const loc = tree.tokenLocation(0, doc_tok);
-                    const slice = tree.tokenSlice(doc_tok);
-                    try diagnostics.append(allocator, .{
-                        .rule = rule_name,
-                        .severity_level = severity_level,
-                        .subject = try utils.ownedSubject(
-                            msg_allocator,
-                            pubVarDeclSubjectKind(tree, var_decl),
-                            name,
-                        ),
-                        .file = file,
-                        .line = loc.line + 1,
-                        .column = loc.column + 1,
-                        .source_line = try utils.dupSourceLine(
-                            tree,
-                            doc_tok,
-                            msg_allocator,
-                        ),
-                        .symbol_len = slice.len,
-                    });
-                }
+                const loc = tree.tokenLocation(0, doc_tok);
+                const slice = tree.tokenSlice(doc_tok);
+                try diagnostics.append(allocator, .{
+                    .rule = rule_name,
+                    .severity_level = severity_level,
+                    .subject = try utils.ownedSubject(
+                        msg_allocator,
+                        pubVarDeclSubjectKind(tree, var_decl),
+                        name,
+                    ),
+                    .detail = "move it to the declaration in the imported module",
+                    .file = file,
+                    .line = loc.line + 1,
+                    .column = loc.column + 1,
+                    .source_line = try utils.dupSourceLine(
+                        tree,
+                        doc_tok,
+                        msg_allocator,
+                    ),
+                    .symbol_len = slice.len,
+                });
             }
         }
 
@@ -130,7 +120,6 @@ fn checkNode(
             file,
             public_api_only,
             allocator,
-            io,
             msg_allocator,
             diagnostics,
         );
@@ -148,7 +137,6 @@ fn checkNode(
                     file,
                     public_api_only,
                     allocator,
-                    io,
                     msg_allocator,
                     diagnostics,
                 );
@@ -165,7 +153,6 @@ fn checkVarDeclInit(
     file: []const u8,
     public_api_only: bool,
     allocator: std.mem.Allocator,
-    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
@@ -187,7 +174,6 @@ fn checkVarDeclInit(
                     file,
                     public_api_only,
                     allocator,
-                    io,
                     msg_allocator,
                     diagnostics,
                 );
