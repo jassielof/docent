@@ -412,7 +412,7 @@ fn printCategoryHeading(
     profile: carnaval.ColorProfile,
     title: []const u8,
 ) !void {
-    try carnaval.Style.init().bolded().renderWithProfile(
+    try carnaval.Style.init().italicized().renderWithProfile(
         title,
         writer,
         profile,
@@ -512,6 +512,8 @@ fn printEffectiveRulesCategory(
     try carnaval.renderList(lines.items, w, .{
         .style = .bullet,
         .indent = "  ",
+        .marker_style = .{},
+        .item_style = .{},
         .color_profile = profile,
     });
     any_category.* = true;
@@ -563,6 +565,8 @@ pub fn printCategorizedSummary(
         try carnaval.renderList(lines.items, writer, .{
             .style = .bullet,
             .indent = "  ",
+            .marker_style = .{},
+            .item_style = .{},
             .color_profile = profile,
         });
         try writer.writeAll("\n");

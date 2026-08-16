@@ -433,21 +433,25 @@ pub fn severityDisplayTag(level: severity.Level) []const u8 {
     };
 }
 
-/// Writes a severity and rule identifier for categorized summaries.
+/// Writes a regular-weight severity and rule identifier for categorized lists.
 pub fn writeSeverityRuleTag(
     writer: *std.Io.Writer,
     level: severity.Level,
     rule: []const u8,
     color_profile: carnaval.ColorProfile,
 ) !void {
-    const style = resolveStyle();
-    try severityLevelStyle(style, level).renderWithProfile(
+    const severity_style: carnaval.Style = switch (level) {
+        .allow => carnaval.Style.init().dimmed(),
+        .warn => carnaval.Style.init().fg(.{ .ansi16 = .yellow }),
+        .deny, .forbid => carnaval.Style.init().fg(.{ .ansi16 = .red }),
+    };
+    try severity_style.renderWithProfile(
         severityDisplayTag(level),
         writer,
         color_profile,
     );
     try writer.writeAll("[");
-    try style.rule_style.renderWithProfile(
+    try carnaval.Style.init().fg(.{ .ansi16 = .cyan }).renderWithProfile(
         rule,
         writer,
         color_profile,
