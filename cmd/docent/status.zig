@@ -189,7 +189,13 @@ pub fn printStatusReport(
         try w.print("  manifest:  (none found)\n", .{});
     }
     if (config_path) |cp| {
-        try w.print("  config:    {s}\n", .{cp});
+        const display = try formatDisplayPath(
+            allocator,
+            plan.package.project_root,
+            cp,
+        );
+        defer allocator.free(display);
+        try w.print("  config:    {s}\n", .{display});
     } else {
         try w.print("  config:    (none found; using rule defaults)\n", .{});
     }
