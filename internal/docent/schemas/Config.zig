@@ -318,6 +318,8 @@ test "decode reads nested rule tables and section options" {
         \\[doc.missing_doc_comment]
         \\level = "deny"
         \\check_parameters = true
+        \\check_fields = true
+        \\check_enumerators = true
         \\
         \\[doc]
         \\missing_doctest = "allow"
@@ -332,6 +334,8 @@ test "decode reads nested rule tables and section options" {
     defer cfg.deinit(arena.allocator());
     try std.testing.expectEqual(severity.Level.deny, cfg.doc.missing_doc_comment.level);
     try std.testing.expect(cfg.doc.missing_doc_comment.options.check_parameters);
+    try std.testing.expect(cfg.doc.missing_doc_comment.options.check_fields);
+    try std.testing.expect(cfg.doc.missing_doc_comment.options.check_enumerators);
     try std.testing.expectEqual(severity.Level.allow, cfg.doc.missing_doctest.level);
     try std.testing.expect(std.meta.eql(scan.RuleScanConfig.reachability_traversal, cfg.doc.scan_mode));
     try std.testing.expectEqual(severity.Level.deny, cfg.complexity.cognitive_complexity.level);

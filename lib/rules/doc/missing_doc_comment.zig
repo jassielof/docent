@@ -5,9 +5,12 @@
 //! - [Functions and its parameters](https://ziglang.org/documentation/0.16.0/#Functions).
 //!   - Parameters are allowed to be undocumented by default.
 //! - [Container level variables and constants](https://ziglang.org/documentation/0.16.0/#Container-Level-Variables).
-//! - [Enumerations and enumerators](https://ziglang.org/documentation/0.16.0/#enum).
-//! - [Structures and their fields](https://ziglang.org/documentation/0.16.0/#struct).
-//! - [Unions and their members](https://ziglang.org/documentation/0.16.0/#union).
+//! - [Enumerations](https://ziglang.org/documentation/0.16.0/#enum).
+//!   - Enumerators are checked when `check_enumerators` is enabled.
+//! - [Structures](https://ziglang.org/documentation/0.16.0/#struct).
+//!   - Fields are checked when `check_fields` is enabled.
+//! - [Unions](https://ziglang.org/documentation/0.16.0/#union).
+//!   - Fields are checked when `check_fields` is enabled.
 //! - [Errors](https://ziglang.org/documentation/0.16.0/#Errors).
 //!   - Individual errors inside a set (or merged set) are checked when `check_errors` is enabled.
 const lint = @import("lint");
@@ -40,6 +43,10 @@ pub const prose_title = "Missing doc comment";
 pub const Options = struct {
     /// When set, also require `///` on each named function parameter; default `false` keeps parameters optional.
     check_parameters: bool = false,
+    /// When set, also require docs on struct and union fields; default `false` keeps field documentation optional.
+    check_fields: bool = false,
+    /// When set, also require docs on enumerators; default `false` keeps enumerator documentation optional.
+    check_enumerators: bool = false,
     /// When set, also require docs on individual error-set members; default `true` documents each error.
     check_errors: bool = true,
 };
@@ -55,6 +62,8 @@ pub const Rule = category.Rule(
 ///
 /// When `require_module_doc` is set, also requires a file-level `//!` on module entry roots.
 /// When `options.check_parameters` is set, also requires `///` on each named function parameter.
+/// When `options.check_fields` is set, also requires `///` on struct and union fields.
+/// When `options.check_enumerators` is set, also requires `///` on enum enumerators.
 pub fn check(
     tree: *const Ast,
     rule: Rule,
@@ -316,6 +325,8 @@ fn checkNode(
     }
 
     if (tree.fullContainerField(node)) |field| {
+        if (member_field_kind == .field and !options.check_fields) return;
+        if (member_field_kind == .enumerator and !options.check_enumerators) return;
         if (!hasDocComment(tree, field.firstToken())) {
             const name_tok = field.ast.main_token;
             const name = tree.tokenSlice(name_tok);

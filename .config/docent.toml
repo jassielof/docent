@@ -10,3 +10,10 @@ trailing_comma = true
 
 [doc]
 invalid_leading_phrase = "allow"
+
+[doc.missing_doc_comment]
+level = "warn"
+check_errors = false
+check_parameters = false
+check_fields = false
+check_enumerators = false

@@ -400,6 +400,14 @@ definitions:
             type: "boolean"
             default: false
             description: "Also enforce documentation on function parameters."
+          check_fields:
+            type: "boolean"
+            default: false
+            description: "Also enforce documentation on struct and union fields."
+          check_enumerators:
+            type: "boolean"
+            default: false
+            description: "Also enforce documentation on enum enumerators."
           check_errors:
             type: "boolean"
             default: true
