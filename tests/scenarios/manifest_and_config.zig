@@ -181,3 +181,30 @@ test "status_plan gather with deps includes path dependency files" {
     }
     try std.testing.expect(has_dep_lib);
 }
+
+test "status_plan dependency-only mode ignores configured and manifest package paths" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    const manifest_path = try fixtureManifestPath(allocator, io);
+    defer allocator.free(manifest_path);
+
+    var plan = try docent.status_plan.gather(allocator, io, .{
+        .manifest_path = manifest_path,
+        .deps = true,
+        .dependency_paths_only = true,
+        .positionals = &.{"src"},
+        .inherit_manifest_paths = true,
+    });
+    defer plan.deinit(allocator);
+
+    var has_app = false;
+    var has_dep_lib = false;
+    for (plan.extra_lint_files) |path| {
+        const base = std.fs.path.basename(path);
+        if (std.mem.eql(u8, base, "app.zig")) has_app = true;
+        if (std.mem.eql(u8, base, "lib.zig")) has_dep_lib = true;
+    }
+    try std.testing.expect(!has_app);
+    try std.testing.expect(has_dep_lib);
+}

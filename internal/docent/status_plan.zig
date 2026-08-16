@@ -60,6 +60,8 @@ pub const Options = struct {
 
     /// When true, also lint path-dependency trees from `build.zig.zon` (`.path` entries only).
     deps: bool = false,
+    /// When true with `deps`, scan only local dependency paths from the manifest.
+    dependency_paths_only: bool = false,
     /// When true, include `build.zig` and `build/*.zig` in the plan.
     build_script: bool = false,
 
@@ -269,9 +271,9 @@ pub fn gather(
     var module_entry_roots_list: std.ArrayList([]const u8) = .empty;
     errdefer targeting.deinitOwnedPaths(allocator, &module_entry_roots_list);
 
-    const path_mode: PathMode = if (options.positionals.len == 0) .project else .recursive;
+    const path_mode: PathMode = if (options.dependency_paths_only or options.positionals.len > 0) .recursive else .project;
 
-    if (options.positionals.len > 0) {
+    if (!options.dependency_paths_only and options.positionals.len > 0) {
         var explicit_targeting = targeting_options;
         explicit_targeting.apply_exclude_roots = false;
 
@@ -298,7 +300,7 @@ pub fn gather(
         }
     }
 
-    if (options.inherit_manifest_paths) {
+    if (!options.dependency_paths_only and options.inherit_manifest_paths) {
         // Check commands deliberately do not inspect build.zig.  A project's lint
         // scope is its explicit paths, or the top-level paths declared in the
         // manifest when no paths are supplied.
@@ -489,16 +491,21 @@ pub fn gather(
                 }
             }
         }
+    }
 
-        if (options.deps) {
-            try appendDependencyLintFiles(
-                allocator,
-                io,
-                duped_exclude_roots,
-                targeting_options,
-                &extra_lint_files,
-            );
+    if (options.deps) {
+        if (options.dependency_paths_only) {
+            for (duped_exclude_roots) |root| {
+                try selected_paths.append(allocator, try allocator.dupe(u8, root));
+            }
         }
+        try appendDependencyLintFiles(
+            allocator,
+            io,
+            duped_exclude_roots,
+            targeting_options,
+            &extra_lint_files,
+        );
     }
 
     filterExcludedFiles(allocator, package.project_root, options.exclude_paths, &extra_lint_files);

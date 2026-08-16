@@ -25,7 +25,7 @@ pub fn register(root: *fangz.Command) !void {
 
     try status_cmd.addFlag(bool, .{
         .name = "deps",
-        .brief = "Also lint files under path dependencies from build.zig.zon",
+        .brief = "Lint local path dependencies from build.zig.zon",
         .default = false,
     });
 
@@ -73,8 +73,9 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     var plan = docent.status_plan.gather(allocator, io, .{
         .deps = args.deps,
-        .positionals = if (args.positionals.len > 0) args.positionals else cfg.check.include,
-        .inherit_manifest_paths = args.positionals.len == 0 and cfg.check.inherit_manifest,
+        .dependency_paths_only = args.deps,
+        .positionals = if (args.deps) &.{} else if (args.positionals.len > 0) args.positionals else cfg.check.include,
+        .inherit_manifest_paths = !args.deps and args.positionals.len == 0 and cfg.check.inherit_manifest,
         .exclude_paths = cfg.check.exclude,
         .color_profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle),
     }) catch |err| {
