@@ -10,6 +10,7 @@ trailing_comma = true
 
 [doc]
 invalid_leading_phrase = "allow"
+missing_summary_terminal_punctuation = "allow"
 
 [doc.missing_doc_comment]
 level = "warn"

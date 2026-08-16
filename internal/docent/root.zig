@@ -8,18 +8,13 @@ const vereda = @import("vereda");
 const suppressions = @import("suppressions.zig");
 pub const Suppressions = suppressions.Table;
 
-// The reusable rule-checking engine (Diagnostic, severity, RuleScanConfig, category.Rule, and
-// every rule's check()) and project/target discovery (build.zig target parsing, CLI target
-// filtering, import-graph reachability) now live in their own public modules - `rules` and
-// `project_scan` respectively, see lib/rules/root.zig and lib/project_scan/root.zig - since
-// they're reusable outside the CLI (a language server wants the former directly; `typeset` wants
-// the latter). Everything below re-exports them under their old names so the rest of this CLI
-// module (and `cmd/docent`) doesn't need to change.
+
 const rules_mod = @import("rules");
 const project_scan_mod = @import("project_scan");
 
 pub const check_shared = @import("check_shared.zig");
 pub const config = @import("config.zig");
+// TODO: These re-exports that re-export the modules from the 'rules' module shouldn't happen, they should be consumed directly from the 'rules' module. 
 pub const Diagnostic = rules_mod.Diagnostic;
 pub const flags = @import("flags.zig");
 pub const LintOptions = rules_mod.LintOptions;

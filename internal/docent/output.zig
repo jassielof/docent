@@ -84,6 +84,7 @@ const Style = struct {
     error_style: carnaval.Style,
     allow_style: carnaval.Style,
     rule_style: carnaval.Style,
+    location_style: carnaval.Style,
     caret_warning: carnaval.Style,
     caret_error: carnaval.Style,
 };
@@ -381,6 +382,7 @@ fn resolveStyle() Style {
         .error_style = carnaval.Style.init().fg(.{ .ansi16 = .red }).bolded(),
         .allow_style = carnaval.Style.init().dimmed(),
         .rule_style = carnaval.Style.init().fg(.{ .ansi16 = .cyan }).bolded(),
+        .location_style = carnaval.Style.init().fg(.{ .ansi16 = .cyan }),
         .caret_warning = carnaval.Style.init().fg(.{ .ansi16 = .yellow }),
         .caret_error = carnaval.Style.init().fg(.{ .ansi16 = .red }),
     };
@@ -474,13 +476,16 @@ fn writePrettyDiagnostic(
     );
 
     try writeArrowPadding(writer, gutter);
-    try writer.print("--> {s}:{d}:{d}\n", .{
+    var location_buf: [std.Io.Dir.max_path_bytes + 64]u8 = undefined;
+    const location = try std.fmt.bufPrint(&location_buf, "--> {s}:{d}:{d}", .{
         file_shown,
         diagnostic.line,
         diagnostic.column,
     });
+    try style.location_style.renderWithProfile(location, writer, color_profile);
+    try writer.writeAll("\n");
 
-    try writeGutterPipe(writer, gutter);
+    try writeGutterPipe(writer, gutter, style, color_profile);
     try writer.writeAll("\n");
 
     if (diagnostic.source_line.len > 0) {
@@ -489,6 +494,8 @@ fn writePrettyDiagnostic(
             gutter,
             diagnostic.line,
             diagnostic.source_line,
+            style,
+            color_profile,
         );
         try writeCaretRow(
             writer,
@@ -580,6 +587,13 @@ fn writeProseLine(
         return;
     };
 
+    const severity_end = (std.mem.indexOfScalar(u8, prose, ':') orelse 0) + 1;
+    try severityLevelStyle(style, diagnostic.severity_level).renderWithProfile(
+        prose[0..severity_end],
+        writer,
+        color_profile,
+    );
+
     if (diagnostic.subject) |subject| {
         const subject_start = std.mem.indexOf(
             u8,
@@ -587,7 +601,7 @@ fn writeProseLine(
             subject.name,
         ) orelse {
             try style.plain_bold.renderWithProfile(
-                prose,
+                prose[severity_end..],
                 writer,
                 color_profile,
             );
@@ -597,7 +611,7 @@ fn writeProseLine(
         const subject_end = subject_start + subject.name.len;
 
         try style.plain_bold.renderWithProfile(
-            prose[0..subject_start],
+            prose[severity_end..subject_start],
             writer,
             color_profile,
         );
@@ -613,7 +627,7 @@ fn writeProseLine(
         );
     } else {
         try style.plain_bold.renderWithProfile(
-            prose,
+            prose[severity_end..],
             writer,
             color_profile,
         );
@@ -634,12 +648,17 @@ fn writeArrowPadding(writer: *std.Io.Writer, gutter: usize) !void {
     }
 }
 
-fn writeGutterPipe(writer: *std.Io.Writer, gutter: usize) !void {
+fn writeGutterPipe(
+    writer: *std.Io.Writer,
+    gutter: usize,
+    style: Style,
+    color_profile: carnaval.ColorProfile,
+) !void {
     var i: usize = 0;
     while (i < gutter + 1) : (i += 1) {
         try writer.writeByte(' ');
     }
-    try writer.writeByte('|');
+    try style.location_style.renderWithProfile("|", writer, color_profile);
 }
 
 fn writeSourceRow(
@@ -647,6 +666,8 @@ fn writeSourceRow(
     gutter: usize,
     line: usize,
     source_line: []const u8,
+    style: Style,
+    color_profile: carnaval.ColorProfile,
 ) !void {
     const digits = lineNumberWidth(line);
     const pad = gutter - digits;
@@ -654,7 +675,10 @@ fn writeSourceRow(
     while (i < pad) : (i += 1) {
         try writer.writeByte(' ');
     }
-    try writer.print("{d} | {s}\n", .{ line, source_line });
+    var location_buf: [64]u8 = undefined;
+    const location = try std.fmt.bufPrint(&location_buf, "{d} | ", .{line});
+    try style.location_style.renderWithProfile(location, writer, color_profile);
+    try writer.print("{s}\n", .{source_line});
 }
 
 fn writeCaretRow(
@@ -664,7 +688,7 @@ fn writeCaretRow(
     style: Style,
     color_profile: carnaval.ColorProfile,
 ) !void {
-    try writeGutterPipe(writer, gutter);
+    try writeGutterPipe(writer, gutter, style, color_profile);
     try writer.writeAll(" ");
 
     const col0 = if (diagnostic.column > 0) diagnostic.column - 1 else 0;

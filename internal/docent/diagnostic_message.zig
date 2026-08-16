@@ -22,10 +22,11 @@ pub fn writeProse(writer: *std.Io.Writer, diagnostic: Diagnostic) !void {
     try writer.print("{s}: {s}", .{ severity_label, rule_title });
 
     if (diagnostic.subject) |subject| {
+        const subject_label = if (std.mem.eql(u8, diagnostic.rule, "missing_doc_comment") and subject.kind == .namespace) "source file" else subject.kind.label();
         if (subject.name.len > 0) {
-            try writer.print(" on {s} '{s}'", .{ subject.kind.label(), subject.name });
+            try writer.print(" on {s} '{s}'", .{ subject_label, subject.name });
         } else {
-            try writer.print(" on {s}", .{subject.kind.label()});
+            try writer.print(" on {s}", .{subject_label});
         }
     }
 
@@ -72,6 +73,23 @@ test "prose with detail" {
     }, &buf);
     try std.testing.expectEqualStrings(
         "Warning: Missing doc comment on function 'foo' (re-exported without documentation).",
+        msg,
+    );
+}
+
+test "missing doc comment describes a namespace as a source file" {
+    var buf: [128]u8 = undefined;
+    const msg = try formatProse(.{
+        .rule = "missing_doc_comment",
+        .severity_level = .warn,
+        .message = "",
+        .subject = .{ .kind = .namespace, .name = "flags.zig" },
+        .file = "flags.zig",
+        .line = 1,
+        .column = 1,
+    }, &buf);
+    try std.testing.expectEqualStrings(
+        "Warning: Missing doc comment on source file 'flags.zig'.",
         msg,
     );
 }
