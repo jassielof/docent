@@ -98,11 +98,17 @@ pub fn isModuleMemberReexport(tree: *const Ast, node: Ast.Node.Index) bool {
     if (tree.nodeTag(node) != .field_access) return false;
 
     const fa = tree.nodeData(node).node_and_token;
-    const obj_node: Ast.Node.Index = fa[0];
-    if (getImportPath(tree, obj_node) != null) return true;
+    return isImportRootedNode(tree, fa[0]);
+}
 
-    if (tree.nodeTag(obj_node) != .identifier) return false;
-    return isImportRootedAlias(tree, tree.tokenSlice(tree.nodeMainToken(obj_node)));
+fn isImportRootedNode(tree: *const Ast, node: Ast.Node.Index) bool {
+    if (getImportPath(tree, node) != null) return true;
+
+    return switch (tree.nodeTag(node)) {
+        .identifier => isImportRootedAlias(tree, tree.tokenSlice(tree.nodeMainToken(node))),
+        .field_access => isImportRootedNode(tree, tree.nodeData(node).node_and_token[0]),
+        else => false,
+    };
 }
 
 /// Resolves `import_path` relative to `current_file` and returns a normalized path.

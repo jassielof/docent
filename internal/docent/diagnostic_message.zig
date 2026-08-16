@@ -64,6 +64,20 @@ test "prose with subject" {
     try std.testing.expectEqualStrings("Warning: Missing doc comment on field 'offset'.", msg);
 }
 
+test "prose describes a structure" {
+    var buf: [128]u8 = undefined;
+    const msg = try formatProse(.{
+        .rule = "missing_doc_comment",
+        .severity_level = .warn,
+        .message = "",
+        .subject = .{ .kind = .structure, .name = "Node" },
+        .file = "x.zig",
+        .line = 1,
+        .column = 1,
+    }, &buf);
+    try std.testing.expectEqualStrings("Warning: Missing doc comment on structure 'Node'.", msg);
+}
+
 test "prose with detail" {
     var buf: [256]u8 = undefined;
     const msg = try formatProse(.{

@@ -148,7 +148,15 @@ fn pubVarDeclSubjectKind(tree: *const Ast, var_decl: Ast.full.VarDecl) Diagnosti
     if (tree.tokenTag(var_decl.ast.mut_token) != .keyword_const) return .variable;
     const init_node = var_decl.ast.init_node.unwrap() orelse return .constant;
     if (tree.nodeTag(init_node) == .error_set_decl) return .error_set;
-    if (utils.isEnumContainer(tree, init_node)) return .enumeration;
+    var buf: [2]Ast.Node.Index = undefined;
+    if (tree.fullContainerDecl(&buf, init_node)) |container| {
+        return switch (tree.tokenTag(container.ast.main_token)) {
+            .keyword_enum => .enumeration,
+            .keyword_struct => .structure,
+            .keyword_union => .@"union",
+            else => .constant,
+        };
+    }
     return .constant;
 }
 

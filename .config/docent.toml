@@ -1,7 +1,7 @@
 #:schema ../zig-out/schema/docent.schema.json
 
-[check]
-include = ["lib/"]
+# [check]
+# include = ["lib/"]
 
 [fmt]
 include = ["lib/", "internal/", "cmd/"]

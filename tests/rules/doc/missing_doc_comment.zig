@@ -44,6 +44,14 @@ test "undocumented_pub_declarations skips fields by default" {
     try utils.expectRuleCount(result, "missing_doc_comment", 2);
 }
 
+test "undocumented public struct is reported as a structure" {
+    var result = try harness.lintRuleFixture(ns, &.{"missing_doc_pub_struct.zig"}, deny, .{});
+    defer result.deinit();
+    try utils.expectRuleCount(result, "missing_doc_comment", 1);
+    try testing.expectEqual(.structure, result.diagnostics.items[0].subject.?.kind);
+    try testing.expectEqualStrings("Node", result.diagnostics.items[0].subject.?.name);
+}
+
 test "private_struct_members_allowed does not require private field docs" {
     var result = try harness.lintRuleFixture(ns, &.{"private_struct_members_allowed.zig"}, deny, .{});
     defer result.deinit();
@@ -237,6 +245,12 @@ test "re-export with unresolvable import is silently skipped (no false positive)
 
 test "re-export through local import alias is recognized" {
     var result = try harness.lintRuleFixture(ns, &.{"missing_doc_local_reexport_alias.zig"}, deny, .{});
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "missing_doc_comment");
+}
+
+test "nested member alias through a local import is recognized" {
+    var result = try harness.lintRuleFixture(ns, &.{"missing_doc_nested_import_member_alias.zig"}, deny, .{});
     defer result.deinit();
     try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
