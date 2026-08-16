@@ -1,9 +1,7 @@
 //! Typed configuration schema for `.config/docent.toml`.
 //!
-//! Struct shapes mirror `schemas/docent.schema.yaml`. `decode` turns parsed TOML into these
-//! types; `applyRuleSeverities` projects severity levels into `RuleSeverities`.
+//! Struct shapes mirror `schemas/docent.schema.yaml`. `decode` turns parsed TOML into these types; `applyRuleSeverities` projects severity levels into `RuleSeverities`.
 
-// NOTE: It'll be ideal to migrate to Ziggy once it's more stable.
 const std = @import("std");
 
 const fmt_mod = @import("fmt");
