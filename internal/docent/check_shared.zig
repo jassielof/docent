@@ -247,22 +247,22 @@ pub fn printCheckResults(
         return;
     }
 
-    const text_options = output.stderrTextOptions(
+    const text_options = output.stdoutTextOptions(
         io,
         textFormat(args.format),
         .auto,
         path_display_root,
     );
-    try output.printDiagnosticsStderr(
+    try output.printDiagnosticsStdout(
         io,
         diagnostics,
         text_options,
     );
     const had_diagnostics = summary.errors > 0 or summary.warnings > 0;
-    try output.printSummaryStderr(
+    try output.printSummaryStdout(
         io,
         summary,
-        output.stderrSummaryOptions(
+        output.stdoutSummaryOptions(
             io,
             summary_label,
             .auto,

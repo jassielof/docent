@@ -25,9 +25,9 @@ pub const Style = style_rules.Style;
 const RuleSeverities = rules.RuleSeverities;
 const scan = rules.scan;
 const severity = rules.severity;
-const TargetSelect = @import("TargetSelect.zig");
-pub const Check = TargetSelect.Check;
-pub const Typeset = TargetSelect.Typeset;
+const target_select = @import("target_select.zig");
+pub const Check = target_select.Check;
+pub const Typeset = target_select.Typeset;
 
 doc: Doc = .{},
 style: Style = .{},

@@ -14,7 +14,7 @@ pub const LintStep = struct {
     rules_override: ?docent.RuleSeverities,
     /// Target filters (library vs binaries vs tests, dependency roots, etc.).
     targeting: docent.scan.target.Options,
-    /// Diagnostic output formatting for stderr.
+    /// Diagnostic output formatting for stdout.
     output: OutputOptions,
 
     /// Creates and returns a `LintStep` owned by `b`.
@@ -175,7 +175,7 @@ pub const LintStep = struct {
             }
         }
 
-        if (summary.errors > 0) {
+        if (summary.errors > 0 or summary.warnings > 0) {
             step.result_error_msgs.append(
                 allocator,
                 std.fmt.allocPrint(
@@ -292,10 +292,10 @@ fn lintSingleFile(
         switch (d.severity_level) {
             .allow => continue,
             .warn => {
-                try docent.output.printDiagnosticStderr(
+                try docent.output.printDiagnosticStdout(
                     io,
                     d,
-                    docent.output.stderrTextOptions(
+                    docent.output.stdoutTextOptions(
                         io,
                         output.format,
                         output.color,
@@ -305,10 +305,10 @@ fn lintSingleFile(
             },
             .deny, .forbid => {
                 file_has_errors = true;
-                try docent.output.printDiagnosticStderr(
+                try docent.output.printDiagnosticStdout(
                     io,
                     d,
-                    docent.output.stderrTextOptions(
+                    docent.output.stdoutTextOptions(
                         io,
                         output.format,
                         output.color,
@@ -345,7 +345,7 @@ pub const Options = struct {
     build_script: bool = false,
     /// Directory roots excluded from lint (e.g. path dependencies).
     exclude_roots: ?[]const []const u8 = null,
-    /// Diagnostic output options for the build step.
+    /// Diagnostic output options for the build step's stdout diagnostics.
     output: OutputOptions = .{},
 };
 

@@ -54,7 +54,7 @@ pub const Category = union(enum(u8)) {
     /// A function that returns a type.
     type_function: Ast.Node.Index,
 
-    pub const Tag = @typeInfo(Category).@"union".tag_type.?;
+    pub const tag = @typeInfo(Category).@"union".tag_type.?;
 };
 
 pub const File = struct {
@@ -72,7 +72,7 @@ pub const File = struct {
     /// local var decl node => its local variable scope
     scopes: std.AutoArrayHashMapUnmanaged(Ast.Node.Index, *Scope) = .empty,
 
-    pub fn lookup_token(file: *File, token: Ast.TokenIndex) Decl.Index {
+    pub fn lookupToken(file: *File, token: Ast.TokenIndex) Decl.Index {
         const decl_node = file.ident_decls.get(token) orelse return .none;
         return file.node_decls.get(decl_node) orelse return .none;
     }
@@ -80,7 +80,7 @@ pub const File = struct {
     pub const Index = enum(u32) {
         _,
 
-        fn add_decl(
+        fn addDecl(
             i: Index,
             node: Ast.Node.Index,
             parent_decl: Decl.Index,
@@ -103,7 +103,7 @@ pub const File = struct {
             return &active.files.values()[@intFromEnum(i)];
         }
 
-        pub fn get_ast(i: File.Index) *Ast {
+        pub fn getAst(i: File.Index) *Ast {
             return &i.get().ast;
         }
 
@@ -115,8 +115,8 @@ pub const File = struct {
             return file_index.get().node_decls.values()[0];
         }
 
-        pub fn categorize_decl(file_index: File.Index, node: Ast.Node.Index) Category {
-            const ast = file_index.get_ast();
+        pub fn categorizeDecl(file_index: File.Index, node: Ast.Node.Index) Category {
+            const ast = file_index.getAst();
             switch (ast.nodeTag(node)) {
                 .root => {
                     for (ast.rootDecls()) |member| {
@@ -142,7 +142,7 @@ pub const File = struct {
                     const init_node = var_decl.ast.init_node.unwrap() orelse
                         return .{ .global_const = node };
 
-                    return categorize_expr(file_index, init_node);
+                    return categorizeExpr(file_index, init_node);
                 },
 
                 .fn_proto,
@@ -153,7 +153,7 @@ pub const File = struct {
                 => {
                     var buf: [1]Ast.Node.Index = undefined;
                     const full = ast.fullFnProto(&buf, node).?;
-                    return categorize_func(
+                    return categorizeFunc(
                         file_index,
                         node,
                         full,
@@ -164,27 +164,27 @@ pub const File = struct {
             }
         }
 
-        pub fn categorize_func(
+        pub fn categorizeFunc(
             file_index: File.Index,
             node: Ast.Node.Index,
             full: Ast.full.FnProto,
         ) Category {
-            return switch (categorize_expr(file_index, full.ast.return_type.unwrap().?)) {
+            return switch (categorizeExpr(file_index, full.ast.return_type.unwrap().?)) {
                 .namespace, .container, .error_set, .type_type => .{ .type_function = node },
                 else => .{ .function = node },
             };
         }
 
-        pub fn categorize_expr_deep(file_index: File.Index, node: Ast.Node.Index) Category {
-            return switch (categorize_expr(file_index, node)) {
+        pub fn categorizeExprDeep(file_index: File.Index, node: Ast.Node.Index) Category {
+            return switch (categorizeExpr(file_index, node)) {
                 .alias => |aliasee| aliasee.get().categorize(),
                 else => |result| result,
             };
         }
 
-        pub fn categorize_expr(file_index: File.Index, node: Ast.Node.Index) Category {
+        pub fn categorizeExpr(file_index: File.Index, node: Ast.Node.Index) Category {
             const file = file_index.get();
-            const ast = file_index.get_ast();
+            const ast = file_index.getAst();
             //log.debug("categorize_expr tag {s}", .{@tagName(ast.nodeTag(node))});
             return switch (ast.nodeTag(node)) {
                 .container_decl,
@@ -240,7 +240,7 @@ pub const File = struct {
                     if (file.ident_decls.get(name_token)) |decl_node| {
                         const decl_index = file.node_decls.get(decl_node) orelse .none;
                         if (decl_index != .none) return .{ .alias = decl_index };
-                        return categorize_decl(file_index, decl_node);
+                        return categorizeDecl(file_index, decl_node);
                     }
 
                     return .{ .global_const = node };
@@ -250,8 +250,8 @@ pub const File = struct {
                     const object_node, const field_ident = ast.nodeData(node).node_and_token;
                     const field_name = ast.tokenSlice(field_ident);
 
-                    switch (categorize_expr(file_index, object_node)) {
-                        .alias => |aliasee| if (aliasee.get().get_child(field_name)) |decl_index| {
+                    switch (categorizeExpr(file_index, object_node)) {
+                        .alias => |aliasee| if (aliasee.get().getChild(field_name)) |decl_index| {
                             return .{ .alias = decl_index };
                         },
                         else => {},
@@ -267,7 +267,7 @@ pub const File = struct {
                 => {
                     var buf: [2]Ast.Node.Index = undefined;
                     const params = ast.builtinCallParams(&buf, node).?;
-                    return categorize_builtin_call(
+                    return categorizeBuiltinCall(
                         file_index,
                         node,
                         params,
@@ -280,7 +280,7 @@ pub const File = struct {
                 .call_comma,
                 => {
                     var buf: [1]Ast.Node.Index = undefined;
-                    return categorize_call(
+                    return categorizeCall(
                         file_index,
                         node,
                         ast.fullCall(&buf, node).?,
@@ -292,8 +292,8 @@ pub const File = struct {
                 => {
                     const if_full = ast.fullIf(node).?;
                     if (if_full.ast.else_expr.unwrap()) |else_expr| {
-                        const then_cat = categorize_expr_deep(file_index, if_full.ast.then_expr);
-                        const else_cat = categorize_expr_deep(file_index, else_expr);
+                        const then_cat = categorizeExprDeep(file_index, if_full.ast.then_expr);
+                        const else_cat = categorizeExprDeep(file_index, else_expr);
                         if (then_cat == .type_type and else_cat == .type_type) {
                             return .type_type;
                         } else if (then_cat == .error_set and else_cat == .error_set) {
@@ -310,7 +310,7 @@ pub const File = struct {
                     return .{ .global_const = node };
                 },
 
-                .@"switch", .switch_comma => return categorize_switch(file_index, node),
+                .@"switch", .switch_comma => return categorizeSwitch(file_index, node),
 
                 .optional_type,
                 .array_type,
@@ -326,32 +326,32 @@ pub const File = struct {
             };
         }
 
-        fn categorize_call(
+        fn categorizeCall(
             file_index: File.Index,
             node: Ast.Node.Index,
             call: Ast.full.Call,
         ) Category {
-            return switch (categorize_expr(file_index, call.ast.fn_expr)) {
+            return switch (categorizeExpr(file_index, call.ast.fn_expr)) {
                 .type_function => .type,
-                .alias => |aliasee| categorize_decl_as_callee(aliasee, node),
+                .alias => |aliasee| categorizeDeclAsCallee(aliasee, node),
                 else => .{ .global_const = node },
             };
         }
 
-        fn categorize_decl_as_callee(decl_index: Decl.Index, call_node: Ast.Node.Index) Category {
+        fn categorizeDeclAsCallee(decl_index: Decl.Index, call_node: Ast.Node.Index) Category {
             return switch (decl_index.get().categorize()) {
                 .type_function => .type,
-                .alias => |aliasee| categorize_decl_as_callee(aliasee, call_node),
+                .alias => |aliasee| categorizeDeclAsCallee(aliasee, call_node),
                 else => .{ .global_const = call_node },
             };
         }
 
-        fn categorize_builtin_call(
+        fn categorizeBuiltinCall(
             file_index: File.Index,
             node: Ast.Node.Index,
             params: []const Ast.Node.Index,
         ) Category {
-            const ast = file_index.get_ast();
+            const ast = file_index.getAst();
             const builtin_token = ast.nodeMainToken(node);
             const builtin_name = ast.tokenSlice(builtin_token);
             if (std.mem.eql(
@@ -394,8 +394,8 @@ pub const File = struct {
             return .{ .global_const = node };
         }
 
-        fn categorize_switch(file_index: File.Index, node: Ast.Node.Index) Category {
-            const ast = file_index.get_ast();
+        fn categorizeSwitch(file_index: File.Index, node: Ast.Node.Index) Category {
+            const ast = file_index.getAst();
             const full = ast.fullSwitch(node).?;
             var all_type_type = true;
             var all_error_set = true;
@@ -403,7 +403,7 @@ pub const File = struct {
             if (full.ast.cases.len == 0) return .{ .global_const = node };
             for (full.ast.cases) |case_node| {
                 const case = ast.fullSwitchCase(case_node).?;
-                switch (categorize_expr_deep(file_index, case.ast.target_expr)) {
+                switch (categorizeExprDeep(file_index, case.ast.target_expr)) {
                     .type_type => {
                         any_type = true;
                         all_error_set = false;
@@ -435,7 +435,7 @@ pub const ModuleIndex = enum(u32) {
     _,
 };
 
-pub fn add_file(file_name: []const u8, bytes: []u8) !File.Index {
+pub fn addFile(file_name: []const u8, bytes: []u8) !File.Index {
     const ast = try parse(file_name, bytes);
     assert(ast.errors.len == 0);
     const file_index: File.Index = @enumFromInt(active.files.entries.len);
@@ -451,8 +451,8 @@ pub fn add_file(file_name: []const u8, bytes: []u8) !File.Index {
     const scope = try gpa.create(Scope);
     scope.* = .{ .tag = .top };
 
-    const decl_index = try file_index.add_decl(.root, .none);
-    try struct_decl(
+    const decl_index = try file_index.addDecl(.root, .none);
+    try structDecl(
         &w,
         scope,
         decl_index,
@@ -557,7 +557,7 @@ pub const Scope = struct {
         };
     }
 
-    pub fn get_child(scope: *Scope, name: []const u8) ?Ast.Node.Index {
+    pub fn getChild(scope: *Scope, name: []const u8) ?Ast.Node.Index {
         switch (scope.tag) {
             .top, .local => return null,
             .namespace => {
@@ -600,14 +600,14 @@ pub const Scope = struct {
     }
 };
 
-fn struct_decl(
+fn structDecl(
     w: *Walk,
     scope: *Scope,
     parent_decl: Decl.Index,
     node: Ast.Node.Index,
     container_decl: Ast.full.ContainerDecl,
 ) Oom!void {
-    const ast = w.file.get_ast();
+    const ast = w.file.getAst();
 
     const namespace = try gpa.create(Scope.Namespace);
     namespace.* = .{
@@ -625,7 +625,7 @@ fn struct_decl(
         .container_field_init,
         .container_field_align,
         .container_field,
-        => try w.container_field(
+        => try w.containerField(
             &namespace.base,
             parent_decl,
             ast.fullContainerField(member).?,
@@ -648,9 +648,9 @@ fn struct_decl(
                     doctest_node,
                 );
             }
-            const decl_index = try w.file.add_decl(member, parent_decl);
+            const decl_index = try w.file.addDecl(member, parent_decl);
             const body = if (ast.nodeTag(member) == .fn_decl) ast.nodeData(member).node_and_node[1].toOptional() else .none;
-            try w.fn_decl(
+            try w.fnDecl(
                 &namespace.base,
                 decl_index,
                 body,
@@ -663,8 +663,8 @@ fn struct_decl(
         .simple_var_decl,
         .aligned_var_decl,
         => {
-            const decl_index = try w.file.add_decl(member, parent_decl);
-            try w.global_var_decl(
+            const decl_index = try w.file.addDecl(member, parent_decl);
+            try w.globalVarDecl(
                 &namespace.base,
                 decl_index,
                 ast.fullVarDecl(member).?,
@@ -688,7 +688,7 @@ fn struct_decl(
     };
 }
 
-fn comptime_decl(
+fn comptimeDecl(
     w: *Walk,
     scope: *Scope,
     parent_decl: Decl.Index,
@@ -699,17 +699,17 @@ fn comptime_decl(
         parent_decl,
         full.ast.type_node,
     );
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.align_node,
     );
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.addrspace_node,
     );
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.section_node,
@@ -721,63 +721,63 @@ fn comptime_decl(
     );
 }
 
-fn global_var_decl(
+fn globalVarDecl(
     w: *Walk,
     scope: *Scope,
     parent_decl: Decl.Index,
     full: Ast.full.VarDecl,
 ) Oom!void {
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.type_node,
     );
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.align_node,
     );
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.addrspace_node,
     );
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.section_node,
     );
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.init_node,
     );
 }
 
-fn container_field(
+fn containerField(
     w: *Walk,
     scope: *Scope,
     parent_decl: Decl.Index,
     full: Ast.full.ContainerField,
 ) Oom!void {
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.type_expr,
     );
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.align_expr,
     );
-    try w.maybe_expr(
+    try w.maybeExpr(
         scope,
         parent_decl,
         full.ast.value_expr,
     );
 }
 
-fn fn_decl(
+fn fnDecl(
     w: *Walk,
     scope: *Scope,
     parent_decl: Decl.Index,
@@ -798,31 +798,31 @@ fn fn_decl(
         parent_decl,
         full.ast.return_type.unwrap().?,
     );
-    try maybe_expr(
+    try maybeExpr(
         w,
         scope,
         parent_decl,
         full.ast.align_expr,
     );
-    try maybe_expr(
+    try maybeExpr(
         w,
         scope,
         parent_decl,
         full.ast.addrspace_expr,
     );
-    try maybe_expr(
+    try maybeExpr(
         w,
         scope,
         parent_decl,
         full.ast.section_expr,
     );
-    try maybe_expr(
+    try maybeExpr(
         w,
         scope,
         parent_decl,
         full.ast.callconv_expr,
     );
-    try maybe_expr(
+    try maybeExpr(
         w,
         scope,
         parent_decl,
@@ -830,7 +830,7 @@ fn fn_decl(
     );
 }
 
-fn maybe_expr(
+fn maybeExpr(
     w: *Walk,
     scope: *Scope,
     parent_decl: Decl.Index,
@@ -850,7 +850,7 @@ fn expr(
     parent_decl: Decl.Index,
     node: Ast.Node.Index,
 ) Oom!void {
-    const ast = w.file.get_ast();
+    const ast = w.file.getAst();
     switch (ast.nodeTag(node)) {
         .root => unreachable, // Top-level declaration.
         .test_decl => unreachable, // Top-level declaration.
@@ -988,7 +988,7 @@ fn expr(
             parent_decl,
             ast.nodeData(node).node_and_token[0],
         ),
-        .@"return" => try maybe_expr(
+        .@"return" => try maybeExpr(
             w,
             scope,
             parent_decl,
@@ -1001,7 +1001,7 @@ fn expr(
             parent_decl,
             ast.nodeData(node).token_and_node[1],
         ),
-        .@"break" => try maybe_expr(
+        .@"break" => try maybeExpr(
             w,
             scope,
             parent_decl,
@@ -1072,7 +1072,7 @@ fn expr(
         => {
             var buf: [2]Ast.Node.Index = undefined;
             const params = ast.builtinCallParams(&buf, node).?;
-            return builtin_call(
+            return builtinCall(
                 w,
                 scope,
                 parent_decl,
@@ -1120,7 +1120,7 @@ fn expr(
                 parent_decl,
                 full.ast.then_expr,
             );
-            try maybe_expr(
+            try maybeExpr(
                 w,
                 scope,
                 parent_decl,
@@ -1132,7 +1132,7 @@ fn expr(
         .while_cont,
         .@"while",
         => {
-            try while_expr(
+            try whileExpr(
                 w,
                 scope,
                 parent_decl,
@@ -1151,7 +1151,7 @@ fn expr(
                         parent_decl,
                         start,
                     );
-                    try maybe_expr(
+                    try maybeExpr(
                         w,
                         scope,
                         parent_decl,
@@ -1172,7 +1172,7 @@ fn expr(
                 parent_decl,
                 full.ast.then_expr,
             );
-            try maybe_expr(
+            try maybeExpr(
                 w,
                 scope,
                 parent_decl,
@@ -1220,31 +1220,31 @@ fn expr(
         .ptr_type_bit_range,
         => {
             const full = ast.fullPtrType(node).?;
-            try maybe_expr(
+            try maybeExpr(
                 w,
                 scope,
                 parent_decl,
                 full.ast.align_node,
             );
-            try maybe_expr(
+            try maybeExpr(
                 w,
                 scope,
                 parent_decl,
                 full.ast.addrspace_node,
             );
-            try maybe_expr(
+            try maybeExpr(
                 w,
                 scope,
                 parent_decl,
                 full.ast.sentinel,
             );
-            try maybe_expr(
+            try maybeExpr(
                 w,
                 scope,
                 parent_decl,
                 full.ast.bit_range_start,
             );
-            try maybe_expr(
+            try maybeExpr(
                 w,
                 scope,
                 parent_decl,
@@ -1272,7 +1272,7 @@ fn expr(
         .tagged_union_two_trailing,
         => {
             var buf: [2]Ast.Node.Index = undefined;
-            return struct_decl(
+            return structDecl(
                 w,
                 scope,
                 parent_decl,
@@ -1341,7 +1341,7 @@ fn expr(
         => {
             var buf: [2]Ast.Node.Index = undefined;
             const full = ast.fullArrayInit(&buf, node).?;
-            try maybe_expr(
+            try maybeExpr(
                 w,
                 scope,
                 parent_decl,
@@ -1368,7 +1368,7 @@ fn expr(
         => {
             var buf: [2]Ast.Node.Index = undefined;
             const full = ast.fullStructInit(&buf, node).?;
-            try maybe_expr(
+            try maybeExpr(
                 w,
                 scope,
                 parent_decl,
@@ -1390,7 +1390,7 @@ fn expr(
         .fn_proto,
         => {
             var buf: [1]Ast.Node.Index = undefined;
-            return fn_decl(
+            return fnDecl(
                 w,
                 scope,
                 parent_decl,
@@ -1419,13 +1419,13 @@ fn slice(
         parent_decl,
         full.ast.start,
     );
-    try maybe_expr(
+    try maybeExpr(
         w,
         scope,
         parent_decl,
         full.ast.end,
     );
-    try maybe_expr(
+    try maybeExpr(
         w,
         scope,
         parent_decl,
@@ -1433,14 +1433,14 @@ fn slice(
     );
 }
 
-fn builtin_call(
+fn builtinCall(
     w: *Walk,
     scope: *Scope,
     parent_decl: Decl.Index,
     node: Ast.Node.Index,
     params: []const Ast.Node.Index,
 ) Oom!void {
-    const ast = w.file.get_ast();
+    const ast = w.file.getAst();
     const builtin_token = ast.nodeMainToken(node);
     const builtin_name = ast.tokenSlice(builtin_token);
     if (std.mem.eql(
@@ -1471,7 +1471,7 @@ fn block(
     parent_decl: Decl.Index,
     statements: []const Ast.Node.Index,
 ) Oom!void {
-    const ast = w.file.get_ast();
+    const ast = w.file.getAst();
 
     var scope = parent_scope;
 
@@ -1483,7 +1483,7 @@ fn block(
             .aligned_var_decl,
             => {
                 const full = ast.fullVarDecl(node).?;
-                try global_var_decl(
+                try globalVarDecl(
                     w,
                     scope,
                     parent_decl,
@@ -1536,7 +1536,7 @@ fn block(
     }
 }
 
-fn while_expr(
+fn whileExpr(
     w: *Walk,
     scope: *Scope,
     parent_decl: Decl.Index,
@@ -1548,7 +1548,7 @@ fn while_expr(
         parent_decl,
         full.ast.cond_expr,
     );
-    try maybe_expr(
+    try maybeExpr(
         w,
         scope,
         parent_decl,
@@ -1560,7 +1560,7 @@ fn while_expr(
         parent_decl,
         full.ast.then_expr,
     );
-    try maybe_expr(
+    try maybeExpr(
         w,
         scope,
         parent_decl,
@@ -1573,7 +1573,7 @@ fn scanDecls(
     namespace: *Scope.Namespace,
     members: []const Ast.Node.Index,
 ) Oom!void {
-    const ast = w.file.get_ast();
+    const ast = w.file.getAst();
 
     for (members) |member_node| {
         const name_token = switch (ast.nodeTag(member_node)) {

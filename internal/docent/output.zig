@@ -88,8 +88,8 @@ const Style = struct {
     caret_error: carnaval.Style,
 };
 
-/// Builds `TextOptions` for stderr using detected TTY and color profile.
-pub fn stderrTextOptions(
+/// Builds `TextOptions` for stdout using detected TTY and color profile.
+pub fn stdoutTextOptions(
     io: std.Io,
     format: TextFormat,
     color: ColorMode,
@@ -98,22 +98,22 @@ pub fn stderrTextOptions(
     return .{
         .format = format,
         .color = color,
-        .tty_config = detectTerminalMode(io, std.Io.File.stderr()),
-        .color_profile = carnaval.colorProfileForHandle(std.Io.File.stderr().handle),
+        .tty_config = detectTerminalMode(io, std.Io.File.stdout()),
+        .color_profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle),
         .path_display_root = path_display_root,
     };
 }
 
-/// Builds `SummaryOptions` for stderr using detected TTY and color profile.
-pub fn stderrSummaryOptions(
+/// Builds `SummaryOptions` for stdout using detected TTY and color profile.
+pub fn stdoutSummaryOptions(
     io: std.Io,
     tool_name: []const u8,
     color: ColorMode,
 ) SummaryOptions {
     return .{
         .color = color,
-        .tty_config = detectTerminalMode(io, std.Io.File.stderr()),
-        .color_profile = carnaval.colorProfileForHandle(std.Io.File.stderr().handle),
+        .tty_config = detectTerminalMode(io, std.Io.File.stdout()),
+        .color_profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle),
         .tool_name = tool_name,
     };
 }
@@ -302,54 +302,54 @@ pub fn writeJson(
     try writer.writeAll("]\n");
 }
 
-/// Formats and prints one diagnostic to stderr.
-pub fn printDiagnosticStderr(
+/// Formats and prints one diagnostic to stdout.
+pub fn printDiagnosticStdout(
     io: std.Io,
     diagnostic: Diagnostic,
     options: TextOptions,
 ) !void {
     var buffer: [4096]u8 = undefined;
-    var stderr = std.Io.File.stderr().writer(io, &buffer);
+    var stdout = std.Io.File.stdout().writer(io, &buffer);
     try writeDiagnostic(
-        &stderr.interface,
+        &stdout.interface,
         diagnostic,
         options,
     );
-    try stderr.interface.flush();
+    try stdout.interface.flush();
 }
 
-/// Prints multiple diagnostics to stderr.
-pub fn printDiagnosticsStderr(
+/// Prints multiple diagnostics to stdout.
+pub fn printDiagnosticsStdout(
     io: std.Io,
     diagnostics: []const Diagnostic,
     options: TextOptions,
 ) !void {
     var buffer: [8192]u8 = undefined;
-    var stderr = std.Io.File.stderr().writer(io, &buffer);
+    var stdout = std.Io.File.stdout().writer(io, &buffer);
     try writeDiagnostics(
-        &stderr.interface,
+        &stdout.interface,
         diagnostics,
         options,
     );
-    try stderr.interface.flush();
+    try stdout.interface.flush();
 }
 
-/// Prints the lint summary line to stderr when there are errors or warnings.
-pub fn printSummaryStderr(
+/// Prints the lint summary line to stdout when there are errors or warnings.
+pub fn printSummaryStdout(
     io: std.Io,
     summary: Summary,
     options: SummaryOptions,
     leading_newline: bool,
 ) !void {
     var buffer: [512]u8 = undefined;
-    var stderr = std.Io.File.stderr().writer(io, &buffer);
+    var stdout = std.Io.File.stdout().writer(io, &buffer);
     try writeSummaryWithPrefix(
-        &stderr.interface,
+        &stdout.interface,
         summary,
         options,
         leading_newline,
     );
-    try stderr.interface.flush();
+    try stdout.interface.flush();
 }
 
 /// Writes diagnostics as JSON to stdout.

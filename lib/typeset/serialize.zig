@@ -6,7 +6,7 @@
 //! `decl_fields_fallible`, `decl_params_fallible`, `decl_docs_html`) into
 //! functions that build schema types directly, instead of HTML strings:
 //!
-//! - `id` / `name`: `Decl.fqn()` / `Decl.extra_info().name`.
+//! - `id` / `name`: `Decl.fqn()` / `Decl.extraInfo().name`.
 //! - `kind` / `container_kind`: classify from `Decl.categorize()`
 //!   (`Walk.Category`). Aliases (`.alias`) are resolved eagerly by following
 //!   to the aliased decl for shape purposes (signature/fields/params/kind),
@@ -43,7 +43,7 @@ const Decl = walker.Decl;
 const Walk = walker.Walk;
 
 /// One module to emit into a package's `docs.json`: a walked root `Decl`
-/// paired with the name it should be reported under (`Decl.extra_info()`
+/// paired with the name it should be reported under (`Decl.extraInfo()`
 /// reports an empty name for a file's root struct, see `Decl.zig`).
 pub const Module = struct {
     root_decl: Decl.Index,
@@ -215,7 +215,7 @@ fn classify(decl_index: Decl.Index) Classification {
             },
             .namespace, .container => |node| return .{
                 .kind = .container,
-                .container_kind = containerKindOfNode(decl.file.get_ast(), node),
+                .container_kind = containerKindOfNode(decl.file.getAst(), node),
                 .resolved = current,
             },
             .global_variable => return .{
@@ -293,7 +293,7 @@ fn emitDecl(
     ctx: *Ctx,
 ) anyerror!schema.DeclNode {
     const original = decl_index.get();
-    const info = original.extra_info();
+    const info = original.extraInfo();
 
     var id_buf: std.ArrayList(u8) = .empty;
     defer id_buf.deinit(std.heap.page_allocator);
@@ -303,7 +303,7 @@ fn emitDecl(
 
     const cls = classify(decl_index);
     const target = cls.resolved.get();
-    const target_ast = target.file.get_ast();
+    const target_ast = target.file.getAst();
 
     var signature: ?[]const u8 = null;
     var return_type: ?[]const u8 = null;
@@ -387,7 +387,7 @@ fn emitDecl(
 
     const doc_pair = try renderDocComment(
         allocator,
-        original.file.get_ast(),
+        original.file.getAst(),
         info.first_doc_comment,
         decl_index,
         ctx,
@@ -423,7 +423,7 @@ fn emitChildren(
 
     for (Walk.active.decls.items, 0..) |*d, i| {
         if (d.parent != container_index) continue;
-        if (!d.is_pub() and !ctx.include_private) continue;
+        if (!d.isPub() and !ctx.include_private) continue;
         const child_index: Decl.Index = @enumFromInt(i);
         try list.append(allocator, try emitDecl(
             allocator,
@@ -576,7 +576,7 @@ fn emitErrorSetFields(
 }
 
 fn sourceLocOf(decl: *const Decl) schema.SourceLoc {
-    const ast = decl.file.get_ast();
+    const ast = decl.file.getAst();
     const offset = ast.tokenStart(ast.firstToken(decl.ast_node));
     const loc = std.zig.findLineColumn(ast.source, offset);
     return .{

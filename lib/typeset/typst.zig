@@ -290,7 +290,7 @@ const Renderer = struct {
         writer: *Writer,
     ) RenderError!void {
         if (resolveDeclPath(self.origin, content)) |target| {
-            if (target.get().is_pub()) {
+            if (target.get().isPub()) {
                 try self.writeInternalLink(
                     target,
                     content,
@@ -422,7 +422,7 @@ fn resolveDeclPath(origin: Decl.Index, path: []const u8) ?Decl.Index {
             .alias => |aliasee| current = aliasee,
             else => {},
         }
-        current = current.get().get_child(component) orelse return null;
+        current = current.get().getChild(component) orelse return null;
     }
     return current;
 }

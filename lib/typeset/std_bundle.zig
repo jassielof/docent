@@ -162,7 +162,7 @@ pub const Collector = struct {
                 .alias => |aliasee| current = aliasee,
                 else => {},
             }
-            current = current.get().get_child(seg) orelse return null;
+            current = current.get().getChild(seg) orelse return null;
         }
         return current;
     }
@@ -242,7 +242,7 @@ pub const Collector = struct {
                 "{s}/{s}",
                 .{ module_name, std.fs.path.basename(abs) },
             );
-            const decl = Walk.add_file(key, source) catch continue;
+            const decl = Walk.addFile(key, source) catch continue;
             try Walk.active.modules.put(
                 std.heap.page_allocator,
                 module_name,

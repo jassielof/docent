@@ -119,7 +119,7 @@ pub fn walkModule(
             null,
         );
 
-        const file_index = try Walk.add_file(paths.key, source);
+        const file_index = try Walk.addFile(paths.key, source);
         try real_paths.put(
             std.heap.page_allocator,
             paths.key,

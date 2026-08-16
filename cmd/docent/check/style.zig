@@ -85,7 +85,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         path_display_root,
     );
 
-    if (summary.hasErrors()) std.process.exit(1);
+    if (summary.errors > 0 or summary.warnings > 0) std.process.exit(1);
 }
 
 pub fn analyzeReachableTargets(
