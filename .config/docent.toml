@@ -2,7 +2,6 @@
 
 [fmt]
 include = ["lib/", "internal/", "cmd/"]
-exclude = ["dependencies/", "vendor/", "tests/fixtures/", "lib/fmt/fixtures/"]
 sort_imports = true
 single_line_braces = false
 logical_blank_lines = false
