@@ -15,7 +15,7 @@ const severity = rules.severity;
 pub const TextFormat = enum {
     /// Multi-line rustc-style blocks with source snippet and caret underline.
     pretty,
-    /// Single-line `severity [rule] file:line:col` output with grid-aligned columns.
+    /// ESLint-style output grouped by file with grid-aligned locations.
     minimal,
 };
 
@@ -143,12 +143,7 @@ pub fn writeDiagnostic(
             color_profile,
             options.path_display_root,
         ),
-        .minimal => try writeMinimalDiagnostic(
-            writer,
-            diagnostic,
-            color_profile,
-            options.path_display_root,
-        ),
+        .minimal => try writeMinimalDiagnostics(writer, &.{diagnostic}, options),
     }
 }
 
@@ -158,6 +153,10 @@ pub fn writeDiagnostics(
     diagnostics: []const Diagnostic,
     options: TextOptions,
 ) !void {
+    if (options.format == .minimal) {
+        return writeMinimalDiagnostics(writer, diagnostics, options);
+    }
+
     var index: usize = 0;
     while (index < diagnostics.len) : (index += 1) {
         const diagnostic = diagnostics[index];
@@ -169,17 +168,15 @@ pub fn writeDiagnostics(
             options,
         );
 
-        if (options.format == .pretty) {
-            var has_following = false;
-            var j = index + 1;
-            while (j < diagnostics.len) : (j += 1) {
-                if (diagnostics[j].severity_level != .allow) {
-                    has_following = true;
-                    break;
-                }
+        var has_following = false;
+        var j = index + 1;
+        while (j < diagnostics.len) : (j += 1) {
+            if (diagnostics[j].severity_level != .allow) {
+                has_following = true;
+                break;
             }
-            if (has_following) try writer.writeAll("\n");
         }
+        if (has_following) try writer.writeAll("\n");
     }
 }
 
@@ -189,7 +186,7 @@ pub fn writeSummary(
     summary: Summary,
     options: SummaryOptions,
 ) !void {
-    writeSummaryWithPrefix(
+    try writeSummaryWithPrefix(
         writer,
         summary,
         options,
@@ -244,11 +241,19 @@ pub fn writeSummaryWithPrefix(
         writer,
         color_profile,
     );
-    try writer.print(" generated {d} {s}\n", .{ summary.warnings, countNoun(
-        summary.warnings,
-        "warning",
-        "warnings",
-    ) });
+    var warning_summary_buf: [64]u8 = undefined;
+    const warning_summary = try std.fmt.bufPrint(
+        &warning_summary_buf,
+        "{d} {s}",
+        .{ summary.warnings, countNoun(summary.warnings, "warning", "warnings") },
+    );
+    try writer.writeAll(" generated ");
+    try style.warning_style.renderWithProfile(
+        warning_summary,
+        writer,
+        color_profile,
+    );
+    try writer.writeAll(".\n");
 }
 
 fn countNoun(
@@ -495,37 +500,67 @@ fn writePrettyDiagnostic(
     }
 }
 
-fn writeMinimalDiagnostic(
+fn writeMinimalDiagnostics(
     writer: *std.Io.Writer,
-    diagnostic: Diagnostic,
-    color_profile: carnaval.ColorProfile,
-    path_display_root: ?[]const u8,
+    diagnostics: []const Diagnostic,
+    options: TextOptions,
 ) !void {
-    var path_bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
-    const file_shown = pathForDisplay(
-        path_display_root,
-        diagnostic.file,
-        &path_bufs[0],
-        &path_bufs[1],
-    );
+    const color_profile = resolveProfile(options.color, options.tty_config, options.color_profile);
     const style = resolveStyle();
-    try severityLevelStyle(style, diagnostic.severity_level).renderWithProfile(
-        severityDisplayTag(diagnostic.severity_level),
-        writer,
-        color_profile,
-    );
-    try writer.writeAll("[");
-    try style.rule_style.renderWithProfile(
-        diagnostic.rule,
-        writer,
-        color_profile,
-    );
-    try writer.writeAll("] ");
-    try writer.print("{s}:{d}:{d}\n", .{
-        file_shown,
-        diagnostic.line,
-        diagnostic.column,
-    });
+
+    var first_group = true;
+    var index: usize = 0;
+    while (index < diagnostics.len) {
+        while (index < diagnostics.len and diagnostics[index].severity_level == .allow) : (index += 1) {}
+        if (index == diagnostics.len) break;
+
+        var path_bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
+        const file_shown = pathForDisplay(
+            options.path_display_root,
+            diagnostics[index].file,
+            &path_bufs[0],
+            &path_bufs[1],
+        );
+
+        var end = index + 1;
+        var line_width = lineNumberWidth(diagnostics[index].line);
+        var column_width = lineNumberWidth(diagnostics[index].column);
+        while (end < diagnostics.len) : (end += 1) {
+            const diagnostic = diagnostics[end];
+            if (diagnostic.severity_level == .allow) continue;
+
+            var next_path_bufs: [2][std.Io.Dir.max_path_bytes]u8 = undefined;
+            const next_file = pathForDisplay(
+                options.path_display_root,
+                diagnostic.file,
+                &next_path_bufs[0],
+                &next_path_bufs[1],
+            );
+            if (!std.mem.eql(u8, file_shown, next_file)) break;
+
+            line_width = @max(line_width, lineNumberWidth(diagnostic.line));
+            column_width = @max(column_width, lineNumberWidth(diagnostic.column));
+        }
+
+        if (!first_group) try writer.writeAll("\n");
+        first_group = false;
+        try writer.print("{s}\n", .{file_shown});
+
+        for (diagnostics[index..end]) |diagnostic| {
+            if (diagnostic.severity_level == .allow) continue;
+            try writer.print("  {[0]d: >[1]}:{[2]d: <[3]}  ", .{ diagnostic.line, line_width, diagnostic.column, column_width });
+            try severityLevelStyle(style, diagnostic.severity_level).renderWithProfile(
+                severityDisplayTag(diagnostic.severity_level),
+                writer,
+                color_profile,
+            );
+            try writer.writeAll("  ");
+            try style.rule_style.renderWithProfile(diagnostic.rule, writer, color_profile);
+            try writer.writeAll("\n");
+        }
+
+        index = end;
+    }
 }
 
 fn writeProseLine(
@@ -783,7 +818,7 @@ test "severity rule tag uses cyan styling when color is enabled" {
     ) != null);
 }
 
-test "minimal formatter shortens absolute paths under display root" {
+test "minimal formatter groups diagnostics by display path" {
     var out: std.ArrayList(u8) = .empty;
     defer out.deinit(std.testing.allocator);
 
@@ -793,14 +828,25 @@ test "minimal formatter shortens absolute paths under display root" {
     const file_path = if (builtin.os.tag == .windows) "C:\\proj\\src\\lib\\root.zig" else "/proj/src/lib/root.zig";
     const display_root = if (builtin.os.tag == .windows) "C:\\proj" else "/proj";
 
-    try writeDiagnostic(&writer.writer, .{
-        .rule = "missing_doc_comment",
-        .severity_level = .warn,
-        .subject = .{ .kind = .function, .name = "main" },
-        .file = file_path,
-        .line = 27,
-        .column = 11,
-    }, .{
+    const diagnostics = [_]Diagnostic{
+        .{
+            .rule = "missing_doc_comment",
+            .severity_level = .warn,
+            .subject = .{ .kind = .function, .name = "main" },
+            .file = file_path,
+            .line = 27,
+            .column = 11,
+        },
+        .{
+            .rule = "identifier_case",
+            .severity_level = .deny,
+            .subject = .{ .kind = .function, .name = "Main" },
+            .file = file_path,
+            .line = 4,
+            .column = 3,
+        },
+    };
+    try writeDiagnostics(&writer.writer, &diagnostics, .{
         .format = .minimal,
         .color = .never,
         .path_display_root = display_root,
@@ -810,7 +856,7 @@ test "minimal formatter shortens absolute paths under display root" {
     try std.testing.expect(std.mem.indexOf(
         u8,
         out.items,
-        "warning[missing_doc_comment] src/lib/root.zig:27:11",
+        "src/lib/root.zig\n  27:11  warning  missing_doc_comment\n   4:3   error  identifier_case\n",
     ) != null);
     try std.testing.expect(std.mem.indexOf(
         u8,
@@ -819,28 +865,39 @@ test "minimal formatter shortens absolute paths under display root" {
     ) == null);
 }
 
-test "minimal formatter renders one line without prose" {
+test "minimal formatter separates files with a blank line" {
     var out: std.ArrayList(u8) = .empty;
     defer out.deinit(std.testing.allocator);
 
     var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
     defer writer.deinit();
 
-    try writeDiagnostic(&writer.writer, .{
-        .rule = "missing_doc_comment",
-        .severity_level = .warn,
-        .subject = .{ .kind = .function, .name = "main" },
-        .file = "src/main.zig",
-        .line = 5,
-        .column = 8,
-    }, .{
+    const diagnostics = [_]Diagnostic{
+        .{
+            .rule = "missing_doc_comment",
+            .severity_level = .warn,
+            .subject = .{ .kind = .function, .name = "main" },
+            .file = "src/main.zig",
+            .line = 5,
+            .column = 8,
+        },
+        .{
+            .rule = "blank_doc_comment",
+            .severity_level = .warn,
+            .subject = .{ .kind = .module, .name = "other" },
+            .file = "src/other.zig",
+            .line = 10,
+            .column = 1,
+        },
+    };
+    try writeDiagnostics(&writer.writer, &diagnostics, .{
         .format = .minimal,
         .color = .never,
     });
     out = writer.toArrayList();
 
     try std.testing.expectEqualStrings(
-        "warning[missing_doc_comment] src/main.zig:5:8\n",
+        "src/main.zig\n  5:8  warning  missing_doc_comment\n\nsrc/other.zig\n  10:1  warning  blank_doc_comment\n",
         out.items,
     );
 }
@@ -1034,6 +1091,20 @@ test "countNoun uses singular only for one" {
         "warning",
         "warnings",
     ));
+}
+
+test "warning-only summary uses warning styling for its count and label" {
+    var buf: [256]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+
+    try writeSummary(&writer, .{ .warnings = 2 }, .{
+        .color = .always,
+        .color_profile = .ansi16,
+        .tool_name = "docent check cogni",
+    });
+
+    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "\x1b[33m") != null);
+    try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "2 warnings") != null);
 }
 
 test "json formatter uses prose message" {
