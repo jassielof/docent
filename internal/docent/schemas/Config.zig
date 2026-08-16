@@ -35,8 +35,7 @@ fmt: Fmt = .{},
 check: Check = .{},
 typeset: Typeset = .{},
 
-/// Formatter options — owned by the `fmt` module; aliased here so TOML decode
-/// and `Config.fmt` stay in the schema surface.
+/// Formatter options — owned by the `fmt` module; aliased here so TOML decod and `Config.fmt` stay in the schema surface.
 pub const Fmt = fmt_mod.Config;
 
 /// Frees owned path lists under `fmt`, `check`, and `typeset`.

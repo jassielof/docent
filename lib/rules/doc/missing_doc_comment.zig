@@ -238,9 +238,11 @@ fn checkNode(
         {
             const name_tok = var_decl.ast.mut_token + 1;
             const name = tree.tokenSlice(name_tok);
-            const is_reexport: bool = if (public_api_only) blk: {
+            const is_reexport: bool = blk: {
                 const init_node = var_decl.ast.init_node.unwrap() orelse break :blk false;
-                const info = alias.getInfo(tree, init_node) orelse break :blk false;
+                const info = alias.getInfo(tree, init_node) orelse {
+                    break :blk alias.isModuleMemberReexport(tree, init_node);
+                };
                 var emit_ctx = ReexportEmitContext{
                     .severity_level = severity_level,
                     .allocator = allocator,
@@ -259,7 +261,7 @@ fn checkNode(
                         .on_undocumented_whole_module = onUndocumentedReexportWholeModule,
                     },
                 );
-            } else false;
+            };
 
             if (!is_reexport) {
                 const loc = tree.tokenLocation(0, name_tok);

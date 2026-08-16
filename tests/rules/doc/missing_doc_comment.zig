@@ -241,6 +241,28 @@ test "re-export through local import alias is recognized" {
     try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
 
+test "documented re-export is accepted during a full reachability scan" {
+    var result = try harness.lintRuleFixture(
+        ns,
+        &.{"missing_doc_reexport_all_mode.zig"},
+        deny,
+        .{ .scan_mode = .reachability_traversal },
+    );
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "missing_doc_comment");
+}
+
+test "named-module aliases are accepted during a full reachability scan" {
+    var result = try harness.lintRuleFixture(
+        ns,
+        &.{"missing_doc_named_module_alias.zig"},
+        deny,
+        .{ .scan_mode = .reachability_traversal },
+    );
+    defer result.deinit();
+    try utils.expectRuleAbsent(result, "missing_doc_comment");
+}
+
 test "function parameters are not checked by default" {
     var result = try harness.lintRuleFixture(ns, &.{"missing_doc_fn_params_default_ok.zig"}, deny, .{});
     defer result.deinit();

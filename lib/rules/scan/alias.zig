@@ -88,6 +88,23 @@ pub fn getInfo(tree: *const Ast, node: Ast.Node.Index) ?Info {
     return null;
 }
 
+/// Returns whether `node` is a member access through one or more local aliases rooted at `@import`.
+///
+/// Unlike `getInfo`, this also recognizes named-module paths such as
+/// `const doc_rules = rules.doc; pub const Doc = doc_rules.Doc;`, where
+/// `rules` is bound to `@import("rules")`. Named modules cannot be resolved
+/// as relative filesystem paths, but the final declaration is still a re-export.
+pub fn isModuleMemberReexport(tree: *const Ast, node: Ast.Node.Index) bool {
+    if (tree.nodeTag(node) != .field_access) return false;
+
+    const fa = tree.nodeData(node).node_and_token;
+    const obj_node: Ast.Node.Index = fa[0];
+    if (getImportPath(tree, obj_node) != null) return true;
+
+    if (tree.nodeTag(obj_node) != .identifier) return false;
+    return isImportRootedAlias(tree, tree.tokenSlice(tree.nodeMainToken(obj_node)));
+}
+
 /// Resolves `import_path` relative to `current_file` and returns a normalized path.
 pub fn resolveImportedPath(
     allocator: std.mem.Allocator,
@@ -483,6 +500,19 @@ fn findLocalImportPath(tree: *const Ast, alias: []const u8) ?[]const u8 {
         }
     }
     return null;
+}
+
+fn isImportRootedAlias(tree: *const Ast, alias: []const u8) bool {
+    for (tree.rootDecls()) |decl| {
+        const vd = tree.fullVarDecl(decl) orelse continue;
+        const name_tok = vd.ast.mut_token + 1;
+        if (!std.mem.eql(u8, tree.tokenSlice(name_tok), alias)) continue;
+
+        const init_node = vd.ast.init_node.unwrap() orelse return false;
+        if (getImportPath(tree, init_node) != null) return true;
+        return isModuleMemberReexport(tree, init_node);
+    }
+    return false;
 }
 
 fn getImportPath(tree: *const Ast, node: Ast.Node.Index) ?[]const u8 {
