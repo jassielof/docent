@@ -104,64 +104,18 @@ fn run(ctx: *fangz.ParseContext) !void {
         all_diagnostics.deinit(allocator);
     }
 
-    const library_entry_roots_owned = blk: {
-        if (plan.path_mode == .recursive) break :blk &.{};
-        if (plan.path_mode == .module_root) break :blk plan.module_entry_roots;
-        const roots = docent.collectLibraryEntryRoots(
-            allocator,
-            io,
-            plan.package.project_root,
-        ) catch &.{};
-        break :blk roots;
-    };
-    defer if (plan.path_mode == .project) {
-        for (library_entry_roots_owned) |root_path| allocator.free(root_path);
-        allocator.free(library_entry_roots_owned);
-    };
+    const library_entry_roots: []const []const u8 = &.{};
 
-    var doc_opts = doc_options;
-    var style_opts = style_options;
-    var complexity_opts = complexity_options;
-    var size_opts = size_options;
-    if (plan.path_mode == .recursive) {
-        doc_opts.applyRunScanMode(.reachability_traversal);
-        style_opts.applyRunScanMode(.reachability_traversal);
-        complexity_opts.applyRunScanMode(.reachability_traversal);
-        size_opts.applyRunScanMode(.reachability_traversal);
-    }
-
-    const doc_lint_options: docent.LintOptions = switch (plan.path_mode) {
-        .project, .module_root => .{ .module_name = plan.package.name },
-        .recursive => .{},
-    };
+    const doc_opts = doc_options;
+    const style_opts = style_options;
+    const complexity_opts = complexity_options;
+    const size_opts = size_options;
+    const doc_lint_options: docent.LintOptions = .{};
 
     var linted_files = std.StringHashMap(void).init(allocator);
     defer linted_files.deinit();
 
     var should_stop = false;
-
-    for (plan.resolved_targets) |rt| {
-        if (should_stop) break;
-        if (rt.status != .linted) continue;
-        for (rt.files) |path| {
-            const gptr = try linted_files.getOrPut(path);
-            if (gptr.found_existing) continue;
-            if (try doc_check.lintPlanFile(
-                allocator,
-                io,
-                path,
-                doc_lint_options,
-                library_entry_roots_owned,
-                doc_opts,
-                &all_diagnostics,
-                &summary,
-                args.fail_fast,
-            )) {
-                should_stop = true;
-                break;
-            }
-        }
-    }
 
     if (!should_stop) {
         for (plan.extra_lint_files) |path| {
@@ -172,7 +126,7 @@ fn run(ctx: *fangz.ParseContext) !void {
                 io,
                 path,
                 doc_lint_options,
-                library_entry_roots_owned,
+                library_entry_roots,
                 doc_opts,
                 &all_diagnostics,
                 &summary,

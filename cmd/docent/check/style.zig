@@ -98,48 +98,6 @@ pub fn analyzeReachableTargets(
     summary: *docent.output.Summary,
     fail_fast: cli_types.FailFast,
 ) !bool {
-    for (plan.resolved_targets) |rt| {
-        if (rt.status != .linted) continue;
-
-        const abs_root = if (std.fs.path.isAbsolute(rt.root_source_file))
-            try allocator.dupe(u8, rt.root_source_file)
-        else
-            try std.fs.path.join(allocator, &.{ plan.package.project_root, rt.root_source_file });
-        defer allocator.free(abs_root);
-
-        var reachable = docent.scan.reach.collectReachableFiles(
-            allocator,
-            io,
-            abs_root,
-        ) catch |err| {
-            try check_shared.printStderr(
-                io,
-                "error: failed to resolve reachable files for '{s}': {}\n",
-                .{ rt.root_source_file, err },
-            );
-            continue;
-        };
-        defer docent.scan.reach.deinitOwnedPaths(allocator, &reachable);
-
-        for (reachable.items) |path| {
-            if (docent.scan.target.shouldSkipLintFile(path, plan.targeting)) continue;
-            if (try analyzed_files.put(
-                allocator,
-                io,
-                path,
-            )) continue;
-            if (try analyzeFile(
-                allocator,
-                io,
-                path,
-                style_cfg,
-                all_diagnostics,
-                summary,
-                fail_fast,
-            )) return true;
-        }
-    }
-
     for (plan.extra_lint_files) |path| {
         if (try analyzed_files.put(
             allocator,

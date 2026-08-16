@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://json-schema.org/draft-07/schema#
 $schema: "https://json-schema.org/draft-07/schema#"
 $id: "https://jassielof.github.io/docent/schemas/docent.schema.json"
-title: "Docent Configuration Schema"
+title: Docent Configuration
 description: >-
   Categorized configuration for `.config/docent.toml`. Docent uses two scan
   models: `fmt` walks the filesystem (including orphan `.zig` files); `check`
@@ -165,46 +165,25 @@ properties:
   check:
     type: "object"
     description: >-
-      Module-target selection for `docent check`. Check does not walk the
-      filesystem for orphans: it discovers module roots from `build.zig`
-      (`root_source_file`) and runs reachability analysis from those roots.
-      These knobs mirror CLI `--lib` / `--bins` / `--tests` / `--deps` /
-      `--build-script`. Category tables (`doc`, `style`, …) still control
-      rule severity and `scan_mode` visibility inside the reachable graph.
-      CLI flags override these defaults when set.
+      Filesystem selection for `docent check`. When CLI paths are supplied they
+      override `include`; otherwise Docent scans `include`, then manifest paths.
+      Category `scan_mode` still controls public versus all declarations per file.
     additionalProperties: false
     properties:
-      lib:
-        type: "boolean"
-        default: false
-        description: >-
-          Include library targets. When no bin/test filters are set (here or
-          on the CLI), libraries are included by default even if this is false.
-      bins:
-        type: "boolean"
-        default: false
-        description: "Include all executable targets from build.zig."
-      tests:
-        type: "boolean"
-        default: false
-        description: "Include all test targets from build.zig."
-      deps:
-        type: "boolean"
-        default: false
-        description: "Also lint local `.path` dependencies from build.zig.zon."
-      build_script:
-        type: "boolean"
-        default: false
-        description: "Also lint build.zig and files reachable from it via @import."
-      exclude_targets:
+      include:
         type: "array"
         items:
           type: "string"
           minLength: 1
         default: []
-        description: >-
-          Build-step target names to skip (exact match against the step name
-          from build.zig). Filters the module graph, not arbitrary paths.
+        description: "Files or directories to scan when no CLI paths are given."
+      exclude:
+        type: "array"
+        items:
+          type: "string"
+          minLength: 1
+        default: []
+        description: "Files or directories to exclude from the filesystem scan."
 
   typeset:
     type: "object"
@@ -335,7 +314,8 @@ definitions:
   case_convention:
     type: "string"
     description: "Expected identifier or module-filename casing."
-    enum: ["snake_case", "camelCase", "PascalCase", "kebab-case", '@"kebab-case"']
+    enum:
+      ["snake_case", "camelCase", "PascalCase", "kebab-case", '@"kebab-case"']
 
   scan_mode:
     type: "string"

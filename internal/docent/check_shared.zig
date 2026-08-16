@@ -31,9 +31,7 @@ pub const TargetArgs = struct {
     fail_fast: cli_types.FailFast = cli_types.default_fail_fast,
 };
 
-/// Merges CLI target flags with `[check]` from `.config/docent.toml`.
-/// CLI bools OR with config (either may enable a target class). `exclude_targets`
-/// comes from config only.
+/// CLI paths override `[check].include`; configured excludes always apply.
 pub fn gatherPlan(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -54,15 +52,15 @@ pub fn gatherPlan(
     defer if (resolved_manifest) |p| allocator.free(p);
 
     return status_plan.gather(allocator, io, .{
-        .lib = args.lib or cfg.check.lib,
-        .bins = args.bins or cfg.check.bins,
+        .lib = args.lib,
+        .bins = args.bins,
         .bin_names = args.bin,
-        .tests = args.tests or cfg.check.tests,
+        .tests = args.tests,
         .test_names = args.@"test",
-        .deps = args.deps or cfg.check.deps,
-        .build_script = args.build_script or cfg.check.build_script,
-        .exclude_targets = cfg.check.exclude_targets,
-        .positionals = args.positionals,
+        .deps = args.deps,
+        .build_script = args.build_script,
+        .positionals = if (args.positionals.len > 0) args.positionals else cfg.check.include,
+        .exclude_paths = cfg.check.exclude,
         .manifest_path = resolved_manifest,
     });
 }

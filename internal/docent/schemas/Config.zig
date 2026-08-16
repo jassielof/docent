@@ -239,12 +239,8 @@ fn decodeCheck(
         .table => |t| t,
         else => return,
     };
-    if (table.get("lib")) |v| out.lib = try decodeBool(v);
-    if (table.get("bins")) |v| out.bins = try decodeBool(v);
-    if (table.get("tests")) |v| out.tests = try decodeBool(v);
-    if (table.get("deps")) |v| out.deps = try decodeBool(v);
-    if (table.get("build_script")) |v| out.build_script = try decodeBool(v);
-    if (table.get("exclude_targets")) |v| out.exclude_targets = try decodeStringList(allocator, v);
+    if (table.get("include")) |v| out.include = try decodeStringList(allocator, v);
+    if (table.get("exclude")) |v| out.exclude = try decodeStringList(allocator, v);
 }
 
 fn decodeTypeset(
@@ -536,9 +532,8 @@ test "decode reads check and typeset target selection" {
 
     const root = try parseRoot(arena.allocator(),
         \\[check]
-        \\bins = true
-        \\deps = true
-        \\exclude_targets = ["bench", "fuzz"]
+        \\include = ["src", "tools/main.zig"]
+        \\exclude = ["src/generated", "scratch"]
         \\
         \\[typeset]
         \\include_private = true
@@ -548,10 +543,10 @@ test "decode reads check and typeset target selection" {
     );
     var cfg = try decode(arena.allocator(), root);
     defer cfg.deinit(arena.allocator());
-    try std.testing.expect(cfg.check.bins);
-    try std.testing.expect(cfg.check.deps);
-    try std.testing.expectEqual(@as(usize, 2), cfg.check.exclude_targets.len);
-    try std.testing.expectEqualStrings("bench", cfg.check.exclude_targets[0]);
+    try std.testing.expectEqual(@as(usize, 2), cfg.check.include.len);
+    try std.testing.expectEqualStrings("src", cfg.check.include[0]);
+    try std.testing.expectEqual(@as(usize, 2), cfg.check.exclude.len);
+    try std.testing.expectEqualStrings("src/generated", cfg.check.exclude[0]);
     try std.testing.expect(cfg.typeset.include_private);
     try std.testing.expect(cfg.typeset.bundle_std);
     try std.testing.expectEqualStrings("out/docs.json", cfg.typeset.output);

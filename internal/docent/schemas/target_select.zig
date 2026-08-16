@@ -1,4 +1,4 @@
-//! Shared build-target selection knobs for module-API commands (`check`, `typeset`).
+//! Scan settings shared by check commands.
 //!
 //! These configure *which* `build.zig` module roots participate. They do not
 //! switch Docent to a filesystem orphan walk — that remains `fmt`'s model.
@@ -7,20 +7,16 @@
 
 const std = @import("std");
 
-/// Target filters mirroring CLI `--lib` / `--bins` / `--tests` / `--deps` /
-/// `--build-script`, plus optional step-name exclusions.
+/// Filesystem paths for `docent check`.
 pub const Check = struct {
-    lib: bool = false,
-    bins: bool = false,
-    tests: bool = false,
-    deps: bool = false,
-    build_script: bool = false,
-    /// Exact `build.zig` step names to skip. Owned when non-empty; free with `deinit`.
-    exclude_targets: []const []const u8 = &.{},
+    include: []const []const u8 = &.{},
+    exclude: []const []const u8 = &.{},
 
     pub fn deinit(self: *Check, allocator: std.mem.Allocator) void {
-        freePathList(allocator, self.exclude_targets);
-        self.exclude_targets = &.{};
+        freePathList(allocator, self.include);
+        freePathList(allocator, self.exclude);
+        self.include = &.{};
+        self.exclude = &.{};
     }
 };
 

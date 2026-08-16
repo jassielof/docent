@@ -240,27 +240,8 @@ fn checkNode(
             const name = tree.tokenSlice(name_tok);
             const is_reexport: bool = blk: {
                 const init_node = var_decl.ast.init_node.unwrap() orelse break :blk false;
-                const info = alias.getInfo(tree, init_node) orelse {
-                    break :blk alias.isModuleMemberReexport(tree, init_node);
-                };
-                var emit_ctx = ReexportEmitContext{
-                    .severity_level = severity_level,
-                    .allocator = allocator,
-                    .msg_allocator = msg_allocator,
-                    .diagnostics = diagnostics,
-                };
-                break :blk try alias.resolveMissingDocReexport(
-                    info,
-                    name,
-                    file,
-                    allocator,
-                    io,
-                    &emit_ctx,
-                    .{
-                        .on_undocumented_member = onUndocumentedReexportMember,
-                        .on_undocumented_whole_module = onUndocumentedReexportWholeModule,
-                    },
-                );
+                break :blk alias.getInfo(tree, init_node) != null or
+                    alias.isModuleMemberReexport(tree, init_node);
             };
 
             if (!is_reexport) {

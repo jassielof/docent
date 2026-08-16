@@ -77,76 +77,25 @@ fn run(ctx: *fangz.ParseContext) !void {
     var linted_files = std.StringHashMap(void).init(allocator);
     defer linted_files.deinit();
 
-    var should_stop = false;
+    const library_entry_roots: []const []const u8 = &.{};
+    const lint_options: docent.LintOptions = .{ .scan_mode = doc_scan_mode };
 
-    const library_entry_roots_owned = blk: {
-        if (plan.path_mode == .recursive) break :blk &.{};
-        if (plan.path_mode == .module_root) break :blk plan.module_entry_roots;
-        const roots = docent.collectLibraryEntryRoots(
+    for (plan.extra_lint_files) |path| {
+        const gptr = try linted_files.getOrPut(path);
+        if (gptr.found_existing) continue;
+
+        if (try lintPlanFile(
             allocator,
             io,
-            plan.package.project_root,
-        ) catch &.{};
-        break :blk roots;
-    };
-    defer if (plan.path_mode == .project) {
-        for (library_entry_roots_owned) |root_path| allocator.free(root_path);
-        allocator.free(library_entry_roots_owned);
-    };
-
-    const lint_options: docent.LintOptions = switch (plan.path_mode) {
-        .project, .module_root => .{
-            .module_name = plan.package.name,
-            .scan_mode = doc_scan_mode,
-        },
-        .recursive => .{
-            .scan_mode = .reachability_traversal,
-        },
-    };
-
-    for (plan.resolved_targets) |rt| {
-        if (rt.status == .linted) {
-            for (rt.files) |path| {
-                const gptr = try linted_files.getOrPut(path);
-                if (gptr.found_existing) continue;
-
-                if (try lintPlanFile(
-                    allocator,
-                    io,
-                    path,
-                    lint_options,
-                    library_entry_roots_owned,
-                    doc_cfg,
-                    &all_diagnostics,
-                    &summary,
-                    args.fail_fast,
-                )) {
-                    should_stop = true;
-                    break;
-                }
-            }
-        }
-        if (should_stop) break;
-    }
-
-    if (!should_stop) {
-        for (plan.extra_lint_files) |path| {
-            const gptr = try linted_files.getOrPut(path);
-            if (gptr.found_existing) continue;
-
-            if (try lintPlanFile(
-                allocator,
-                io,
-                path,
-                lint_options,
-                library_entry_roots_owned,
-                doc_cfg,
-                &all_diagnostics,
-                &summary,
-                args.fail_fast,
-            )) {
-                break;
-            }
+            path,
+            lint_options,
+            library_entry_roots,
+            doc_cfg,
+            &all_diagnostics,
+            &summary,
+            args.fail_fast,
+        )) {
+            break;
         }
     }
 

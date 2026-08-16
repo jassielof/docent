@@ -39,31 +39,22 @@ test "reexport_undocumented_points_at_definition uses forward slashes in paths" 
     }
 }
 
-test "reexport_undocumented_points_at_definition points at definition not re-export line" {
+test "undocumented re-export is skipped until its source file is scanned" {
     const path = try harness.scenarioProjectRootPath("reexport_undocumented_points_at_definition");
     defer std.testing.allocator.free(path);
 
     var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
     defer result.deinit();
-    try utils.expectRuleCount(result, "missing_doc_comment", 1);
-
-    for (result.diagnostics.items) |d| {
-        if (std.mem.eql(u8, d.rule, "missing_doc_comment")) {
-            try testing.expect(!std.mem.endsWith(u8, d.file, "root.zig"));
-            try testing.expect(std.mem.endsWith(u8, d.file, "severity.zig"));
-        }
-    }
+    try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
 
-test "whole-module re-export reports missing namespace doc on imported file" {
+test "whole-module re-export is skipped until its source file is scanned" {
     const path = try harness.scenarioProjectRootPath("reexport_missing_whole_namespace");
     defer std.testing.allocator.free(path);
 
     var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
     defer result.deinit();
-    try utils.expectRuleCount(result, "missing_doc_comment", 1);
-    try testing.expectEqual(.namespace, result.diagnostics.items[0].subject.?.kind);
-    try testing.expect(std.mem.endsWith(u8, result.diagnostics.items[0].file, "enums.zig"));
+    try utils.expectRuleAbsent(result, "missing_doc_comment");
 }
 
 test "whole-module re-export resolves blank namespace doc on imported file" {
@@ -115,4 +106,3 @@ test "redundant_doc_comment does not flag non-redundant doc comments" {
 
     try utils.expectRuleAbsent(result, "redundant_doc_comment");
 }
-

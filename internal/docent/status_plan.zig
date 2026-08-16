@@ -1,4 +1,4 @@
-//! Builds the lint plan used by `docent status` and the default CLI run (targets, paths, skip reasons).
+//! Builds filesystem-based lint plans used by `docent status` and check commands.
 
 const std = @import("std");
 
@@ -37,9 +37,9 @@ pub const ResolvedTarget = struct {
 
 /// How explicit CLI paths select files to lint.
 pub const PathMode = enum {
-    /// No paths: discover library targets from `build.zig` and lint the public API surface.
+    /// No paths: recursively scan package paths from `build.zig.zon`.
     project,
-    /// One path: treat a single `.zig` file or package directory as a module root (public API surface).
+    /// Retained for compatibility; filesystem scans use `recursive` for explicit paths.
     module_root,
     /// Two or more paths: recursively lint every `.zig` file under the paths (all declarations).
     recursive,
@@ -63,12 +63,13 @@ pub const Options = struct {
     /// When true, include `build.zig` and `build/*.zig` in the plan.
     build_script: bool = false,
 
-    /// Build-step names to skip (exact match). From `[check].exclude_targets` /
-    /// `[typeset].exclude_targets` — filters the module graph, not filesystem paths.
+    /// Retained for compatibility; filesystem scans do not read build targets.
     exclude_targets: []const []const u8 = &.{},
 
     /// Explicit file or directory paths from the command line (empty uses project discovery).
     positionals: []const []const u8 = &.{},
+    /// Filesystem paths excluded after discovery.
+    exclude_paths: []const []const u8 = &.{},
     /// When set, use this manifest instead of searching upward from cwd.
     manifest_path: ?[]const u8 = null,
     /// Terminal color profile for styled skip reasons in status output.
@@ -244,12 +245,7 @@ pub fn gather(
     var module_entry_roots_list: std.ArrayList([]const u8) = .empty;
     errdefer targeting.deinitOwnedPaths(allocator, &module_entry_roots_list);
 
-    const path_mode: PathMode = if (options.positionals.len == 0)
-        .project
-    else if (options.positionals.len == 1)
-        .module_root
-    else
-        .recursive;
+    const path_mode: PathMode = if (options.positionals.len == 0) .project else .recursive;
 
     if (options.positionals.len > 0) {
         var explicit_targeting = targeting_options;
@@ -264,14 +260,6 @@ pub fn gather(
             errdefer allocator.free(resolved);
 
             switch (path_mode) {
-                .module_root => try collectModuleRootLintFiles(
-                    allocator,
-                    io,
-                    resolved,
-                    explicit_targeting,
-                    &extra_lint_files,
-                    &module_entry_roots_list,
-                ),
                 .recursive => try collectRecursiveLintFiles(
                     allocator,
                     io,
@@ -279,16 +267,15 @@ pub fn gather(
                     explicit_targeting,
                     &extra_lint_files,
                 ),
-                .project => unreachable,
+                .project, .module_root => unreachable,
             }
             allocator.free(resolved);
         }
     } else {
-        var scanned = try build_scan.scanProjectBuildScript(
-            allocator,
-            io,
-            package.project_root,
-        );
+        // Check commands deliberately do not inspect build.zig.  A project's lint
+        // scope is its explicit paths, or the top-level paths declared in the
+        // manifest when no paths are supplied.
+        const scanned: ?build_scan.Result = null;
         defer if (scanned) |*s| s.deinit(allocator);
 
         if (scanned) |scan| {
@@ -474,15 +461,6 @@ pub fn gather(
             }
         }
 
-        if (targeting_options.build_script) {
-            try collectBuildFiles(
-                allocator,
-                io,
-                package.project_root,
-                &extra_lint_files,
-            );
-        }
-
         if (options.deps) {
             try appendDependencyLintFiles(
                 allocator,
@@ -494,6 +472,8 @@ pub fn gather(
         }
     }
 
+    filterExcludedFiles(allocator, package.project_root, options.exclude_paths, &extra_lint_files);
+
     return Plan{
         .package = package,
         .resolved_targets = try resolved_targets.toOwnedSlice(allocator),
@@ -502,6 +482,31 @@ pub fn gather(
         .module_entry_roots = try module_entry_roots_list.toOwnedSlice(allocator),
         .targeting = targeting_options,
     };
+}
+
+fn filterExcludedFiles(
+    allocator: std.mem.Allocator,
+    project_root: []const u8,
+    excludes: []const []const u8,
+    files: *std.ArrayList([]const u8),
+) void {
+    var kept: usize = 0;
+    for (files.items) |path| {
+        var excluded = false;
+        for (excludes) |raw| {
+            const full = if (std.fs.path.isAbsolute(raw)) raw else std.fs.path.join(allocator, &.{ project_root, raw }) catch raw;
+            defer if (full.ptr != raw.ptr) allocator.free(full);
+            if (std.mem.startsWith(u8, path, full)) {
+                excluded = true;
+                break;
+            }
+        }
+        if (excluded) allocator.free(path) else {
+            files.items[kept] = path;
+            kept += 1;
+        }
+    }
+    files.items.len = kept;
 }
 
 fn appendDependencyLintFiles(
