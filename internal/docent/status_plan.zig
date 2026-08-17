@@ -508,7 +508,12 @@ pub fn gather(
         );
     }
 
-    filterExcludedFiles(allocator, package.project_root, options.exclude_paths, &extra_lint_files);
+    filterExcludedFiles(
+        allocator,
+        package.project_root,
+        options.exclude_paths,
+        &extra_lint_files,
+    );
 
     return Plan{
         .package = package,
@@ -534,7 +539,11 @@ fn filterExcludedFiles(
         for (excludes) |raw| {
             const full = if (std.fs.path.isAbsolute(raw)) raw else std.fs.path.join(allocator, &.{ project_root, raw }) catch raw;
             defer if (full.ptr != raw.ptr) allocator.free(full);
-            if (std.mem.startsWith(u8, path, full)) {
+            if (std.mem.startsWith(
+                u8,
+                path,
+                full,
+            )) {
                 excluded = true;
                 break;
             }

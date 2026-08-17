@@ -1090,7 +1090,11 @@ test "writeDiagnostics separates pretty blocks with blank line" {
     );
     out = writer.toArrayList();
 
-    try std.testing.expect(std.mem.indexOf(u8, out.items, "warning[") == null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "warning[",
+    ) == null);
     try std.testing.expect(std.mem.indexOf(
         u8,
         out.items,

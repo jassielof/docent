@@ -1,5 +1,6 @@
 //! Reports the effective lint plan: project metadata, lint targets, and rule severities.
 const std = @import("std");
+
 const builtin = @import("builtin");
 
 const carnaval = @import("carnaval");
@@ -183,13 +184,21 @@ pub fn printStatusReport(
         }
         if (plan.manifest_paths.len > 0) {
             try w.print("  Also inherited from manifest:\n", .{});
-            try printManifestPaths(allocator, w, plan);
+            try printManifestPaths(
+                allocator,
+                w,
+                plan,
+            );
         }
         try w.print("\n", .{});
     } else {
         if (plan.manifest_paths.len > 0) {
             try w.print("  Inherited from manifest:\n", .{});
-            try printManifestPaths(allocator, w, plan);
+            try printManifestPaths(
+                allocator,
+                w,
+                plan,
+            );
         } else {
             try w.print("  No paths selected.\n", .{});
         }
@@ -271,7 +280,11 @@ fn printManifestPaths(
 
 fn containsExcludedDependency(path: []const u8, excluded_roots: []const []const u8) bool {
     for (excluded_roots) |root| {
-        if (!std.mem.startsWith(u8, root, path)) continue;
+        if (!std.mem.startsWith(
+            u8,
+            root,
+            path,
+        )) continue;
         if (root.len == path.len or root[path.len] == '/' or root[path.len] == '\\') return true;
     }
     return false;
