@@ -757,7 +757,13 @@ fn resolveImportedFileKind(
     const joined = try std.fs.path.join(allocator, &.{ base_dir, import_path });
     defer allocator.free(joined);
 
-    const abs = std.mem.replaceOwned(u8, allocator, joined, "\\", "/") catch return null;
+    const abs = std.mem.replaceOwned(
+        u8,
+        allocator,
+        joined,
+        "\\",
+        "/",
+    ) catch return null;
     defer allocator.free(abs);
 
     if (cache.get(abs)) |cached| return if (cached) .namespace else .structure;

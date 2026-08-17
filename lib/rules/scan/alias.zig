@@ -119,7 +119,13 @@ pub fn resolveImportedPath(
     const base_dir = std.fs.path.dirname(current_file) orelse ".";
     const joined = try std.fs.path.join(allocator, &.{ base_dir, import_path });
     defer allocator.free(joined);
-    return std.mem.replaceOwned(u8, allocator, joined, "\\", "/");
+    return std.mem.replaceOwned(
+        u8,
+        allocator,
+        joined,
+        "\\",
+        "/",
+    );
 }
 
 /// Reads and parses a local `.zig` file. Caller owns and must deinit the returned AST and free `source`.

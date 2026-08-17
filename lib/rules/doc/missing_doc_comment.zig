@@ -511,7 +511,13 @@ fn onUndocumentedReexportMember(
             display_symbol,
         ),
         .detail = "re-exported without documentation",
-        .file = try std.mem.replaceOwned(u8, ctx.msg_allocator, file_path, "\\", "/"),
+        .file = try std.mem.replaceOwned(
+            u8,
+            ctx.msg_allocator,
+            file_path,
+            "\\",
+            "/",
+        ),
         .line = loc.line + 1,
         .column = loc.column + 1,
         .source_line = try utils.dupSourceLine(
@@ -546,7 +552,13 @@ fn onUndocumentedReexportWholeModule(
             subject_kind,
             source_basename,
         ),
-        .file = try std.mem.replaceOwned(u8, ctx.msg_allocator, file_path, "\\", "/"),
+        .file = try std.mem.replaceOwned(
+            u8,
+            ctx.msg_allocator,
+            file_path,
+            "\\",
+            "/",
+        ),
         .line = line + 1,
         .column = column + 1,
         .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(
