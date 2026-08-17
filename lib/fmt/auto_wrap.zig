@@ -1,12 +1,8 @@
 //! Best-effort auto-wrap: expand over-long lines via list/call breaks.
 //!
-//! Operates on already-rendered Zig source. When a physical line exceeds
-//! `max_line_length`, tries the same list-expansion strategy as
-//! `trailing_comma.zig` with a lower threshold (break even 1–2 item lists
-//! if needed). Leaves lines unchanged when nothing safe can be broken.
+//! Operates on already-rendered Zig source. When a physical line exceeds `max_line_length`, tries the same list-expansion strategy as `trailing_comma.zig` with a lower threshold (break even 1–2 item lists if needed). Leaves lines unchanged when nothing safe can be broken.
 //!
-//! Not in scope: binary-expression reflow, comment wrapping, or paragraph
-//! reflow of prose.
+//! Not in scope: binary-expression reflow, comment wrapping, or paragraph reflow of prose.
 
 const std = @import("std");
 const mem = std.mem;
@@ -95,8 +91,7 @@ test "leaves short lines unchanged" {
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
-/// Wraps over-long lines by expanding `(...)` / `{...}` lists. Caller owns
-/// the returned slice.
+/// Wraps over-long lines by expanding `(...)` / `{...}` lists. Caller owns the returned slice.
 pub fn autoWrap(
     gpa: Allocator,
     input: []const u8,
@@ -212,8 +207,7 @@ fn expandOverlong(
     try output.appendSlice(gpa, line);
 }
 
-/// Finds the leftmost outermost `(...)` or `{...}` whose expansion would
-/// help (non-empty inner, not already trailing-comma expanded).
+/// Finds the leftmost outermost `(...)` or `{...}` whose expansion would help (non-empty inner, not already trailing-comma expanded).
 fn findBestBreak(line: []const u8) ?usize {
     var best: ?usize = null;
     var pos: usize = 0;
