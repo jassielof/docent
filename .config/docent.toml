@@ -11,8 +11,8 @@ single_line_braces = false
 logical_blank_lines = false
 trailing_comma = true
 sort_doctests = true
-# auto_wrap = true
-# max_line_length = 100
+auto_wrap = true
+max_line_length = 100
 
 [doc]
 scan_mode = "public"
