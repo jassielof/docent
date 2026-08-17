@@ -17,9 +17,9 @@ test "sorts imports" {
         \\
         \\const std = @import("std");
         \\const builtin = @import("builtin");
-        \\const vereda = @import("vereda");
-        \\const Walker = vereda.Walker;
-        \\const WalkEntry = vereda.WalkEntry;
+        \\const project = @import("project");
+        \\const Project = project.Project;
+        \\const Version = project.Version;
         \\const fangz = @import("fangz");
         \\const App = fangz.App;
         \\const Flag = fangz.Flag;
@@ -79,9 +79,9 @@ test "sorts imports" {
         \\const App = fangz.App;
         \\const Command = fangz.Command;
         \\const Flag = fangz.Flag;
-        \\const vereda = @import("vereda");
-        \\const WalkEntry = vereda.WalkEntry;
-        \\const Walker = vereda.Walker;
+        \\const project = @import("project");
+        \\const Project = project.Project;
+        \\const Version = project.Version;
         \\
         \\const analysis = @import("analysis.zig");
         \\const check_command = @import("commands/check.zig");

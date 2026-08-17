@@ -51,7 +51,6 @@ const category = lint.category;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
-const vereda = @import("vereda");
 
 const utils = @import("../utils.zig");
 
@@ -758,7 +757,7 @@ fn resolveImportedFileKind(
     const joined = try std.fs.path.join(allocator, &.{ base_dir, import_path });
     defer allocator.free(joined);
 
-    const abs = vereda.path.toPosixSeparators(allocator, joined) catch return null;
+    const abs = std.mem.replaceOwned(u8, allocator, joined, "\\", "/") catch return null;
     defer allocator.free(abs);
 
     if (cache.get(abs)) |cached| return if (cached) .namespace else .structure;

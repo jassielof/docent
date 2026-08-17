@@ -12,7 +12,6 @@ pub const LintOptions = rules_mod.LintOptions;
 pub const LintResult = rules_mod.LintResult;
 pub const rules = rules_mod;
 pub const RuleSeverities = rules_mod.RuleSeverities;
-const vereda = @import("vereda");
 
 const suppressions = @import("suppressions.zig");
 pub const Suppressions = suppressions.Table;
@@ -150,7 +149,7 @@ pub fn lintSource(
     errdefer result.deinit();
 
     const msg = result.messageAllocator();
-    const file_owned = try vereda.path.toPosixSeparators(msg, file);
+    const file_owned = try std.mem.replaceOwned(u8, msg, file, "\\", "/");
 
     const require_module_doc = resolveRequireModuleDoc(file_owned, library_entry_roots);
 
@@ -266,7 +265,7 @@ pub fn lintComplexitySource(
     errdefer result.deinit();
 
     const msg = result.messageAllocator();
-    const file_owned = try vereda.path.toPosixSeparators(msg, file);
+    const file_owned = try std.mem.replaceOwned(u8, msg, file, "\\", "/");
 
     try rules.complexity.cognitive.check(
         &tree,
@@ -314,7 +313,7 @@ pub fn lintSizeSource(
     errdefer result.deinit();
 
     const msg = result.messageAllocator();
-    const file_owned = try vereda.path.toPosixSeparators(msg, file);
+    const file_owned = try std.mem.replaceOwned(u8, msg, file, "\\", "/");
 
     try rules.size.max_fun_params.check(
         &tree,
@@ -363,7 +362,7 @@ pub fn lintStyleSource(
     errdefer result.deinit();
 
     const msg = result.messageAllocator();
-    const file_owned = try vereda.path.toPosixSeparators(msg, file);
+    const file_owned = try std.mem.replaceOwned(u8, msg, file, "\\", "/");
 
     try rules.style.identifier_case.check(
         &tree,

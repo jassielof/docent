@@ -140,7 +140,7 @@ pub fn discover(
 }
 
 /// Like `discover`, but also walks each dependency's own `build.zig.zon`
-/// for nested `.path` deps (e.g. vereda → xdg). Deduplicates by resolved
+/// for nested local `.path` dependencies. Deduplicates by resolved
 /// `root_dir`. Still never follows URL/hash dependencies.
 pub fn discoverRecursive(
     allocator: std.mem.Allocator,

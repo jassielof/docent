@@ -10,10 +10,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     }).module("fangz");
-    const vereda_mod = b.dependency("vereda", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("vereda");
     const carnaval_mod = b.dependency("carnaval", .{
         .target = target,
         .optimize = optimize,
@@ -46,7 +42,6 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "carnaval", .module = carnaval_mod },
             .{ .name = "dmp", .module = dmp_mod },
-            .{ .name = "vereda", .module = vereda_mod },
         },
     });
 
@@ -80,7 +75,6 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "doc_comment", .module = doc_comment_mod },
             .{ .name = "identifier_style", .module = identifier_style_mod },
-            .{ .name = "vereda", .module = vereda_mod },
             .{ .name = "lint", .module = lint_mod },
             .{ .name = "cogni", .module = cogni_mod },
             .{ .name = "cyclo", .module = cyclo_mod },
@@ -116,7 +110,6 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "carnaval", .module = carnaval_mod },
             .{ .name = "fangz", .module = fangz_mod },
-            .{ .name = "vereda", .module = vereda_mod },
             .{ .name = "toml", .module = toml_mod },
             .{ .name = "doc_comment", .module = doc_comment_mod },
             .{ .name = "fmt", .module = fmt_mod },
@@ -308,7 +301,7 @@ pub fn build(b: *std.Build) void {
 
     const schema_step = b.step("schema", "Generate JSON schema from YAML");
     const yq_cli = b.addSystemCommand(&.{"yq"});
-    yq_cli.addArgs(&.{"--output-format", "json"});
+    yq_cli.addArgs(&.{ "--output-format", "json" });
     yq_cli.addFileArg(b.path("schemas/docent.schema.yaml"));
     const schema_json = yq_cli.captureStdOut(.{});
     const install_schema = b.addInstallFile(schema_json, "schema/docent.schema.json");

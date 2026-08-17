@@ -25,7 +25,8 @@
 //! - Default: primary modules only.
 //! - `--deps`: direct `.path` dependencies from build.zig.zon as appendix.
 //! - `--deps-recursive`: also nest into those deps' own `.path` deps
-//!   (e.g. vereda → xdg). Still `.path`-only; never URL/hash cache packages.
+//!   (e.g. a local dependency's own local dependencies). Still `.path`-only;
+//!   never URL/hash cache packages.
 //! - `--bundle-std`: one-hop referenced std files only (see std_bundle.zig).
 //! - Otherwise `std.*` / unbundled deps use ziglang.org / `--external-refs`.
 
@@ -84,7 +85,7 @@ pub fn register(root: *fangz.Command) !void {
 
     try typeset_cmd.addFlag(bool, .{
         .name = "deps-recursive",
-        .brief = "With --deps, also recurse into nested .path dependencies (e.g. vereda -> xdg)",
+        .brief = "With --deps, also recurse into nested local .path dependencies",
         .default = false,
     });
 
@@ -253,7 +254,7 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
 
         // `--deps`: bundle each `.path` build.zig.zon dependency as an
         // appendix module in this *same* docs.json/PDF. With `--deps-recursive`,
-        // also walk nested `.path` deps (vereda → xdg).
+        // Also walk nested local `.path` dependencies.
         if (want_deps and plan.package.manifest_path != null) {
             var deps = if (deps_recursive)
                 typeset.path_deps.discoverRecursive(

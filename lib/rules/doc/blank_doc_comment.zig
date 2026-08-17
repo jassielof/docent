@@ -11,7 +11,6 @@ const category = lint.category;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
-const vereda = @import("vereda");
 
 const alias = @import("../scan/alias.zig");
 const utils = @import("../utils.zig");
@@ -281,7 +280,7 @@ fn onBlankWholeModuleReexport(
             subject_kind,
             source_basename,
         ),
-        .file = try vereda.path.toPosixSeparators(ctx.msg_allocator, file_path),
+        .file = try std.mem.replaceOwned(u8, ctx.msg_allocator, file_path, "\\", "/"),
         .line = line + 1,
         .column = column + 1,
         .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(

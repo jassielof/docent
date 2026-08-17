@@ -4,7 +4,6 @@ const Allocator = std.mem.Allocator;
 
 const carnaval = @import("carnaval");
 const dmp = @import("dmp");
-const vereda = @import("vereda");
 
 const removed_style = carnaval.Style.init().fg(.{ .ansi16 = .red });
 const added_style = carnaval.Style.init().fg(.{ .ansi16 = .green });
@@ -59,9 +58,12 @@ pub fn writeDiff(
     formatted: []const u8,
     profile: carnaval.ColorProfile,
 ) !void {
-    const display_path = try vereda.path.toPosixSeparators(
+    const display_path = try std.mem.replaceOwned(
+        u8,
         std.heap.page_allocator,
         file_path,
+        "\\",
+        "/",
     );
     defer std.heap.page_allocator.free(display_path);
 
@@ -160,9 +162,12 @@ pub fn writeDisplayPath(
     writer: *std.Io.Writer,
     path: []const u8,
 ) !void {
-    const display_path = try vereda.path.toPosixSeparators(
+    const display_path = try std.mem.replaceOwned(
+        u8,
         std.heap.page_allocator,
         path,
+        "\\",
+        "/",
     );
     defer std.heap.page_allocator.free(display_path);
     try writer.writeAll(display_path);

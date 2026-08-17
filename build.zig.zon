@@ -5,7 +5,6 @@
     .dependencies = .{
         .fangz = .{ .path = "dependencies/fangz" },
         .carnaval = .{ .path = "dependencies/fangz/dependencies/carnaval" },
-        .vereda = .{ .path = "dependencies/vereda" },
         .toml = .{ .path = "dependencies/toml" },
         .dmp = .{ .path = "dependencies/dmp" },
     },

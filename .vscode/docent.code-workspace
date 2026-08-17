@@ -9,10 +9,6 @@
       "path": "../dependencies/fangz",
     },
     {
-      "name": "Vereda",
-      "path": "../dependencies/vereda",
-    },
-    {
       "name": "Carnaval",
       "path": "../dependencies/fangz/dependencies/carnaval",
     },
