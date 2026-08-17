@@ -79,7 +79,76 @@ pub fn loadConfig(
         config_path,
     );
     defer parsed.deinit();
-    return try Config.decode(allocator, parsed.root);
+    var cfg = try Config.decode(allocator, parsed.root);
+    errdefer cfg.deinit(allocator);
+    try resolveConfigRelativePaths(
+        allocator,
+        &cfg,
+        config_path,
+    );
+    return cfg;
+}
+
+/// Root directory `include` / `exclude` entries are resolved against: the
+/// parent of the directory holding `config_path` (i.e. the directory above
+/// `.config/`, for the conventional `.config/docent.toml` layout). This
+/// keeps `[fmt].include = ["lib/"]` meaning the same directory regardless of
+/// the invoking process's cwd -- e.g. when `zig build` runs the CLI with an
+/// inherited cwd that isn't the project root.
+fn configRootDir(config_path: []const u8) []const u8 {
+    const config_dir = std.fs.path.dirname(config_path) orelse return config_path;
+    return std.fs.path.dirname(config_dir) orelse config_dir;
+}
+
+fn resolveConfigRelativePaths(
+    allocator: std.mem.Allocator,
+    cfg: *Config,
+    config_path: []const u8,
+) Error!void {
+    const root_dir = configRootDir(config_path);
+    try resolvePathList(
+        allocator,
+        root_dir,
+        &cfg.fmt.include,
+    );
+    try resolvePathList(
+        allocator,
+        root_dir,
+        &cfg.fmt.exclude,
+    );
+    try resolvePathList(
+        allocator,
+        root_dir,
+        &cfg.check.include,
+    );
+    try resolvePathList(
+        allocator,
+        root_dir,
+        &cfg.check.exclude,
+    );
+}
+
+fn resolvePathList(
+    allocator: std.mem.Allocator,
+    root_dir: []const u8,
+    list: *[]const []const u8,
+) Error!void {
+    if (list.len == 0) return;
+
+    const resolved_list = try allocator.alloc([]const u8, list.len);
+    errdefer allocator.free(resolved_list);
+
+    for (list.*, 0..) |entry, i| {
+        if (std.fs.path.isAbsolute(entry)) {
+            resolved_list[i] = entry;
+        } else {
+            resolved_list[i] = try std.fs.path.join(allocator, &.{ root_dir, entry });
+            allocator.free(entry);
+        }
+    }
+
+    allocator.free(list.*);
+    list.* = resolved_list;
 }
 
 /// Loads config from an explicit `config_path`, or searches for the default file when null.
