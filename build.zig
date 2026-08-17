@@ -231,20 +231,25 @@ pub fn build(b: *std.Build) void {
         .root_module = mod,
     });
 
-    const run_docent_lib_tests = b.addRunArtifact(docent_lib_tests);
-    test_step.dependOn(&run_docent_lib_tests.step);
+    test_step.dependOn(&b.addRunArtifact(docent_lib_tests).step);
 
     const rules_lib_tests = b.addTest(.{
         .name = "Rules",
         .root_module = rules_mod,
     });
 
-    const run_rules_lib_tests = b.addRunArtifact(rules_lib_tests);
-    test_step.dependOn(&run_rules_lib_tests.step);
+    test_step.dependOn(&b.addRunArtifact(rules_lib_tests).step);
 
-    const cogni_lib_tests = b.addTest(.{ .name = "Cognitive Complexity", .root_module = cogni_mod });
+    const cogni_lib_tests = b.addTest(.{
+        .name = "Cognitive Complexity",
+        .root_module = cogni_mod,
+    });
     test_step.dependOn(&b.addRunArtifact(cogni_lib_tests).step);
-    const cyclo_lib_tests = b.addTest(.{ .name = "Cyclomatic Complexity", .root_module = cyclo_mod });
+
+    const cyclo_lib_tests = b.addTest(.{
+        .name = "Cyclomatic Complexity",
+        .root_module = cyclo_mod,
+    });
     test_step.dependOn(&b.addRunArtifact(cyclo_lib_tests).step);
 
     const project_scan_lib_tests = b.addTest(.{
@@ -252,32 +257,28 @@ pub fn build(b: *std.Build) void {
         .root_module = project_scan_mod,
     });
 
-    const run_project_scan_lib_tests = b.addRunArtifact(project_scan_lib_tests);
-    test_step.dependOn(&run_project_scan_lib_tests.step);
+    test_step.dependOn(&b.addRunArtifact(project_scan_lib_tests).step);
 
     const identifier_style_lib_tests = b.addTest(.{
         .name = "Identifier Style",
         .root_module = identifier_style_mod,
     });
 
-    const run_identifier_style_lib_tests = b.addRunArtifact(identifier_style_lib_tests);
-    test_step.dependOn(&run_identifier_style_lib_tests.step);
+    test_step.dependOn(&b.addRunArtifact(identifier_style_lib_tests).step);
 
     const fmt_lib_tests = b.addTest(.{
         .name = "Formatting",
         .root_module = fmt_mod,
     });
 
-    const run_fmt_lib_tests = b.addRunArtifact(fmt_lib_tests);
-    test_step.dependOn(&run_fmt_lib_tests.step);
+    test_step.dependOn(&b.addRunArtifact(fmt_lib_tests).step);
 
     const doc_comment_lib_tests = b.addTest(.{
         .name = "Doc Comments",
         .root_module = doc_comment_mod,
     });
 
-    const run_doc_comment_lib_tests = b.addRunArtifact(doc_comment_lib_tests);
-    test_step.dependOn(&run_doc_comment_lib_tests.step);
+    test_step.dependOn(&b.addRunArtifact(doc_comment_lib_tests).step);
 
     const integration_tests = b.addTest(.{
         .name = "Integration",
@@ -296,8 +297,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    const run_integration_tests = b.addRunArtifact(integration_tests);
-    test_step.dependOn(&run_integration_tests.step);
+    test_step.dependOn(&b.addRunArtifact(integration_tests).step);
 
     const schema_step = b.step("schema", "Generate JSON schema from YAML");
     const yq_cli = b.addSystemCommand(&.{"yq"});

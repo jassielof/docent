@@ -25,9 +25,8 @@ test "reports a changed line once when surrounding lines repeat" {
 
     try std.testing.expectEqualStrings(
         \\from lib/fmt/example.zig:
-        \\   2 | - change
-        \\  ...
-        \\   2 | + changed
+        \\2 | -change
+        \\2 | +changed
         \\
         \\
     ,
@@ -105,55 +104,65 @@ pub fn writeDiff(
     );
     try writer.writeAll(":\n");
 
-    for (hunks.items) |hunk| {
-        for (hunk.removed_start..hunk.removed_end) |i| {
-            try writeLineNumber(
-                writer,
-                i + 1,
-                profile,
-            );
-            try removed_style.renderWithProfile(
-                "- ",
-                writer,
-                profile,
-            );
-            try removed_style.renderWithProfile(
-                orig_lines.items[i],
-                writer,
-                profile,
-            );
-            try writer.writeAll("\n");
-        }
+    const width = maxLineNumberWidth(hunks.items);
 
-        if (hunk.removed_end > hunk.removed_start and hunk.added_end > hunk.added_start) {
-            try dimmed_style.renderWithProfile(
-                "  ...\n",
+    for (hunks.items, 0..) |hunk, hunk_index| {
+        if (hunk_index != 0) {
+            try writeGapMarker(
                 writer,
+                width,
                 profile,
             );
         }
 
-        for (hunk.added_start..hunk.added_end) |i| {
-            try writeLineNumber(
-                writer,
-                i + 1,
-                profile,
-            );
-            try added_style.renderWithProfile(
-                "+ ",
-                writer,
-                profile,
-            );
-            try added_style.renderWithProfile(
-                fmt_lines.items[i],
-                writer,
-                profile,
-            );
-            try writer.writeAll("\n");
-        }
+        const removed_count = hunk.removed_end - hunk.removed_start;
+        const added_count = hunk.added_end - hunk.added_start;
+        const pair_count = @max(removed_count, added_count);
 
-        try writer.writeAll("\n");
+        for (0..pair_count) |i| {
+            if (i < removed_count) {
+                try writeLineNumber(
+                    writer,
+                    hunk.removed_start + i + 1,
+                    width,
+                    profile,
+                );
+                try removed_style.renderWithProfile(
+                    "-",
+                    writer,
+                    profile,
+                );
+                try removed_style.renderWithProfile(
+                    orig_lines.items[hunk.removed_start + i],
+                    writer,
+                    profile,
+                );
+                try writer.writeAll("\n");
+            }
+
+            if (i < added_count) {
+                try writeLineNumber(
+                    writer,
+                    hunk.added_start + i + 1,
+                    width,
+                    profile,
+                );
+                try added_style.renderWithProfile(
+                    "+",
+                    writer,
+                    profile,
+                );
+                try added_style.renderWithProfile(
+                    fmt_lines.items[hunk.added_start + i],
+                    writer,
+                    profile,
+                );
+                try writer.writeAll("\n");
+            }
+        }
     }
+
+    try writer.writeAll("\n");
 }
 
 /// Writes `path` using forward slashes for stable, copyable diagnostics.
@@ -176,19 +185,65 @@ pub fn writeDisplayPath(
 fn writeLineNumber(
     writer: *std.Io.Writer,
     line: usize,
+    width: usize,
     profile: carnaval.ColorProfile,
 ) !void {
-    var buf: [16]u8 = undefined;
-    const text = std.fmt.bufPrint(
-        &buf,
-        "{d: >4} | ",
+    var num_buf: [20]u8 = undefined;
+    const num_text = std.fmt.bufPrint(
+        &num_buf,
+        "{d}",
         .{line},
     ) catch return;
+
+    var buf: [32]u8 = undefined;
+    const pad = if (width > num_text.len) width - num_text.len else 0;
+    @memset(buf[0..pad], ' ');
+    @memcpy(buf[pad..][0..num_text.len], num_text);
+    buf[pad + num_text.len] = ' ';
+    buf[pad + num_text.len + 1] = '|';
+    buf[pad + num_text.len + 2] = ' ';
+
     try dimmed_style.renderWithProfile(
-        text,
+        buf[0 .. pad + num_text.len + 3],
         writer,
         profile,
     );
+}
+
+/// Marks a skipped gap between two hunks that aren't adjacent, using a
+/// blank field the same width as the line-number column so it lines up.
+fn writeGapMarker(
+    writer: *std.Io.Writer,
+    width: usize,
+    profile: carnaval.ColorProfile,
+) !void {
+    var buf: [32]u8 = undefined;
+    @memset(buf[0..width], ' ');
+    const text = std.fmt.bufPrint(
+        buf[width..],
+        " | ...\n",
+        .{},
+    ) catch return;
+
+    try dimmed_style.renderWithProfile(
+        buf[0 .. width + text.len],
+        writer,
+        profile,
+    );
+}
+
+/// The column width needed to right-align every line number referenced
+/// across `hunks`, matching how narrow diffs stay compact.
+fn maxLineNumberWidth(hunks: []const Hunk) usize {
+    var max_line: usize = 1;
+    for (hunks) |hunk| {
+        max_line = @max(max_line, hunk.removed_end);
+        max_line = @max(max_line, hunk.added_end);
+    }
+    var digits: usize = 1;
+    var v = max_line;
+    while (v >= 10) : (v /= 10) digits += 1;
+    return digits;
 }
 
 const Hunk = struct {
@@ -215,6 +270,13 @@ fn collectHunks(
         .none,
     );
     defer dmp.Diff.deinitEditList(alloc, &edits);
+
+    // The raw Myers diff can interleave textually-identical lines as
+    // delete/insert pairs separated by a trivial equality (e.g. a lone
+    // newline) instead of grouping the real change into one block. This
+    // merges those semantically-empty equalities into their neighboring
+    // edits so nearby changes render as a single hunk.
+    try dmp.Diff.cleanupSemantic(alloc, &edits);
 
     var original_offset: usize = 0;
     var formatted_offset: usize = 0;

@@ -50,6 +50,8 @@ gpa: Allocator,
 io: Io,
 out_buffer: Io.Writer.Allocating,
 stdout_writer: *Io.File.Writer,
+checked_files: usize,
+unformatted_files: usize,
 
 const Formatter = @This();
 const SeenMap = std.AutoHashMap(Io.File.INode, void);
@@ -137,6 +139,8 @@ pub fn init(
         .config = config,
         .out_buffer = .init(gpa),
         .stdout_writer = stdout_writer,
+        .checked_files = 0,
+        .unformatted_files = 0,
     };
 }
 
@@ -299,6 +303,22 @@ pub fn formatPaths(
         );
     }
     try self.stdout_writer.interface.flush();
+
+    if (self.check_mode and self.unformatted_files > 0) {
+        var stderr_buf: [512]u8 = undefined;
+        var stderr = Io.File.stderr().writer(self.io, &stderr_buf);
+        stderr.interface.print(
+            "error: Found {d} not formatted file{s} in {d} file{s}\n",
+            .{
+                self.unformatted_files,
+                if (self.unformatted_files == 1) "" else "s",
+                self.checked_files,
+                if (self.checked_files == 1) "" else "s",
+            },
+        ) catch {};
+        stderr.interface.flush() catch {};
+    }
+
     if (self.any_error) {
         std.process.exit(1);
     }
@@ -442,6 +462,7 @@ fn fmtPathFile(
     file_closed = true;
 
     if (try self.seen.fetchPut(stat.inode, {})) |_| return;
+    self.checked_files += 1;
 
     const mode: std.zig.Ast.Mode = mode: {
         if (self.force_zon) break :mode .zon;
@@ -564,12 +585,26 @@ fn fmtPathFile(
     );
     defer if (pp.allocated) gpa.free(pp.output);
 
+    // Zig's renderer (and every post-processing pass) always emits `\n`
+    // line endings. On a CRLF checkout that makes every line look changed
+    // even when nothing but the line ending differs, so match the source
+    // file's own convention before comparing, diffing, or writing.
+    const uses_crlf = mem.indexOf(
+        u8,
+        source_code,
+        "\r\n",
+    ) != null;
+    const output = if (uses_crlf) try toCrlf(gpa, pp.output) else pp.output;
+    defer if (uses_crlf) gpa.free(output);
+
     if (mem.eql(
         u8,
-        pp.output,
+        output,
         source_code,
     ))
         return;
+
+    self.unformatted_files += 1;
 
     if (self.check_mode) {
         if (self.check_format == .pretty) {
@@ -581,16 +616,17 @@ fn fmtPathFile(
                 &stderr.interface,
                 file_path,
                 source_code,
-                pp.output,
+                output,
                 profile,
             ) catch {};
             stderr.interface.flush() catch {};
+        } else {
+            try diff.writeDisplayPath(
+                &self.stdout_writer.interface,
+                file_path,
+            );
+            try self.stdout_writer.interface.writeAll("\n");
         }
-        try diff.writeDisplayPath(
-            &self.stdout_writer.interface,
-            file_path,
-        );
-        try self.stdout_writer.interface.writeAll("\n");
         self.any_error = true;
     } else {
         try symlink_safe_write.write(
@@ -599,7 +635,7 @@ fn fmtPathFile(
             sub_path,
             stat.permissions,
             source_code,
-            pp.output,
+            output,
         );
         try diff.writeDisplayPath(
             &self.stdout_writer.interface,
@@ -607,6 +643,19 @@ fn fmtPathFile(
         );
         try self.stdout_writer.interface.writeAll("\n");
     }
+}
+
+/// Reinserts `\r` before every `\n` in `input`, which is assumed to have
+/// no carriage returns of its own (true of Zig's renderer output).
+fn toCrlf(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(gpa);
+    try out.ensureTotalCapacity(gpa, input.len);
+    for (input) |byte| {
+        if (byte == '\n') try out.append(gpa, '\r');
+        try out.append(gpa, byte);
+    }
+    return out.toOwnedSlice(gpa);
 }
 
 /// Applies all configured post-processing passes to rendered source.
