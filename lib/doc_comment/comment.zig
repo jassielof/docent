@@ -1,7 +1,6 @@
 //! Parsing utilities for Zig doc-comment text (`///` and `//!` lines).
 //!
-//! Operates on comment source text and token blocks, not on declaration
-//! structure (see `extract.zig`).
+//! Operates on comment source text and token blocks, not on declaration structure (see `root.extract`).
 
 const std = @import("std");
 const Ast = std.zig.Ast;

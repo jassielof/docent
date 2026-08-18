@@ -1,8 +1,6 @@
-//! AST-level helpers for locating Zig doc comments and resolving the
-//! declarations they document.
+//! AST-level helpers for locating Zig doc comments and resolving the declarations they document.
 //!
-//! For parsing comment text itself (summaries, paragraphs, line bodies), use
-//! `doc_comment.comment`.
+//! For parsing comment text itself (summaries, paragraphs, line bodies), use `doc_comment.comment`.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
