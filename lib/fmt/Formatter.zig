@@ -114,6 +114,7 @@ fn formatSourceForTest(gpa: Allocator, input: []const u8) ![]const u8 {
         gpa,
         rendered,
         .{},
+        .zig,
     );
     if (post_processed.allocated) return post_processed.output;
     return gpa.dupe(u8, post_processed.output);
@@ -257,6 +258,7 @@ pub fn formatStdin(
         gpa,
         rendered,
         config,
+        if (opts.zon) .zon else .zig,
     );
     defer if (pp.allocated) gpa.free(pp.output);
 
@@ -591,6 +593,7 @@ fn fmtPathFile(
         gpa,
         rendered,
         self.config,
+        mode,
     );
     defer if (pp.allocated) gpa.free(pp.output);
 
@@ -673,6 +676,7 @@ pub fn applyPostProcessing(
     gpa: Allocator,
     input: []const u8,
     config: Config,
+    mode: std.zig.Ast.Mode,
 ) Allocator.Error!struct { output: []const u8, allocated: bool } {
     var current: []const u8 = input;
     var current_allocated = false;
@@ -692,7 +696,7 @@ pub fn applyPostProcessing(
     }
 
     if (config.trailing_comma) {
-        const result = try trailing_comma.addTrailingCommas(gpa, current);
+        const result = try trailing_comma.addTrailingCommas(gpa, current, mode);
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;
@@ -703,6 +707,7 @@ pub fn applyPostProcessing(
             gpa,
             current,
             config.max_line_length,
+            mode,
         );
         if (current_allocated) gpa.free(current);
         current = result;
