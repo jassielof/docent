@@ -16,6 +16,12 @@ const category = lint.category;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
+const complexity_breakdown = lint.complexity_breakdown;
+const Increment = complexity_breakdown.Increment;
+
+/// Number of highest-scoring contributors shown as secondary spans in
+/// pretty-mode output.
+const max_breakdown_spans = 4;
 
 const rule_name = "cyclomatic_complexity";
 
@@ -89,7 +95,20 @@ pub fn check(
     }
 
     for (fns.items) |fn_node| {
-        const score = functionComplexity(tree, fn_node);
+        const increments = try collectDecisionPoints(
+            allocator,
+            tree,
+            fn_node,
+        );
+        defer allocator.free(increments);
+
+        var points: u32 = 0;
+        for (increments) |increment| points += increment.points;
+        const score = formula(
+            points * 2,
+            points + 1,
+            1,
+        );
         if (score <= threshold) continue;
 
         var buf: [1]Ast.Node.Index = undefined;
@@ -97,6 +116,21 @@ pub fn check(
         const name_tok = proto.name_token orelse continue;
         const name = tree.tokenSlice(name_tok);
         const loc = tree.tokenLocation(0, name_tok);
+
+        const spans = try complexity_breakdown.buildSpans(
+            msg_allocator,
+            tree,
+            increments,
+            max_breakdown_spans,
+        );
+        const help: ?[]const u8 = if (complexity_breakdown.topLine(tree, increments)) |top_line|
+            try std.fmt.allocPrint(
+                msg_allocator,
+                "consider extracting the code near line {d} into a helper function",
+                .{top_line},
+            )
+        else
+            null;
 
         try diagnostics.append(allocator, .{
             .rule = rule_name,
@@ -120,6 +154,13 @@ pub fn check(
                 msg_allocator,
             ),
             .symbol_len = name.len,
+            .primary_label = try std.fmt.allocPrint(
+                msg_allocator,
+                "score: {d}",
+                .{score},
+            ),
+            .spans = spans,
+            .help = help,
         });
     }
 }
@@ -178,37 +219,25 @@ fn collectFunctions(
     }
 }
 
-const GraphMetrics = struct {
-    nodes: u32,
-    edges: u32,
-    connected_components: u32,
-};
-
-fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) Complexity {
-    const metrics = graphMetrics(tree, fn_node);
-    return formula(
-        metrics.edges,
-        metrics.nodes,
-        metrics.connected_components,
-    );
-}
-
-/// Derives *N* and *E* for a single-function graph from its decision-point count. For structured control flow with one connected component, *V(G) = 1 + d* where *d* is the number of decision points. That is equivalent to *V(G) = E − N + 2* when *N = d + 1*, *E = 2d*, and *P = 1*.
-fn graphMetrics(tree: *const Ast, fn_node: Ast.Node.Index) GraphMetrics {
-    const decision_points = countDecisionPoints(tree, fn_node);
-    return .{
-        .nodes = decision_points + 1,
-        .edges = decision_points * 2,
-        .connected_components = 1,
-    };
-}
-
-fn countDecisionPoints(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
+/// Collects one `Increment` per decision point in `fn_node`'s body — each
+/// worth exactly 1, since cyclomatic complexity (unlike cognitive) doesn't
+/// weight by nesting depth. A `switch` contributes one increment per prong
+/// beyond the first (its base path is "free"), each anchored at that
+/// prong's own location, rather than one bulk increment for the whole
+/// statement — this is what lets the pretty-mode breakdown point at
+/// individual prongs. Caller owns the returned slice via `allocator`.
+fn collectDecisionPoints(
+    allocator: std.mem.Allocator,
+    tree: *const Ast,
+    fn_node: Ast.Node.Index,
+) std.mem.Allocator.Error![]Increment {
     const body = tree.nodeData(fn_node).node_and_node[1];
     const body_first = tree.firstToken(body);
     const body_last = tree.lastToken(body);
 
-    var points: u32 = 0;
+    var increments: std.ArrayList(Increment) = .empty;
+    errdefer increments.deinit(allocator);
+
     const node_count: u32 = @intCast(tree.nodes.len);
     var raw: u32 = 0;
     while (raw < node_count) : (raw += 1) {
@@ -217,29 +246,34 @@ fn countDecisionPoints(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
         const first = tree.firstToken(node);
         const last = tree.lastToken(node);
         if (first < body_first or last > body_last) continue;
-        points += nodeIncrement(tree, node);
+        try recordDecisionPoints(tree, node, allocator, &increments);
     }
-    return points;
+
+    return increments.toOwnedSlice(allocator);
 }
 
-fn nodeIncrement(tree: *const Ast, node: Ast.Node.Index) u32 {
+fn recordDecisionPoints(
+    tree: *const Ast,
+    node: Ast.Node.Index,
+    allocator: std.mem.Allocator,
+    out: *std.ArrayList(Increment),
+) !void {
     switch (tree.nodeTag(node)) {
-        .if_simple, .@"if" => return 1,
-        .while_simple, .while_cont, .@"while" => return 1,
-        .for_simple, .@"for" => return 1,
-        .@"catch" => return 1,
-        .bool_and, .bool_or => return 1,
+        .if_simple, .@"if" => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "if" }),
+        .while_simple, .while_cont, .@"while" => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "loop" }),
+        .for_simple, .@"for" => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "loop" }),
+        .@"catch" => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "catch" }),
+        .bool_and => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "`and`" }),
+        .bool_or => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "`or`" }),
         .@"switch", .switch_comma => {
-            const switch_full = tree.fullSwitch(node) orelse return 0;
-            const cases_len = switch_full.ast.cases.len;
-            return @intCast(if (cases_len > 0) cases_len - 1 else 0);
+            const switch_full = tree.fullSwitch(node) orelse return;
+            const cases = switch_full.ast.cases;
+            if (cases.len == 0) return;
+            for (cases[1..]) |case_node| {
+                try out.append(allocator, .{ .token = tree.firstToken(case_node), .points = 1, .reason = "switch prong" });
+            }
         },
-        .switch_case_one,
-        .switch_case_inline_one,
-        .switch_case,
-        .switch_case_inline,
-        => return 0,
-        else => return 0,
+        else => {},
     }
 }
 
@@ -259,6 +293,64 @@ test "formula computes V(G) = E - N + 2P" {
         5,
         1,
     ));
+}
+
+test "check populates primary_label and spans, capped and in source order" {
+    const allocator = std.testing.allocator;
+    const source =
+        \\fn classify(x: u8) u8 {
+        \\    switch (x) {
+        \\        0 => return 0,
+        \\        1 => return 1,
+        \\        2 => return 2,
+        \\        3 => return 3,
+        \\        4 => return 4,
+        \\        5 => return 5,
+        \\        else => return 6,
+        \\    }
+        \\}
+        \\
+    ;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    // Same convention as cogni's equivalent test: `check`'s diagnostics are
+    // only safe to free via `deinitAlloc` after `cloneAlloc`, so a scratch
+    // arena backs `msg_allocator` here instead.
+    var msg_arena = std.heap.ArenaAllocator.init(allocator);
+    defer msg_arena.deinit();
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(allocator);
+
+    try check(
+        &tree,
+        .{ .level = .warn, .options = .{ .threshold = 5 } },
+        "<test>",
+        allocator,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+
+    // 7 cases -> 6 decision points -> V(G) = 1 + 6 = 7, over threshold 5.
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    const diagnostic = diagnostics.items[0];
+    try std.testing.expectEqualStrings("score: 7", diagnostic.primary_label orelse return error.MissingPrimaryLabel);
+
+    // All 6 prongs are worth exactly 1 point each (cyclomatic doesn't
+    // weight by nesting) — ties are broken by source position, so the
+    // cap keeps the first `max_breakdown_spans` prongs in the switch.
+    try std.testing.expectEqual(max_breakdown_spans, diagnostic.spans.len);
+    var previous_line: usize = 0;
+    for (diagnostic.spans) |span| {
+        try std.testing.expect(span.line > previous_line);
+        previous_line = span.line;
+        try std.testing.expectEqualStrings("+1 (switch prong)", span.label);
+    }
 }
 
 fn isPubVisibility(tree: *const Ast, visib_token: ?Ast.TokenIndex) bool {

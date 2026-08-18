@@ -19,6 +19,13 @@ const category = lint.category;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
+const complexity_breakdown = lint.complexity_breakdown;
+const Increment = complexity_breakdown.Increment;
+
+/// Number of highest-scoring contributors shown as secondary spans in
+/// pretty-mode output. Keeps the block readable for functions with many
+/// contributors while still surfacing the ones worth fixing first.
+const max_breakdown_spans = 4;
 
 const rule_name = "cognitive_complexity";
 
@@ -76,14 +83,34 @@ pub fn check(
     }
 
     for (fns.items) |fn_node| {
-        const score = functionComplexity(tree, fn_node);
-        if (score <= threshold) continue;
+        const result = try functionComplexity(
+            allocator,
+            tree,
+            fn_node,
+        );
+        defer allocator.free(result.increments);
+        if (result.score <= threshold) continue;
 
         var buf: [1]Ast.Node.Index = undefined;
         const proto = tree.fullFnProto(&buf, fn_node) orelse continue;
         const name_tok = proto.name_token orelse continue;
         const name = tree.tokenSlice(name_tok);
         const loc = tree.tokenLocation(0, name_tok);
+
+        const spans = try complexity_breakdown.buildSpans(
+            msg_allocator,
+            tree,
+            result.increments,
+            max_breakdown_spans,
+        );
+        const help: ?[]const u8 = if (complexity_breakdown.topLine(tree, result.increments)) |top_line|
+            try std.fmt.allocPrint(
+                msg_allocator,
+                "consider extracting the code near line {d} into a helper function",
+                .{top_line},
+            )
+        else
+            null;
 
         try diagnostics.append(allocator, .{
             .rule = rule_name,
@@ -96,7 +123,7 @@ pub fn check(
             .detail = try std.fmt.allocPrint(
                 msg_allocator,
                 "cognitive complexity {d} exceeds threshold {d}",
-                .{ score, threshold },
+                .{ result.score, threshold },
             ),
             .file = file,
             .line = loc.line + 1,
@@ -107,6 +134,13 @@ pub fn check(
                 msg_allocator,
             ),
             .symbol_len = name.len,
+            .primary_label = try std.fmt.allocPrint(
+                msg_allocator,
+                "score: {d}",
+                .{result.score},
+            ),
+            .spans = spans,
+            .help = help,
         });
     }
 }
@@ -166,18 +200,30 @@ fn collectFunctions(
     }
 }
 
-/// Computes the cognitive complexity score of a single function declaration.
+const FunctionScore = struct {
+    score: u32,
+    /// Owned by the allocator passed to `functionComplexity`.
+    increments: []Increment,
+};
+
+/// Computes the cognitive complexity score of a single function declaration,
+/// along with every individual node's contribution to it.
 ///
 /// Collects nesting regions inside the function body first, then scores each
 /// body node against that region list (O(n·r) in the body, not O(n²) over the
-/// whole file AST).
-fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
+/// whole file AST). `increments` is allocated with `allocator` and owned by
+/// the caller; the region list itself stays function-local scratch space.
+fn functionComplexity(
+    allocator: std.mem.Allocator,
+    tree: *const Ast,
+    fn_node: Ast.Node.Index,
+) std.mem.Allocator.Error!FunctionScore {
     const body = tree.nodeData(fn_node).node_and_node[1];
     const body_first = tree.firstToken(body);
     const body_last = tree.lastToken(body);
 
     var buf: [1]Ast.Node.Index = undefined;
-    const proto = tree.fullFnProto(&buf, fn_node) orelse return 0;
+    const proto = tree.fullFnProto(&buf, fn_node) orelse return .{ .score = 0, .increments = &.{} };
     const fn_name: []const u8 = if (proto.name_token) |nt| tree.tokenSlice(nt) else "";
 
     var sf = std.heap.stackFallback(4096, std.heap.page_allocator);
@@ -198,7 +244,9 @@ fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
         }
     }
 
-    var score: u32 = 0;
+    var increments: std.ArrayList(Increment) = .empty;
+    errdefer increments.deinit(allocator);
+
     raw = 0;
     while (raw < node_count) : (raw += 1) {
         const node: Ast.Node.Index = @enumFromInt(raw);
@@ -206,16 +254,25 @@ fn functionComplexity(tree: *const Ast, fn_node: Ast.Node.Index) u32 {
         const first = tree.firstToken(node);
         const last = tree.lastToken(node);
         if (first < body_first or last > body_last) continue;
-        score += nodeIncrement(
+        try recordIncrements(
             tree,
             node,
             body_first,
             body_last,
             fn_name,
             regions.items,
+            allocator,
+            &increments,
         );
     }
-    return score;
+
+    var score: u32 = 0;
+    for (increments.items) |increment| score += increment.points;
+
+    return .{
+        .score = score,
+        .increments = try increments.toOwnedSlice(allocator),
+    };
 }
 
 fn isNestingRegionTag(tag: Ast.Node.Tag) bool {
@@ -236,64 +293,142 @@ fn isNestingRegionTag(tag: Ast.Node.Tag) bool {
     };
 }
 
-/// Returns the increment a single node contributes to its enclosing function's score.
-fn nodeIncrement(
+/// Coarse kind of a structural/nesting increment, used only to pick a
+/// human-readable label — has no effect on the score itself.
+const StructuralKind = enum { conditional, loop, switch_stmt, catch_stmt };
+
+/// Returns a static label for a structural increment, distinguishing plain
+/// from nested/deeply-nested so a pretty-mode breakdown reads naturally
+/// (e.g. "nested conditional", "deeply nested loop") without formatting or
+/// allocating a string per increment.
+fn structuralLabel(kind: StructuralKind, nesting: u32) []const u8 {
+    return switch (kind) {
+        .conditional => switch (nesting) {
+            0 => "conditional",
+            1 => "nested conditional",
+            else => "deeply nested conditional",
+        },
+        .loop => switch (nesting) {
+            0 => "loop",
+            1 => "nested loop",
+            else => "deeply nested loop",
+        },
+        .switch_stmt => switch (nesting) {
+            0 => "switch",
+            1 => "nested switch",
+            else => "deeply nested switch",
+        },
+        .catch_stmt => switch (nesting) {
+            0 => "catch",
+            1 => "nested catch",
+            else => "deeply nested catch",
+        },
+    };
+}
+
+/// Appends zero, one, or two `Increment`s (a node can independently score
+/// for itself and, for `if`/`else`, for its `else` clause) for a single
+/// node's contribution to its enclosing function's score.
+fn recordIncrements(
     tree: *const Ast,
     node: Ast.Node.Index,
     body_first: Ast.TokenIndex,
     body_last: Ast.TokenIndex,
     fn_name: []const u8,
     regions: []const Ast.Node.Index,
-) u32 {
+    allocator: std.mem.Allocator,
+    out: *std.ArrayList(Increment),
+) !void {
     switch (tree.nodeTag(node)) {
         .if_simple, .@"if" => {
             const if_full = tree.fullIf(node).?;
-            var inc: u32 = if (isElseIf(tree, if_full))
-                1
-            else
-                1 + nestingLevel(
-                    tree,
-                    node,
-                    regions,
-                );
+            const if_token = if_full.ast.if_token;
+
+            if (isElseIf(tree, if_full)) {
+                try out.append(allocator, .{ .token = if_token, .points = 1, .reason = "else if" });
+            } else {
+                const nesting = nestingLevel(tree, node, regions);
+                try out.append(allocator, .{
+                    .token = if_token,
+                    .points = 1 + nesting,
+                    .reason = structuralLabel(.conditional, nesting),
+                });
+            }
 
             if (if_full.ast.else_expr.unwrap()) |else_node| {
-                if (!isIfTag(tree.nodeTag(else_node))) inc += 1;
+                if (!isIfTag(tree.nodeTag(else_node))) {
+                    try out.append(allocator, .{
+                        .token = elseKeywordToken(tree, else_node),
+                        .points = 1,
+                        .reason = "else clause",
+                    });
+                }
             }
-            return inc;
         },
-        .while_simple,
-        .while_cont,
-        .@"while",
-        .for_simple,
-        .@"for",
-        .@"switch",
-        .switch_comma,
-        .@"catch",
-        => return 1 + nestingLevel(
-            tree,
-            node,
-            regions,
-        ),
-        .bool_and, .bool_or => return if (isLogicalSequenceStart(
-            tree,
-            node,
-            body_first,
-            body_last,
-        )) 1 else 0,
-        .@"break", .@"continue" => return if (isLoopLabelJump(
-            tree,
-            node,
-            body_first,
-            body_last,
-        )) 1 else 0,
-        .call, .call_comma, .call_one, .call_one_comma => return if (isDirectRecursion(
-            tree,
-            node,
-            fn_name,
-        )) 1 else 0,
-        else => return 0,
+        .while_simple, .while_cont, .@"while" => {
+            const nesting = nestingLevel(tree, node, regions);
+            try out.append(allocator, .{
+                .token = tree.nodeMainToken(node),
+                .points = 1 + nesting,
+                .reason = structuralLabel(.loop, nesting),
+            });
+        },
+        .for_simple, .@"for" => {
+            const nesting = nestingLevel(tree, node, regions);
+            try out.append(allocator, .{
+                .token = tree.nodeMainToken(node),
+                .points = 1 + nesting,
+                .reason = structuralLabel(.loop, nesting),
+            });
+        },
+        .@"switch", .switch_comma => {
+            const nesting = nestingLevel(tree, node, regions);
+            try out.append(allocator, .{
+                .token = tree.nodeMainToken(node),
+                .points = 1 + nesting,
+                .reason = structuralLabel(.switch_stmt, nesting),
+            });
+        },
+        .@"catch" => {
+            const nesting = nestingLevel(tree, node, regions);
+            try out.append(allocator, .{
+                .token = tree.nodeMainToken(node),
+                .points = 1 + nesting,
+                .reason = structuralLabel(.catch_stmt, nesting),
+            });
+        },
+        .bool_and, .bool_or => {
+            if (isLogicalSequenceStart(tree, node, body_first, body_last)) {
+                const reason: []const u8 = if (tree.nodeTag(node) == .bool_and) "`and` sequence" else "`or` sequence";
+                try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = reason });
+            }
+        },
+        .@"break", .@"continue" => {
+            if (isLoopLabelJump(tree, node, body_first, body_last)) {
+                const reason: []const u8 = if (tree.nodeTag(node) == .@"break") "labeled break" else "labeled continue";
+                try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = reason });
+            }
+        },
+        .call, .call_comma, .call_one, .call_one_comma => {
+            if (isDirectRecursion(tree, node, fn_name)) {
+                try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "direct recursion" });
+            }
+        },
+        else => {},
     }
+}
+
+/// Finds the `else` keyword token belonging to `else_node` (an `if`'s else
+/// branch), scanning backward from its first token. Handles error-union
+/// captures (`else |err| {...}`) where the branch's own first token isn't
+/// the token immediately after `else`.
+fn elseKeywordToken(tree: *const Ast, else_node: Ast.Node.Index) Ast.TokenIndex {
+    var t = tree.firstToken(else_node);
+    while (t > 0) {
+        t -= 1;
+        if (tree.tokenTag(t) == .keyword_else) return t;
+    }
+    return tree.firstToken(else_node);
 }
 
 /// Counts how many control-flow body regions strictly enclose `node`.
@@ -509,7 +644,15 @@ fn complexityOfFirstFn(source: [:0]const u8) !u32 {
     defer tree.deinit(allocator);
 
     for (tree.rootDecls()) |decl| {
-        if (tree.nodeTag(decl) == .fn_decl) return functionComplexity(&tree, decl);
+        if (tree.nodeTag(decl) == .fn_decl) {
+            const result = try functionComplexity(
+                allocator,
+                &tree,
+                decl,
+            );
+            defer allocator.free(result.increments);
+            return result.score;
+        }
     }
     return error.NoFunction;
 }
@@ -632,6 +775,79 @@ test "labeled block break is not penalized" {
         \\}
     );
     try std.testing.expectEqual(@as(u32, 0), score);
+}
+
+test "check populates primary_label and spans for an over-threshold function" {
+    const allocator = std.testing.allocator;
+    const source =
+        \\fn tooComplex(a: bool, b: bool, c: bool, d: bool, e: bool, f: bool) void {
+        \\    if (a) {
+        \\        if (b) {
+        \\            if (c) {
+        \\                if (d) {
+        \\                    if (e) {
+        \\                        if (f) {}
+        \\                    }
+        \\                }
+        \\            }
+        \\        }
+        \\    }
+        \\}
+        \\
+    ;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    // `check` allocates diagnostic strings (subject, detail, spans, ...)
+    // with `msg_allocator`, matching production use where those need to
+    // outlive a per-file scratch arena — an arena here too, per the
+    // convention other rule tests use, since `Diagnostic.deinitAlloc` is
+    // only valid after `cloneAlloc`, not on `check`'s raw output (`.rule`
+    // is a static string literal, never allocator-owned).
+    var msg_arena = std.heap.ArenaAllocator.init(allocator);
+    defer msg_arena.deinit();
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(allocator);
+
+    try check(
+        &tree,
+        .{ .level = .warn, .options = .{ .threshold = 5 } },
+        "<test>",
+        allocator,
+        msg_arena.allocator(),
+        &diagnostics,
+    );
+
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    const diagnostic = diagnostics.items[0];
+
+    const label = diagnostic.primary_label orelse return error.MissingPrimaryLabel;
+    try std.testing.expect(std.mem.startsWith(u8, label, "score: "));
+
+    // 6 nested `if`s: not all of them fit in `max_breakdown_spans`, so only
+    // the highest-scoring ones are kept — but always in ascending source
+    // order for display, and never more than the cap.
+    try std.testing.expect(diagnostic.spans.len > 0);
+    try std.testing.expect(diagnostic.spans.len <= max_breakdown_spans);
+
+    var previous_line: usize = 0;
+    for (diagnostic.spans) |span| {
+        try std.testing.expect(span.line > previous_line);
+        previous_line = span.line;
+        try std.testing.expect(span.label.len > 0);
+        try std.testing.expect(std.mem.indexOfScalar(u8, span.label, '+') != null);
+    }
+
+    // The deepest `if` (line 7) scores the most and must survive the cap.
+    try std.testing.expectEqualStrings(
+        "+6 (deeply nested conditional)",
+        diagnostic.spans[diagnostic.spans.len - 1].label,
+    );
 }
 
 comptime {

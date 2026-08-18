@@ -469,7 +469,8 @@ fn writePrettyDiagnostic(
     color_profile: carnaval.ColorProfile,
     path_display_root: ?[]const u8,
 ) !void {
-    const gutter = lineNumberWidth(diagnostic.line);
+    const gutter = diagnosticGutterWidth(diagnostic);
+    const caret_color = caretStyle(style, diagnostic);
 
     try writeProseLine(
         writer,
@@ -512,6 +513,7 @@ fn writePrettyDiagnostic(
     );
     try writer.writeAll("\n");
 
+    var last_shown_line = diagnostic.line;
     if (diagnostic.source_line.len > 0) {
         try writeSourceRow(
             writer,
@@ -524,11 +526,94 @@ fn writePrettyDiagnostic(
         try writeCaretRow(
             writer,
             gutter,
-            diagnostic,
+            diagnostic.column,
+            diagnostic.symbol_len,
+            diagnostic.primary_label orelse "",
+            caret_color,
             style,
             color_profile,
         );
     }
+
+    // Secondary spans — e.g. one per contributing increment of a
+    // complexity score — each get their own source + caret row, in the
+    // ascending line order the rule supplied them in. A gap marker stands
+    // in for any elided lines between two non-adjacent spans (or between
+    // the primary span and the first one), the same convention `fmt`'s
+    // diff renderer uses for skipped context.
+    for (diagnostic.spans) |span| {
+        if (span.line > last_shown_line + 1) {
+            try writeGapMarker(
+                writer,
+                gutter,
+                style,
+                color_profile,
+            );
+        }
+        try writeSourceRow(
+            writer,
+            gutter,
+            span.line,
+            span.source_line,
+            style,
+            color_profile,
+        );
+        try writeCaretRow(
+            writer,
+            gutter,
+            span.column,
+            span.symbol_len,
+            span.label,
+            caret_color,
+            style,
+            color_profile,
+        );
+        last_shown_line = span.line;
+    }
+
+    if (diagnostic.help) |help| {
+        try writeGutterPipe(
+            writer,
+            gutter,
+            style,
+            color_profile,
+        );
+        try writer.writeAll("\n");
+        try writeArrowPadding(writer, gutter);
+        try writer.writeAll(" = ");
+        try style.location_style.renderWithProfile(
+            "help",
+            writer,
+            color_profile,
+        );
+        try writer.print(": {s}\n", .{help});
+    }
+}
+
+/// Gutter width wide enough for every line number the block will show:
+/// the primary span plus every secondary span.
+fn diagnosticGutterWidth(diagnostic: Diagnostic) usize {
+    var max_line = diagnostic.line;
+    for (diagnostic.spans) |span| max_line = @max(max_line, span.line);
+    return lineNumberWidth(max_line);
+}
+
+/// Marks a skipped gap between two shown lines that aren't adjacent, using
+/// a blank field the same width as the line-number column so it lines up —
+/// the same convention `fmt`'s diff renderer uses for skipped context.
+fn writeGapMarker(
+    writer: *std.Io.Writer,
+    gutter: usize,
+    style: Style,
+    color_profile: carnaval.ColorProfile,
+) !void {
+    try writeArrowPadding(writer, gutter);
+    try style.location_style.renderWithProfile(
+        " | ...",
+        writer,
+        color_profile,
+    );
+    try writer.writeAll("\n");
 }
 
 fn writeMinimalDiagnostics(
@@ -738,10 +823,17 @@ fn writeSourceRow(
     try writer.print("{s}\n", .{source_line});
 }
 
+/// Writes one `^~~~` underline row for a column/span, optionally trailed by
+/// a label (e.g. "score: 29" or "+2 (nested conditional)"). Shared by the
+/// primary span and every secondary `Diagnostic.Span`, all rendered in the
+/// same `caret_color` (the diagnostic's severity, not per-span).
 fn writeCaretRow(
     writer: *std.Io.Writer,
     gutter: usize,
-    diagnostic: Diagnostic,
+    column: usize,
+    symbol_len: usize,
+    label: []const u8,
+    caret_color: carnaval.Style,
     style: Style,
     color_profile: carnaval.ColorProfile,
 ) !void {
@@ -753,8 +845,8 @@ fn writeCaretRow(
     );
     try writer.writeAll(" ");
 
-    const col0 = if (diagnostic.column > 0) diagnostic.column - 1 else 0;
-    const span = if (diagnostic.symbol_len > 0) diagnostic.symbol_len else 1;
+    const col0 = if (column > 0) column - 1 else 0;
+    const span = if (symbol_len > 0) symbol_len else 1;
 
     var i: usize = 0;
     while (i < col0) : (i += 1) {
@@ -775,11 +867,16 @@ fn writeCaretRow(
         pos += 1;
     }
 
-    try caretStyle(style, diagnostic).renderWithProfile(
+    try caret_color.renderWithProfile(
         caret_buf[0..pos],
         writer,
         color_profile,
     );
+
+    if (label.len > 0) {
+        try writer.writeAll(" ");
+        try writer.writeAll(label);
+    }
     try writer.writeAll("\n");
 }
 
@@ -1073,6 +1170,103 @@ test "pretty formatter aligns two-digit line numbers" {
         u8,
         out.items,
         "           ^~~~~\n",
+    ) != null);
+}
+
+test "pretty formatter renders a multi-span complexity breakdown" {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(std.testing.allocator);
+
+    var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
+    defer writer.deinit();
+
+    try writeDiagnostic(
+        &writer.writer,
+        .{
+            .rule = "cognitive_complexity",
+            .severity_level = .warn,
+            .subject = .{ .kind = .function, .name = "parseEmphasis" },
+            .detail = "cognitive complexity 29 exceeds threshold 15",
+            .file = "lib/doc_comment/markup/Parser.zig",
+            .line = 1364,
+            .column = 8,
+            .source_line = "fn parseEmphasis(ip: *InlineParser) !void {",
+            .symbol_len = 13,
+            .primary_label = "score: 29",
+            .spans = &.{
+                .{ .line = 1375, .column = 5, .symbol_len = 5, .source_line = "    while (ip.hasMore()) {", .label = "+1 (loop)" },
+                .{ .line = 1380, .column = 9, .symbol_len = 2, .source_line = "        if (isDelimiter(char)) {", .label = "+2 (nested conditional)" },
+                .{ .line = 1392, .column = 13, .symbol_len = 2, .source_line = "            if (ip.peek() == '*') {", .label = "+3 (deeply nested conditional)" },
+            },
+            .help = "consider extracting the code near line 1392 into a helper function",
+        },
+        .{
+            .format = .pretty,
+            .color = .never,
+        },
+    );
+    out = writer.toArrayList();
+
+    // Primary block, unchanged shape from the single-span case, plus the
+    // "score: 29" label after the caret.
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "1364 | fn parseEmphasis(ip: *InlineParser) !void {\n",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "^~~~~~~~~~~~~ score: 29\n",
+    ) != null);
+
+    // Every span's source line, caret span, and label appear...
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "1375 |     while (ip.hasMore()) {\n",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "^~~~~ +1 (loop)\n",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "1380 |         if (isDelimiter(char)) {\n",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "^~ +2 (nested conditional)\n",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "1392 |             if (ip.peek() == '*') {\n",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "^~ +3 (deeply nested conditional)\n",
+    ) != null);
+
+    // ...in ascending line order (primary 1364, then 1375, 1380, 1392),
+    // each following a "| ..." gap marker since none are adjacent lines.
+    const primary_pos = std.mem.indexOf(u8, out.items, "1364 |").?;
+    const span1_pos = std.mem.indexOf(u8, out.items, "1375 |").?;
+    const span2_pos = std.mem.indexOf(u8, out.items, "1380 |").?;
+    const span3_pos = std.mem.indexOf(u8, out.items, "1392 |").?;
+    try std.testing.expect(primary_pos < span1_pos);
+    try std.testing.expect(span1_pos < span2_pos);
+    try std.testing.expect(span2_pos < span3_pos);
+    try std.testing.expectEqual(@as(usize, 3), std.mem.count(u8, out.items, "| ...\n"));
+
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "= help: consider extracting the code near line 1392 into a helper function\n",
     ) != null);
 }
 
