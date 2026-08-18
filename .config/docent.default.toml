@@ -1,4 +1,4 @@
-#:schema ../zig-out/schema/docent.schema.json
+#:schema ../zig-out/docs/schema/docent.schema.json
 
 # Filesystem scan (fmt): include/exclude apply to recursive directory walks,
 # including orphan .zig files. Check/typeset use build.zig module roots instead.
@@ -25,6 +25,10 @@ grid_alignment = false
 # exclude = ["vendor/"]
 
 [typeset]
+# lib = false
+# bins = false
+# tests = false
+# deps = false
 # include_private = false
 # bundle_std = false
 # output = "docs.json"
@@ -37,10 +41,13 @@ trailing_blank_doc_comment = "warn"
 missing_doctest = "allow"
 private_doctest = "warn"
 doctest_naming_mismatch = "warn"
+misplaced_doc_comment = "warn"
 
 [doc.missing_doc_comment]
 level = "warn"
 check_parameters = false
+check_fields = false
+check_enumerators = false
 check_errors = true
 
 [doc.missing_summary_terminal_punctuation]
@@ -65,10 +72,6 @@ struct_file_case = "PascalCase"
 types = "PascalCase"
 constants = "snake_case"
 
-[style.line_length_limit]
-level = "allow"
-max_length = 100
-
 [complexity]
 scan_mode = "all"
 
@@ -86,3 +89,9 @@ scan_mode = "all"
 [size.max_function_parameters]
 level = "allow"
 threshold = 7
+
+[size.line_length_limit]
+level = "allow"
+max_length = 100
+ignore_trailing_comments = false
+ignore_leading_comments = false

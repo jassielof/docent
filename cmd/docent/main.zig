@@ -24,8 +24,8 @@ pub fn main(init: std.process.Init) !void {
         io,
         .{
             .display_name = "Docent",
-            .author_name = "",
-            .author_email = "",
+            .author_name = .none,
+            .author_email = .none,
             .tagline = "A Documentation Linter for Zig Projects",
         },
     );

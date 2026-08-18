@@ -7,7 +7,7 @@ const fangz = @import("fangz");
 
 const default_config_file = @embedFile("init/templates/docent.toml");
 
-const local_schema_line = "#:schema ../schemas/docent.schema.json\n";
+const local_schema_line = "#:schema ../zig-out/docs/schema/docent.schema.json\n";
 const remote_schema_line = "#:schema https://jassielof.github.io/docent/schemas/docent.schema.json\n";
 
 /// Registers the `init` sub-command on `root`.

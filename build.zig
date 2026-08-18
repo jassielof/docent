@@ -304,7 +304,7 @@ pub fn build(b: *std.Build) void {
     yq_cli.addArgs(&.{ "--output-format", "json" });
     yq_cli.addFileArg(b.path("schemas/docent.schema.yaml"));
     const schema_json = yq_cli.captureStdOut(.{});
-    const install_schema = b.addInstallFile(schema_json, "schema/docent.schema.json");
+    const install_schema = b.addInstallFileWithDir(schema_json, .{ .custom = "docs" }, "schema/docent.schema.json");
     schema_step.dependOn(&install_schema.step);
     b.getInstallStep().dependOn(schema_step);
 
