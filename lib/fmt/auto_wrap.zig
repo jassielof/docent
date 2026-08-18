@@ -326,6 +326,139 @@ test "wraps a call outside an index/slice bracket rather than the bracketed one"
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
+test "leaves an overlong hand-packed row of several calls alone" {
+    const gpa = std.testing.allocator;
+    // Same rationale as the bracket-instability test above: this pass sees
+    // one physical line at a time, so wrapping the first call in a row
+    // shared with others would splice its output into the rest of the row.
+    const expected =
+        \\const arx_steps = [_]QuarterRound{
+        \\    Rp(4, 0, 12, 7),   Rp(8, 4, 0, 9),    Rp(12, 8, 4, 13),   Rp(0, 12, 8, 18),
+        \\};
+        \\
+    ;
+
+    const formatted = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "uses asm's 2-space indent delta when wrapping inside it" {
+    const gpa = std.testing.allocator;
+    // `Ast/Render.zig` renders everything inside `asm (...)` /
+    // `asm volatile (...)` with a 2-space indent step instead of the usual
+    // 4 (`asm_indent_delta` vs. `indent_delta`). Uses a real call (rather
+    // than a `.{...}` clobber list) since `findBestBreak` never selects a
+    // `.{` literal as a wrap candidate — that expansion belongs to
+    // `trailing_comma.zig`, which has its own equivalent asm-indent test.
+    const input =
+        \\pub fn syscall0(number: SYS) u64 {
+        \\    return asm volatile ("syscall"
+        \\        : [ret] "={rax}" (-> u64),
+        \\        : [number] "{rax}" (computeSyscallNumber(number, extra_one, extra_two)),
+        \\        : .{ .rcx = true, .r11 = true, .memory = true });
+        \\}
+        \\
+    ;
+    const expected =
+        \\pub fn syscall0(number: SYS) u64 {
+        \\    return asm volatile ("syscall"
+        \\        : [ret] "={rax}" (-> u64),
+        \\        : [number] "{rax}" (computeSyscallNumber(
+        \\          number,
+        \\          extra_one,
+        \\          extra_two,
+        \\        )),
+        \\        : .{ .rcx = true, .r11 = true, .memory = true });
+        \\}
+        \\
+    ;
+
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+    );
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "an apostrophe in asm template text doesn't desync later line indices" {
+    const gpa = std.testing.allocator;
+    // Regression test: `computeAsmLineFlags` used to scan the whole file as
+    // one character stream. A bare `'` inside assembly template/comment
+    // text (an English contraction, not a char literal) made it search for
+    // a closing quote arbitrarily far forward, skipping embedded newlines
+    // without counting them and desyncing every later line's index from
+    // its real line number — so a call needing to wrap after it got the
+    // wrong (4-space, "not in asm") indent instead of asm's 2-space one.
+    const input =
+        \\pub fn syscall0(number: SYS) u64 {
+        \\    return asm volatile (
+        \\        \\ # Clear the child's %%o0
+        \\        \\ syscall
+        \\        : [ret] "={rax}" (-> u64),
+        \\        : [number] "{rax}" (computeSyscallNumber(number, extra_one, extra_two)),
+        \\        : .{ .rcx = true, .r11 = true, .memory = true });
+        \\}
+        \\
+    ;
+    const expected =
+        \\pub fn syscall0(number: SYS) u64 {
+        \\    return asm volatile (
+        \\        \\ # Clear the child's %%o0
+        \\        \\ syscall
+        \\        : [ret] "={rax}" (-> u64),
+        \\        : [number] "{rax}" (computeSyscallNumber(
+        \\          number,
+        \\          extra_one,
+        \\          extra_two,
+        \\        )),
+        \\        : .{ .rcx = true, .r11 = true, .memory = true });
+        \\}
+        \\
+    ;
+
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+    );
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
 /// Wraps over-long lines by expanding `(...)` / `{...}` lists. Caller owns the returned slice.
 pub fn autoWrap(
     gpa: Allocator,
@@ -337,7 +470,11 @@ pub fn autoWrap(
 
     try output.ensureTotalCapacity(gpa, input.len * 2);
 
+    const asm_line_flags = try computeAsmLineFlags(gpa, input);
+    defer gpa.free(asm_line_flags);
+
     var line_start: usize = 0;
+    var line_idx: usize = 0;
     while (line_start < input.len) {
         const line_end = mem.indexOfScalar(
             u8,
@@ -349,6 +486,10 @@ pub fn autoWrap(
 
         if (full_line.len > max_line_length and !isCommentOnly(full_line) and !isMultilineStringLine(full_line)) {
             const indent_len = leadingSpaces(full_line);
+            // `Ast/Render.zig` renders everything inside `asm (...)` /
+            // `asm volatile (...)` with a 2-space indent step instead of
+            // the usual 4 (its own `asm_indent_delta` vs. `indent_delta`).
+            const indent_step: usize = if (line_idx < asm_line_flags.len and asm_line_flags[line_idx]) 2 else 4;
             var scratch: std.ArrayList(u8) = .empty;
             defer scratch.deinit(gpa);
             try expandOverlong(
@@ -357,6 +498,7 @@ pub fn autoWrap(
                 full_line,
                 indent_len,
                 max_line_length,
+                indent_step,
             );
             try output.appendSlice(gpa, scratch.items);
         } else {
@@ -364,6 +506,7 @@ pub fn autoWrap(
         }
 
         if (line_start <= input.len) try output.append(gpa, '\n');
+        line_idx += 1;
     }
 
     return output.toOwnedSlice(gpa);
@@ -375,64 +518,74 @@ fn expandOverlong(
     line: []const u8,
     base_indent: usize,
     max_line_length: u32,
+    indent_step: usize,
 ) !void {
-    // Prefer the outermost breakable construct that reduces width.
-    if (findBestBreak(line)) |break_at| {
-        const c = line[break_at];
-        const close: u8 = if (c == '(') ')' else '}';
-        if (findMatchingClose(
-            line,
-            break_at,
-            c,
-            close,
-        )) |close_pos| {
-            const inner = line[break_at + 1 .. close_pos];
-            if (inner.len > 0 and !hasTrailingComma(inner)) {
-                const items = try splitTopLevel(gpa, inner);
-                defer gpa.free(items);
+    // A physical line with more than one top-level (bracket-depth-0)
+    // comma-separated piece is either a `zig fmt`-bin-packed row of a
+    // larger multi-line list or a call sharing a row with unrelated
+    // sibling content. Wrapping just the one construct this pass can see
+    // would splice its output into text it doesn't understand is part of
+    // the same row, so leave the whole line untouched instead.
+    if (!hasMultipleTopLevelSegments(line)) {
+        // Prefer the outermost breakable construct that reduces width.
+        if (findBestBreak(line)) |break_at| {
+            const c = line[break_at];
+            const close: u8 = if (c == '(') ')' else '}';
+            if (findMatchingClose(
+                line,
+                break_at,
+                c,
+                close,
+            )) |close_pos| {
+                const inner = line[break_at + 1 .. close_pos];
+                if (inner.len > 0 and !hasTrailingComma(inner)) {
+                    const items = try splitTopLevel(gpa, inner);
+                    defer gpa.free(items);
 
-                if (items.len >= 1) {
-                    try output.appendSlice(gpa, line[0..break_at]);
-                    try output.append(gpa, c);
-                    try output.append(gpa, '\n');
+                    if (items.len >= 1) {
+                        try output.appendSlice(gpa, line[0..break_at]);
+                        try output.append(gpa, c);
+                        try output.append(gpa, '\n');
 
-                    const item_indent = base_indent + 4;
-                    for (items) |item| {
-                        const trimmed = mem.trim(
-                            u8,
-                            item,
-                            " \t",
-                        );
-                        if (trimmed.len == 0) continue;
+                        const item_indent = base_indent + indent_step;
+                        for (items) |item| {
+                            const trimmed = mem.trim(
+                                u8,
+                                item,
+                                " \t",
+                            );
+                            if (trimmed.len == 0) continue;
+                            try appendSpaces(
+                                gpa,
+                                output,
+                                item_indent,
+                            );
+                            // Recurse if the item itself is still over budget.
+                            if (item_indent + trimmed.len > max_line_length) {
+                                try expandOverlong(
+                                    gpa,
+                                    output,
+                                    trimmed,
+                                    item_indent,
+                                    max_line_length,
+                                    indent_step,
+                                );
+                            } else {
+                                try output.appendSlice(gpa, trimmed);
+                            }
+                            try output.append(gpa, ',');
+                            try output.append(gpa, '\n');
+                        }
+
                         try appendSpaces(
                             gpa,
                             output,
-                            item_indent,
+                            base_indent,
                         );
-                        // Recurse if the item itself is still over budget.
-                        if (item_indent + trimmed.len > max_line_length) {
-                            try expandOverlong(
-                                gpa,
-                                output,
-                                trimmed,
-                                item_indent,
-                                max_line_length,
-                            );
-                        } else {
-                            try output.appendSlice(gpa, trimmed);
-                        }
-                        try output.append(gpa, ',');
-                        try output.append(gpa, '\n');
+                        try output.append(gpa, close);
+                        try output.appendSlice(gpa, line[close_pos + 1 ..]);
+                        return;
                     }
-
-                    try appendSpaces(
-                        gpa,
-                        output,
-                        base_indent,
-                    );
-                    try output.append(gpa, close);
-                    try output.appendSlice(gpa, line[close_pos + 1 ..]);
-                    return;
                 }
             }
         }
@@ -440,6 +593,123 @@ fn expandOverlong(
 
     // Nothing safe to break — leave the line as-is.
     try output.appendSlice(gpa, line);
+}
+
+/// Reports whether `line` contains more than one non-empty, comma-separated
+/// piece at bracket depth 0 (i.e. outside all `(`/`{`/`[` nesting). See
+/// `trailing_comma.zig`'s copy of this function for the full rationale.
+fn hasMultipleTopLevelSegments(line: []const u8) bool {
+    var depth: usize = 0;
+    var seg_start: usize = 0;
+    var non_empty_segments: usize = 0;
+    var i: usize = 0;
+    while (i < line.len) : (i += 1) {
+        const c = line[i];
+        if (c == '/' and i + 1 < line.len and line[i + 1] == '/') break;
+        if (c == '\'' or c == '"') {
+            i = skipStringLiteral(line, i) - 1;
+            continue;
+        }
+        switch (c) {
+            '(', '{', '[' => depth += 1,
+            ')', '}', ']' => {
+                if (depth > 0) depth -= 1;
+            },
+            ',' => {
+                if (depth == 0) {
+                    if (mem.trim(u8, line[seg_start..i], " \t").len > 0) non_empty_segments += 1;
+                    seg_start = i + 1;
+                    if (non_empty_segments > 1) return true;
+                }
+            },
+            else => {},
+        }
+    }
+    if (mem.trim(u8, line[seg_start..], " \t").len > 0) non_empty_segments += 1;
+    return non_empty_segments > 1;
+}
+
+/// Computes, for each physical line of `input`, whether that line's start
+/// falls inside an still-open `asm (...)` / `asm volatile (...)` expression.
+/// Caller owns the returned slice.
+///
+/// Scans one bounded physical line at a time (skipping multiline string
+/// literal lines outright, same as `isMultilineStringLine` elsewhere in
+/// this file) rather than treating `input` as one long character stream.
+/// An unmatched `'` inside assembly template text (e.g. an English
+/// contraction in a comment, `the child's %o0`) would otherwise make
+/// `skipStringLiteral` search for its closing quote arbitrarily far
+/// forward, jumping over embedded newlines without counting them and
+/// desynchronizing every later line's index from its true line number.
+fn computeAsmLineFlags(gpa: Allocator, input: []const u8) Allocator.Error![]bool {
+    var line_count: usize = 1;
+    for (input) |c| {
+        if (c == '\n') line_count += 1;
+    }
+    const flags = try gpa.alloc(bool, line_count);
+    @memset(flags, false);
+
+    var depth: usize = 0;
+    var line_start: usize = 0;
+    var line_idx: usize = 0;
+    while (line_idx < flags.len) : (line_idx += 1) {
+        const line_end = mem.indexOfScalarPos(u8, input, line_start, '\n') orelse input.len;
+        const line = input[line_start..line_end];
+        flags[line_idx] = depth > 0;
+
+        if (!isMultilineStringLine(line)) {
+            var i: usize = 0;
+            while (i < line.len) : (i += 1) {
+                const c = line[i];
+
+                if (c == '/' and i + 1 < line.len and line[i + 1] == '/') break;
+
+                if (c == '\'' or c == '"') {
+                    i = skipStringLiteral(line, i) - 1;
+                    continue;
+                }
+
+                if (depth == 0) {
+                    if (matchAsmOpenParen(line, i)) |paren_pos| {
+                        depth = 1;
+                        i = paren_pos;
+                        flags[line_idx] = true;
+                        continue;
+                    }
+                } else {
+                    if (c == '(') depth += 1;
+                    if (c == ')' and depth > 0) depth -= 1;
+                }
+            }
+        }
+
+        if (line_end >= input.len) break;
+        line_start = line_end + 1;
+    }
+
+    return flags;
+}
+
+/// If `text[pos..]` starts with the whole word `asm`, optionally followed
+/// by whitespace and the whole word `volatile`, then whitespace and `(`,
+/// returns the index of that `(`. Otherwise null.
+fn matchAsmOpenParen(text: []const u8, pos: usize) ?usize {
+    if (!mem.startsWith(u8, text[pos..], "asm")) return null;
+    if (pos > 0 and isIdentChar(text[pos - 1])) return null;
+    var i = pos + 3;
+    if (i < text.len and isIdentChar(text[i])) return null;
+
+    while (i < text.len and (text[i] == ' ' or text[i] == '\t')) i += 1;
+
+    if (mem.startsWith(u8, text[i..], "volatile")) {
+        const after = i + "volatile".len;
+        if (after < text.len and isIdentChar(text[after])) return null;
+        i = after;
+        while (i < text.len and (text[i] == ' ' or text[i] == '\t')) i += 1;
+    }
+
+    if (i < text.len and text[i] == '(') return i;
+    return null;
 }
 
 /// Finds the leftmost `(...)` or `{...}` whose expansion would help: a real
