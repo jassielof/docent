@@ -86,7 +86,7 @@ jobs:
       - name: Idempotency
         run: |
           zig build docent --summary all -- fmt zig-upstream/lib
-          git diff --exit-code zig-upstream/lib
+          git -C zig-upstream/lib diff --exit-code
       - name: Test suite with the formatted library
         run: zig build test --summary all --zig-lib-dir zig-upstream/lib
   docs:
