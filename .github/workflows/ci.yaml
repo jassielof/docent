@@ -59,13 +59,36 @@ jobs:
         uses: jassielof/setup-zig@main
       - name: Run tests
         run: zig build test --summary all
-      # - name: Formatter idempotency against Zig's std. lib.
-      #   run: |
-      #     git clone --sparse --branch 0.16.0 --single-branch https://codeberg.org/ziglang/zig.git zig-std-lib
-      #     cd zig-std-lib
-      #     git sparse-checkout set lib/std
-      #     cd ..
-      #     zig fmt --check zig-std-lib/lib/std
+  test-fmt:
+    name: Test formatter idempotency & std. lib. integration
+    needs: test
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Set up Zig
+        id: setup-zig
+        uses: jassielof/setup-zig@main
+      - name: Build
+        run: zig build --summary all
+      - name: Get Zig's library
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse --branch ${{ steps.setup-zig.outputs.version }} --single-branch https://codeberg.org/ziglang/zig.git zig-upstream
+          cd zig-upstream
+          git sparse-checkout set lib/
+          cd ..
+      - name: Library formatting
+        run: zig build docent --summary all -- fmt zig-upstream/lib
+      - name: Compliance
+        run: zig fmt --check zig-upstream/lib
+      - name: Idempotency
+        run: |
+          zig build docent --summary all -- fmt zig-upstream/lib
+          git diff --exit-code zig-upstream/lib
+      - name: Test suite with the formatted library
+        run: zig build test --summary all --zig-lib-dir zig-upstream/lib
   docs:
     runs-on: ubuntu-latest
     needs: test
