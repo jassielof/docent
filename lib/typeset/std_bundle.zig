@@ -53,9 +53,13 @@ pub const StdRoot = struct {
 /// skip std bundling in that case, the same graceful-degradation philosophy
 /// used everywhere else in this pipeline.
 pub fn discover(allocator: std.mem.Allocator, io: std.Io) ?StdRoot {
-    const result = std.process.run(allocator, io, .{
-        .argv = &.{ "zig", "env" },
-    }) catch return null;
+    const result = std.process.run(
+        allocator,
+        io,
+        .{
+            .argv = &.{ "zig", "env" },
+        },
+    ) catch return null;
 
     const std_dir_raw = extractZonString(result.stdout, ".std_dir") orelse return null;
     const std_dir = unescapeZonString(allocator, std_dir_raw) catch return null;

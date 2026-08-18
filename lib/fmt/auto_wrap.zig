@@ -63,11 +63,21 @@ test "wraps overlong call lists" {
         \\
     ;
 
-    const formatted = try autoWrap(gpa, input, 60, .zig);
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
 
-    const formatted_expected = try autoWrap(gpa, expected, 60, .zig);
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(expected, formatted_expected);
 }
@@ -81,11 +91,21 @@ test "leaves short lines unchanged" {
         \\
     ;
 
-    const formatted = try autoWrap(gpa, expected, 100, .zig);
+    const formatted = try autoWrap(
+        gpa,
+        expected,
+        100,
+        .zig,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
 
-    const formatted_expected = try autoWrap(gpa, expected, 100, .zig);
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        100,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(expected, formatted_expected);
 }
@@ -115,11 +135,21 @@ test "wraps a call nested inside an if-condition, not the condition itself" {
         \\
     ;
 
-    const formatted = try autoWrap(gpa, input, 60, .zig);
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
 
-    const formatted_expected = try autoWrap(gpa, expected, 60, .zig);
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(expected, formatted_expected);
 }
@@ -133,11 +163,21 @@ test "leaves an overlong if/while/switch condition alone when it holds no call t
         \\
     ;
 
-    const formatted = try autoWrap(gpa, expected, 60, .zig);
+    const formatted = try autoWrap(
+        gpa,
+        expected,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
 
-    const formatted_expected = try autoWrap(gpa, expected, 60, .zig);
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(expected, formatted_expected);
 }
@@ -158,11 +198,21 @@ test "leaves callconv/align/linksection/addrspace clauses alone, even overlong" 
         \\
     ;
 
-    const formatted = try autoWrap(gpa, expected, 60, .zig);
+    const formatted = try autoWrap(
+        gpa,
+        expected,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
 
-    const formatted_expected = try autoWrap(gpa, expected, 60, .zig);
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(expected, formatted_expected);
 }
@@ -181,11 +231,21 @@ test "wraps a call nested inside an align() clause, not the clause itself" {
         \\
     ;
 
-    const formatted = try autoWrap(gpa, input, 60, .zig);
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
 
-    const formatted_expected = try autoWrap(gpa, expected, 60, .zig);
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(expected, formatted_expected);
 }
@@ -202,11 +262,21 @@ test "wraps the outer bracket rather than a call nested inside an index/slice" {
         \\
     ;
 
-    const formatted = try autoWrap(gpa, input, 100, .zig);
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        100,
+        .zig,
+    );
     defer gpa.free(formatted);
     try format_test_assertions.expectValidZig(formatted);
 
-    const formatted_expected = try autoWrap(gpa, formatted, 100, .zig);
+    const formatted_expected = try autoWrap(
+        gpa,
+        formatted,
+        100,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(formatted, formatted_expected);
 }
@@ -226,11 +296,21 @@ test "un-indents a call wrapped on a continuation line to the statement's own le
         \\
     ;
 
-    const formatted = try autoWrap(gpa, input, 60, .zig);
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted);
     try format_test_assertions.expectValidZig(formatted);
 
-    const formatted_expected = try autoWrap(gpa, formatted, 60, .zig);
+    const formatted_expected = try autoWrap(
+        gpa,
+        formatted,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(formatted, formatted_expected);
 }
@@ -248,11 +328,21 @@ test "a comment ending in a period wraps the same as any other overlong line" {
         \\
     ;
 
-    const formatted = try autoWrap(gpa, input, 60, .zig);
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted);
     try format_test_assertions.expectValidZig(formatted);
 
-    const formatted_expected = try autoWrap(gpa, formatted, 60, .zig);
+    const formatted_expected = try autoWrap(
+        gpa,
+        formatted,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(formatted, formatted_expected);
 }
@@ -271,11 +361,21 @@ test "a leading-dot switch prong wraps at the normal (non-continuation) level" {
         \\
     ;
 
-    const formatted = try autoWrap(gpa, input, 60, .zig);
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted);
     try format_test_assertions.expectValidZig(formatted);
 
-    const formatted_expected = try autoWrap(gpa, formatted, 60, .zig);
+    const formatted_expected = try autoWrap(
+        gpa,
+        formatted,
+        60,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(formatted, formatted_expected);
 }
@@ -284,12 +384,22 @@ const format_test_assertions = @import("format_test_assertions.zig");
 
 /// Wraps over-long lines by expanding calls/builtin-calls/struct-inits/
 /// array-inits/fn-protos found on them. Caller owns the returned slice.
-pub fn autoWrap(gpa: Allocator, input: []const u8, max_line_length: u32, mode: Ast.Mode) Allocator.Error![]u8 {
+pub fn autoWrap(
+    gpa: Allocator,
+    input: []const u8,
+    max_line_length: u32,
+    mode: Ast.Mode,
+) Allocator.Error![]u8 {
     var current = try gpa.dupe(u8, input);
 
     var iteration: usize = 0;
     while (iteration < max_iterations) : (iteration += 1) {
-        const next = try oneIteration(gpa, current, max_line_length, mode) orelse break;
+        const next = try oneIteration(
+            gpa,
+            current,
+            max_line_length,
+            mode,
+        ) orelse break;
         gpa.free(current);
         current = next;
     }
@@ -309,11 +419,19 @@ fn oneIteration(
     const source_z = try gpa.dupeZ(u8, current);
     defer gpa.free(source_z);
 
-    var tree = try Ast.parse(gpa, source_z, mode);
+    var tree = try Ast.parse(
+        gpa,
+        source_z,
+        mode,
+    );
     defer tree.deinit(gpa);
     if (tree.errors.len != 0) return null;
 
-    const overlong = try findOverlongRanges(gpa, current, max_line_length);
+    const overlong = try findOverlongRanges(
+        gpa,
+        current,
+        max_line_length,
+    );
     defer gpa.free(overlong);
     if (overlong.len == 0) return null;
 
@@ -340,12 +458,25 @@ fn oneIteration(
 
     if (offsets.items.len == 0) return null;
 
-    std.mem.sort(usize, offsets.items, {}, std.sort.asc(usize));
+    std.mem.sort(
+        usize,
+        offsets.items,
+        {},
+        std.sort.asc(usize),
+    );
 
-    const patched = try ast_lists.applyInsertions(gpa, current, offsets.items);
+    const patched = try ast_lists.applyInsertions(
+        gpa,
+        current,
+        offsets.items,
+    );
     defer gpa.free(patched);
 
-    return try ast_lists.renderSource(gpa, patched, mode);
+    return try ast_lists.renderSource(
+        gpa,
+        patched,
+        mode,
+    );
 }
 
 const LineRange = struct { start: usize, end: usize };
@@ -353,13 +484,22 @@ const LineRange = struct { start: usize, end: usize };
 /// Byte ranges (start of line, index of its `\n` or end-of-source) of every
 /// physical line in `source` longer than `max_line_length`. Caller owns the
 /// returned slice.
-fn findOverlongRanges(gpa: Allocator, source: []const u8, max_line_length: u32) Allocator.Error![]LineRange {
+fn findOverlongRanges(
+    gpa: Allocator,
+    source: []const u8,
+    max_line_length: u32,
+) Allocator.Error![]LineRange {
     var out: std.ArrayList(LineRange) = .empty;
     errdefer out.deinit(gpa);
 
     var line_start: usize = 0;
     while (line_start < source.len) {
-        const line_end = mem.indexOfScalarPos(u8, source, line_start, '\n') orelse source.len;
+        const line_end = mem.indexOfScalarPos(
+            u8,
+            source,
+            line_start,
+            '\n',
+        ) orelse source.len;
         if (line_end - line_start > max_line_length) {
             try out.append(gpa, .{ .start = line_start, .end = line_end });
         }

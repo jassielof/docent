@@ -72,14 +72,18 @@ fn run(ctx: *fangz.ParseContext) !void {
     };
     defer cfg.deinit(allocator);
 
-    var plan = docent.status_plan.gather(allocator, io, .{
-        .deps = args.deps,
-        .dependency_paths_only = args.deps,
-        .positionals = if (args.deps) &.{} else if (args.positionals.len > 0) args.positionals else cfg.check.include,
-        .inherit_manifest_paths = !args.deps and args.positionals.len == 0 and cfg.check.inherit_manifest,
-        .exclude_paths = cfg.check.exclude,
-        .color_profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle),
-    }) catch |err| {
+    var plan = docent.status_plan.gather(
+        allocator,
+        io,
+        .{
+            .deps = args.deps,
+            .dependency_paths_only = args.deps,
+            .positionals = if (args.deps) &.{} else if (args.positionals.len > 0) args.positionals else cfg.check.include,
+            .inherit_manifest_paths = !args.deps and args.positionals.len == 0 and cfg.check.inherit_manifest,
+            .exclude_paths = cfg.check.exclude,
+            .color_profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle),
+        },
+    ) catch |err| {
         try printStderr(
             io,
             "error: failed to build lint plan: {}\n",

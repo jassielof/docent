@@ -12,8 +12,8 @@
 //! output — instead of re-deriving indentation from already-rendered text.
 
 const std = @import("std");
-const Ast = std.zig.Ast;
 const Allocator = std.mem.Allocator;
+const Ast = std.zig.Ast;
 
 pub const ListNode = struct {
     /// The call/builtin-call/struct-init/array-init/fn-proto node itself.
@@ -165,7 +165,11 @@ test "collects call, builtin call, array-init, and fn-proto lists" {
     ;
     const source_z = try gpa.dupeZ(u8, source);
     defer gpa.free(source_z);
-    var tree = try Ast.parse(gpa, source_z, .zig);
+    var tree = try Ast.parse(
+        gpa,
+        source_z,
+        .zig,
+    );
     defer tree.deinit(gpa);
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
 
@@ -199,7 +203,11 @@ test "excludes array-init elements from independent forcing" {
     ;
     const source_z = try gpa.dupeZ(u8, source);
     defer gpa.free(source_z);
-    var tree = try Ast.parse(gpa, source_z, .zig);
+    var tree = try Ast.parse(
+        gpa,
+        source_z,
+        .zig,
+    );
     defer tree.deinit(gpa);
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
 
@@ -218,7 +226,11 @@ test "excludes array-init elements from independent forcing" {
 /// Inserts a `,` at each byte offset in `offsets` (ascending, as produced by
 /// sorting the `tree.tokenStart(...)` of each list's closing delimiter).
 /// Caller owns the returned slice.
-pub fn applyInsertions(gpa: Allocator, source: []const u8, offsets: []const usize) Allocator.Error![]u8 {
+pub fn applyInsertions(
+    gpa: Allocator,
+    source: []const u8,
+    offsets: []const usize,
+) Allocator.Error![]u8 {
     var out: std.ArrayList(u8) = .empty;
     errdefer out.deinit(gpa);
     try out.ensureTotalCapacity(gpa, source.len + offsets.len);
@@ -239,17 +251,29 @@ pub fn applyInsertions(gpa: Allocator, source: []const u8, offsets: []const usiz
 /// shouldn't: callers only ever insert a `,` at an already-valid closing
 /// delimiter), the original `source` is returned unchanged rather than
 /// risking a broken rewrite. Caller owns the returned slice.
-pub fn renderSource(gpa: Allocator, source: []const u8, mode: Ast.Mode) Allocator.Error![]u8 {
+pub fn renderSource(
+    gpa: Allocator,
+    source: []const u8,
+    mode: Ast.Mode,
+) Allocator.Error![]u8 {
     const source_z = try gpa.dupeZ(u8, source);
     defer gpa.free(source_z);
 
-    var tree = try Ast.parse(gpa, source_z, mode);
+    var tree = try Ast.parse(
+        gpa,
+        source_z,
+        mode,
+    );
     defer tree.deinit(gpa);
     if (tree.errors.len != 0) return gpa.dupe(u8, source);
 
     var out_buf: std.Io.Writer.Allocating = .init(gpa);
     errdefer out_buf.deinit();
-    tree.render(gpa, &out_buf.writer, .{}) catch |err| switch (err) {
+    tree.render(
+        gpa,
+        &out_buf.writer,
+        .{},
+    ) catch |err| switch (err) {
         error.WriteFailed, error.OutOfMemory => return error.OutOfMemory,
     };
     return out_buf.toOwnedSlice();
@@ -258,7 +282,11 @@ pub fn renderSource(gpa: Allocator, source: []const u8, mode: Ast.Mode) Allocato
 test "applyInsertions inserts commas at ascending byte offsets" {
     const gpa = std.testing.allocator;
     const source = "foo(a)bar(b)";
-    const result = try applyInsertions(gpa, source, &.{ 5, 11 });
+    const result = try applyInsertions(
+        gpa,
+        source,
+        &.{ 5, 11 },
+    );
     defer gpa.free(result);
     try std.testing.expectEqualStrings("foo(a,)bar(b,)", result);
 }
@@ -266,7 +294,11 @@ test "applyInsertions inserts commas at ascending byte offsets" {
 test "renderSource falls back to the original text on parse failure" {
     const gpa = std.testing.allocator;
     const broken = "fn foo(";
-    const result = try renderSource(gpa, broken, .zig);
+    const result = try renderSource(
+        gpa,
+        broken,
+        .zig,
+    );
     defer gpa.free(result);
     try std.testing.expectEqualStrings(broken, result);
 }

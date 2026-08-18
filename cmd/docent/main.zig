@@ -19,12 +19,16 @@ pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;
     const io = init.io;
 
-    var app = try fangz.App.init(gpa, io, .{
-        .display_name = "Docent",
-        .author_name = "",
-        .author_email = "",
-        .tagline = "A Documentation Linter for Zig Projects",
-    });
+    var app = try fangz.App.init(
+        gpa,
+        io,
+        .{
+            .display_name = "Docent",
+            .author_name = "",
+            .author_email = "",
+            .tagline = "A Documentation Linter for Zig Projects",
+        },
+    );
 
     defer app.deinit();
 

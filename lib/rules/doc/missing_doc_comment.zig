@@ -607,7 +607,10 @@ test "private function parameters are not checked under public_api_only" {
 
     try check(
         &tree,
-        .{ .scan_mode = scan.RuleScanConfig.public_api_surface, .options = .{ .check_parameters = true } },
+        .{
+            .scan_mode = scan.RuleScanConfig.public_api_surface,
+            .options = .{ .check_parameters = true },
+        },
         "<test>",
         false,
         null,

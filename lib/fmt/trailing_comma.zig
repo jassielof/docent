@@ -178,11 +178,19 @@ test "adds trailing commas to multiline lists" {
         \\
     ;
 
-    const formatted = try addTrailingCommas(gpa, input, .zig);
+    const formatted = try addTrailingCommas(
+        gpa,
+        input,
+        .zig,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
 
-    const formatted_expected = try addTrailingCommas(gpa, expected, .zig);
+    const formatted_expected = try addTrailingCommas(
+        gpa,
+        expected,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(expected, formatted_expected);
 }
@@ -198,11 +206,19 @@ test "leaves a call nested inside an index/slice bracket alone" {
         \\
     ;
 
-    const formatted = try addTrailingCommas(gpa, input, .zig);
+    const formatted = try addTrailingCommas(
+        gpa,
+        input,
+        .zig,
+    );
     defer gpa.free(formatted);
     try format_test_assertions.expectValidZig(formatted);
 
-    const formatted_expected = try addTrailingCommas(gpa, formatted, .zig);
+    const formatted_expected = try addTrailingCommas(
+        gpa,
+        formatted,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(formatted, formatted_expected);
 }
@@ -220,11 +236,19 @@ test "leaves a hand-packed row of several calls in an already-multiline list alo
         \\
     ;
 
-    const formatted = try addTrailingCommas(gpa, input, .zig);
+    const formatted = try addTrailingCommas(
+        gpa,
+        input,
+        .zig,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(input, formatted);
 
-    const formatted_expected = try addTrailingCommas(gpa, formatted, .zig);
+    const formatted_expected = try addTrailingCommas(
+        gpa,
+        formatted,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(input, formatted_expected);
 }
@@ -245,11 +269,19 @@ test "un-indents a call expanded on a continuation line to the statement's own l
         \\
     ;
 
-    const formatted = try addTrailingCommas(gpa, input, .zig);
+    const formatted = try addTrailingCommas(
+        gpa,
+        input,
+        .zig,
+    );
     defer gpa.free(formatted);
     try format_test_assertions.expectValidZig(formatted);
 
-    const formatted_expected = try addTrailingCommas(gpa, formatted, .zig);
+    const formatted_expected = try addTrailingCommas(
+        gpa,
+        formatted,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(formatted, formatted_expected);
 }
@@ -282,11 +314,19 @@ test "uses asm's 2-space indent delta for a clobber list nested inside it" {
         \\
     ;
 
-    const formatted = try addTrailingCommas(gpa, input, .zig);
+    const formatted = try addTrailingCommas(
+        gpa,
+        input,
+        .zig,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
 
-    const formatted_expected = try addTrailingCommas(gpa, expected, .zig);
+    const formatted_expected = try addTrailingCommas(
+        gpa,
+        expected,
+        .zig,
+    );
     defer gpa.free(formatted_expected);
     try std.testing.expectEqualStrings(expected, formatted_expected);
 }
@@ -300,7 +340,11 @@ test "leaves multiline string literal content unchanged" {
         \\;
     ;
 
-    const formatted = try addTrailingCommas(gpa, input, .zig);
+    const formatted = try addTrailingCommas(
+        gpa,
+        input,
+        .zig,
+    );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(input, formatted);
 }
@@ -308,11 +352,19 @@ test "leaves multiline string literal content unchanged" {
 /// Expands comma-delimited lists (call arguments, builtin-call arguments,
 /// struct/array-init, and fn-proto parameter lists) with 3 or more items to
 /// one-per-line with a trailing comma. Caller owns the returned slice.
-pub fn addTrailingCommas(gpa: Allocator, input: []const u8, mode: Ast.Mode) Allocator.Error![]u8 {
+pub fn addTrailingCommas(
+    gpa: Allocator,
+    input: []const u8,
+    mode: Ast.Mode,
+) Allocator.Error![]u8 {
     const source_z = try gpa.dupeZ(u8, input);
     defer gpa.free(source_z);
 
-    var tree = try Ast.parse(gpa, source_z, mode);
+    var tree = try Ast.parse(
+        gpa,
+        source_z,
+        mode,
+    );
     defer tree.deinit(gpa);
     if (tree.errors.len != 0) return gpa.dupe(u8, input);
 
@@ -329,10 +381,23 @@ pub fn addTrailingCommas(gpa: Allocator, input: []const u8, mode: Ast.Mode) Allo
 
     if (offsets.items.len == 0) return gpa.dupe(u8, input);
 
-    std.mem.sort(usize, offsets.items, {}, std.sort.asc(usize));
+    std.mem.sort(
+        usize,
+        offsets.items,
+        {},
+        std.sort.asc(usize),
+    );
 
-    const patched = try ast_lists.applyInsertions(gpa, input, offsets.items);
+    const patched = try ast_lists.applyInsertions(
+        gpa,
+        input,
+        offsets.items,
+    );
     defer gpa.free(patched);
 
-    return ast_lists.renderSource(gpa, patched, mode);
+    return ast_lists.renderSource(
+        gpa,
+        patched,
+        mode,
+    );
 }

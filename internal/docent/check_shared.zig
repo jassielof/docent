@@ -45,14 +45,18 @@ pub fn gatherPlan(
     );
     defer if (resolved_manifest) |p| allocator.free(p);
 
-    return status_plan.gather(allocator, io, .{
-        .deps = args.deps,
-        .dependency_paths_only = args.deps,
-        .positionals = if (args.deps) &.{} else if (args.positionals.len > 0) args.positionals else cfg.check.include,
-        .inherit_manifest_paths = !args.deps and args.positionals.len == 0 and cfg.check.inherit_manifest,
-        .exclude_paths = cfg.check.exclude,
-        .manifest_path = resolved_manifest,
-    });
+    return status_plan.gather(
+        allocator,
+        io,
+        .{
+            .deps = args.deps,
+            .dependency_paths_only = args.deps,
+            .positionals = if (args.deps) &.{} else if (args.positionals.len > 0) args.positionals else cfg.check.include,
+            .inherit_manifest_paths = !args.deps and args.positionals.len == 0 and cfg.check.inherit_manifest,
+            .exclude_paths = cfg.check.exclude,
+            .manifest_path = resolved_manifest,
+        },
+    );
 }
 
 pub const RegisterTargetFlagsOptions = struct {
@@ -510,13 +514,17 @@ fn printEffectiveRulesCategory(
         profile,
         category.heading(),
     );
-    try carnaval.renderList(lines.items, w, .{
-        .style = .bullet,
-        .indent = "  ",
-        .marker_style = .{},
-        .item_style = .{},
-        .color_profile = profile,
-    });
+    try carnaval.renderList(
+        lines.items,
+        w,
+        .{
+            .style = .bullet,
+            .indent = "  ",
+            .marker_style = .{},
+            .item_style = .{},
+            .color_profile = profile,
+        },
+    );
     any_category.* = true;
 }
 
@@ -563,13 +571,17 @@ pub fn printCategorizedSummary(
             profile,
             category.heading(),
         );
-        try carnaval.renderList(lines.items, writer, .{
-            .style = .bullet,
-            .indent = "  ",
-            .marker_style = .{},
-            .item_style = .{},
-            .color_profile = profile,
-        });
+        try carnaval.renderList(
+            lines.items,
+            writer,
+            .{
+                .style = .bullet,
+                .indent = "  ",
+                .marker_style = .{},
+                .item_style = .{},
+                .color_profile = profile,
+            },
+        );
         try writer.writeAll("\n");
         any_category = true;
     }

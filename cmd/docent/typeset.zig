@@ -197,15 +197,19 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
             try modules.append(allocator, .{ .root_decl = root_decl, .name = name });
         }
     } else {
-        var plan = docent.status_plan.gather(allocator, io, .{
-            .lib = (ctx.boolFlag("lib") orelse false) or cfg.typeset.lib,
-            .bins = (ctx.boolFlag("bins") orelse false) or cfg.typeset.bins,
-            .bin_names = ctx.stringListFlag("bin") orelse &.{},
-            .tests = (ctx.boolFlag("tests") orelse false) or cfg.typeset.tests,
-            .test_names = ctx.stringListFlag("test") orelse &.{},
-            .deps = want_deps,
-            .exclude_targets = cfg.typeset.exclude_targets,
-        }) catch |err| {
+        var plan = docent.status_plan.gather(
+            allocator,
+            io,
+            .{
+                .lib = (ctx.boolFlag("lib") orelse false) or cfg.typeset.lib,
+                .bins = (ctx.boolFlag("bins") orelse false) or cfg.typeset.bins,
+                .bin_names = ctx.stringListFlag("bin") orelse &.{},
+                .tests = (ctx.boolFlag("tests") orelse false) or cfg.typeset.tests,
+                .test_names = ctx.stringListFlag("test") orelse &.{},
+                .deps = want_deps,
+                .exclude_targets = cfg.typeset.exclude_targets,
+            },
+        ) catch |err| {
             std.process.fatal("failed to discover modules: {t}", .{err});
         };
         defer plan.deinit(allocator);
@@ -417,12 +421,16 @@ fn isoTimestamp(io: std.Io, buf: []u8) ![]const u8 {
     const month_day = year_day.calculateMonthDay();
     const day_seconds = epoch_seconds.getDaySeconds();
 
-    return std.fmt.bufPrint(buf, "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}Z", .{
-        year_day.year,
-        month_day.month.numeric(),
-        @as(u8, month_day.day_index) + 1,
-        day_seconds.getHoursIntoDay(),
-        day_seconds.getMinutesIntoHour(),
-        day_seconds.getSecondsIntoMinute(),
-    });
+    return std.fmt.bufPrint(
+        buf,
+        "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}Z",
+        .{
+            year_day.year,
+            month_day.month.numeric(),
+            @as(u8, month_day.day_index) + 1,
+            day_seconds.getHoursIntoDay(),
+            day_seconds.getMinutesIntoHour(),
+            day_seconds.getSecondsIntoMinute(),
+        },
+    );
 }

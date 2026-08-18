@@ -696,7 +696,11 @@ pub fn applyPostProcessing(
     }
 
     if (config.trailing_comma) {
-        const result = try trailing_comma.addTrailingCommas(gpa, current, mode);
+        const result = try trailing_comma.addTrailingCommas(
+            gpa,
+            current,
+            mode,
+        );
         if (current_allocated) gpa.free(current);
         current = result;
         current_allocated = true;

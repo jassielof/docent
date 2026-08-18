@@ -296,7 +296,15 @@ fn subjectForDeclNode(
         var buf: [1]Ast.Node.Index = undefined;
         if (tree.fullFnProto(&buf, node)) |proto| {
             const name_tok = proto.name_token orelse return null;
-            return .{ .kind = .function, .name = try msg_allocator.dupe(u8, tree.tokenSlice(name_tok)) };
+            return .{
+                .kind = .function,
+                .name = try msg_allocator.dupe(
+                    u8,
+                    tree.tokenSlice(
+                        name_tok,
+                    ),
+                ),
+            };
         }
         return null;
     }

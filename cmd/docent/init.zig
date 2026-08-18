@@ -54,10 +54,14 @@ fn run(ctx: *fangz.ParseContext) !void {
     const content = try renderDefaultConfig(allocator);
     defer allocator.free(content);
 
-    const file = try std.Io.Dir.cwd().createFile(io, config_path, .{
-        .truncate = args.force,
-        .exclusive = !args.force,
-    });
+    const file = try std.Io.Dir.cwd().createFile(
+        io,
+        config_path,
+        .{
+            .truncate = args.force,
+            .exclusive = !args.force,
+        },
+    );
     defer file.close(io);
 
     try file.writeStreamingAll(io, content);

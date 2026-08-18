@@ -488,11 +488,15 @@ fn writePrettyDiagnostic(
 
     try writeArrowPadding(writer, gutter);
     var location_buf: [std.Io.Dir.max_path_bytes + 64]u8 = undefined;
-    const location = try std.fmt.bufPrint(&location_buf, "--> {s}:{d}:{d}", .{
-        file_shown,
-        diagnostic.line,
-        diagnostic.column,
-    });
+    const location = try std.fmt.bufPrint(
+        &location_buf,
+        "--> {s}:{d}:{d}",
+        .{
+            file_shown,
+            diagnostic.line,
+            diagnostic.column,
+        },
+    );
     try style.location_style.renderWithProfile(
         location,
         writer,
@@ -912,11 +916,15 @@ test "minimal formatter groups diagnostics by display path" {
             .column = 3,
         },
     };
-    try writeDiagnostics(&writer.writer, &diagnostics, .{
-        .format = .minimal,
-        .color = .never,
-        .path_display_root = display_root,
-    });
+    try writeDiagnostics(
+        &writer.writer,
+        &diagnostics,
+        .{
+            .format = .minimal,
+            .color = .never,
+            .path_display_root = display_root,
+        },
+    );
     out = writer.toArrayList();
 
     try std.testing.expect(std.mem.indexOf(
@@ -956,10 +964,14 @@ test "minimal formatter separates files with a blank line" {
             .column = 1,
         },
     };
-    try writeDiagnostics(&writer.writer, &diagnostics, .{
-        .format = .minimal,
-        .color = .never,
-    });
+    try writeDiagnostics(
+        &writer.writer,
+        &diagnostics,
+        .{
+            .format = .minimal,
+            .color = .never,
+        },
+    );
     out = writer.toArrayList();
 
     try std.testing.expectEqualStrings(
@@ -975,19 +987,23 @@ test "pretty formatter renders rustc-style block" {
     var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
     defer writer.deinit();
 
-    try writeDiagnostic(&writer.writer, .{
-        .rule = "missing_doc_comment",
-        .severity_level = .warn,
-        .subject = .{ .kind = .function, .name = "main" },
-        .file = "src/main.zig",
-        .line = 5,
-        .column = 8,
-        .source_line = "pub fn main() void {}",
-        .symbol_len = 4,
-    }, .{
-        .format = .pretty,
-        .color = .never,
-    });
+    try writeDiagnostic(
+        &writer.writer,
+        .{
+            .rule = "missing_doc_comment",
+            .severity_level = .warn,
+            .subject = .{ .kind = .function, .name = "main" },
+            .file = "src/main.zig",
+            .line = 5,
+            .column = 8,
+            .source_line = "pub fn main() void {}",
+            .symbol_len = 4,
+        },
+        .{
+            .format = .pretty,
+            .color = .never,
+        },
+    );
     out = writer.toArrayList();
 
     try std.testing.expect(std.mem.startsWith(
@@ -1024,19 +1040,23 @@ test "pretty formatter aligns two-digit line numbers" {
     var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
     defer writer.deinit();
 
-    try writeDiagnostic(&writer.writer, .{
-        .rule = "missing_doc_comment",
-        .severity_level = .warn,
-        .subject = .{ .kind = .error_set, .name = "Error" },
-        .file = "src/lib/Config.zig",
-        .line = 24,
-        .column = 11,
-        .source_line = "    pub const Error = error{",
-        .symbol_len = 5,
-    }, .{
-        .format = .pretty,
-        .color = .never,
-    });
+    try writeDiagnostic(
+        &writer.writer,
+        .{
+            .rule = "missing_doc_comment",
+            .severity_level = .warn,
+            .subject = .{ .kind = .error_set, .name = "Error" },
+            .file = "src/lib/Config.zig",
+            .line = 24,
+            .column = 11,
+            .source_line = "    pub const Error = error{",
+            .symbol_len = 5,
+        },
+        .{
+            .format = .pretty,
+            .color = .never,
+        },
+    );
     out = writer.toArrayList();
 
     try std.testing.expect(std.mem.indexOf(
@@ -1153,11 +1173,15 @@ test "warning-only summary uses warning styling for its count and label" {
     var buf: [256]u8 = undefined;
     var writer = std.Io.Writer.fixed(&buf);
 
-    try writeSummary(&writer, .{ .warnings = 2 }, .{
-        .color = .always,
-        .color_profile = .ansi16,
-        .tool_name = "docent check cogni",
-    });
+    try writeSummary(
+        &writer,
+        .{ .warnings = 2 },
+        .{
+            .color = .always,
+            .color_profile = .ansi16,
+            .tool_name = "docent check cogni",
+        },
+    );
 
     try std.testing.expect(std.mem.indexOf(
         u8,
