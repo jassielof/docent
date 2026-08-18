@@ -484,7 +484,9 @@ pub fn autoWrap(
         const full_line = input[line_start .. line_start + line_end];
         line_start += line_end + 1;
 
-        if (full_line.len > max_line_length and !isCommentOnly(full_line) and !isMultilineStringLine(full_line)) {
+        if (full_line.len > max_line_length and !isCommentOnly(
+            full_line,
+        ) and !isMultilineStringLine(full_line)) {
             const indent_len = leadingSpaces(full_line);
             // `Ast/Render.zig` renders everything inside `asm (...)` /
             // `asm volatile (...)` with a 2-space indent step instead of
@@ -617,7 +619,11 @@ fn hasMultipleTopLevelSegments(line: []const u8) bool {
             },
             ',' => {
                 if (depth == 0) {
-                    if (mem.trim(u8, line[seg_start..i], " \t").len > 0) non_empty_segments += 1;
+                    if (mem.trim(
+                        u8,
+                        line[seg_start..i],
+                        " \t",
+                    ).len > 0) non_empty_segments += 1;
                     seg_start = i + 1;
                     if (non_empty_segments > 1) return true;
                 }
@@ -625,7 +631,11 @@ fn hasMultipleTopLevelSegments(line: []const u8) bool {
             else => {},
         }
     }
-    if (mem.trim(u8, line[seg_start..], " \t").len > 0) non_empty_segments += 1;
+    if (mem.trim(
+        u8,
+        line[seg_start..],
+        " \t",
+    ).len > 0) non_empty_segments += 1;
     return non_empty_segments > 1;
 }
 
@@ -653,7 +663,12 @@ fn computeAsmLineFlags(gpa: Allocator, input: []const u8) Allocator.Error![]bool
     var line_start: usize = 0;
     var line_idx: usize = 0;
     while (line_idx < flags.len) : (line_idx += 1) {
-        const line_end = mem.indexOfScalarPos(u8, input, line_start, '\n') orelse input.len;
+        const line_end = mem.indexOfScalarPos(
+            u8,
+            input,
+            line_start,
+            '\n',
+        ) orelse input.len;
         const line = input[line_start..line_end];
         flags[line_idx] = depth > 0;
 
@@ -694,14 +709,22 @@ fn computeAsmLineFlags(gpa: Allocator, input: []const u8) Allocator.Error![]bool
 /// by whitespace and the whole word `volatile`, then whitespace and `(`,
 /// returns the index of that `(`. Otherwise null.
 fn matchAsmOpenParen(text: []const u8, pos: usize) ?usize {
-    if (!mem.startsWith(u8, text[pos..], "asm")) return null;
+    if (!mem.startsWith(
+        u8,
+        text[pos..],
+        "asm",
+    )) return null;
     if (pos > 0 and isIdentChar(text[pos - 1])) return null;
     var i = pos + 3;
     if (i < text.len and isIdentChar(text[i])) return null;
 
     while (i < text.len and (text[i] == ' ' or text[i] == '\t')) i += 1;
 
-    if (mem.startsWith(u8, text[i..], "volatile")) {
+    if (mem.startsWith(
+        u8,
+        text[i..],
+        "volatile",
+    )) {
         const after = i + "volatile".len;
         if (after < text.len and isIdentChar(text[after])) return null;
         i = after;
@@ -773,7 +796,9 @@ fn findBestBreak(line: []const u8) ?usize {
                 close,
             )) |close_pos| {
                 const inner = line[pos + 1 .. close_pos];
-                if (inner.len > 0 and !hasTrailingComma(inner) and containsTopLevelCommaOrContent(inner)) {
+                if (inner.len > 0 and !hasTrailingComma(
+                    inner,
+                ) and containsTopLevelCommaOrContent(inner)) {
                     return pos;
                 }
                 pos = close_pos + 1;
@@ -827,7 +852,11 @@ fn isSingleExprClauseKeyword(ident: []const u8) bool {
         "union",
     };
     for (keywords) |kw| {
-        if (mem.eql(u8, ident, kw)) return true;
+        if (mem.eql(
+            u8,
+            ident,
+            kw,
+        )) return true;
     }
     return false;
 }
