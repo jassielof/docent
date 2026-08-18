@@ -229,6 +229,9 @@ test "leaves callconv/align/linksection/addrspace clauses alone, even overlong" 
         \\var x: u8 align(some_really_long_alignment_expression_value_used_here_ok) = 0;
         \\var y: u8 linksection(some_really_long_link_section_name_string_value_here) = 0;
         \\var z: u8 addrspace(some_really_long_address_space_identifier_value_here_ok) = 0;
+        \\const E = enum(some_really_long_backing_integer_type_name_value_here_ok) {};
+        \\const S = packed struct(some_really_long_backing_integer_type_name_value_ok) {};
+        \\const U = union(some_really_long_tag_type_name_value_used_here_ok) {};
         \\
     ;
 
@@ -526,9 +529,11 @@ fn isCallParen(line: []const u8, pos: usize) bool {
         else => return false,
     }
 
-    // `align(`, `callconv(`, `linksection(`, and `addrspace(` use call-like
-    // syntax but each take exactly one required expression — unlike a real
-    // call or parameter list, the parser rejects a trailing comma there.
+    // `align(`, `callconv(`, `linksection(`, `addrspace(`, and the
+    // backing/tag-type clauses `enum(`, `struct(`, `union(` all use
+    // call-like syntax but each take exactly one required expression —
+    // unlike a real call or parameter list, the parser rejects a trailing
+    // comma there.
     var start = pos - 1;
     while (start > 0 and isIdentChar(line[start - 1])) : (start -= 1) {}
     return !isSingleExprClauseKeyword(line[start..pos]);
@@ -542,7 +547,15 @@ fn isIdentChar(c: u8) bool {
 }
 
 fn isSingleExprClauseKeyword(ident: []const u8) bool {
-    const keywords = [_][]const u8{ "align", "callconv", "linksection", "addrspace" };
+    const keywords = [_][]const u8{
+        "align",
+        "callconv",
+        "linksection",
+        "addrspace",
+        "enum",
+        "struct",
+        "union",
+    };
     for (keywords) |kw| {
         if (mem.eql(u8, ident, kw)) return true;
     }
