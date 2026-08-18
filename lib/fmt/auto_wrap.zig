@@ -180,7 +180,7 @@ test "wraps the call nested inside a grouping paren, not the grouping itself" {
     const formatted = try autoWrap(
         gpa,
         input,
-        60,
+        100,
     );
     defer gpa.free(formatted);
     try std.testing.expectEqualStrings(expected, formatted);
@@ -189,7 +189,7 @@ test "wraps the call nested inside a grouping paren, not the grouping itself" {
     const formatted_expected = try autoWrap(
         gpa,
         expected,
-        60,
+        100,
     );
     defer gpa.free(formatted_expected);
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
@@ -222,6 +222,107 @@ test "leaves overlong multiline string literal lines untouched" {
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
+test "leaves callconv/align/linksection/addrspace clauses alone, even overlong" {
+    const gpa = std.testing.allocator;
+    const expected =
+        \\fn foo() callconv(some_really_long_calling_convention_identifier_value_ok) void {}
+        \\var x: u8 align(some_really_long_alignment_expression_value_used_here_ok) = 0;
+        \\var y: u8 linksection(some_really_long_link_section_name_string_value_here) = 0;
+        \\var z: u8 addrspace(some_really_long_address_space_identifier_value_here_ok) = 0;
+        \\
+    ;
+
+    const formatted = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "wraps a call nested inside an align() clause, not the clause itself" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\var x: u8 align(computeAlignment(some_argument, another_argument_here)) = 0;
+        \\
+    ;
+    const expected =
+        \\var x: u8 align(computeAlignment(
+        \\    some_argument,
+        \\    another_argument_here,
+        \\)) = 0;
+        \\
+    ;
+
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+    );
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "wraps a call outside an index/slice bracket rather than the bracketed one" {
+    const gpa = std.testing.allocator;
+    // `zig fmt` insists on breaking at the bracket itself for a call nested
+    // directly inside `[...]` (it never leaves the inner call wrapped in
+    // place there), so wrapping `@intCast(i)` here would be immediately
+    // undone by a real `zig fmt` pass. The `@as(...)` call after the
+    // bracket has no such restriction and is the correct, stable target.
+    const input =
+        \\fn foo(write_bytes: []u8, i: usize, remaining: u128, head_mask: u8, bit_shift: u3) void {
+        \\    write_bytes[@intCast(i)] |= @as(u8, @intCast(@as(u128, @bitCast(remaining)) & head_mask)) << bit_shift;
+        \\}
+        \\
+    ;
+    const expected =
+        \\fn foo(write_bytes: []u8, i: usize, remaining: u128, head_mask: u8, bit_shift: u3) void {
+        \\    write_bytes[@intCast(i)] |= @as(
+        \\        u8,
+        \\        @intCast(@as(u128, @bitCast(remaining)) & head_mask),
+        \\    ) << bit_shift;
+        \\}
+        \\
+    ;
+
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        100,
+    );
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        100,
+    );
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
 /// Wraps over-long lines by expanding `(...)` / `{...}` lists. Caller owns the returned slice.
 pub fn autoWrap(
     gpa: Allocator,
@@ -243,9 +344,7 @@ pub fn autoWrap(
         const full_line = input[line_start .. line_start + line_end];
         line_start += line_end + 1;
 
-        if (full_line.len > max_line_length and !isCommentOnly(
-            full_line,
-        ) and !isMultilineStringLine(full_line)) {
+        if (full_line.len > max_line_length and !isCommentOnly(full_line) and !isMultilineStringLine(full_line)) {
             const indent_len = leadingSpaces(full_line);
             var scratch: std.ArrayList(u8) = .empty;
             defer scratch.deinit(gpa);
@@ -345,9 +444,14 @@ fn expandOverlong(
 /// content. Grouping and control-flow parens (`if (`, `while (`, `(a and
 /// b)`, ...) are skipped — they can't take a trailing comma — but scanning
 /// continues inside them since the real wrap target is often a call nested
-/// in the condition.
+/// in the condition. Calls nested inside an still-open `[...]` index/slice
+/// are skipped too and NOT dived into: `zig fmt` prefers breaking at the
+/// bracket itself (which takes no trailing comma, a different shape than
+/// what this pass produces), so wrapping the inner call would just be
+/// reformatted right back by a real `zig fmt` pass — leave the line alone.
 fn findBestBreak(line: []const u8) ?usize {
     var pos: usize = 0;
+    var bracket_depth: usize = 0;
     while (pos < line.len) {
         const c = line[pos];
 
@@ -355,6 +459,17 @@ fn findBestBreak(line: []const u8) ?usize {
 
         if (c == '\'' or c == '"') {
             pos = skipStringLiteral(line, pos);
+            continue;
+        }
+
+        if (c == '[') {
+            bracket_depth += 1;
+            pos += 1;
+            continue;
+        }
+        if (c == ']') {
+            if (bracket_depth > 0) bracket_depth -= 1;
+            pos += 1;
             continue;
         }
 
@@ -372,7 +487,7 @@ fn findBestBreak(line: []const u8) ?usize {
                 }
             }
 
-            if (c == '(' and !isCallParen(line, pos)) {
+            if (c == '(' and (bracket_depth > 0 or !isCallParen(line, pos))) {
                 pos += 1;
                 continue;
             }
@@ -385,9 +500,7 @@ fn findBestBreak(line: []const u8) ?usize {
                 close,
             )) |close_pos| {
                 const inner = line[pos + 1 .. close_pos];
-                if (inner.len > 0 and !hasTrailingComma(
-                    inner,
-                ) and containsTopLevelCommaOrContent(inner)) {
+                if (inner.len > 0 and !hasTrailingComma(inner) and containsTopLevelCommaOrContent(inner)) {
                     return pos;
                 }
                 pos = close_pos + 1;
@@ -407,10 +520,33 @@ fn findBestBreak(line: []const u8) ?usize {
 /// `while (`, `switch (`, `for (`, and bare grouping parens.
 fn isCallParen(line: []const u8, pos: usize) bool {
     if (pos == 0) return false;
-    return switch (line[pos - 1]) {
-        'a'...'z', 'A'...'Z', '0'...'9', '_', ')', ']' => true,
+    switch (line[pos - 1]) {
+        ')', ']' => return true, // chained call/index result, never a keyword clause
+        'a'...'z', 'A'...'Z', '0'...'9', '_' => {},
+        else => return false,
+    }
+
+    // `align(`, `callconv(`, `linksection(`, and `addrspace(` use call-like
+    // syntax but each take exactly one required expression — unlike a real
+    // call or parameter list, the parser rejects a trailing comma there.
+    var start = pos - 1;
+    while (start > 0 and isIdentChar(line[start - 1])) : (start -= 1) {}
+    return !isSingleExprClauseKeyword(line[start..pos]);
+}
+
+fn isIdentChar(c: u8) bool {
+    return switch (c) {
+        'a'...'z', 'A'...'Z', '0'...'9', '_' => true,
         else => false,
     };
+}
+
+fn isSingleExprClauseKeyword(ident: []const u8) bool {
+    const keywords = [_][]const u8{ "align", "callconv", "linksection", "addrspace" };
+    for (keywords) |kw| {
+        if (mem.eql(u8, ident, kw)) return true;
+    }
+    return false;
 }
 
 fn containsTopLevelCommaOrContent(inner: []const u8) bool {
