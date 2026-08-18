@@ -80,7 +80,9 @@ jobs:
           git sparse-checkout set lib/
           cd ..
       - name: Library formatting
-        run: zig build docent --summary all -- fmt zig-upstream/lib
+        run: |
+          zig build docent --summary all -- fmt zig-upstream/lib
+          git -C zig-upstream add --all
       - name: Compliance
         run: zig fmt --check zig-upstream/lib
       - name: Idempotency
