@@ -127,7 +127,10 @@ fn applyDocSeverities(section: Doc, rule_set: *RuleSeverities) Error!void {
     try applyLevel(&rule_set.missing_doc_comment, section.missing_doc_comment.level);
     try applyLevel(&rule_set.blank_doc_comment, section.blank_doc_comment.level);
     try applyLevel(&rule_set.trailing_blank_doc_comment, section.trailing_blank_doc_comment.level);
-    try applyLevel(&rule_set.missing_summary_terminal_punctuation, section.missing_summary_terminal_punctuation.level);
+    try applyLevel(
+        &rule_set.missing_summary_terminal_punctuation,
+        section.missing_summary_terminal_punctuation.level,
+    );
     try applyLevel(&rule_set.missing_doctest, section.missing_doctest.level);
     try applyLevel(&rule_set.private_doctest, section.private_doctest.level);
     try applyLevel(&rule_set.doctest_naming_mismatch, section.doctest_naming_mismatch.level);
@@ -164,7 +167,9 @@ fn decodeFmt(
     if (table.get("exclude")) |v| out.exclude = try decodeStringList(allocator, v);
     if (table.get("brace_style")) |bs_value| {
         const text = bs_value.stringSlice() orelse return error.ConfigParseFailed;
-        out.brace_style = Fmt.BraceStyle.fromConfigString(text) orelse return error.ConfigParseFailed;
+        out.brace_style = Fmt.BraceStyle.fromConfigString(
+            text,
+        ) orelse return error.ConfigParseFailed;
     }
     if (table.get("single_line_braces")) |v| {
         out.single_line_braces = switch (v) {
@@ -198,7 +203,9 @@ fn decodeFmt(
     }
     if (table.get("indent_style")) |v| {
         const text = v.stringSlice() orelse return error.ConfigParseFailed;
-        out.indent_style = Fmt.IndentStyle.fromConfigString(text) orelse return error.ConfigParseFailed;
+        out.indent_style = Fmt.IndentStyle.fromConfigString(
+            text,
+        ) orelse return error.ConfigParseFailed;
     }
     if (table.get("indent_width")) |v| {
         const n = switch (v) {
@@ -274,7 +281,10 @@ fn decodeBool(value: toml.DynamicValue) Error!bool {
     };
 }
 
-fn decodeStringList(allocator: std.mem.Allocator, value: toml.DynamicValue) Error![]const []const u8 {
+fn decodeStringList(
+    allocator: std.mem.Allocator,
+    value: toml.DynamicValue,
+) Error![]const []const u8 {
     const arr = switch (value) {
         .array => |a| a,
         else => return error.ConfigParseFailed,
@@ -330,9 +340,14 @@ test "decode reads nested rule tables and section options" {
     try std.testing.expect(cfg.doc.missing_doc_comment.options.check_fields);
     try std.testing.expect(cfg.doc.missing_doc_comment.options.check_enumerators);
     try std.testing.expectEqual(severity.Level.allow, cfg.doc.missing_doctest.level);
-    try std.testing.expect(std.meta.eql(scan.RuleScanConfig.reachability_traversal, cfg.doc.scan_mode));
+    try std.testing.expect(
+        std.meta.eql(scan.RuleScanConfig.reachability_traversal, cfg.doc.scan_mode),
+    );
     try std.testing.expectEqual(severity.Level.deny, cfg.complexity.cognitive_complexity.level);
-    try std.testing.expectEqual(@as(u32, 12), cfg.complexity.cognitive_complexity.options.threshold);
+    try std.testing.expectEqual(
+        @as(u32, 12),
+        cfg.complexity.cognitive_complexity.options.threshold,
+    );
 }
 
 test "resolved size options read line_length_limit settings" {
@@ -362,7 +377,10 @@ test "resolved style options read struct_file_case" {
 
     var cfg = try decode(arena.allocator(), root);
     defer cfg.deinit(arena.allocator());
-    try std.testing.expectEqual(naming_case.Style.snake, cfg.style.identifier_case.options.struct_file_case);
+    try std.testing.expectEqual(
+        naming_case.Style.snake,
+        cfg.style.identifier_case.options.struct_file_case,
+    );
 }
 
 test "resolved style options read identifier case conventions" {
@@ -416,7 +434,10 @@ test "resolved style options read struct_file_case quoted identifier" {
 
     var cfg = try decode(arena.allocator(), root);
     defer cfg.deinit(arena.allocator());
-    try std.testing.expectEqual(naming_case.Style.kebab, cfg.style.identifier_case.options.struct_file_case);
+    try std.testing.expectEqual(
+        naming_case.Style.kebab,
+        cfg.style.identifier_case.options.struct_file_case,
+    );
 }
 
 test "resolved docs options read check_parameters" {
@@ -448,9 +469,15 @@ test "resolved complexity options read thresholds" {
 
     var cfg = try decode(arena.allocator(), root);
     defer cfg.deinit(arena.allocator());
-    try std.testing.expectEqual(@as(u32, 12), cfg.complexity.cognitive_complexity.options.threshold);
+    try std.testing.expectEqual(
+        @as(u32, 12),
+        cfg.complexity.cognitive_complexity.options.threshold,
+    );
     try std.testing.expectEqual(@as(u32, 5), cfg.size.max_function_parameters.options.threshold);
-    try std.testing.expectEqual(@as(u32, 10), cfg.complexity.cyclomatic_complexity.options.threshold);
+    try std.testing.expectEqual(
+        @as(u32, 10),
+        cfg.complexity.cyclomatic_complexity.options.threshold,
+    );
 }
 
 test "scan modes default and override" {
@@ -471,8 +498,12 @@ test "scan modes default and override" {
     );
     var cfg = try decode(arena.allocator(), root);
     defer cfg.deinit(arena.allocator());
-    try std.testing.expect(std.meta.eql(scan.RuleScanConfig.reachability_traversal, cfg.doc.scan_mode));
-    try std.testing.expect(std.meta.eql(scan.RuleScanConfig.public_api_surface, cfg.complexity.scan_mode));
+    try std.testing.expect(
+        std.meta.eql(scan.RuleScanConfig.reachability_traversal, cfg.doc.scan_mode),
+    );
+    try std.testing.expect(
+        std.meta.eql(scan.RuleScanConfig.public_api_surface, cfg.complexity.scan_mode),
+    );
 }
 
 test "decode reads fmt options" {

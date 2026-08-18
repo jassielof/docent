@@ -361,7 +361,10 @@ pub const File = struct {
             )) {
                 const str_lit_token = ast.nodeMainToken(params[0]);
                 const str_bytes = ast.tokenSlice(str_lit_token);
-                const file_path = std.zig.string_literal.parseAlloc(gpa, str_bytes) catch @panic("OOM");
+                const file_path = std.zig.string_literal.parseAlloc(
+                    gpa,
+                    str_bytes,
+                ) catch @panic("OOM");
                 defer gpa.free(file_path);
                 if (active.modules.get(file_path)) |imported_file_index| {
                     return .{ .alias = File.Index.findRootDecl(imported_file_index) };
@@ -649,7 +652,9 @@ fn structDecl(
                 );
             }
             const decl_index = try w.file.addDecl(member, parent_decl);
-            const body = if (ast.nodeTag(member) == .fn_decl) ast.nodeData(member).node_and_node[1].toOptional() else .none;
+            const body = if (ast.nodeTag(
+                member,
+            ) == .fn_decl) ast.nodeData(member).node_and_node[1].toOptional() else .none;
             try w.fnDecl(
                 &namespace.base,
                 decl_index,

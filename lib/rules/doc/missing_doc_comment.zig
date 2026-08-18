@@ -421,7 +421,10 @@ fn checkVarDeclInit(
     if (isContainerDecl(tree.nodeTag(init_node))) {
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, init_node)) |container| {
-            const child_member_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, init_node))
+            const child_member_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(
+                tree,
+                init_node,
+            ))
                 .enumerator
             else
                 .field;
@@ -536,7 +539,9 @@ fn onUndocumentedReexportWholeModule(
 ) !void {
     const ctx: *ReexportEmitContext = @ptrCast(@alignCast(ctx_ptr));
     const source_basename = std.fs.path.basename(file_path);
-    const subject_kind = utils.diagnosticSubjectKindFromDoc(doc_comment.exposedSourceFileSubjectKind(tree));
+    const subject_kind = utils.diagnosticSubjectKindFromDoc(
+        doc_comment.exposedSourceFileSubjectKind(tree),
+    );
     var line: usize = 0;
     var column: usize = 0;
     if (tree.tokens.len > 0) {

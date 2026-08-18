@@ -60,12 +60,18 @@ pub const LintStep = struct {
         if (self.rules_override) |override| applyDocOverride(&doc_cfg, override);
 
         var manifest_sources: std.ArrayList([]const u8) = .empty;
-        defer if (manifest_sources.items.len > 0) docent.manifest.deinitOwnedPaths(allocator, &manifest_sources);
+        defer if (manifest_sources.items.len > 0) docent.manifest.deinitOwnedPaths(
+            allocator,
+            &manifest_sources,
+        );
 
         const sources: []const []const u8 = if (self.sources.len > 0)
             self.sources
         else blk: {
-            manifest_sources = docent.manifest.loadNearestPackagePaths(allocator, io) catch |err| switch (err) {
+            manifest_sources = docent.manifest.loadNearestPackagePaths(
+                allocator,
+                io,
+            ) catch |err| switch (err) {
                 error.ManifestNotFound, error.ManifestPathsNotFound => fallback: {
                     var fallback: std.ArrayList([]const u8) = .empty;
                     const cwd = realPathFileAlloc(
@@ -83,7 +89,10 @@ pub const LintStep = struct {
 
         var targeting = self.targeting;
         if (targeting.exclude_roots.len == 0 and !targeting.deps) {
-            var exclude_roots = docent.manifest.loadNearestDependencyPathRoots(allocator, io) catch std.ArrayList([]const u8).empty;
+            var exclude_roots = docent.manifest.loadNearestDependencyPathRoots(
+                allocator,
+                io,
+            ) catch std.ArrayList([]const u8).empty;
             defer docent.manifest.deinitOwnedPaths(allocator, &exclude_roots);
             if (exclude_roots.items.len > 0) {
                 targeting.exclude_roots = try allocator.dupe([]const u8, exclude_roots.items);

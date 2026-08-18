@@ -70,7 +70,10 @@ pub fn check(
         if (summary.text.len == 0) continue;
         if (doc_comment.comment.endsWithTerminalPunctuation(summary.text)) continue;
 
-        const report_tok = summary.last_line_token orelse @as(Ast.TokenIndex, @intCast(block_start));
+        const report_tok = summary.last_line_token orelse @as(
+            Ast.TokenIndex,
+            @intCast(block_start),
+        );
         const slice = tree.tokenSlice(report_tok);
         const loc = tree.tokenLocation(0, report_tok);
         const subject = if (tag == .container_doc_comment)

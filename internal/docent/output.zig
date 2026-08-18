@@ -300,7 +300,10 @@ pub fn writeJson(
 
         const rule_json = try jsonEscape(allocator, diagnostic.rule);
         defer allocator.free(rule_json);
-        const message_json = try jsonEscape(allocator, if (prose.len > 0) prose else diagnostic.message);
+        const message_json = try jsonEscape(
+            allocator,
+            if (prose.len > 0) prose else diagnostic.message,
+        );
         defer allocator.free(message_json);
         const file_json = try jsonEscape(allocator, diagnostic.file);
         defer allocator.free(file_json);

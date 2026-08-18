@@ -314,7 +314,10 @@ fn emitDecl(
     switch (cls.kind) {
         .@"fn" => {
             const proto_node = fnProtoNode(target_ast, target.ast_node);
-            signature = try allocator.dupe(u8, stripLeadingModifiers(nodeSource(target_ast, proto_node)));
+            signature = try allocator.dupe(
+                u8,
+                stripLeadingModifiers(nodeSource(target_ast, proto_node)),
+            );
 
             var buf: [1]Ast.Node.Index = undefined;
             if (target_ast.fullFnProto(&buf, proto_node)) |full| {
@@ -328,7 +331,10 @@ fn emitDecl(
             }
         },
         .@"const", .@"var", .type_alias => {
-            signature = try allocator.dupe(u8, stripLeadingModifiers(nodeSource(target_ast, target.ast_node)));
+            signature = try allocator.dupe(
+                u8,
+                stripLeadingModifiers(nodeSource(target_ast, target.ast_node)),
+            );
         },
         .error_set => {
             const node = switch (target.categorize()) {
@@ -530,14 +536,23 @@ fn emitContainerFields(
     const is_enum = container_kind == .@"enum";
 
     var buf: [2]Ast.Node.Index = undefined;
-    const container_decl = ast.fullContainerDecl(&buf, node) orelse return try list.toOwnedSlice(allocator);
+    const container_decl = ast.fullContainerDecl(
+        &buf,
+        node,
+    ) orelse return try list.toOwnedSlice(allocator);
 
     for (container_decl.ast.members) |member| {
         const field = ast.fullContainerField(member) orelse continue;
         try list.append(allocator, .{
             .name = try allocator.dupe(u8, ast.tokenSlice(field.ast.main_token)),
-            .type = if (!is_enum) if (field.ast.type_expr.unwrap()) |t| try allocator.dupe(u8, nodeSource(ast, t)) else null else null,
-            .value = if (field.ast.value_expr.unwrap()) |v| try allocator.dupe(u8, nodeSource(ast, v)) else null,
+            .type = if (!is_enum) if (field.ast.type_expr.unwrap()) |t| try allocator.dupe(
+                u8,
+                nodeSource(ast, t),
+            ) else null else null,
+            .value = if (field.ast.value_expr.unwrap()) |v| try allocator.dupe(
+                u8,
+                nodeSource(ast, v),
+            ) else null,
             .doc = null,
         });
     }

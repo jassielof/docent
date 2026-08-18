@@ -243,7 +243,9 @@ pub fn autoWrap(
         const full_line = input[line_start .. line_start + line_end];
         line_start += line_end + 1;
 
-        if (full_line.len > max_line_length and !isCommentOnly(full_line) and !isMultilineStringLine(full_line)) {
+        if (full_line.len > max_line_length and !isCommentOnly(
+            full_line,
+        ) and !isMultilineStringLine(full_line)) {
             const indent_len = leadingSpaces(full_line);
             var scratch: std.ArrayList(u8) = .empty;
             defer scratch.deinit(gpa);
@@ -383,7 +385,9 @@ fn findBestBreak(line: []const u8) ?usize {
                 close,
             )) |close_pos| {
                 const inner = line[pos + 1 .. close_pos];
-                if (inner.len > 0 and !hasTrailingComma(inner) and containsTopLevelCommaOrContent(inner)) {
+                if (inner.len > 0 and !hasTrailingComma(
+                    inner,
+                ) and containsTopLevelCommaOrContent(inner)) {
                     return pos;
                 }
                 pos = close_pos + 1;

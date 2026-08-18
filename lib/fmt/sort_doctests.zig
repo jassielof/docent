@@ -421,6 +421,9 @@ fn renderEntry(
     source: []const u8,
 ) !void {
     try output.appendSlice(gpa, source[entry.start..entry.end]);
-    if (output.items.len == 0 or output.items[output.items.len - 1] != '\n') try output.append(gpa, '\n');
+    if (output.items.len == 0 or output.items[output.items.len - 1] != '\n') try output.append(
+        gpa,
+        '\n',
+    );
     try output.append(gpa, '\n');
 }

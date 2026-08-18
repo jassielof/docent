@@ -156,7 +156,10 @@ fn manifestDir(manifest_path: []const u8) ![]const u8 {
 }
 
 /// Scans `.dependencies = .{ ... }` for `.path = "..."` entries (zon text).
-fn scanDependencyPathStrings(allocator: std.mem.Allocator, manifest_text: []const u8) !std.ArrayList([]const u8) {
+fn scanDependencyPathStrings(
+    allocator: std.mem.Allocator,
+    manifest_text: []const u8,
+) !std.ArrayList([]const u8) {
     var out: std.ArrayList([]const u8) = .empty;
     errdefer deinitOwnedPaths(allocator, &out);
 
@@ -363,7 +366,10 @@ pub fn loadNearestPackageMeta(allocator: std.mem.Allocator, io: std.Io) !Package
 }
 
 /// Convenience: nearest manifest package paths (same as CLI default targets).
-pub fn loadNearestPackagePaths(allocator: std.mem.Allocator, io: std.Io) !std.ArrayList([]const u8) {
+pub fn loadNearestPackagePaths(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+) !std.ArrayList([]const u8) {
     const manifest_path = try findNearestManifestPath(allocator, io);
     defer allocator.free(manifest_path);
     return loadPackagePaths(
@@ -374,7 +380,10 @@ pub fn loadNearestPackagePaths(allocator: std.mem.Allocator, io: std.Io) !std.Ar
 }
 
 /// Convenience: dependency path roots for the nearest manifest.
-pub fn loadNearestDependencyPathRoots(allocator: std.mem.Allocator, io: std.Io) !std.ArrayList([]const u8) {
+pub fn loadNearestDependencyPathRoots(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+) !std.ArrayList([]const u8) {
     const manifest_path = try findNearestManifestPath(allocator, io);
     defer allocator.free(manifest_path);
     return loadDependencyPathRoots(

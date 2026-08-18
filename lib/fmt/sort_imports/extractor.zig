@@ -34,7 +34,9 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
 
         const name_tok = var_decl.ast.mut_token + 1;
         const left = tree.tokenSlice(name_tok);
-        const vis: Visibility = if (var_decl.visib_token) |vt| (if (tree.tokenTag(vt) == .keyword_pub) .public else .internal) else .internal;
+        const vis: Visibility = if (var_decl.visib_token) |vt| (if (tree.tokenTag(
+            vt,
+        ) == .keyword_pub) .public else .internal) else .internal;
 
         const decl_start = tokenStart(tree, firstToken(
             tree,
@@ -79,7 +81,10 @@ pub fn extract(arena: Allocator, tree: *const Ast) !ExtractionResult {
 
         if (getImportPath(tree, init_node)) |import_path| {
             const kind = classifier.classifyKind(import_path);
-            const shape: ImportShape = if (hasFieldAccess(tree, init_node)) .inline_field else .direct;
+            const shape: ImportShape = if (hasFieldAccess(
+                tree,
+                init_node,
+            )) .inline_field else .direct;
             const module = if (shape == .inline_field) import_path else import_path;
 
             try known.put(left, entries.items.len);

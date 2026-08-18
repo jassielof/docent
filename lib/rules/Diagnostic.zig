@@ -85,7 +85,10 @@ pub fn deinitAlloc(diagnostic: @This(), allocator: std.mem.Allocator) void {
 }
 
 /// Deep-copies string fields into `allocator` so the diagnostic outlives a per-file lint arena.
-pub fn cloneAlloc(diagnostic: @This(), allocator: std.mem.Allocator) std.mem.Allocator.Error!@This() {
+pub fn cloneAlloc(
+    diagnostic: @This(),
+    allocator: std.mem.Allocator,
+) std.mem.Allocator.Error!@This() {
     const subject: ?Subject = if (diagnostic.subject) |s| .{
         .kind = s.kind,
         .name = try allocator.dupe(u8, s.name),

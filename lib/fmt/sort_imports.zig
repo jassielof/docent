@@ -328,7 +328,10 @@ pub fn sortImports(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     errdefer output.deinit(gpa);
 
     const prefix = input[0..result.block_start];
-    try output.ensureTotalCapacity(gpa, prefix.len + rendered.len + (input.len - result.block_end) + 2);
+    try output.ensureTotalCapacity(
+        gpa,
+        prefix.len + rendered.len + (input.len - result.block_end) + 2,
+    );
 
     try output.appendSlice(gpa, prefix);
 

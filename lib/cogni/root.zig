@@ -368,7 +368,9 @@ fn regionContains(
         .@"switch", .switch_comma => {
             const switch_full = tree.fullSwitch(ancestor).?;
             const cond_last = tree.lastToken(switch_full.ast.condition);
-            return first > cond_last and first >= tree.firstToken(ancestor) and last <= tree.lastToken(ancestor);
+            return first > cond_last and first >= tree.firstToken(
+                ancestor,
+            ) and last <= tree.lastToken(ancestor);
         },
         .@"catch" => return spanContains(
             tree,

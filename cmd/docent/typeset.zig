@@ -168,7 +168,9 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         cfg.typeset.output
     else
         cli_output;
-    const include_private = (ctx.boolFlag("include-private") orelse false) or cfg.typeset.include_private;
+    const include_private = (ctx.boolFlag(
+        "include-private",
+    ) orelse false) or cfg.typeset.include_private;
     const want_deps = (ctx.boolFlag("deps") orelse false) or cfg.typeset.deps;
     const deps_recursive = ctx.boolFlag("deps-recursive") orelse false;
     const want_bundle_std = (ctx.boolFlag("bundle-std") orelse false) or cfg.typeset.bundle_std;
@@ -219,7 +221,10 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
             const abs_root = if (std.fs.path.isAbsolute(rt.root_source_file))
                 rt.root_source_file
             else
-                try std.fs.path.join(allocator, &.{ plan.package.project_root, rt.root_source_file });
+                try std.fs.path.join(
+                    allocator,
+                    &.{ plan.package.project_root, rt.root_source_file },
+                );
 
             // Distinct build targets can share a step name (e.g. this
             // project's own library and executable are both named
@@ -262,7 +267,10 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
                     io,
                     plan.package.manifest_path.?,
                 ) catch |err| {
-                    std.process.fatal("failed to read dependencies from '{s}': {t}", .{ plan.package.manifest_path.?, err });
+                    std.process.fatal(
+                        "failed to read dependencies from '{s}': {t}",
+                        .{ plan.package.manifest_path.?, err },
+                    );
                 }
             else
                 typeset.path_deps.discover(
@@ -270,7 +278,10 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
                     io,
                     plan.package.manifest_path.?,
                 ) catch |err| {
-                    std.process.fatal("failed to read dependencies from '{s}': {t}", .{ plan.package.manifest_path.?, err });
+                    std.process.fatal(
+                        "failed to read dependencies from '{s}': {t}",
+                        .{ plan.package.manifest_path.?, err },
+                    );
                 };
             defer typeset.path_deps.deinitEntries(allocator, &deps);
 
@@ -280,7 +291,10 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
                     io,
                     dep.root_dir,
                 ) catch |err| {
-                    std.process.fatal("failed to inspect dependency '{s}': {t}", .{ dep.name, err });
+                    std.process.fatal(
+                        "failed to inspect dependency '{s}': {t}",
+                        .{ dep.name, err },
+                    );
                 } orelse {
                     var stderr_buf: [256]u8 = undefined;
                     var stderr = std.Io.File.stderr().writer(io, &stderr_buf);
@@ -320,7 +334,10 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
     }
 
     if (modules.items.len == 0) {
-        std.process.fatal("no modules found to document (nothing matched --lib/--bins/--tests, and no explicit paths given)", .{});
+        std.process.fatal(
+            "no modules found to document (nothing matched --lib/--bins/--tests, and no explicit paths given)",
+            .{},
+        );
     }
 
     var refs_table: typeset.external_refs.Table = .{};
@@ -341,7 +358,10 @@ fn run(ctx: *fangz.ParseContext) anyerror!void {
         } else {
             var stderr_buf: [256]u8 = undefined;
             var stderr = std.Io.File.stderr().writer(io, &stderr_buf);
-            stderr.interface.print("warning: --bundle-std requires `zig` on PATH; falling back to ziglang.org links\n", .{}) catch {};
+            stderr.interface.print(
+                "warning: --bundle-std requires `zig` on PATH; falling back to ziglang.org links\n",
+                .{},
+            ) catch {};
             stderr.interface.flush() catch {};
         }
     }

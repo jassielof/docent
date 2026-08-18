@@ -80,7 +80,9 @@ pub fn Renderer(comptime Context: type) type {
                 .list_item => {
                     try writer.writeAll("<li>");
                     for (doc.extraChildren(data.list_item.children)) |child| {
-                        if (data.list_item.tight and doc.nodes.items(.tag)[@intFromEnum(child)] == .paragraph) {
+                        if (data.list_item.tight and doc.nodes.items(
+                            .tag,
+                        )[@intFromEnum(child)] == .paragraph) {
                             const para_data = doc.nodes.items(.data)[@intFromEnum(child)];
                             for (doc.extraChildren(para_data.container.children)) |para_child| {
                                 try r.renderFn(

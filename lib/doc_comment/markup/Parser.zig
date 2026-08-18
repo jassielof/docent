@@ -462,7 +462,10 @@ fn appendBlockStart(p: *Parser, block_start: BlockStart) !void {
         if (current_row <= 1) {
             var buffer: [max_table_columns]Node.TableCellAlignment = undefined;
             const table_row = &block_start.data.table_row;
-            if (parseTableHeaderDelimiter(table_row.cells_buffer[0..table_row.cells_len], &buffer)) |alignments| {
+            if (parseTableHeaderDelimiter(
+                table_row.cells_buffer[0..table_row.cells_len],
+                &buffer,
+            )) |alignments| {
                 const table = &p.pending_blocks.items[p.pending_blocks.items.len - 1].data.table;
                 @memcpy(table.column_alignments_buffer[0..alignments.len], alignments);
                 table.column_alignments_len = alignments.len;
@@ -956,7 +959,9 @@ fn closeLastBlock(p: *Parser) !void {
         },
         .list_item => list_item: {
             assert(b.string_start == p.scratch_string.items.len);
-            const children = try p.addExtraChildren(@ptrCast(p.scratch_extra.items[b.extra_start..]));
+            const children = try p.addExtraChildren(
+                @ptrCast(p.scratch_extra.items[b.extra_start..]),
+            );
             break :list_item try p.addNode(.{
                 .tag = .list_item,
                 .data = .{ .list_item = .{
@@ -967,7 +972,9 @@ fn closeLastBlock(p: *Parser) !void {
         },
         .table => table: {
             assert(b.string_start == p.scratch_string.items.len);
-            const children = try p.addExtraChildren(@ptrCast(p.scratch_extra.items[b.extra_start..]));
+            const children = try p.addExtraChildren(
+                @ptrCast(p.scratch_extra.items[b.extra_start..]),
+            );
             break :table try p.addNode(.{
                 .tag = .table,
                 .data = .{ .container = .{
@@ -977,7 +984,9 @@ fn closeLastBlock(p: *Parser) !void {
         },
         .table_row => table_row: {
             assert(b.string_start == p.scratch_string.items.len);
-            const children = try p.addExtraChildren(@ptrCast(p.scratch_extra.items[b.extra_start..]));
+            const children = try p.addExtraChildren(
+                @ptrCast(p.scratch_extra.items[b.extra_start..]),
+            );
             break :table_row try p.addNode(.{
                 .tag = .table_row,
                 .data = .{ .container = .{
@@ -1007,7 +1016,9 @@ fn closeLastBlock(p: *Parser) !void {
         },
         .blockquote => blockquote: {
             assert(b.string_start == p.scratch_string.items.len);
-            const children = try p.addExtraChildren(@ptrCast(p.scratch_extra.items[b.extra_start..]));
+            const children = try p.addExtraChildren(
+                @ptrCast(p.scratch_extra.items[b.extra_start..]),
+            );
             break :blockquote try p.addNode(.{
                 .tag = .blockquote,
                 .data = .{ .container = .{

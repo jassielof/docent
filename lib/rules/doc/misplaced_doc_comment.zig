@@ -82,12 +82,17 @@ fn checkNode(
             hasDocComment(tree, first_tok))
         {
             const init_node = var_decl.ast.init_node.unwrap() orelse return;
-            if (alias.getInfo(tree, init_node) != null or alias.isModuleMemberReexport(tree, init_node)) {
+            if (alias.getInfo(
+                tree,
+                init_node,
+            ) != null or alias.isModuleMemberReexport(tree, init_node)) {
                 const name_tok = var_decl.ast.mut_token + 1;
                 const name = tree.tokenSlice(name_tok);
                 // Point to the leading doc block rather than the imported binding.
                 var doc_tok = first_tok - 1;
-                while (doc_tok > 0 and tree.tokenTag(doc_tok - 1) == .doc_comment) : (doc_tok -= 1) {}
+                while (doc_tok > 0 and tree.tokenTag(
+                    doc_tok - 1,
+                ) == .doc_comment) : (doc_tok -= 1) {}
 
                 const loc = tree.tokenLocation(0, doc_tok);
                 const slice = tree.tokenSlice(doc_tok);

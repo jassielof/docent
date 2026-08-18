@@ -235,7 +235,10 @@ pub fn formatStdin(
         std.process.exit(2);
     }
 
-    if (array_type_guard.findPathologicalArrayType(&tree, array_type_guard.default_max_length_nesting)) |pathological| {
+    if (array_type_guard.findPathologicalArrayType(
+        &tree,
+        array_type_guard.default_max_length_nesting,
+    )) |pathological| {
         const loc = tree.tokenLocation(0, tree.firstToken(pathological.node));
         std.process.fatal(
             "<stdin>:{d}:{d}: array type nests {d} levels deep through its length expression; refusing to render (see https://codeberg.org/ziglang/zig/issues/35714)",
@@ -452,7 +455,10 @@ fn fmtPathFile(
     file_reader.size = stat.size;
 
     const gpa = self.gpa;
-    const source_code = std.zig.readSourceFileToEndAlloc(gpa, &file_reader) catch |err| switch (err) {
+    const source_code = std.zig.readSourceFileToEndAlloc(
+        gpa,
+        &file_reader,
+    ) catch |err| switch (err) {
         error.ReadFailed => return file_reader.err.?,
         else => |e| return e,
     };
@@ -551,7 +557,10 @@ fn fmtPathFile(
         }
     }
 
-    if (array_type_guard.findPathologicalArrayType(&tree, array_type_guard.default_max_length_nesting)) |pathological| {
+    if (array_type_guard.findPathologicalArrayType(
+        &tree,
+        array_type_guard.default_max_length_nesting,
+    )) |pathological| {
         const loc = tree.tokenLocation(0, tree.firstToken(pathological.node));
         std.log.err(
             "unable to format '{s}': array type at {d}:{d} nests {d} levels deep through its length expression; refusing to render (see https://codeberg.org/ziglang/zig/issues/35714)",

@@ -119,7 +119,10 @@ fn pathHasSegment(path: []const u8, segment: []const u8) bool {
 
 /// Returns true when a path should be skipped by lint targeting.
 pub fn shouldSkipLintFile(path: []const u8, options: Options) bool {
-    if (pathHasSegment(path, ".zig-cache") or pathHasSegment(path, "zig-out") or pathHasSegment(path, ".git")) return true;
+    if (pathHasSegment(
+        path,
+        ".zig-cache",
+    ) or pathHasSegment(path, "zig-out") or pathHasSegment(path, ".git")) return true;
     if (!options.build_script and isBuildScriptPath(path)) return true;
 
     if (options.apply_exclude_roots and !options.deps) {

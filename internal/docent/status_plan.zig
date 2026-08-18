@@ -345,7 +345,10 @@ pub fn gather(
                         const abs_root = if (std.fs.path.isAbsolute(t.root_source_file))
                             try allocator.dupe(u8, t.root_source_file)
                         else
-                            try std.fs.path.join(allocator, &.{ package.project_root, t.root_source_file });
+                            try std.fs.path.join(
+                                allocator,
+                                &.{ package.project_root, t.root_source_file },
+                            );
                         defer allocator.free(abs_root);
 
                         if (!isReadableLocalFile(io, abs_root)) {
@@ -354,7 +357,10 @@ pub fn gather(
                                 .kind = t.kind,
                                 .root_source_file = try allocator.dupe(u8, t.root_source_file),
                                 .status = .skipped,
-                                .reason = try allocator.dupe(u8, "Root source file is not readable/accessible"),
+                                .reason = try allocator.dupe(
+                                    u8,
+                                    "Root source file is not readable/accessible",
+                                ),
                                 .files = &.{},
                             });
                         } else {
@@ -392,7 +398,10 @@ pub fn gather(
                                     .kind = t.kind,
                                     .root_source_file = try allocator.dupe(u8, t.root_source_file),
                                     .status = .skipped,
-                                    .reason = try allocator.dupe(u8, "All files excluded by filter (e.g., dependency)."),
+                                    .reason = try allocator.dupe(
+                                        u8,
+                                        "All files excluded by filter (e.g., dependency).",
+                                    ),
                                     .files = &.{},
                                 });
                             }
@@ -537,7 +546,9 @@ fn filterExcludedFiles(
     for (files.items) |path| {
         var excluded = false;
         for (excludes) |raw| {
-            const full = if (std.fs.path.isAbsolute(raw)) raw else std.fs.path.join(allocator, &.{ project_root, raw }) catch raw;
+            const full = if (std.fs.path.isAbsolute(
+                raw,
+            )) raw else std.fs.path.join(allocator, &.{ project_root, raw }) catch raw;
             defer if (full.ptr != raw.ptr) allocator.free(full);
             if (std.mem.startsWith(
                 u8,

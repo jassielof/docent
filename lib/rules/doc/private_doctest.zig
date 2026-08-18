@@ -101,7 +101,10 @@ fn collectDecl(
         const name_token_opt: Ast.OptionalTokenIndex = tree.nodeData(node).opt_token_and_node[0];
         if (name_token_opt.unwrap()) |name_token| {
             if (tree.tokenTag(name_token) == .identifier) {
-                try ident_tests.append(allocator, .{ .name = tree.tokenSlice(name_token), .token = name_token });
+                try ident_tests.append(
+                    allocator,
+                    .{ .name = tree.tokenSlice(name_token), .token = name_token },
+                );
             }
         }
         return;

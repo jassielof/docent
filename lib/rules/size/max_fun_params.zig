@@ -120,7 +120,10 @@ fn collectFunctions(
     if (tag == .fn_decl) {
         var buf: [1]Ast.Node.Index = undefined;
         if (tree.fullFnProto(&buf, node)) |proto| {
-            const include = if (public_api_only) utils.isPubVisibility(tree, proto.visib_token) else true;
+            const include = if (public_api_only) utils.isPubVisibility(
+                tree,
+                proto.visib_token,
+            ) else true;
             if (include) try out.append(allocator, node);
         }
         return;

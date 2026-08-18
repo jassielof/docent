@@ -114,7 +114,10 @@ fn writeThroughSymlink(
             return write_err;
         };
 
-        std.log.err("write failed ({s}); original contents were restored", .{@errorName(write_err)});
+        std.log.err(
+            "write failed ({s}); original contents were restored",
+            .{@errorName(write_err)},
+        );
         return write_err;
     }
 }

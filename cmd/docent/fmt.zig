@@ -85,7 +85,10 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
     else if (config.include.len > 0)
         config.include
     else
-        std.process.fatal("expected at least one file or directory argument (or set [fmt].include in .config/docent.toml)", .{});
+        std.process.fatal(
+            "expected at least one file or directory argument (or set [fmt].include in .config/docent.toml)",
+            .{},
+        );
 
     var excluded: std.ArrayList([]const u8) = .empty;
     defer excluded.deinit(gpa);

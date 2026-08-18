@@ -68,7 +68,9 @@ pub fn discover(
         if (depth == 1 and manifest_text[i] == '.') {
             const start = i + 1;
             var j = start;
-            while (j < manifest_text.len and (std.ascii.isAlphanumeric(manifest_text[j]) or manifest_text[j] == '_')) : (j += 1) {}
+            while (j < manifest_text.len and (std.ascii.isAlphanumeric(
+                manifest_text[j],
+            ) or manifest_text[j] == '_')) : (j += 1) {}
             if (j > start) {
                 current_name = manifest_text[start..j];
                 i = j;
@@ -183,7 +185,10 @@ pub fn discoverRecursive(
             try seen_dirs.put(root_dir, {});
             try out.append(allocator, .{ .name = name, .root_dir = root_dir });
 
-            const nested_manifest = try std.fs.path.join(allocator, &.{ root_dir, "build.zig.zon" });
+            const nested_manifest = try std.fs.path.join(
+                allocator,
+                &.{ root_dir, "build.zig.zon" },
+            );
             defer allocator.free(nested_manifest);
             if (fileExists(io, nested_manifest)) {
                 try queue.append(allocator, try allocator.dupe(u8, nested_manifest));

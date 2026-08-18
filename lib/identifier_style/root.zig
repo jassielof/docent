@@ -209,7 +209,10 @@ pub fn suggestFilenameStem(
 /// Word boundaries are inferred from case transitions only (see the module docs for the exact
 /// heuristic and its failure modes with acronym runs and digits); this is not a lossless inverse
 /// of `snakeCaseStemToPascal`.
-pub fn pascalCaseStemToSnake(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
+pub fn pascalCaseStemToSnake(
+    allocator: std.mem.Allocator,
+    stem: []const u8,
+) std.mem.Allocator.Error![]u8 {
     if (stem.len == 0) return try allocator.dupe(u8, "");
 
     var out: std.ArrayList(u8) = .empty;
@@ -259,7 +262,10 @@ test "pascalCaseStemToSnake merges back-to-back acronym runs (documented limitat
     try std.testing.expectEqualStrings("xmlhttp_request", stem);
 }
 
-fn pascalCaseStemToKebab(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
+fn pascalCaseStemToKebab(
+    allocator: std.mem.Allocator,
+    stem: []const u8,
+) std.mem.Allocator.Error![]u8 {
     const snake = try pascalCaseStemToSnake(allocator, stem);
     defer allocator.free(snake);
 
@@ -281,7 +287,10 @@ test "pascalCaseStemToKebab mirrors the snake_case split with hyphens" {
     try std.testing.expectEqualStrings("diagnostic-message", stem);
 }
 
-fn snakeOrKebabStemToPascal(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
+fn snakeOrKebabStemToPascal(
+    allocator: std.mem.Allocator,
+    stem: []const u8,
+) std.mem.Allocator.Error![]u8 {
     // Checked before isPascal/isCamel: a hyphenated stem like "diagnostic-message" starts
     // lowercase and contains no `_`, so it would otherwise spuriously satisfy isCamel and be
     // returned unconverted, leaving the hyphens in place.
@@ -297,7 +306,10 @@ fn snakeOrKebabStemToPascal(allocator: std.mem.Allocator, stem: []const u8) std.
     return snakeCaseStemToPascal(allocator, stem);
 }
 
-fn snakeCaseStemToPascal(allocator: std.mem.Allocator, stem: []const u8) std.mem.Allocator.Error![]u8 {
+fn snakeCaseStemToPascal(
+    allocator: std.mem.Allocator,
+    stem: []const u8,
+) std.mem.Allocator.Error![]u8 {
     if (stem.len == 0) return try allocator.dupe(u8, "");
 
     var out: std.ArrayList(u8) = .empty;

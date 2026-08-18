@@ -25,7 +25,9 @@ pub const trailing_blank_doc_comment = @import("doc/trailing_blank_doc_comment.z
 pub const missing_doctest = @import("doc/missing_doctest.zig");
 pub const private_doctest = @import("doc/private_doctest.zig");
 pub const doctest_naming_mismatch = @import("doc/doctest_naming_mismatch.zig");
-pub const missing_summary_terminal_punctuation = @import("doc/missing_summary_terminal_punctuation.zig");
+pub const missing_summary_terminal_punctuation = @import(
+    "doc/missing_summary_terminal_punctuation.zig",
+);
 pub const invalid_leading_phrase = @import("doc/invalid_leading_phrase.zig");
 pub const misplaced_doc_comment = @import("doc/misplaced_doc_comment.zig");
 

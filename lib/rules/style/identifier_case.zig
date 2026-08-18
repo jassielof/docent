@@ -283,7 +283,10 @@ fn checkNode(
     if (utils.isContainerDecl(tag)) {
         var buf: [2]Ast.Node.Index = undefined;
         if (tree.fullContainerDecl(&buf, node)) |container| {
-            const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, node)) .enumerator else member_field_kind;
+            const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(
+                tree,
+                node,
+            )) .enumerator else member_field_kind;
             const child_is_namespace = !containerHasFields(tree, container);
             for (container.ast.members) |member| {
                 try checkNode(
@@ -343,7 +346,10 @@ fn checkVarDeclInit(
 
     var buf: [2]Ast.Node.Index = undefined;
     if (tree.fullContainerDecl(&buf, init_node)) |container| {
-        const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(tree, init_node)) .enumerator else .field;
+        const child_kind: Diagnostic.SubjectKind = if (utils.isEnumContainer(
+            tree,
+            init_node,
+        )) .enumerator else .field;
         const child_is_namespace = !containerHasFields(tree, container);
         for (container.ast.members) |member| {
             try checkNode(
@@ -446,7 +452,9 @@ fn checkStructFileName(
         );
         defer msg_allocator.free(expected_stem);
 
-        const report_tok: Ast.TokenIndex = if (tree.rootDecls().len > 0) tree.firstToken(tree.rootDecls()[0]) else 0;
+        const report_tok: Ast.TokenIndex = if (tree.rootDecls().len > 0) tree.firstToken(
+            tree.rootDecls()[0],
+        ) else 0;
         const loc = tree.tokenLocation(0, report_tok);
         const detail = try std.fmt.allocPrint(
             msg_allocator,

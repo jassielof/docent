@@ -73,7 +73,9 @@ pub fn check(
 
     for (tree.rootDecls()) |decl| {
         if (tree.nodeTag(decl) == .test_decl) {
-            const name_token_opt: Ast.OptionalTokenIndex = tree.nodeData(decl).opt_token_and_node[0];
+            const name_token_opt: Ast.OptionalTokenIndex = tree.nodeData(
+                decl,
+            ).opt_token_and_node[0];
             if (name_token_opt.unwrap()) |name_token| {
                 if (tree.tokenTag(name_token) == .string_literal) {
                     const raw = tree.tokenSlice(name_token);

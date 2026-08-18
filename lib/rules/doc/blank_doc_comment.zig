@@ -263,7 +263,9 @@ fn onBlankWholeModuleReexport(
 ) !void {
     const ctx: *BlankWholeModuleContext = @ptrCast(@alignCast(ctx_ptr));
     const source_basename = std.fs.path.basename(file_path);
-    const subject_kind = utils.diagnosticSubjectKindFromDoc(doc_comment.exposedSourceFileSubjectKind(tree));
+    const subject_kind = utils.diagnosticSubjectKindFromDoc(
+        doc_comment.exposedSourceFileSubjectKind(tree),
+    );
     var line: usize = 0;
     var column: usize = 0;
     if (tree.tokens.len > 0) {

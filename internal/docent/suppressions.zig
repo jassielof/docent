@@ -314,7 +314,10 @@ pub fn collectFromTree(allocator: std.mem.Allocator, tree: *const Ast) !Table {
                     .ignore_start => {
                         var rules = RuleSet.init(allocator);
                         try rules.addRules(allocator, parsed.rules_text);
-                        try open_blocks.append(allocator, .{ .start_line = line_number, .rules = rules });
+                        try open_blocks.append(
+                            allocator,
+                            .{ .start_line = line_number, .rules = rules },
+                        );
                     },
                     .ignore_end => {
                         if (open_blocks.items.len > 0) {
