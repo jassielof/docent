@@ -192,6 +192,27 @@ test "leaves multiline string literal content unchanged" {
     try format_test_assertions.expectValidZig(formatted);
 }
 
+test "leaves a call nested inside an index/slice bracket alone" {
+    const gpa = std.testing.allocator;
+    // `zig fmt` insists on breaking at the bracket itself for a call nested
+    // directly inside `[...]` (it never leaves the inner call expanded in
+    // place there), so expanding `alignForwardAnyAlign(...)` here would be
+    // immediately undone by a real `zig fmt` pass — leave it alone.
+    const input =
+        \\var result: [std.mem.alignForwardAnyAlign(usize, len, Hmac.mac_length)]u8 = undefined;
+        \\
+    ;
+
+    const formatted = try addTrailingCommas(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try addTrailingCommas(gpa, formatted);
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(formatted, formatted_expected);
+}
+
 /// Expands single-line lists with 3 or more items to one-per-line with trailing commas.
 pub fn addTrailingCommas(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     var output: std.ArrayList(u8) = .empty;
@@ -236,6 +257,7 @@ fn expandLine(
     }
 
     var pos: usize = 0;
+    var bracket_depth: usize = 0;
 
     while (pos < line.len) {
         const c = line[pos];
@@ -252,7 +274,16 @@ fn expandLine(
             continue;
         }
 
-        if (c == '(' or c == '{') {
+        if (c == '[') bracket_depth += 1;
+        if (c == ']' and bracket_depth > 0) bracket_depth -= 1;
+
+        // A call/list nested directly inside an still-open `[...]`
+        // index/slice is never expanded: `zig fmt` always breaks at the
+        // bracket itself for that shape (which takes no trailing comma, a
+        // different construct than this pass produces), so expanding the
+        // inner call here would just be reformatted right back by a real
+        // `zig fmt` pass.
+        if ((c == '(' or c == '{') and bracket_depth == 0) {
             const close: u8 = if (c == '(') ')' else '}';
             if (findMatchingClose(
                 line,
