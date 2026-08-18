@@ -70,13 +70,7 @@ properties:
 
   fmt:
     type: "object"
-    description: >-
-      Formatter options for `docent fmt`. Unlike check/typeset, fmt uses a
-      filesystem scan: recursive directory walks that include orphan `.zig`
-      files not reachable from any module root. Path filters follow the Deno
-      `fmt.include` / `fmt.exclude` model; exclusions win over inclusions.
-      CLI positional paths override `include` when provided; CLI `--exclude`
-      is merged with config `exclude`.
+    description: "Formatter options for `docent fmt`. Unlike check/typeset, fmt uses a filesystem scan: recursive directory walks that include orphan `.zig` files not reachable from any module root. Path filters follow the Deno `fmt.include` / `fmt.exclude` model; exclusions win over inclusions. CLI positional paths override `include` when provided; CLI `--exclude` is merged with config `exclude`."
     additionalProperties: false
     properties:
       include:
@@ -85,82 +79,66 @@ properties:
           type: "string"
           minLength: 1
         default: []
-        description: >-
-          Files or directories to format when no CLI paths are given. Empty
-          means CLI paths are required (current CLI behavior).
+        examples:
+          - [src, tests, build.zig]
+        description: Paths to be formatted when no CLI paths are given. Empty means CLI paths are required (current CLI behavior).
       exclude:
         type: "array"
         items:
           type: "string"
           minLength: 1
         default: []
-        description: >-
-          Files or directories to skip during the filesystem walk. Merged with
-          CLI `--exclude`. Exclusions take precedence over inclusions.
+        description: Files or directories to skip during the filesystem walk. Merged with CLI `--exclude`. Exclusions take precedence over inclusions.
       brace_style:
         type: "string"
         enum: ["k_r", "k&r", "allman"]
         default: "k_r"
         description: "Brace placement style. k_r (default) keeps opening braces on the same line; allman places them on a new line."
       single_line_braces:
-        type: "boolean"
+        type: boolean
         default: true
         description: "Wrap single-line control-flow bodies in braces. Converts `if (x) return;` to a braced block."
       trailing_comma:
-        type: "boolean"
+        type: boolean
         default: true
         description: "Add trailing commas to single-line lists with 3 or more items. On the next format pass, zig fmt expands them to one item per line."
       logical_blank_lines:
-        type: "boolean"
+        type: boolean
         default: true
-        description: >-
-          Enforce logical blank line separation: one blank line after closing braces
-          and flow terminators (return, continue, break), no blank lines immediately
-          inside braces, and never two consecutive blank lines.
+        description: "Enforce logical blank line separation: one blank line after closing braces and flow terminators (return, continue, break), no blank lines immediately inside braces, and never two consecutive blank lines."
       sort_imports:
-        type: "boolean"
+        type: boolean
         default: true
-        description: >-
-          Sort the leading top-level import block by const identifier, regrouped into
-          std/builtin, dependencies, and local (relative paths and root) categories.
-          Import aliases are placed beneath the import they derive from.
+        description: Sort the leading top-level import block by const identifier, regrouped into std/builtin, dependencies, and local (relative paths and root) categories. Import aliases are placed beneath the import they derive from.
       sort_doctests:
-        type: "boolean"
+        type: boolean
         default: true
-        description: >-
-          Reorder identifier tests in contiguous function/test blocks so each test
-          follows the function with the same name. An exactly matching quoted test
-          follows its identifier counterpart; descriptive quoted test cases stay put.
+        description: Reorder identifier tests in contiguous function/test blocks so each test follows the function with the same name. An exactly matching quoted test follows its identifier counterpart; descriptive quoted test cases stay put.
       indent_style:
-        type: "string"
-        enum: ["space", "tab"]
-        default: "space"
-        description: "Leading-whitespace character per indentation level. tab ignores indent_width -- each level becomes a single tab."
+        type: string
+        enum: [space, tab]
+        default: space
+        description: Leading-whitespace character per indentation level. tab ignores indent_width -- each level becomes a single tab.
       indent_width:
-        type: "integer"
+        type: integer
         minimum: 1
         maximum: 16
         default: 4
-        description: "Number of spaces per indentation level when indent_style is space. The Zig standard is 4."
+        description: Number of spaces per indentation level when indent_style is space.
       auto_wrap:
-        type: "boolean"
+        type: boolean
         default: false
-        description: >-
-          Best-effort wrap of lines longer than max_line_length by expanding
-          lists and call argument lists. Off by default (gofumpt also does not wrap).
+        description: Best-effort wrap of lines longer than max_line_length by expanding lists and call argument lists. Off by default.
       max_line_length:
-        type: "integer"
+        type: integer
         minimum: 1
         maximum: 10000
         default: 100
-        description: "Column budget used when auto_wrap is enabled. Matches the line_length_limit lint default."
+        description: Column budget used when auto_wrap is enabled. Matches the line_length_limit lint default.
       grid_alignment:
-        type: "boolean"
+        type: boolean
         default: false
-        description: >-
-          Column-align ':' and '=' in contiguous struct fields, declarations, and
-          multi-line parameter lists. Off by default because zig fmt left-flushes;
-          Docent re-applies this pass every run when enabled.
+        description: Column-align ':' and '=' in contiguous struct fields, declarations, and multi-line parameter lists. Off by default because zig fmt left-flushes; Docent re-applies this pass every run when enabled.
 
   check:
     type: "object"
@@ -179,7 +157,7 @@ properties:
         default: []
         description: "Files or directories to scan when no CLI paths are given."
       inherit_manifest:
-        type: "boolean"
+        type: boolean
         default: true
         description: >-
           Extend `include` with the package paths from `build.zig.zon`. Set to
@@ -201,29 +179,29 @@ properties:
     additionalProperties: false
     properties:
       lib:
-        type: "boolean"
+        type: boolean
         default: false
         description: >-
           Document library targets. When no bin/test filters are set, libraries
           are included by default even if this is false.
       bins:
-        type: "boolean"
+        type: boolean
         default: false
         description: "Document all executable targets from build.zig."
       tests:
-        type: "boolean"
+        type: boolean
         default: false
         description: "Document all test targets from build.zig."
       deps:
-        type: "boolean"
+        type: boolean
         default: false
         description: "Bundle direct local `.path` dependencies as appendix modules."
       include_private:
-        type: "boolean"
+        type: boolean
         default: false
         description: "Include non-public declarations in the emitted docs."
       bundle_std:
-        type: "boolean"
+        type: boolean
         default: false
         description: "Bundle referenced std.* declarations into the appendix instead of linking to ziglang.org."
       output:
@@ -384,19 +362,19 @@ definitions:
             $ref: "#/definitions/scan_mode"
             description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
           check_parameters:
-            type: "boolean"
+            type: boolean
             default: false
             description: "Also enforce documentation on function parameters."
           check_fields:
-            type: "boolean"
+            type: boolean
             default: false
             description: "Also enforce documentation on struct and union fields."
           check_enumerators:
-            type: "boolean"
+            type: boolean
             default: false
             description: "Also enforce documentation on enum enumerators."
           check_errors:
-            type: "boolean"
+            type: boolean
             default: true
             description: "Also enforce documentation on individual error set members."
 
@@ -438,15 +416,15 @@ definitions:
             $ref: "#/definitions/scan_mode"
             description: "Override the category scan_mode for this rule only. Inherits the category default when omitted."
           require_kind:
-            type: "boolean"
+            type: boolean
             default: false
             description: "Require a kind word matching the identifier's kind."
           require_article:
-            type: "boolean"
+            type: boolean
             default: false
             description: "Require an English article (a, an, the) before the identifier name."
           require_backticks:
-            type: "boolean"
+            type: boolean
             default: false
             description: "Require the identifier to be wrapped in backticks."
 
@@ -502,10 +480,10 @@ definitions:
             default: 100
             description: "Maximum character column width per line."
           ignore_trailing_comments:
-            type: "boolean"
+            type: boolean
             default: false
             description: "Exclude trailing inline `//` comments from the measured line width."
           ignore_leading_comments:
-            type: "boolean"
+            type: boolean
             default: false
             description: "Exclude lines that are only leading whitespace plus `//`, `///`, or `//!`."

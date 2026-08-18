@@ -1,8 +1,6 @@
-//! Source code formatting: Zig AST render plus configurable post-passes.
+//! The fmt module provides source code formatting capabilities for Zig projects.
 //!
-//! By default Docent applies a gofumpt-style superset of Zig's formatting
-//! rules, while still allowing projects to tune or disable each pass via
-//! `[fmt]` in `.config/docent.toml`.
+//! By default Docent applies a gofumpt-style superset of Zig's formatting rules, while still allowing projects to tune or disable each pass via `[fmt]` in `.config/docent.toml`.
 //!
 //! ## References
 //!

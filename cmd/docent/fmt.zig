@@ -8,7 +8,7 @@ pub fn register(root: *fangz.Command) !void {
     const fmt_cmd = try root.addSubcommand(.{
         .name = "fmt",
         .brief = "Format Zig source code",
-        .description = "Filesystem-based formatter: recursively walks directories and formats every `.zig` / `.zon` file, including orphans not reachable from a module root. Path filters may be set in `.config/docent.toml` under `[fmt].include` / `[fmt].exclude` (Deno-style); CLI paths override `include`, and CLI `--exclude` merges with config `exclude`.",
+        .description = "Filesystem-based formatter: recursively walks paths and formats every Zig or ZON file. Path filters may be set in configuration under `[fmt].include` / `[fmt].exclude`; CLI paths override `include`, and CLI `--exclude` merges with config `exclude`.",
     });
 
     try fmt_cmd.addFlag(bool, .{
@@ -19,6 +19,11 @@ pub fn register(root: *fangz.Command) !void {
     try fmt_cmd.addFlag(bool, .{
         .name = "check",
         .brief = "List non-conforming files and exit with an error if the list is non-empty",
+    });
+
+    try fmt_cmd.addFlag(bool, .{
+        .name = "fail-fast",
+        .brief = "Stop after the first non-conforming file",
     });
 
     try fmt_cmd.addFlag(bool, .{
@@ -36,19 +41,19 @@ pub fn register(root: *fangz.Command) !void {
 
     try fmt_cmd.addFlag([]const []const u8, .{
         .name = "exclude",
-        .brief = "Exclude file or directory from formatting (merged with [fmt].exclude)",
+        .brief = "Exclude paths from formatting (merged with `[fmt].exclude`)",
         .multi = true,
         .value_hint = "PATH",
     });
 
     try fmt_cmd.addFlag(bool, .{
         .name = "zon",
-        .brief = "Treat all input files as ZON, regardless of file extension",
+        .brief = "Treat all input paths as ZON, regardless of file extension.",
     });
 
     try fmt_cmd.addPositional(.{
         .name = "paths",
-        .brief = "Files or directories to format. If omitted, uses [fmt].include from config when set.",
+        .brief = "Paths to format. If omitted, uses `[fmt].include` from the configuration when set.",
         .variadic = true,
     });
 
@@ -61,6 +66,7 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
 
     const stdin_flag = ctx.boolFlag("stdin") orelse false;
     const check_flag = ctx.boolFlag("check") orelse false;
+    const fail_fast_flag = ctx.boolFlag("fail-fast") orelse false;
     const check_format = ctx.enumFlag(fmt.CheckFormat, "format") orelse .pretty;
     const ast_check_flag = ctx.boolFlag("ast-check") orelse false;
     const zon_flag = ctx.boolFlag("zon") orelse false;
@@ -100,6 +106,7 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
         .check_format = check_format,
         .ast_check = ast_check_flag,
         .zon = zon_flag,
+        .fail_fast = fail_fast_flag,
     };
 
     if (stdin_flag) {

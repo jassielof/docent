@@ -76,5 +76,6 @@ pub const Options = struct {
     check_format: CheckFormat = .pretty,
     ast_check: bool = false,
     zon: bool = false,
+    fail_fast: bool = false,
     color: Color = .auto,
 };

@@ -40,6 +40,7 @@ pub const addTrailingCommas = trailing_comma.addTrailingCommas;
 
 seen: SeenMap,
 any_error: bool,
+fail_fast: bool,
 check_ast: bool,
 check_mode: bool,
 check_format: CheckFormat,
@@ -132,6 +133,7 @@ pub fn init(
         .io = io,
         .seen = .init(gpa),
         .any_error = false,
+        .fail_fast = opts.fail_fast,
         .check_ast = opts.ast_check,
         .check_mode = opts.check,
         .check_format = opts.check_format,
@@ -306,6 +308,7 @@ pub fn formatPaths(
             Io.Dir.cwd(),
             file_path,
         );
+        if (self.fail_fast and self.any_error) break;
     }
     try self.stdout_writer.interface.flush();
 
@@ -427,6 +430,8 @@ fn fmtPathDir(
                     return;
                 };
             }
+
+            if (self.fail_fast and self.any_error) return;
         }
     }
 }
