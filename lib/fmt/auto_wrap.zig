@@ -91,6 +91,137 @@ test "leaves short lines unchanged" {
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
+test "wraps a call nested inside an if-condition, not the condition itself" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn check(tree: anytype) void {
+        \\    if (array_type_guard.findPathologicalArrayType(&tree, array_type_guard.default_max_length_nesting)) |pathological| {
+        \\        _ = pathological;
+        \\    }
+        \\}
+        \\
+    ;
+    const expected =
+        \\fn check(tree: anytype) void {
+        \\    if (array_type_guard.findPathologicalArrayType(
+        \\        &tree,
+        \\        array_type_guard.default_max_length_nesting,
+        \\    )) |pathological| {
+        \\        _ = pathological;
+        \\    }
+        \\}
+        \\
+    ;
+
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+    );
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "leaves an overlong if/while/switch condition alone when it holds no call to wrap" {
+    const gpa = std.testing.allocator;
+    const expected =
+        \\fn pick(args: anytype, cfg: anytype) []const u8 {
+        \\    return if (args.deps) &.{} else if (args.positionals.len > 0) args.positionals else cfg.check.include;
+        \\}
+        \\
+    ;
+
+    const formatted = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "wraps the call nested inside a grouping paren, not the grouping itself" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn flag(ctx: anytype, cfg: anytype) bool {
+        \\    const include_private = (ctx.boolFlag("include-private") orelse false) or cfg.typeset.include_private;
+        \\    return include_private;
+        \\}
+        \\
+    ;
+    const expected =
+        \\fn flag(ctx: anytype, cfg: anytype) bool {
+        \\    const include_private = (ctx.boolFlag(
+        \\        "include-private",
+        \\    ) orelse false) or cfg.typeset.include_private;
+        \\    return include_private;
+        \\}
+        \\
+    ;
+
+    const formatted = try autoWrap(
+        gpa,
+        input,
+        60,
+    );
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
+test "leaves overlong multiline string literal lines untouched" {
+    const gpa = std.testing.allocator;
+    const expected =
+        \\const msg =
+        \\    \\Some very long line inside a multiline string literal that happens to contain (parentheses, and a comma)
+        \\;
+        \\
+    ;
+
+    const formatted = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+
+    const formatted_expected = try autoWrap(
+        gpa,
+        expected,
+        60,
+    );
+    defer gpa.free(formatted_expected);
+    try format_test_assertions.expectIdempotent(expected, formatted_expected);
+}
+
 /// Wraps over-long lines by expanding `(...)` / `{...}` lists. Caller owns the returned slice.
 pub fn autoWrap(
     gpa: Allocator,
@@ -112,7 +243,7 @@ pub fn autoWrap(
         const full_line = input[line_start .. line_start + line_end];
         line_start += line_end + 1;
 
-        if (full_line.len > max_line_length and !isCommentOnly(full_line)) {
+        if (full_line.len > max_line_length and !isCommentOnly(full_line) and !isMultilineStringLine(full_line)) {
             const indent_len = leadingSpaces(full_line);
             var scratch: std.ArrayList(u8) = .empty;
             defer scratch.deinit(gpa);
@@ -207,9 +338,13 @@ fn expandOverlong(
     try output.appendSlice(gpa, line);
 }
 
-/// Finds the leftmost outermost `(...)` or `{...}` whose expansion would help (non-empty inner, not already trailing-comma expanded).
+/// Finds the leftmost `(...)` or `{...}` whose expansion would help: a real
+/// call/parameter list (or `.{` literal) with non-empty, non-trailing-comma
+/// content. Grouping and control-flow parens (`if (`, `while (`, `(a and
+/// b)`, ...) are skipped — they can't take a trailing comma — but scanning
+/// continues inside them since the real wrap target is often a call nested
+/// in the condition.
 fn findBestBreak(line: []const u8) ?usize {
-    var best: ?usize = null;
     var pos: usize = 0;
     while (pos < line.len) {
         const c = line[pos];
@@ -234,6 +369,12 @@ fn findBestBreak(line: []const u8) ?usize {
                     continue;
                 }
             }
+
+            if (c == '(' and !isCallParen(line, pos)) {
+                pos += 1;
+                continue;
+            }
+
             const close: u8 = if (c == '(') ')' else '}';
             if (findMatchingClose(
                 line,
@@ -243,11 +384,6 @@ fn findBestBreak(line: []const u8) ?usize {
             )) |close_pos| {
                 const inner = line[pos + 1 .. close_pos];
                 if (inner.len > 0 and !hasTrailingComma(inner) and containsTopLevelCommaOrContent(inner)) {
-                    // Prefer outermost: first match wins, but skip empty `{}` / `()`.
-                    if (best == null) best = pos;
-                    // Continue scanning inside? Prefer outermost, so skip past this construct
-                    // only if we already have a candidate — actually we want outermost leftmost,
-                    // so take first and return.
                     return pos;
                 }
                 pos = close_pos + 1;
@@ -257,7 +393,20 @@ fn findBestBreak(line: []const u8) ?usize {
 
         pos += 1;
     }
-    return best;
+    return null;
+}
+
+/// Reports whether the `(` at `pos` opens a call or parameter list (as
+/// opposed to a control-flow condition or a grouping expression), based on
+/// the character immediately before it. Canonical Zig formatting never puts
+/// a space before a call's opening paren, but always puts one before `if (`,
+/// `while (`, `switch (`, `for (`, and bare grouping parens.
+fn isCallParen(line: []const u8, pos: usize) bool {
+    if (pos == 0) return false;
+    return switch (line[pos - 1]) {
+        'a'...'z', 'A'...'Z', '0'...'9', '_', ')', ']' => true,
+        else => false,
+    };
 }
 
 fn containsTopLevelCommaOrContent(inner: []const u8) bool {
@@ -276,6 +425,16 @@ fn isCommentOnly(line: []const u8) bool {
         " \t",
     );
     return trimmed.len >= 2 and trimmed[0] == '/' and (trimmed[1] == '/' or trimmed[1] == '!');
+}
+
+/// Reports whether `line` is a continuation line of a Zig multiline string
+/// literal (`\\...`). These must never be split or rejoined: every line of
+/// such a literal is syntactically required to start with its own `\\`
+/// prefix, and generic paren/brace matching inside the string content would
+/// otherwise corrupt it.
+fn isMultilineStringLine(line: []const u8) bool {
+    const rest = line[leadingSpaces(line)..];
+    return rest.len >= 2 and rest[0] == '\\' and rest[1] == '\\';
 }
 
 fn splitTopLevel(gpa: Allocator, inner: []const u8) ![][]const u8 {
