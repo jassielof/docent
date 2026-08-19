@@ -29,8 +29,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const identifier_style_mod = b.addModule("identifier_style", .{
-        .root_source_file = b.path("lib/identifier_style/root.zig"),
+    const casing_mod = b.addModule("casing", .{
+        .root_source_file = b.path("lib/casing/root.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -74,7 +74,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "doc_comment", .module = doc_comment_mod },
-            .{ .name = "identifier_style", .module = identifier_style_mod },
+            .{ .name = "casing", .module = casing_mod },
             .{ .name = "lint", .module = lint_mod },
             .{ .name = "cogni", .module = cogni_mod },
             .{ .name = "cyclo", .module = cyclo_mod },
@@ -113,7 +113,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "toml", .module = toml_mod },
             .{ .name = "doc_comment", .module = doc_comment_mod },
             .{ .name = "fmt", .module = fmt_mod },
-            .{ .name = "identifier_style", .module = identifier_style_mod },
+            .{ .name = "casing", .module = casing_mod },
             .{ .name = "rules", .module = rules_mod },
             .{ .name = "cogni", .module = cogni_mod },
             .{ .name = "cyclo", .module = cyclo_mod },
@@ -151,7 +151,11 @@ pub fn build(b: *std.Build) void {
     });
 
     // Inject the executable name from addExecutable(), the executable/manifest version, and git metadata so App.init can infer runtime and docs metadata.
-    fangz_build.injectMetadata(b, cli, fangz_mod);
+    fangz_build.injectMetadata(
+        b,
+        cli,
+        fangz_mod,
+    );
 
     b.installArtifact(cli);
 
@@ -193,7 +197,10 @@ pub fn build(b: *std.Build) void {
     // Default is primary targets only (no --deps / --bundle-std) to keep
     // PDF size bounded; pass those flags to `docent typeset` for appendix
     // fidelity when needed.
-    const docs_pdf_step = b.step("docs-pdf", "Generate PDF documentation for docent's modules via Typst");
+    const docs_pdf_step = b.step(
+        "docs-pdf",
+        "Generate PDF documentation for docent's modules via Typst",
+    );
 
     const typeset_json_path = "zig-out/docs/typeset/docs.json";
 
@@ -259,12 +266,12 @@ pub fn build(b: *std.Build) void {
 
     test_step.dependOn(&b.addRunArtifact(project_scan_lib_tests).step);
 
-    const identifier_style_lib_tests = b.addTest(.{
-        .name = "Identifier Style",
-        .root_module = identifier_style_mod,
+    const casing_lib_tests = b.addTest(.{
+        .name = "Casing",
+        .root_module = casing_mod,
     });
 
-    test_step.dependOn(&b.addRunArtifact(identifier_style_lib_tests).step);
+    test_step.dependOn(&b.addRunArtifact(casing_lib_tests).step);
 
     const fmt_lib_tests = b.addTest(.{
         .name = "Formatting",
@@ -292,7 +299,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "carnaval", .module = carnaval_mod },
                 .{ .name = "cli", .module = cli_mod },
                 .{ .name = "fmt", .module = fmt_mod },
-                .{ .name = "identifier_style", .module = identifier_style_mod },
+                .{ .name = "casing", .module = casing_mod },
             },
         }),
     });
@@ -304,7 +311,11 @@ pub fn build(b: *std.Build) void {
     yq_cli.addArgs(&.{ "--output-format", "json" });
     yq_cli.addFileArg(b.path("schemas/docent.schema.yaml"));
     const schema_json = yq_cli.captureStdOut(.{});
-    const install_schema = b.addInstallFileWithDir(schema_json, .{ .custom = "docs" }, "schema/docent.schema.json");
+    const install_schema = b.addInstallFileWithDir(
+        schema_json,
+        .{ .custom = "docs" },
+        "schema/docent.schema.json",
+    );
     schema_step.dependOn(&install_schema.step);
     b.getInstallStep().dependOn(schema_step);
 

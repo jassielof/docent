@@ -4,8 +4,8 @@
 
 const std = @import("std");
 
+const naming_case = @import("casing");
 const fmt_mod = @import("fmt");
-const naming_case = @import("identifier_style");
 const rules = @import("rules");
 const complexity_rules = rules.complexity;
 pub const Complexity = complexity_rules.Complexity;

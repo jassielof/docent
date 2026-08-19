@@ -44,8 +44,8 @@
 const std = @import("std");
 const Ast = std.zig.Ast;
 
+const naming_case = @import("casing");
 const doc_comment = @import("doc_comment");
-const naming_case = @import("identifier_style");
 const lint = @import("lint");
 const category = lint.category;
 const Diagnostic = lint.Diagnostic;
