@@ -13,11 +13,11 @@ const Ast = std.zig.Ast;
 
 const lint = @import("lint");
 const category = lint.category;
+const complexity_breakdown = lint.complexity_breakdown;
+const Increment = complexity_breakdown.Increment;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
-const complexity_breakdown = lint.complexity_breakdown;
-const Increment = complexity_breakdown.Increment;
 
 /// Number of highest-scoring contributors shown as secondary spans in
 /// pretty-mode output.
@@ -246,7 +246,12 @@ fn collectDecisionPoints(
         const first = tree.firstToken(node);
         const last = tree.lastToken(node);
         if (first < body_first or last > body_last) continue;
-        try recordDecisionPoints(tree, node, allocator, &increments);
+        try recordDecisionPoints(
+            tree,
+            node,
+            allocator,
+            &increments,
+        );
     }
 
     return increments.toOwnedSlice(allocator);
@@ -259,18 +264,46 @@ fn recordDecisionPoints(
     out: *std.ArrayList(Increment),
 ) !void {
     switch (tree.nodeTag(node)) {
-        .if_simple, .@"if" => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "if" }),
-        .while_simple, .while_cont, .@"while" => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "loop" }),
-        .for_simple, .@"for" => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "loop" }),
-        .@"catch" => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "catch" }),
-        .bool_and => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "`and`" }),
-        .bool_or => try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "`or`" }),
+        .if_simple, .@"if" => try out.append(allocator, .{
+            .token = tree.nodeMainToken(node),
+            .points = 1,
+            .reason = "if",
+        }),
+        .while_simple, .while_cont, .@"while" => try out.append(allocator, .{
+            .token = tree.nodeMainToken(node),
+            .points = 1,
+            .reason = "loop",
+        }),
+        .for_simple, .@"for" => try out.append(allocator, .{
+            .token = tree.nodeMainToken(node),
+            .points = 1,
+            .reason = "loop",
+        }),
+        .@"catch" => try out.append(allocator, .{
+            .token = tree.nodeMainToken(node),
+            .points = 1,
+            .reason = "catch",
+        }),
+        .bool_and => try out.append(allocator, .{
+            .token = tree.nodeMainToken(node),
+            .points = 1,
+            .reason = "`and`",
+        }),
+        .bool_or => try out.append(allocator, .{
+            .token = tree.nodeMainToken(node),
+            .points = 1,
+            .reason = "`or`",
+        }),
         .@"switch", .switch_comma => {
             const switch_full = tree.fullSwitch(node) orelse return;
             const cases = switch_full.ast.cases;
             if (cases.len == 0) return;
             for (cases[1..]) |case_node| {
-                try out.append(allocator, .{ .token = tree.firstToken(case_node), .points = 1, .reason = "switch prong" });
+                try out.append(allocator, .{
+                    .token = tree.firstToken(case_node),
+                    .points = 1,
+                    .reason = "switch prong",
+                });
             }
         },
         else => {},
@@ -339,7 +372,10 @@ test "check populates primary_label and spans, capped and in source order" {
     // 7 cases -> 6 decision points -> V(G) = 1 + 6 = 7, over threshold 5.
     try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
     const diagnostic = diagnostics.items[0];
-    try std.testing.expectEqualStrings("score: 7", diagnostic.primary_label orelse return error.MissingPrimaryLabel);
+    try std.testing.expectEqualStrings(
+        "score: 7",
+        diagnostic.primary_label orelse return error.MissingPrimaryLabel,
+    );
 
     // All 6 prongs are worth exactly 1 point each (cyclomatic doesn't
     // weight by nesting) — ties are broken by source position, so the
@@ -351,6 +387,281 @@ test "check populates primary_label and spans, capped and in source order" {
         previous_line = span.line;
         try std.testing.expectEqualStrings("+1 (switch prong)", span.label);
     }
+}
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        "<test>",
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+/// Asserts `source`'s only function has zero diagnostics at `expected_score`
+/// (equal to threshold) and exactly one at `expected_score - 1`.
+fn expectThresholdBoundary(source: [:0]const u8, expected_score: u32) !void {
+    var equal_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer equal_arena.deinit();
+    var equal_to_threshold: std.ArrayList(Diagnostic) = .empty;
+    defer equal_to_threshold.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .threshold = expected_score } },
+        &equal_to_threshold,
+        equal_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), equal_to_threshold.items.len);
+
+    var above_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer above_arena.deinit();
+    var above_threshold: std.ArrayList(Diagnostic) = .empty;
+    defer above_threshold.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .threshold = expected_score - 1 } },
+        &above_threshold,
+        above_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), above_threshold.items.len);
+}
+
+test "emits a diagnostic only above the threshold (if chain complexity 3)" {
+    const source =
+        \\pub fn complex(x: i32) i32 {
+        \\    if (x == 1) {
+        \\        return 1;
+        \\    } else if (x == 2) {
+        \\        return 2;
+        \\    } else {
+        \\        return 3;
+        \\    }
+        \\}
+    ;
+
+    var above_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer above_arena.deinit();
+    var above_threshold: std.ArrayList(Diagnostic) = .empty;
+    defer above_threshold.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .threshold = 2 } },
+        &above_threshold,
+        above_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), above_threshold.items.len);
+    try std.testing.expectEqualStrings("complex", above_threshold.items[0].subject.?.name);
+
+    try expectThresholdBoundary(source, 3);
+}
+
+test "private functions are skipped under public_api_only" {
+    const source =
+        \\fn complex(x: i32) i32 {
+        \\    if (x == 1) {
+        \\        return 1;
+        \\    } else if (x == 2) {
+        \\        return 2;
+        \\    } else {
+        \\        return 3;
+        \\    }
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .threshold = 1 },
+        },
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "empty function has a cyclomatic complexity score of exactly 1" {
+    try expectThresholdBoundary(
+        \\pub fn f() void {}
+    ,
+        1,
+    );
+}
+
+test "switch counts each prong (except last/default, complexity 4)" {
+    try expectThresholdBoundary(
+        \\pub fn getWords(number: u32) []const u8 {
+        \\    switch (number) {
+        \\        1 => return "one",
+        \\        2 => return "a couple",
+        \\        3 => return "a few",
+        \\        else => return "lots",
+        \\    }
+        \\}
+    ,
+        4,
+    );
+}
+
+test "logical operators add decision points (complexity 3)" {
+    try expectThresholdBoundary(
+        \\pub fn f(a: bool, b: bool, c: bool) bool {
+        \\    return a and b or c;
+        \\}
+    ,
+        3,
+    );
+}
+
+test "catch adds a decision point (complexity 2)" {
+    try expectThresholdBoundary(
+        \\pub fn k() void {
+        \\    foo() catch {
+        \\        bar();
+        \\    };
+        \\}
+        \\fn foo() !void {}
+        \\fn bar() void {}
+    ,
+        2,
+    );
+}
+
+test "orelse is ignored (complexity 1)" {
+    try expectThresholdBoundary(
+        \\pub fn k(x: ?u32) u32 {
+        \\    return x orelse 0;
+        \\}
+    ,
+        1,
+    );
+}
+
+test "robustFetch has try, catch, switch, nested if, loop (complexity 9)" {
+    try expectThresholdBoundary(
+        \\const DatabaseError = error{
+        \\    ConnectionFailed,
+        \\    Timeout,
+        \\    AccessDenied,
+        \\    Unknown,
+        \\};
+        \\
+        \\pub fn robustFetch(id: u32, retries: u8) !u64 {
+        \\    // 1. Guard clause
+        \\    if (id == 0) return error.InvalidId;
+        \\
+        \\    var attempt: u8 = 0;
+        \\
+        \\    // 2. Loop
+        \\    while (attempt < retries) : (attempt += 1) {
+        \\
+        \\        // 3. 'catch' payload capture with switch (nested routing)
+        \\        const data = queryDatabase(id) catch |err| switch (err) {
+        \\            error.ConnectionFailed => continue,
+        \\            error.Timeout => if (attempt > 2) return error.Aborted else continue,
+        \\            else => return error.Fatal,
+        \\        };
+        \\
+        \\        // 4. Combined 'try' and inline 'catch' fallback value
+        \\        const parsed = parsePayload(data) catch 0;
+        \\
+        \\        if (parsed > 100) {
+        \\            // 5. 'try' statement (Implicit early return if failed)
+        \\            try validateData(parsed);
+        \\            return parsed;
+        \\        }
+        \\    }
+        \\
+        \\    return error.MaxRetriesReached;
+        \\}
+        \\
+        \\fn queryDatabase(id: u32) DatabaseError![]const u8 {
+        \\    _ = id;
+        \\    return "";
+        \\}
+        \\fn parsePayload(data: []const u8) !u64 {
+        \\    _ = data;
+        \\    return 0;
+        \\}
+        \\fn validateData(val: u64) !void {
+        \\    _ = val;
+        \\}
+    ,
+        9,
+    );
+}
+
+test "processData has nested loops, unwrapping, complex logical expression (complexity 11)" {
+    try expectThresholdBoundary(
+        \\const Target = struct {
+        \\    id: u32,
+        \\    active: bool,
+        \\    weight: ?i32,
+        \\};
+        \\
+        \\pub fn processData(matrix: [][]const ?Target, threshold: i32, max_cycles: u32) !u32 {
+        \\    if (matrix.len == 0) {
+        \\        return error.EmptyMatrix;
+        \\    }
+        \\
+        \\    var score: u32 = 0;
+        \\    var cycle: u32 = 0;
+        \\
+        \\    while (cycle < max_cycles) : (cycle += 1) {
+        \\        for (matrix) |row| {
+        \\            for (row) |maybe_target| {
+        \\                // 1. Optional unwrapping payload check
+        \\                if (maybe_target) |target| {
+        \\
+        \\                    // 2. Complex short-circuiting condition
+        \\                    if (target.active and target.id % 2 == 0 or cycle > 5) {
+        \\
+        \\                        // 3. Nested optional unwrapping
+        \\                        if (target.weight) |w| {
+        \\                            if (w > threshold) {
+        \\                                score += 10;
+        \\                            } else {
+        \\                                score += 2;
+        \\                            }
+        \\                        } else {
+        \\                            score += 1;
+        \\                        }
+        \\                    } else {
+        \\                        continue;
+        \\                    }
+        \\                } else {
+        \\                    // 4. Early return error path
+        \\                    return error.NullElementFound;
+        \\                }
+        \\            }
+        \\        }
+        \\    }
+        \\
+        \\    return score;
+        \\}
+    ,
+        11,
+    );
 }
 
 fn isPubVisibility(tree: *const Ast, visib_token: ?Ast.TokenIndex) bool {

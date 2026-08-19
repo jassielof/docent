@@ -16,11 +16,11 @@ const Ast = std.zig.Ast;
 
 const lint = @import("lint");
 const category = lint.category;
+const complexity_breakdown = lint.complexity_breakdown;
+const Increment = complexity_breakdown.Increment;
 const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
-const complexity_breakdown = lint.complexity_breakdown;
-const Increment = complexity_breakdown.Increment;
 
 /// Number of highest-scoring contributors shown as secondary spans in
 /// pretty-mode output. Keeps the block readable for functions with many
@@ -103,7 +103,10 @@ pub fn check(
             result.increments,
             max_breakdown_spans,
         );
-        const help: ?[]const u8 = if (complexity_breakdown.topLine(tree, result.increments)) |top_line|
+        const help: ?[]const u8 = if (complexity_breakdown.topLine(
+            tree,
+            result.increments,
+        )) |top_line|
             try std.fmt.allocPrint(
                 msg_allocator,
                 "consider extracting the code near line {d} into a helper function",
@@ -345,9 +348,17 @@ fn recordIncrements(
             const if_token = if_full.ast.if_token;
 
             if (isElseIf(tree, if_full)) {
-                try out.append(allocator, .{ .token = if_token, .points = 1, .reason = "else if" });
+                try out.append(allocator, .{
+                    .token = if_token,
+                    .points = 1,
+                    .reason = "else if",
+                });
             } else {
-                const nesting = nestingLevel(tree, node, regions);
+                const nesting = nestingLevel(
+                    tree,
+                    node,
+                    regions,
+                );
                 try out.append(allocator, .{
                     .token = if_token,
                     .points = 1 + nesting,
@@ -366,7 +377,11 @@ fn recordIncrements(
             }
         },
         .while_simple, .while_cont, .@"while" => {
-            const nesting = nestingLevel(tree, node, regions);
+            const nesting = nestingLevel(
+                tree,
+                node,
+                regions,
+            );
             try out.append(allocator, .{
                 .token = tree.nodeMainToken(node),
                 .points = 1 + nesting,
@@ -374,7 +389,11 @@ fn recordIncrements(
             });
         },
         .for_simple, .@"for" => {
-            const nesting = nestingLevel(tree, node, regions);
+            const nesting = nestingLevel(
+                tree,
+                node,
+                regions,
+            );
             try out.append(allocator, .{
                 .token = tree.nodeMainToken(node),
                 .points = 1 + nesting,
@@ -382,7 +401,11 @@ fn recordIncrements(
             });
         },
         .@"switch", .switch_comma => {
-            const nesting = nestingLevel(tree, node, regions);
+            const nesting = nestingLevel(
+                tree,
+                node,
+                regions,
+            );
             try out.append(allocator, .{
                 .token = tree.nodeMainToken(node),
                 .points = 1 + nesting,
@@ -390,7 +413,11 @@ fn recordIncrements(
             });
         },
         .@"catch" => {
-            const nesting = nestingLevel(tree, node, regions);
+            const nesting = nestingLevel(
+                tree,
+                node,
+                regions,
+            );
             try out.append(allocator, .{
                 .token = tree.nodeMainToken(node),
                 .points = 1 + nesting,
@@ -398,20 +425,50 @@ fn recordIncrements(
             });
         },
         .bool_and, .bool_or => {
-            if (isLogicalSequenceStart(tree, node, body_first, body_last)) {
-                const reason: []const u8 = if (tree.nodeTag(node) == .bool_and) "`and` sequence" else "`or` sequence";
-                try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = reason });
+            if (isLogicalSequenceStart(
+                tree,
+                node,
+                body_first,
+                body_last,
+            )) {
+                const reason: []const u8 = if (tree.nodeTag(
+                    node,
+                ) == .bool_and) "`and` sequence" else "`or` sequence";
+                try out.append(allocator, .{
+                    .token = tree.nodeMainToken(node),
+                    .points = 1,
+                    .reason = reason,
+                });
             }
         },
         .@"break", .@"continue" => {
-            if (isLoopLabelJump(tree, node, body_first, body_last)) {
-                const reason: []const u8 = if (tree.nodeTag(node) == .@"break") "labeled break" else "labeled continue";
-                try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = reason });
+            if (isLoopLabelJump(
+                tree,
+                node,
+                body_first,
+                body_last,
+            )) {
+                const reason: []const u8 = if (tree.nodeTag(
+                    node,
+                ) == .@"break") "labeled break" else "labeled continue";
+                try out.append(allocator, .{
+                    .token = tree.nodeMainToken(node),
+                    .points = 1,
+                    .reason = reason,
+                });
             }
         },
         .call, .call_comma, .call_one, .call_one_comma => {
-            if (isDirectRecursion(tree, node, fn_name)) {
-                try out.append(allocator, .{ .token = tree.nodeMainToken(node), .points = 1, .reason = "direct recursion" });
+            if (isDirectRecursion(
+                tree,
+                node,
+                fn_name,
+            )) {
+                try out.append(allocator, .{
+                    .token = tree.nodeMainToken(node),
+                    .points = 1,
+                    .reason = "direct recursion",
+                });
             }
         },
         else => {},
@@ -827,7 +884,11 @@ test "check populates primary_label and spans for an over-threshold function" {
     const diagnostic = diagnostics.items[0];
 
     const label = diagnostic.primary_label orelse return error.MissingPrimaryLabel;
-    try std.testing.expect(std.mem.startsWith(u8, label, "score: "));
+    try std.testing.expect(std.mem.startsWith(
+        u8,
+        label,
+        "score: ",
+    ));
 
     // 6 nested `if`s: not all of them fit in `max_breakdown_spans`, so only
     // the highest-scoring ones are kept — but always in ascending source
@@ -840,7 +901,11 @@ test "check populates primary_label and spans for an over-threshold function" {
         try std.testing.expect(span.line > previous_line);
         previous_line = span.line;
         try std.testing.expect(span.label.len > 0);
-        try std.testing.expect(std.mem.indexOfScalar(u8, span.label, '+') != null);
+        try std.testing.expect(std.mem.indexOfScalar(
+            u8,
+            span.label,
+            '+',
+        ) != null);
     }
 
     // The deepest `if` (line 7) scores the most and must survive the cap.
@@ -848,6 +913,95 @@ test "check populates primary_label and spans for an over-threshold function" {
         "+6 (deeply nested conditional)",
         diagnostic.spans[diagnostic.spans.len - 1].label,
     );
+}
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        "<test>",
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+test "emits a diagnostic only above the threshold" {
+    const source =
+        \\pub fn complex(a: bool, b: bool, c: bool) void {
+        \\    if (a) {
+        \\        if (b) {
+        \\            if (c) {}
+        \\        }
+        \\    }
+        \\}
+    ;
+
+    var equal_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer equal_arena.deinit();
+    var equal_to_threshold: std.ArrayList(Diagnostic) = .empty;
+    defer equal_to_threshold.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .threshold = 6 } },
+        &equal_to_threshold,
+        equal_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), equal_to_threshold.items.len);
+
+    var above_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer above_arena.deinit();
+    var above_threshold: std.ArrayList(Diagnostic) = .empty;
+    defer above_threshold.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .threshold = 5 } },
+        &above_threshold,
+        above_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), above_threshold.items.len);
+    try std.testing.expectEqualStrings("complex", above_threshold.items[0].subject.?.name);
+}
+
+test "private functions are skipped under public_api_only" {
+    const source =
+        \\fn complex(a: bool, b: bool, c: bool) void {
+        \\    if (a) {
+        \\        if (b) {
+        \\            if (c) {}
+        \\        }
+        \\    }
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .threshold = 1 },
+        },
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
 
 comptime {
