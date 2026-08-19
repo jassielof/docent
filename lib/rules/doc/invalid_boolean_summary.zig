@@ -186,7 +186,7 @@ test "accepts 'reports whether' phrasing" {
         \\pub fn hasPrefix(s: []const u8, prefix: []const u8) bool {
         \\    return true;
         \\}
-    ++ "\x00";
+    ;
 
     var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer msg_arena.deinit();
@@ -208,7 +208,7 @@ test "warns when summary omits 'reports whether'" {
         \\pub fn hasPrefix(s: []const u8, prefix: []const u8) bool {
         \\    return true;
         \\}
-    ++ "\x00";
+    ;
 
     var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer msg_arena.deinit();
@@ -237,7 +237,7 @@ test "warns on redundant 'or not'" {
         \\pub fn hasPrefix(s: []const u8, prefix: []const u8) bool {
         \\    return true;
         \\}
-    ++ "\x00";
+    ;
 
     var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer msg_arena.deinit();
@@ -264,7 +264,7 @@ test "reports both diagnostics when missing phrase and redundant 'or not' co-occ
         \\pub fn hasPrefix(s: []const u8, prefix: []const u8) bool {
         \\    return true;
         \\}
-    ++ "\x00";
+    ;
 
     var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer msg_arena.deinit();
@@ -286,7 +286,7 @@ test "ignores functions that don't return plain bool" {
         \\pub fn count(s: []const u8, prefix: []const u8) usize {
         \\    return 0;
         \\}
-    ++ "\x00";
+    ;
 
     var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer msg_arena.deinit();
@@ -312,7 +312,7 @@ test "no diagnostic for private function when public_api_only" {
         \\pub fn use() bool {
         \\    return hasPrefix("a", "a");
         \\}
-    ++ "\x00";
+    ;
 
     var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer msg_arena.deinit();
@@ -338,7 +338,7 @@ test "private function checked when public_api_only is false" {
         \\pub fn use() bool {
         \\    return hasPrefix("a", "a");
         \\}
-    ++ "\x00";
+    ;
 
     var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer msg_arena.deinit();
