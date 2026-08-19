@@ -1,5 +1,3 @@
-#:schema ../zig-out/docs/schema/docent.schema.json
-
 [fmt]
 include = ["lib/", "internal/", "cmd/"]
 sort_imports = true

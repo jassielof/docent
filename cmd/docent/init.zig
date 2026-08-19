@@ -5,23 +5,37 @@ const std = @import("std");
 const docent = @import("docent");
 const fangz = @import("fangz");
 
-const default_config_file = @embedFile("init/templates/docent.toml");
+const Preset = enum {
+    standard,
+    tiger,
+    godoc,
+};
 
-const local_schema_line = "#:schema ../zig-out/docs/schema/docent.schema.json\n";
-const remote_schema_line = "#:schema https://jassielof.github.io/docent/schemas/docent.schema.json\n";
+const default_config_file = @embedFile("init/templates/docent.default.toml");
+const tiger_config_file = @embedFile("init/templates/docent.tiger.toml");
+const godoc_config_file = @embedFile("init/templates/docent.godoc.toml");
+
+const remote_schema_line = "#:schema https://jassielof.github.io/docent/schema/docent.schema.json\n";
 
 /// Registers the `init` sub-command on `root`.
 pub fn register(root: *fangz.Command) !void {
     const init_cmd = try root.addSubcommand(.{
         .name = "init",
         .brief = "Create a default Docent configuration file",
-        .description = "Write `.config/docent.toml` using the bundled template and the published JSON Schema URL. Does not overwrite an existing file.",
+        .description = "Write `.config/docent.toml` using the selected bundled template and the published JSON Schema URL. Use `--preset tiger` for Tiger Style or `--preset godoc` for Go Doc Comments. Does not overwrite an existing file.",
     });
 
     try init_cmd.addFlag(bool, .{
         .name = "force",
         .brief = "Overwrite an existing configuration file",
         .default = false,
+    });
+    try init_cmd.addFlag(Preset, .{
+        .name = "preset",
+        .brief = "Choose a bundled configuration preset",
+        .description = "Use `tiger` for Tiger Style naming and a strict 100-column limit, or `godoc` for Go-style public API documentation.",
+        .default = .standard,
+        .allowed_values_style = .comma,
     });
 
     init_cmd.setHooks(.{ .run = &run });
@@ -33,6 +47,7 @@ fn run(ctx: *fangz.ParseContext) !void {
 
     const Args = struct {
         force: bool = false,
+        preset: Preset = .standard,
     };
 
     const args = try ctx.extract(Args);
@@ -51,7 +66,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         std.process.exit(1);
     }
 
-    const content = try renderDefaultConfig(allocator);
+    const content = try renderConfig(allocator, args.preset);
     defer allocator.free(content);
 
     const file = try std.Io.Dir.cwd().createFile(
@@ -73,32 +88,24 @@ fn run(ctx: *fangz.ParseContext) !void {
 }
 
 fn renderDefaultConfig(allocator: std.mem.Allocator) ![]const u8 {
-    if (std.mem.startsWith(
-        u8,
-        default_config_file,
-        "#:schema",
-    )) {
-        const rest_start = std.mem.indexOfScalar(
-            u8,
-            default_config_file,
-            '\n',
-        ) orelse default_config_file.len;
-        const rest = default_config_file[rest_start + 1 ..];
+    return renderConfig(allocator, .standard);
+}
 
-        var out = std.ArrayList(u8).empty;
-        errdefer out.deinit(allocator);
-        try out.appendSlice(allocator, remote_schema_line);
-        try out.appendSlice(allocator, rest);
-        return try out.toOwnedSlice(allocator);
-    }
+fn renderConfig(
+    allocator: std.mem.Allocator,
+    preset: Preset,
+) ![]const u8 {
+    const config_file = switch (preset) {
+        .standard => default_config_file,
+        .tiger => tiger_config_file,
+        .godoc => godoc_config_file,
+    };
 
-    return try std.mem.replaceOwned(
-        u8,
-        allocator,
-        local_schema_line,
-        remote_schema_line,
-        default_config_file,
-    );
+    var out = std.ArrayList(u8).empty;
+    errdefer out.deinit(allocator);
+    try out.appendSlice(allocator, remote_schema_line);
+    try out.appendSlice(allocator, config_file);
+    return try out.toOwnedSlice(allocator);
 }
 
 fn isReadableFile(io: std.Io, path: []const u8) bool {
@@ -133,8 +140,8 @@ test "renderDefaultConfig uses the published schema URL" {
     ));
     try std.testing.expect(std.mem.indexOf(
         u8,
-        content,
-        local_schema_line,
+        content[remote_schema_line.len..],
+        "#:schema",
     ) == null);
     try std.testing.expect(std.mem.indexOf(
         u8,
@@ -144,6 +151,26 @@ test "renderDefaultConfig uses the published schema URL" {
     try std.testing.expect(std.mem.indexOf(
         u8,
         content,
-        "[complexity.cognitive_complexity]",
+        "[check]",
     ) != null);
+}
+
+test "renderConfig embeds the Tiger Style preset" {
+    const content = try renderConfig(std.testing.allocator, .tiger);
+    defer std.testing.allocator.free(content);
+
+    try std.testing.expect(std.mem.startsWith(u8, content, remote_schema_line));
+    try std.testing.expect(std.mem.indexOf(u8, content, "functions = \"snake_case\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, content, "struct_file_case = \"snake_case\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, content, "level = \"forbid\"") != null);
+}
+
+test "renderConfig embeds the Go Doc Comments preset" {
+    const content = try renderConfig(std.testing.allocator, .godoc);
+    defer std.testing.allocator.free(content);
+
+    try std.testing.expect(std.mem.startsWith(u8, content, remote_schema_line));
+    try std.testing.expect(std.mem.indexOf(u8, content, "scan_mode = \"public\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, content, "missing_doctest = \"allow\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, content, "ignore_leading_comments = true") != null);
 }

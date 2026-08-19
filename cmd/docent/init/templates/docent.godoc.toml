@@ -1,0 +1,52 @@
+#
+# Go Doc Comments preset — documentation rules inspired by Go's doc-comment
+# conventions. See https://go.dev/blog/godoc and https://go.dev/doc/comment.
+#
+# Go documents every exported declaration with a complete summary that begins
+# with the symbol's name. Docent applies that convention to Zig's public API.
+# Doctests remain optional: Go uses Example tests instead.
+
+[doc]
+scan_mode = "public"
+blank_doc_comment = "warn"
+trailing_blank_doc_comment = "warn"
+missing_doctest = "allow"
+private_doctest = "warn"
+doctest_naming_mismatch = "warn"
+misplaced_doc_comment = "warn"
+
+[doc.missing_doc_comment]
+level = "warn"
+check_parameters = false
+check_fields = false
+check_enumerators = false
+check_errors = true
+
+[doc.missing_summary_terminal_punctuation]
+level = "warn"
+scope = "summary"
+accepted_marks = [".", "!", "?"]
+
+[doc.invalid_leading_phrase]
+level = "warn"
+require_kind = false
+require_article = false
+require_backticks = false
+
+[style]
+scan_mode = "all"
+
+[style.identifier_case]
+level = "warn"
+namespaces = "snake_case"
+functions = "camelCase"
+types = "PascalCase"
+constants = "snake_case"
+struct_file_case = "PascalCase"
+
+# Keep prose documentation out of the source-code column limit.
+[size.line_length_limit]
+level = "allow"
+max_length = 100
+ignore_leading_comments = true
+ignore_trailing_comments = true

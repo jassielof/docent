@@ -110,8 +110,6 @@ jobs:
           asciidoctor-pdf docent.adoc
       - name: Convert README
         run: asciidoctor README.adoc --out-file zig-out/docs/index.html
-      - name: Copy schema to docs
-        run: cp --recursive zig-out/schema zig-out/docs/
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v5
         with:

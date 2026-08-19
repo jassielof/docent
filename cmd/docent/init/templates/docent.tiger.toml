@@ -1,0 +1,32 @@
+#
+# Tiger Style preset — the Docent rules that can enforce TigerBeetle's naming
+# and formatting guidance. Source:
+# https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md
+#
+# Tiger Style uses snake_case for functions and file names, and limits every
+# line to 100 columns. The preset retains Zig's PascalCase type convention;
+# Docent cannot mechanically enforce Tiger Style's broader naming advice.
+
+[fmt]
+brace_style = "k&r"
+indent_style = "space"
+indent_width = 4
+single_line_braces = true
+trailing_comma = true
+auto_wrap = true
+max_line_length = 100
+
+[style]
+scan_mode = "all"
+
+[style.identifier_case]
+level = "deny"
+namespaces = "snake_case"
+functions = "snake_case"
+types = "PascalCase"
+constants = "snake_case"
+struct_file_case = "snake_case"
+
+[size.line_length_limit]
+level = "forbid"
+max_length = 100
