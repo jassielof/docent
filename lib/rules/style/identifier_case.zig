@@ -1043,3 +1043,669 @@ test "inactive severity yields no diagnostics" {
     );
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    file: []const u8,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        file,
+        allocator,
+        std.testing.io,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+const warn_reachability: Rule = .{ .level = .warn };
+const warn_public_api: Rule = .{ .level = .warn, .scan_mode = .public_api_surface };
+
+test "concrete function should be camelCase" {
+    const source =
+        \\pub fn DoThing() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.function, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("DoThing", diagnostics.items[0].subject.?.name);
+}
+
+test "well-cased concrete function is clean" {
+    const source =
+        \\pub fn doThing() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "type-returning function should be PascalCase" {
+    const source =
+        \\pub fn list() type {
+        \\    return struct {};
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("list", diagnostics.items[0].subject.?.name);
+}
+
+test "well-cased generic function is clean" {
+    const source =
+        \\pub fn List() type {
+        \\    return struct {};
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "global constant should be snake_case" {
+    const source =
+        \\pub const MaxSize = 10;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.constant, diagnostics.items[0].subject.?.kind);
+}
+
+test "struct with fields should be PascalCase" {
+    const source =
+        \\pub const my_struct = struct {
+        \\    x: u32,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.structure, diagnostics.items[0].subject.?.kind);
+}
+
+test "field-less container is a namespace and should be snake_case" {
+    const source =
+        \\pub const Helpers = struct {
+        \\    pub fn ok() void {}
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.namespace, diagnostics.items[0].subject.?.kind);
+}
+
+test "namespaces option overrides default convention" {
+    const source =
+        \\pub const Helpers = struct {
+        \\    pub fn ok() void {}
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .namespaces = .pascal } },
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "struct fields should be snake_case" {
+    const source =
+        \\pub const Point = struct {
+        \\    X: u32,
+        \\    y: u32,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.field, diagnostics.items[0].subject.?.kind);
+}
+
+test "enum should be PascalCase and camel or Pascal enumerators are exempt" {
+    const source =
+        \\pub const color = enum {
+        \\    Red,
+        \\    green,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.enumeration, diagnostics.items[0].subject.?.kind);
+}
+
+test "error set should be PascalCase and error values too" {
+    const source =
+        \\pub const my_error = error{ out_of_memory };
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 2), diagnostics.items.len);
+    try std.testing.expectEqual(.error_set, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqual(.error_value, diagnostics.items[1].subject.?.kind);
+}
+
+test "inline type-expression alias should be PascalCase" {
+    const source =
+        \\pub const kind_phrase = []const []const u8;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("should be PascalCase", diagnostics.items[0].detail.?);
+}
+
+test "well-cased inline type alias is clean" {
+    const source =
+        \\pub const KindPhrase = []const u8;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "idiomatic error set is clean" {
+    const source =
+        \\pub const Error = error{ OutOfMemory, FileNotFound };
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "function alias re-export is skipped" {
+    const source =
+        \\const helpers = @import("helpers.zig");
+        \\pub const parseInt = helpers.parseInt;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "quoted identifiers are exempt" {
+    const source =
+        \\pub const @"foo bar" = 1;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "private declarations skipped under public_api_only" {
+    const source =
+        \\fn DoThing() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public_api,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "private declarations checked when public_api_only is false" {
+    const source =
+        \\fn DoThing() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "detail explains expected case" {
+    const source =
+        \\pub fn DoThing() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("should be camelCase", diagnostics.items[0].detail.?);
+}
+
+test "struct_file_case snake_case accepts snake_case implicit struct file stem" {
+    const source =
+        \\//! Tiger-style implicit struct file fixture.
+        \\
+        \\x: u32 = 0,
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .struct_file_case = .snake },
+        },
+        "init_options.zig",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "default struct_file_case flags snake_case struct file stem" {
+    const source =
+        \\//! Tiger-style implicit struct file fixture.
+        \\
+        \\x: u32 = 0,
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public_api,
+        "init_options.zig",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "default struct_file_case accepts PascalCase struct file stem" {
+    const source =
+        \\//! Tiger-style implicit struct file fixture.
+        \\
+        \\x: u32 = 0,
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public_api,
+        "InitOptions.zig",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "namespace module helper struct does not require matching filename" {
+    const source =
+        \\pub const Options = struct {
+        \\    threshold: u32 = 0,
+        \\};
+        \\
+        \\pub fn check() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public_api,
+        "max_fun_params.zig",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "namespace struct with coincidental snake_case stem is not a struct file pairing" {
+    const source =
+        \\pub const Report = struct {
+        \\    checks: []const u8 = &.{},
+        \\};
+        \\
+        \\pub fn score() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public_api,
+        "report.zig",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "paired PascalCase struct name with snake_case filename stem is accepted under Tiger" {
+    const source =
+        \\pub const InitOptions = struct {
+        \\    x: u32,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .struct_file_case = .snake },
+        },
+        "init_options.zig",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "PascalCase struct file stem is accepted by default" {
+    const source =
+        \\pub const InitOptions = struct {
+        \\    x: u32,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public_api,
+        "InitOptions.zig",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "@This() alias in a namespace file should be snake_case" {
+    const source =
+        \\const Bar = @This();
+        \\
+        \\pub fn ok() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.namespace, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("Bar", diagnostics.items[0].subject.?.name);
+}
+
+test "snake_case @This() alias in a namespace file is clean" {
+    const source =
+        \\const bar = @This();
+        \\
+        \\pub fn ok() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "<test>",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "@This() alias in a struct file should be PascalCase" {
+    const source =
+        \\x: u8,
+        \\
+        \\const self = @This();
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "Self.zig",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.structure, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("self", diagnostics.items[0].subject.?.name);
+}
+
+test "PascalCase @This() alias in a struct file is clean" {
+    const source =
+        \\x: u8,
+        \\
+        \\const Self = @This();
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_reachability,
+        "Self.zig",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}

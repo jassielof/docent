@@ -174,3 +174,159 @@ fn trailingCommentStart(line: []const u8) ?usize {
     }
     return null;
 }
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    try check(
+        source,
+        rule,
+        "<test>",
+        std.testing.allocator,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+test "accepts lines within the limit" {
+    const source =
+        \\pub fn ok() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn },
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "warns when a line exceeds max_length" {
+    const source =
+        \\////1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .max_length = 10 } },
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(@as(usize, 11), diagnostics.items[0].column);
+}
+
+test "ignore_trailing_comments excludes trailing // text" {
+    const source =
+        \\pub const x = 1; // aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    ;
+
+    var with_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer with_arena.deinit();
+    var with_comments: std.ArrayList(Diagnostic) = .empty;
+    defer with_comments.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .max_length = 20 } },
+        &with_comments,
+        with_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), with_comments.items.len);
+
+    var ignored_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer ignored_arena.deinit();
+    var ignored: std.ArrayList(Diagnostic) = .empty;
+    defer ignored.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .max_length = 20, .ignore_trailing_comments = true } },
+        &ignored,
+        ignored_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), ignored.items.len);
+}
+
+test "ignore_trailing_comments keeps // inside string literals" {
+    const source =
+        \\pub const s = "//aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .max_length = 20, .ignore_trailing_comments = true } },
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "ignore_leading_comments excludes doc and line comments" {
+    const source =
+        \\/// aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        \\//! bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        \\// ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .max_length = 20, .ignore_leading_comments = true } },
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "ignore_leading_comments still measures code lines" {
+    const source =
+        \\/// This doc comment is intentionally longer than twenty characters.
+        \\pub const x = 1;
+    ;
+
+    var ignored_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer ignored_arena.deinit();
+    var ignored: std.ArrayList(Diagnostic) = .empty;
+    defer ignored.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .max_length = 20, .ignore_leading_comments = true } },
+        &ignored,
+        ignored_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), ignored.items.len);
+
+    var measured_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer measured_arena.deinit();
+    var measured: std.ArrayList(Diagnostic) = .empty;
+    defer measured.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .warn, .options = .{ .max_length = 20, .ignore_leading_comments = false } },
+        &measured,
+        measured_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), measured.items.len);
+}
+
+comptime {
+    std.testing.refAllDecls(@This());
+}
