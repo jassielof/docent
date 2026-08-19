@@ -166,7 +166,6 @@ pub fn lintSource(
         require_module_doc,
         options.module_name,
         allocator,
-        io,
         msg,
         &result.diagnostics,
     );

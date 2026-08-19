@@ -70,7 +70,6 @@ pub fn check(
     require_module_doc: bool,
     module_name: ?[]const u8,
     allocator: std.mem.Allocator,
-    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
@@ -98,7 +97,6 @@ pub fn check(
             options,
             .field,
             allocator,
-            io,
             msg_allocator,
             diagnostics,
         );
@@ -182,7 +180,6 @@ fn checkNode(
     options: Options,
     member_field_kind: Diagnostic.SubjectKind,
     allocator: std.mem.Allocator,
-    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
@@ -281,7 +278,6 @@ fn checkNode(
             public_api_only,
             options,
             allocator,
-            io,
             msg_allocator,
             diagnostics,
         );
@@ -305,7 +301,6 @@ fn checkNode(
                     options,
                     child_member_kind,
                     allocator,
-                    io,
                     msg_allocator,
                     diagnostics,
                 );
@@ -394,7 +389,6 @@ fn checkVarDeclInit(
     public_api_only: bool,
     options: Options,
     allocator: std.mem.Allocator,
-    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) std.mem.Allocator.Error!void {
@@ -438,7 +432,6 @@ fn checkVarDeclInit(
                     options,
                     child_member_kind,
                     allocator,
-                    io,
                     msg_allocator,
                     diagnostics,
                 );
@@ -489,92 +482,6 @@ fn checkErrorSetMembers(
     }
 }
 
-const ReexportEmitContext = struct {
-    severity_level: severity.Level,
-    allocator: std.mem.Allocator,
-    msg_allocator: std.mem.Allocator,
-    diagnostics: *std.ArrayList(Diagnostic),
-};
-
-fn onUndocumentedReexportMember(
-    ctx_ptr: *anyopaque,
-    tree: *const Ast,
-    name_tok: Ast.TokenIndex,
-    display_symbol: []const u8,
-    file_path: []const u8,
-) !void {
-    const ctx: *ReexportEmitContext = @ptrCast(@alignCast(ctx_ptr));
-    const loc = tree.tokenLocation(0, name_tok);
-    try ctx.diagnostics.append(ctx.allocator, .{
-        .rule = rule_name,
-        .severity_level = ctx.severity_level,
-        .subject = try utils.ownedSubject(
-            ctx.msg_allocator,
-            .function,
-            display_symbol,
-        ),
-        .detail = "re-exported without documentation",
-        .file = try std.mem.replaceOwned(
-            u8,
-            ctx.msg_allocator,
-            file_path,
-            "\\",
-            "/",
-        ),
-        .line = loc.line + 1,
-        .column = loc.column + 1,
-        .source_line = try utils.dupSourceLine(
-            tree,
-            name_tok,
-            ctx.msg_allocator,
-        ),
-        .symbol_len = display_symbol.len,
-    });
-}
-
-fn onUndocumentedReexportWholeModule(
-    ctx_ptr: *anyopaque,
-    tree: *const Ast,
-    file_path: []const u8,
-) !void {
-    const ctx: *ReexportEmitContext = @ptrCast(@alignCast(ctx_ptr));
-    const source_basename = std.fs.path.basename(file_path);
-    const subject_kind = utils.diagnosticSubjectKindFromDoc(
-        doc_comment.exposedSourceFileSubjectKind(tree),
-    );
-    var line: usize = 0;
-    var column: usize = 0;
-    if (tree.tokens.len > 0) {
-        const loc = tree.tokenLocation(0, 0);
-        line = loc.line;
-        column = loc.column;
-    }
-    try ctx.diagnostics.append(ctx.allocator, .{
-        .rule = rule_name,
-        .severity_level = ctx.severity_level,
-        .subject = try utils.ownedSubject(
-            ctx.msg_allocator,
-            subject_kind,
-            source_basename,
-        ),
-        .file = try std.mem.replaceOwned(
-            u8,
-            ctx.msg_allocator,
-            file_path,
-            "\\",
-            "/",
-        ),
-        .line = line + 1,
-        .column = column + 1,
-        .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(
-            tree,
-            0,
-            ctx.msg_allocator,
-        ) else "",
-        .symbol_len = source_basename.len,
-    });
-}
-
 fn hasDocComment(tree: *const Ast, first_token: Ast.TokenIndex) bool {
     if (first_token == 0) return false;
     return tree.tokenTag(first_token - 1) == .doc_comment;
@@ -615,7 +522,6 @@ test "private function parameters are not checked under public_api_only" {
         false,
         null,
         base,
-        std.testing.io,
         msg_arena.allocator(),
         &diagnostics,
     );
@@ -646,7 +552,6 @@ fn runCheck(
         require_module_doc,
         module_name,
         allocator,
-        std.testing.io,
         msg_allocator,
         diagnostics,
     );

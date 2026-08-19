@@ -1,108 +1,42 @@
-//! Re-export project scenarios for doc rules.
+//! Re-export project scenarios for doc rules that genuinely resolve a second file on disk.
+//!
+//! Most re-export/alias behavior in the doc rules (`missing_doc_comment`, `misplaced_doc_comment`)
+//! is pure AST pattern matching on the importing file alone — no file is ever opened to check the
+//! imported declaration's own documentation, so those cases are covered as single-file inline
+//! tests in their respective `lib/rules/doc/*.zig` files instead. `blank_doc_comment` is the one
+//! rule that actually reads the imported file, to resolve whether a re-exported whole module's own
+//! `//!` block is blank — that real cross-file behavior is what belongs here.
 
 const std = @import("std");
 const testing = std.testing;
+
 const docent = @import("docent");
+
 const harness = @import("../harness.zig");
 const utils = @import("../utils.zig");
-
-test "reexport_local_binding_documented follows alias to documented symbol" {
-    const path = try harness.scenarioProjectRootPath("reexport_local_binding_documented");
-    defer std.testing.allocator.free(path);
-
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
-    defer result.deinit();
-    try utils.expectRuleAbsent(result, "missing_doc_comment");
-}
-
-test "reexport_documented_transitive suppresses diagnostic when definition is documented" {
-    const path = try harness.scenarioProjectRootPath("reexport_documented_transitive");
-    defer std.testing.allocator.free(path);
-
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
-    defer result.deinit();
-    try utils.expectRuleAbsent(result, "missing_doc_comment");
-}
-
-test "reexport_undocumented_points_at_definition uses forward slashes in paths" {
-    const path = try harness.scenarioProjectRootPath("reexport_undocumented_points_at_definition");
-    defer std.testing.allocator.free(path);
-
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
-    defer result.deinit();
-
-    for (result.diagnostics.items) |d| {
-        if (std.mem.eql(u8, d.rule, "missing_doc_comment")) {
-            try testing.expect(std.mem.indexOf(u8, d.file, "\\") == null);
-            try testing.expect(std.mem.endsWith(u8, d.file, "severity.zig"));
-        }
-    }
-}
-
-test "undocumented re-export is skipped until its source file is scanned" {
-    const path = try harness.scenarioProjectRootPath("reexport_undocumented_points_at_definition");
-    defer std.testing.allocator.free(path);
-
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
-    defer result.deinit();
-    try utils.expectRuleAbsent(result, "missing_doc_comment");
-}
-
-test "whole-module re-export is skipped until its source file is scanned" {
-    const path = try harness.scenarioProjectRootPath("reexport_missing_whole_namespace");
-    defer std.testing.allocator.free(path);
-
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .missing_doc_comment = .deny }));
-    defer result.deinit();
-    try utils.expectRuleAbsent(result, "missing_doc_comment");
-}
 
 test "whole-module re-export resolves blank namespace doc on imported file" {
     const path = try harness.scenarioProjectRootPath("reexport_blank_whole_namespace");
     defer std.testing.allocator.free(path);
 
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .blank_doc_comment = .warn }));
+    var result = try docent.lintFile(
+        std.testing.allocator,
+        std.testing.io,
+        path,
+        .{},
+        &.{},
+        harness.docConfig(.{ .blank_doc_comment = .warn }),
+    );
     defer result.deinit();
-    try utils.expectRuleCount(result, "blank_doc_comment", 1);
+    try utils.expectRuleCount(
+        result,
+        "blank_doc_comment",
+        1,
+    );
     try testing.expectEqual(.namespace, result.diagnostics.items[0].subject.?.kind);
-    try testing.expect(std.mem.endsWith(u8, result.diagnostics.items[0].file, "enums.zig"));
-}
-
-test "member-only re-export does not require module doc on imported file" {
-    const path = try harness.scenarioProjectRootPath("reexport_member_only_no_module_doc");
-    defer std.testing.allocator.free(path);
-
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{
-        .missing_doc_comment = .deny,
-        .blank_doc_comment = .warn,
-    }));
-    defer result.deinit();
-    try utils.expectRuleAbsent(result, "missing_doc_comment");
-    try utils.expectRuleAbsent(result, "blank_doc_comment");
-}
-
-test "misplaced_doc_comment flags doc comments on whole-module and member re-exports" {
-    const path = try harness.scenarioProjectRootPath("reexport_redundant_doc_comments");
-    defer std.testing.allocator.free(path);
-
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .misplaced_doc_comment = .warn }));
-    defer result.deinit();
-
-    try utils.expectRuleCount(result, "misplaced_doc_comment", 2);
-
-    try testing.expectEqual(@as(usize, 3), result.diagnostics.items[0].line);
-    try testing.expectEqualStrings("helpers", result.diagnostics.items[0].subject.?.name);
-
-    try testing.expectEqual(@as(usize, 6), result.diagnostics.items[1].line);
-    try testing.expectEqualStrings("greet", result.diagnostics.items[1].subject.?.name);
-}
-
-test "misplaced_doc_comment flags doc comments even when the imported declaration is undocumented" {
-    const path = try harness.scenarioProjectRootPath("reexport_non_redundant_doc_comments");
-    defer std.testing.allocator.free(path);
-
-    var result = try docent.lintFile(std.testing.allocator, std.testing.io, path, .{}, &.{}, harness.docConfig(.{ .misplaced_doc_comment = .warn }));
-    defer result.deinit();
-
-    try utils.expectRuleCount(result, "misplaced_doc_comment", 3);
+    try testing.expect(std.mem.endsWith(
+        u8,
+        result.diagnostics.items[0].file,
+        "enums.zig",
+    ));
 }
