@@ -1,7 +1,6 @@
 //! The `invalid_leading_phrase` namespace offers implementations and utilities for invalid leading phrases on doc comment summaries.
 //!
-//! This rule is inspired by [Go's documentation style guidelines](https://go.dev/doc/comment),
-//! adapted to Zig declaration kinds (functions, structs, error sets, namespaces, modules).
+//! This rule is inspired by [Go's documentation style guidelines](https://go.dev/doc/comment), adapted to Zig declaration kinds (functions, structs, error sets, namespaces, modules).
 //!
 //! ## Go → Zig mapping
 //!
