@@ -29,6 +29,7 @@ pub const missing_summary_terminal_punctuation = @import(
     "doc/missing_summary_terminal_punctuation.zig",
 );
 pub const invalid_leading_phrase = @import("doc/invalid_leading_phrase.zig");
+pub const invalid_boolean_summary = @import("doc/invalid_boolean_summary.zig");
 pub const misplaced_doc_comment = @import("doc/misplaced_doc_comment.zig");
 
 /// The `doc` configuration: the category-wide scan mode plus each rule's config, decoded generically and resolved in place.
@@ -43,6 +44,7 @@ pub const Doc = struct {
     private_doctest: private_doctest.Rule = .{},
     doctest_naming_mismatch: doctest_naming_mismatch.Rule = .{},
     invalid_leading_phrase: invalid_leading_phrase.Rule = .{},
+    invalid_boolean_summary: invalid_boolean_summary.Rule = .{},
     // Imported bindings are never a useful location for a doc comment, even when private.
     misplaced_doc_comment: misplaced_doc_comment.Rule = .{ .scan_mode = .reachability_traversal },
 

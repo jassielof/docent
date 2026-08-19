@@ -232,6 +232,15 @@ pub fn lintSource(
         msg,
         &result.diagnostics,
     );
+    try rules.doc.invalid_boolean_summary.check(
+        &tree,
+        doc_cfg.invalid_boolean_summary,
+        file_owned,
+        options.module_name,
+        allocator,
+        msg,
+        &result.diagnostics,
+    );
     try rules.doc.misplaced_doc_comment.check(
         &tree,
         doc_cfg.misplaced_doc_comment,

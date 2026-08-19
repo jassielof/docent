@@ -11,7 +11,9 @@ pub const extract = @import("extract.zig");
 pub const containerDocBlockIsFullyBlank = extract.containerDocBlockIsFullyBlank;
 pub const exposedSourceFileSubjectKind = extract.exposedSourceFileSubjectKind;
 pub const fileIsNamespace = extract.fileIsNamespace;
+pub const fnReturnsPlainBool = extract.fnReturnsPlainBool;
 pub const hasContainerDocComment = extract.hasContainerDocComment;
+pub const resolveDocCommentFnDecl = extract.resolveDocCommentFnDecl;
 pub const resolveDocCommentSubject = extract.resolveDocCommentSubject;
 pub const shouldCheckDocCommentTarget = extract.shouldCheckDocCommentTarget;
 // Convenience re-exports of the most-used extract APIs.

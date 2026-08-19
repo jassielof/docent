@@ -295,6 +295,7 @@ pub const RuleCategory = enum {
             "trailing_blank_doc_comment",
             "doctest_naming_mismatch",
             "invalid_leading_phrase",
+            "invalid_boolean_summary",
             "misplaced_doc_comment",
         };
         for (doc_rules) |name| {

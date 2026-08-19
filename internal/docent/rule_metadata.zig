@@ -54,6 +54,11 @@ fn proseTitleForRule(comptime rule_name: []const u8) []const u8 {
     if (std.mem.eql(
         u8,
         rule_name,
+        "invalid_boolean_summary",
+    )) return rules.doc.invalid_boolean_summary.prose_title;
+    if (std.mem.eql(
+        u8,
+        rule_name,
         "misplaced_doc_comment",
     )) return rules.doc.misplaced_doc_comment.prose_title;
     if (std.mem.eql(

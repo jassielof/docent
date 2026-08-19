@@ -18,6 +18,7 @@ missing_summary_terminal_punctuation: severity.Level = doc.missing_summary_termi
 trailing_blank_doc_comment: severity.Level = doc.trailing_blank_doc_comment.default_severity,
 doctest_naming_mismatch: severity.Level = doc.doctest_naming_mismatch.default_severity,
 invalid_leading_phrase: severity.Level = doc.invalid_leading_phrase.default_severity,
+invalid_boolean_summary: severity.Level = doc.invalid_boolean_summary.default_severity,
 misplaced_doc_comment: severity.Level = doc.misplaced_doc_comment.default_severity,
 cognitive_complexity: severity.Level = complexity.cognitive.default_severity,
 cyclomatic_complexity: severity.Level = complexity.cyclomatic.default_severity,

@@ -324,6 +324,73 @@ fn varDeclSubjectKind(tree: *const Ast, var_decl: Ast.full.VarDecl) SubjectKind 
     return .constant;
 }
 
+/// Locates the `fn_decl` node a doc comment documents, or `null` when the documented declaration isn't a function.
+pub fn resolveDocCommentFnDecl(
+    tree: *const Ast,
+    documented_first_token: Ast.TokenIndex,
+) ?Ast.Node.Index {
+    for (tree.rootDecls()) |decl| {
+        if (findFnDeclNode(
+            tree,
+            documented_first_token,
+            decl,
+        )) |node| return node;
+    }
+    return null;
+}
+
+/// True when `fn_node`'s declared return type is the plain `bool` identifier (not an error union, optional, or generic type).
+pub fn fnReturnsPlainBool(tree: *const Ast, fn_node: Ast.Node.Index) bool {
+    var buf: [1]Ast.Node.Index = undefined;
+    const proto = tree.fullFnProto(&buf, fn_node) orelse return false;
+    const return_type = proto.ast.return_type.unwrap() orelse return false;
+    if (tree.nodeTag(return_type) != .identifier) return false;
+    return std.mem.eql(u8, tree.tokenSlice(tree.nodeMainToken(return_type)), "bool");
+}
+
+fn findFnDeclNode(
+    tree: *const Ast,
+    documented_first_token: Ast.TokenIndex,
+    node: Ast.Node.Index,
+) ?Ast.Node.Index {
+    if (tree.firstToken(node) == documented_first_token) {
+        return if (tree.nodeTag(node) == .fn_decl) node else null;
+    }
+
+    if (tree.fullVarDecl(node)) |var_decl| {
+        const init_node = var_decl.ast.init_node.unwrap() orelse return null;
+        if (isContainerDecl(tree.nodeTag(init_node))) {
+            var buf: [2]Ast.Node.Index = undefined;
+            if (tree.fullContainerDecl(&buf, init_node)) |container| {
+                for (container.ast.members) |member| {
+                    if (findFnDeclNode(
+                        tree,
+                        documented_first_token,
+                        member,
+                    )) |found| return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    const tag = tree.nodeTag(node);
+    if (isContainerDecl(tag)) {
+        var buf: [2]Ast.Node.Index = undefined;
+        if (tree.fullContainerDecl(&buf, node)) |container| {
+            for (container.ast.members) |member| {
+                if (findFnDeclNode(
+                    tree,
+                    documented_first_token,
+                    member,
+                )) |found| return found;
+            }
+        }
+    }
+
+    return null;
+}
+
 fn isContainerDecl(tag: Ast.Node.Tag) bool {
     return switch (tag) {
         .container_decl,
