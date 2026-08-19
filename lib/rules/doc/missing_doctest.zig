@@ -126,3 +126,118 @@ fn collectDecl(
         return;
     }
 }
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        "<test>",
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+const warn_rule: Rule = .{ .level = .warn };
+
+test "detects missing doctest for pub fn, names the function" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("foo", diagnostics.items[0].subject.?.name);
+}
+
+test "no diagnostic when doctest exists" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo() void {}
+        \\test foo {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "no diagnostic for private fn" {
+    const source =
+        \\fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "reports each pub fn independently in a multi-function file" {
+    const source =
+        \\//! Module with missing doctests.
+        \\
+        \\/// Does something important.
+        \\pub fn important() void {}
+        \\
+        \\/// Does something else.
+        \\pub fn other() void {}
+        \\
+        \\test other {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("important", diagnostics.items[0].subject.?.name);
+}
+
+comptime {
+    std.testing.refAllDecls(@This());
+}

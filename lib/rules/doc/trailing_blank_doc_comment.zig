@@ -96,3 +96,186 @@ pub fn check(
         }
     }
 }
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        "<test>",
+        null,
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+const warn_rule: Rule = .{ .level = .warn };
+
+test "detects trailing blank /// line" {
+    const source =
+        \\/// Adds two numbers together.
+        \\///
+        \\pub fn add(x: i32, y: i32) i32 {
+        \\    return x + y;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.function, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("add", diagnostics.items[0].subject.?.name);
+}
+
+test "detects multiple trailing blank /// lines once" {
+    const source =
+        \\/// Text.
+        \\///
+        \\///
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(@as(usize, 2), diagnostics.items[0].line);
+}
+
+test "no diagnostic for internal blank lines" {
+    const source =
+        \\/// This should
+        \\///
+        \\/// be valid
+        \\pub fn add(x: i32, y: i32) i32 {
+        \\    return x + y;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "no diagnostic when block ends with content" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "no diagnostic for fully blank block" {
+    const source =
+        \\///
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "detects trailing blank on //! module doc" {
+    const source =
+        \\//! Module docs.
+        \\//!
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.module, diagnostics.items[0].subject.?.kind);
+}
+
+test "detects trailing blank /// on enum enumerator" {
+    const source =
+        \\pub const Color = enum {
+        \\    /// Red.
+        \\    ///
+        \\    red,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.enumerator, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("red", diagnostics.items[0].subject.?.name);
+}
+
+comptime {
+    std.testing.refAllDecls(@This());
+}

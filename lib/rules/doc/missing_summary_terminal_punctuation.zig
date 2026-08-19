@@ -106,3 +106,224 @@ pub fn check(
         });
     }
 }
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        "<test>",
+        null,
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+const warn_rule: Rule = .{ .level = .warn };
+
+test "detects missing terminal punctuation on /// comment" {
+    const source =
+        \\/// Adds two numbers together
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("add", diagnostics.items[0].subject.?.name);
+}
+
+test "well-punctuated summary is clean" {
+    const source =
+        \\/// Adds two numbers together.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "accepts exclamation and question marks" {
+    const source =
+        \\/// Watch out!
+        \\pub fn a() void {}
+        \\/// Really?
+        \\pub fn b() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "only first paragraph is checked" {
+    const source =
+        \\/// Summary sentence.
+        \\///
+        \\/// Second paragraph without punctuation
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "multiline summary within first paragraph" {
+    const source =
+        \\/// Adds two integers and returns
+        \\/// the sum
+        \\pub fn add(a: u32, b: u32) u32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "multiline summary with punctuation is clean" {
+    const source =
+        \\/// Adds two integers and returns
+        \\/// the sum.
+        \\pub fn add(a: u32, b: u32) u32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "blank doc comment is skipped" {
+    const source =
+        \\///
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "detects missing punctuation on //! module doc" {
+    const source =
+        \\//! Module overview
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.module, diagnostics.items[0].subject.?.kind);
+}
+
+test "enum member summary punctuation" {
+    const source =
+        \\pub const Color = enum {
+        \\    /// Primary red
+        \\    red,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.enumerator, diagnostics.items[0].subject.?.kind);
+}
+
+comptime {
+    std.testing.refAllDecls(@This());
+}

@@ -115,3 +115,94 @@ fn stripQuotes(s: []const u8) []const u8 {
 
     return s;
 }
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        "<test>",
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+const warn_rule: Rule = .{ .level = .warn };
+
+test "detects string test name matching pub fn, shows correction" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo() void {}
+        \\test "foo" {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("foo", diagnostics.items[0].subject.?.name);
+}
+
+test "no diagnostic for identifier test name" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo() void {}
+        \\test foo {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "no diagnostic for string test not matching any pub fn" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo() void {}
+        \\test "bar" {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+comptime {
+    std.testing.refAllDecls(@This());
+}

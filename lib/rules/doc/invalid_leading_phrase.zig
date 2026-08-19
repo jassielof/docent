@@ -369,3 +369,546 @@ fn wordCore(word: []const u8) []const u8 {
         "`.,;:!?()'\"",
     );
 }
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    module_name: ?[]const u8,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        "<test>",
+        module_name,
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+const warn_rule: Rule = .{ .level = .warn };
+const warn_public: Rule = .{ .level = .warn, .scan_mode = .public_api_surface };
+const warn_all: Rule = .{ .level = .warn, .scan_mode = .reachability_traversal };
+
+fn expectSubjectKind(diagnostics: []const Diagnostic, kind: Diagnostic.SubjectKind) !void {
+    for (diagnostics) |d| {
+        if (!std.mem.eql(
+            u8,
+            d.rule,
+            rule_name,
+        )) continue;
+        try std.testing.expectEqual(kind, d.subject.?.kind);
+        return;
+    }
+    return error.TestExpectedEqual;
+}
+
+test "accepts identifier-first summary on a function" {
+    const source =
+        \\/// add returns the sum.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "accepts kind word before backticked identifier" {
+    const source =
+        \\/// Function `add` returns the sum.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "warns when summary omits the identifier" {
+    const source =
+        \\/// Returns the sum of two integers.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.function, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("add", diagnostics.items[0].subject.?.name);
+}
+
+test "warns on identifier case mismatch for declarations" {
+    const source =
+        \\/// Add returns the sum.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "accepts struct documented with article and trailing kind" {
+    const source =
+        \\/// The `InitOptions` struct configures setup.
+        \\pub const InitOptions = struct { a: i32 };
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "accepts error set with article and trailing kind" {
+    const source =
+        \\/// The ParseError error set lists failures.
+        \\pub const ParseError = error{ Bad };
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "accepts constant identifier first" {
+    const source =
+        \\/// pi represents the mathematical constant.
+        \\pub const pi = 3.14;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "module doc accepts case-insensitive name with kind word" {
+    const source =
+        \\//! Module docent provides linting.
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        "docent",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "module doc warns when name is absent" {
+    const source =
+        \\//! Provides linting utilities.
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        "docent",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try expectSubjectKind(diagnostics.items, .module);
+}
+
+test "no diagnostic for undocumented or unresolved blocks" {
+    const source =
+        \\/// add returns the sum.
+        \\
+        \\pub fn add() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "accepts enumerator identifier first" {
+    const source =
+        \\pub const Color = enum {
+        \\    /// red is the warm primary.
+        \\    red,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "no diagnostic for private function doc comment" {
+    const source =
+        \\/// Returns something.
+        \\fn matchKindPhrase() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "warns on public function when public_api_only" {
+    const source =
+        \\/// Returns something.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "private function checked when public_api_only is false" {
+    const source =
+        \\/// Returns something.
+        \\fn hidden() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_all,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "require_kind rejects identifier-first function summary without kind" {
+    const source =
+        \\/// add returns the sum.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .require_kind = true },
+        },
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "require_kind accepts kind-before identifier summary" {
+    const source =
+        \\/// Function `add` returns the sum.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .require_kind = true },
+        },
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "require_kind accepts kind-after identifier summary" {
+    const source =
+        \\/// The `InitOptions` struct configures setup.
+        \\pub const InitOptions = struct { a: i32 };
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .require_kind = true },
+        },
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "rejects kind in both places" {
+    const source =
+        \\/// Struct `InitOptions` struct configures setup.
+        \\pub const InitOptions = struct { a: i32 };
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_public,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "require_article rejects summary without article" {
+    const source =
+        \\/// Function `add` returns the sum.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .require_article = true },
+        },
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "require_article accepts summary with article" {
+    const source =
+        \\/// The function `add` returns the sum.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .require_article = true },
+        },
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "require_backticks rejects bare identifier" {
+    const source =
+        \\/// Function add returns the sum.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .require_backticks = true },
+        },
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "require_backticks accepts backticked identifier" {
+    const source =
+        \\/// Function `add` returns the sum.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{
+            .level = .warn,
+            .scan_mode = .public_api_surface,
+            .options = .{ .require_backticks = true },
+        },
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+comptime {
+    std.testing.refAllDecls(@This());
+}

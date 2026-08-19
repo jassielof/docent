@@ -622,6 +622,876 @@ test "private function parameters are not checked under public_api_only" {
     try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
 }
 
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    file: []const u8,
+    require_module_doc: bool,
+    module_name: ?[]const u8,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        file,
+        require_module_doc,
+        module_name,
+        allocator,
+        std.testing.io,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+const deny_rule: Rule = .{ .level = .deny };
+
+test "compliant_pub_declarations has no violations" {
+    const source =
+        \\//! A fully compliant module with all public declarations documented.
+        \\
+        \\/// Adds two numbers together.
+        \\pub fn add(a: i32, b: i32) i32 {
+        \\    return a + b;
+        \\}
+        \\
+        \\/// A point in 2D space.
+        \\pub const Point = struct {
+        \\    /// The x coordinate.
+        \\    x: f64,
+        \\    /// The y coordinate.
+        \\    y: f64,
+        \\};
+        \\
+        \\/// The application version.
+        \\pub const version = "1.0.0";
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "undocumented_pub_declarations skips fields by default and reports at deny severity" {
+    const source =
+        \\//! Module with missing doc comments.
+        \\
+        \\pub fn undocumented_fn() void {}
+        \\
+        \\pub const undocumented_const = 42;
+        \\
+        \\/// Documented struct but fields are not.
+        \\pub const MyStruct = struct {
+        \\    x: u32,
+        \\    y: u32,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 2), diagnostics.items.len);
+    for (diagnostics.items) |d| try std.testing.expectEqual(severity.Level.deny, d.severity_level);
+}
+
+test "undocumented public struct is reported as a structure" {
+    const source =
+        \\pub const Node = struct {
+        \\    value: u32,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.structure, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("Node", diagnostics.items[0].subject.?.name);
+}
+
+test "private_struct_members_allowed does not require private field docs" {
+    const source =
+        \\//! Fixture module.
+        \\
+        \\/// Documented
+        \\pub const hello = "world";
+        \\
+        \\// Since the struct is private, omit everything about it, including its members and functions even public ones.
+        \\const PrivateStruct = struct {
+        \\    step: i32,
+        \\    color: []const u8,
+        \\
+        \\    fn hello() void {}
+        \\    pub fn world() void {}
+        \\};
+        \\
+        \\/// Documented
+        \\pub const PublicStruct = struct {
+        \\    /// Documented
+        \\    step: i32,
+        \\    /// Documented
+        \\    color: []const u8,
+        \\
+        \\    fn hello() void {}
+        \\    /// Documented
+        \\    pub fn world() void {}
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "pub_struct_undocumented_members skips undocumented fields by default" {
+    const source =
+        \\//! Fixture module.
+        \\
+        \\/// Documented
+        \\pub const hello = "world";
+        \\
+        \\/// Documented container; members below intentionally lack docs (invalid case).
+        \\pub const PublicStruct = struct {
+        \\    step: i32,
+        \\    color: []const u8,
+        \\
+        \\    fn hello() void {}
+        \\    pub fn world() void {}
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "detects missing module doc comment on entry root" {
+    const source =
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "root.zig",
+        true,
+        "fixture",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 2), diagnostics.items.len);
+    try std.testing.expectEqual(.module, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("fixture", diagnostics.items[0].subject.?.name);
+}
+
+test "no module doc diagnostic when //! present" {
+    const source =
+        \\//! Module documentation.
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "root.zig",
+        true,
+        "fixture",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.function, diagnostics.items[0].subject.?.kind);
+}
+
+test "no module doc check when require_module_doc is false" {
+    const source =
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expect(diagnostics.items[0].subject.?.kind != .module);
+}
+
+test "no extra module doc required inside pub const struct body" {
+    const source =
+        \\//! Module doc.
+        \\/// Documented struct.
+        \\pub const MyStruct = struct {
+        \\    /// Documented field.
+        \\    x: u32,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "root.zig",
+        true,
+        "mylib",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "detects missing doc comment on pub fn, names the symbol" {
+    const source =
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("foo", diagnostics.items[0].subject.?.name);
+    try std.testing.expectEqual(@as(usize, 3), diagnostics.items[0].symbol_len);
+}
+
+test "no diagnostic for documented pub fn" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "no diagnostic for private fn" {
+    const source =
+        \\fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "detects missing doc comment on pub const, names the symbol" {
+    const source =
+        \\pub const answer = 42;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("answer", diagnostics.items[0].subject.?.name);
+    try std.testing.expectEqual(.constant, diagnostics.items[0].subject.?.kind);
+}
+
+test "detects missing doc comment on pub const error set" {
+    const source =
+        \\pub const MyErr = error{ OutOfMemory };
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 2), diagnostics.items.len);
+    try std.testing.expectEqual(.error_set, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("MyErr", diagnostics.items[0].subject.?.name);
+    try std.testing.expectEqual(.error_value, diagnostics.items[1].subject.?.kind);
+    try std.testing.expectEqualStrings("OutOfMemory", diagnostics.items[1].subject.?.name);
+}
+
+test "error members are skipped when check_errors is disabled" {
+    const source =
+        \\pub const MyErr = error{ OutOfMemory };
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .deny, .options = .{ .check_errors = false } },
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.error_set, diagnostics.items[0].subject.?.kind);
+}
+
+test "documented error members are accepted" {
+    const source =
+        \\pub const MyErr = error{
+        \\    /// Out of memory.
+        \\    OutOfMemory,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.error_set, diagnostics.items[0].subject.?.kind);
+}
+
+test "container fields are not checked by default" {
+    const source =
+        \\/// A struct.
+        \\pub const S = struct {
+        \\    x: u32,
+        \\    y: u32,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "detects missing doc comment on container fields when enabled" {
+    const source =
+        \\/// A struct.
+        \\pub const S = struct {
+        \\    x: u32,
+        \\    y: u32,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .deny, .options = .{ .check_fields = true } },
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 2), diagnostics.items.len);
+    try std.testing.expectEqualStrings("x", diagnostics.items[0].subject.?.name);
+    try std.testing.expectEqual(.field, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("y", diagnostics.items[1].subject.?.name);
+    try std.testing.expectEqual(.field, diagnostics.items[1].subject.?.kind);
+}
+
+test "enumerators are not checked by default" {
+    const source =
+        \\pub const Color = enum {
+        \\    red,
+        \\    green,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.enumeration, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("Color", diagnostics.items[0].subject.?.name);
+}
+
+test "detects missing doc comment on enumerators when enabled" {
+    const source =
+        \\pub const Color = enum {
+        \\    red,
+        \\    green,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .deny, .options = .{ .check_enumerators = true } },
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 3), diagnostics.items.len);
+    try std.testing.expectEqual(.enumerator, diagnostics.items[1].subject.?.kind);
+    try std.testing.expectEqualStrings("red", diagnostics.items[1].subject.?.name);
+    try std.testing.expectEqual(.enumerator, diagnostics.items[2].subject.?.kind);
+    try std.testing.expectEqualStrings("green", diagnostics.items[2].subject.?.name);
+}
+
+test "no diagnostic for private const struct members and pub fn inside" {
+    const source =
+        \\const PrivateStruct = struct {
+        \\    step: i32,
+        \\    color: []const u8,
+        \\    pub fn world() void {}
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "location points to name token, not keyword" {
+    const source =
+        \\pub fn myFunc() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(@as(usize, 8), diagnostics.items[0].column);
+}
+
+test "source_line is populated" {
+    const source =
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("pub fn foo() void {}", diagnostics.items[0].source_line);
+}
+
+test "re-export via an unresolvable import produces no false positive" {
+    const source =
+        \\pub const Foo = @import("definitely_nonexistent_xyz.zig").Bar;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "re-export through a local import alias produces no false positive" {
+    const source =
+        \\const helpers = @import("helpers.zig");
+        \\pub const greet = helpers.greet;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "nested member alias through a local import produces no false positive" {
+    const source =
+        \\const Document = @import("Document.zig");
+        \\
+        \\pub const tag = Document.Node.Tag.blockquote;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "re-export of a named module import produces no false positive" {
+    const source =
+        \\const rules = @import("rules");
+        \\pub const Doc = rules.doc.Doc;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "function parameters are not checked by default" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo(allocator: std.mem.Allocator, value: u32) void {
+        \\    _ = allocator;
+        \\    _ = value;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "undocumented function parameters are reported when enabled" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo(
+        \\    /// The allocator.
+        \\    allocator: std.mem.Allocator,
+        \\    value: u32,
+        \\) void {
+        \\    _ = allocator;
+        \\    _ = value;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .deny, .options = .{ .check_parameters = true } },
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.parameter, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("value", diagnostics.items[0].subject.?.name);
+}
+
+test "all documented function parameters are accepted when enabled" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo(
+        \\    /// The allocator.
+        \\    allocator: std.mem.Allocator,
+        \\    /// The value.
+        \\    value: u32,
+        \\) void {
+        \\    _ = allocator;
+        \\    _ = value;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .deny, .options = .{ .check_parameters = true } },
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "unnamed and varargs parameters are skipped when enabled" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo(_: u32, args: anytype, ...) void {
+        \\    _ = args;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        .{ .level = .deny, .options = .{ .check_parameters = true } },
+        "<test>",
+        false,
+        null,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("args", diagnostics.items[0].subject.?.name);
+}
+
+test "missing_module_doc_on_entry reports missing module doc comment" {
+    const source =
+        \\pub const version = "0.0.0";
+        \\
+        \\pub fn ping() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        deny_rule,
+        "root.zig",
+        true,
+        "fixture",
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 3), diagnostics.items.len);
+
+    var module_doc_count: usize = 0;
+    for (diagnostics.items) |d| {
+        if (d.subject != null and d.subject.?.kind == .module and std.mem.eql(
+            u8,
+            d.subject.?.name,
+            "fixture",
+        )) {
+            module_doc_count += 1;
+        }
+    }
+    try std.testing.expectEqual(@as(usize, 1), module_doc_count);
+}
+
 comptime {
     std.testing.refAllDecls(@This());
 }

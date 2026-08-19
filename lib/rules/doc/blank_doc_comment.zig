@@ -299,3 +299,241 @@ fn onBlankWholeModuleReexport(
         .symbol_len = if (tree.tokens.len > 0) tree.tokenSlice(0).len else source_basename.len,
     });
 }
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    file: []const u8,
+    is_module_entry: bool,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        file,
+        null,
+        is_module_entry,
+        allocator,
+        std.testing.io,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+const warn_rule: Rule = .{ .level = .warn };
+
+test "detects blank /// comment" {
+    const source =
+        \\///
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        "<test>",
+        false,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.function, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("foo", diagnostics.items[0].subject.?.name);
+    try std.testing.expectEqual(@as(usize, 3), diagnostics.items[0].symbol_len);
+}
+
+test "detects blank /// on enum enumerator" {
+    const source =
+        \\pub const Color = enum {
+        \\    ///
+        \\    red,
+        \\};
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        "<test>",
+        false,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.enumerator, diagnostics.items[0].subject.?.kind);
+    try std.testing.expectEqualStrings("red", diagnostics.items[0].subject.?.name);
+}
+
+test "detects blank /// with spaces" {
+    const source =
+        \\///
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        "<test>",
+        false,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "no diagnostic for non-empty doc comment" {
+    const source =
+        \\/// Does something.
+        \\pub fn foo() void {}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        "<test>",
+        false,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "detects blank //! comment on module entry" {
+    const source =
+        \\//!
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        "root.zig",
+        true,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.module, diagnostics.items[0].subject.?.kind);
+}
+
+test "blank //! on non-entry file uses namespace subject" {
+    const source =
+        \\//!
+        \\pub const x = 1;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        "<test>",
+        false,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqual(.namespace, diagnostics.items[0].subject.?.kind);
+}
+
+test "detects fully blank multiline /// comment block once" {
+    const source =
+        \\///
+        \\///
+        \\pub fn add(x: i32, y: i32) i32 {
+        \\    return x + y;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        "<test>",
+        false,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+}
+
+test "no diagnostic for multiline block with at least one non-empty line" {
+    const source =
+        \\/// This should
+        \\///
+        \\/// be valid
+        \\pub fn add(x: i32, y: i32) i32 {
+        \\    return x + y;
+        \\}
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        "<test>",
+        false,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "member re-export does not trigger whole-module blank check" {
+    const source =
+        \\pub const Level = @import("severity.zig").Level;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        "<test>",
+        false,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+comptime {
+    std.testing.refAllDecls(@This());
+}

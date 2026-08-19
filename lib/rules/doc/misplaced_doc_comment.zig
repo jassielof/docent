@@ -217,3 +217,125 @@ fn pubVarDeclSubjectKind(tree: *const Ast, var_decl: Ast.full.VarDecl) Diagnosti
     if (utils.isEnumContainer(tree, init_node)) return .enumeration;
     return .constant;
 }
+
+fn runCheck(
+    source: [:0]const u8,
+    rule: Rule,
+    diagnostics: *std.ArrayList(Diagnostic),
+    msg_allocator: std.mem.Allocator,
+) !void {
+    const allocator = std.testing.allocator;
+    var tree = try std.zig.Ast.parse(
+        allocator,
+        source,
+        .zig,
+    );
+    defer tree.deinit(allocator);
+
+    try check(
+        &tree,
+        rule,
+        "<test>",
+        null,
+        allocator,
+        msg_allocator,
+        diagnostics,
+    );
+}
+
+const warn_rule: Rule = .{ .level = .warn };
+
+test "flags a doc comment on a whole-module re-export" {
+    const source =
+        \\/// Redundant doc comment on whole-module re-export
+        \\pub const my_helper = @import("redundant_helper.zig");
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("my_helper", diagnostics.items[0].subject.?.name);
+    try std.testing.expectEqualStrings(
+        "move it to the declaration in the imported module",
+        diagnostics.items[0].detail.?,
+    );
+}
+
+test "flags a doc comment on a member re-export" {
+    const source =
+        \\const helper = @import("redundant_helper.zig");
+        \\/// Redundant doc comment on member re-export
+        \\pub const Foo = helper.Foo;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("Foo", diagnostics.items[0].subject.?.name);
+}
+
+test "no diagnostic for re-exports without a doc comment" {
+    const source =
+        \\const helper = @import("redundant_helper.zig");
+        \\
+        \\// No doc comment here, completely fine
+        \\pub const my_helper = helper;
+        \\
+        \\// No doc comment here, completely fine
+        \\pub const Foo = helper.Foo;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), diagnostics.items.len);
+}
+
+test "flags a doc comment on a member re-export even when the target is undocumented" {
+    const source =
+        \\const helper = @import("redundant_helper.zig");
+        \\
+        \\/// Doc comment on member that is NOT documented in target
+        \\pub const UndocumentedFoo = helper.UndocumentedFoo;
+    ;
+
+    var msg_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer msg_arena.deinit();
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    defer diagnostics.deinit(std.testing.allocator);
+    try runCheck(
+        source,
+        warn_rule,
+        &diagnostics,
+        msg_arena.allocator(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
+    try std.testing.expectEqualStrings("UndocumentedFoo", diagnostics.items[0].subject.?.name);
+}
+
+comptime {
+    std.testing.refAllDecls(@This());
+}
