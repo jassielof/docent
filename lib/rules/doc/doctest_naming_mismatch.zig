@@ -35,7 +35,7 @@ pub const prose_title = "Doctest naming mismatch";
 pub const Rule = category.Rule(
     default_severity,
     struct {},
-    scan.RuleScanConfig.public_api_surface,
+    scan.RuleScanConfig.public_declarations,
 );
 
 /// Walks `tree` and appends diagnostics when doctest names disagree with declarations.
@@ -49,7 +49,7 @@ pub fn check(
 ) !void {
     if (!rule.level.isActive()) return;
     const severity_level = rule.level;
-    const public_api_only = rule.publicApiOnly();
+    const public_api_only = rule.publicDeclarationsOnly();
 
     var pub_fn_names = std.StringHashMap(void).init(allocator);
     defer pub_fn_names.deinit();

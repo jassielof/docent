@@ -2,8 +2,8 @@
 const lint = @import("lint");
 const category = lint.category;
 const scan = lint.scan;
-/// Default scan mode for style rules; `reachability_traversal` because naming and layout apply to every reachable declaration, not just the public surface.
-pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
+/// Default scan mode for style rules; `all_declarations` because naming and layout apply to every reachable declaration, not just the public surface.
+pub const default_scan_mode = scan.RuleScanConfig.all_declarations;
 
 // TODO: Add a rule that promotes using root-based imports for relateive imports, e.g. instead of `const foo = @import("../foo.zig")` use `@import("root").foo` or `const root = @import("root"); const foo = root.foo;`, to improve readability, and ease of imports, what would be allowed is relative imports for files in the current directory or subdirectories, but not for files in parent directories.
 pub const identifier_case = @import("style/identifier_case.zig");

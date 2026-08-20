@@ -84,7 +84,7 @@ fn run(ctx: *fangz.ParseContext, mode: Mode) !void {
     var analyzed_files = docent.scan.target.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
-    _ = try analyzeReachableTargets(
+    _ = try analyzePlanFiles(
         allocator,
         io,
         &plan,
@@ -111,7 +111,7 @@ fn run(ctx: *fangz.ParseContext, mode: Mode) !void {
     if (summary.errors > 0 or summary.warnings > 0) std.process.exit(1);
 }
 
-pub fn analyzeReachableTargets(
+pub fn analyzePlanFiles(
     allocator: std.mem.Allocator,
     io: std.Io,
     plan: *const docent.status_plan.Plan,

@@ -27,8 +27,8 @@ pub fn Rule(
         pub const Options = OptionsType;
 
         /// Returns whether checks skip non-public declarations, resolving an unset `scan_mode` to the category default.
-        pub fn publicApiOnly(self: @This()) bool {
-            return (self.scan_mode orelse default_scan).publicApiOnly();
+        pub fn publicDeclarationsOnly(self: @This()) bool {
+            return (self.scan_mode orelse default_scan).publicDeclarationsOnly();
         }
     };
 }

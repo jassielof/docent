@@ -37,19 +37,6 @@ fn run(ctx: *fangz.ParseContext) !void {
         std.process.exit(1);
     };
 
-    const doc_scan_mode = docent.config.loadDocScanModeFromCli(
-        allocator,
-        io,
-        args.config_path,
-    ) catch |err| {
-        try check_shared.printStderr(
-            io,
-            "error: {s}\n",
-            .{docent.config.formatError(err)},
-        );
-        std.process.exit(1);
-    };
-
     var plan = check_shared.gatherPlan(
         allocator,
         io,
@@ -78,7 +65,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     defer linted_files.deinit();
 
     const library_entry_roots: []const []const u8 = &.{};
-    const lint_options: docent.LintOptions = .{ .scan_mode = doc_scan_mode };
+    const lint_options: docent.LintOptions = .{ .scan_mode = doc_cfg.scan_mode };
 
     for (plan.extra_lint_files) |path| {
         const gptr = try linted_files.getOrPut(path);

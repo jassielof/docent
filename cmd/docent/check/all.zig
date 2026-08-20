@@ -142,7 +142,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         var analyzed_files = docent.scan.target.PathSet.init(allocator);
         defer analyzed_files.deinit(allocator);
 
-        if (try style_check.analyzeReachableTargets(
+        if (try style_check.analyzePlanFiles(
             allocator,
             io,
             &plan,
@@ -155,7 +155,7 @@ fn run(ctx: *fangz.ParseContext) !void {
             should_stop = true;
         } else {
             analyzed_files.clear(allocator);
-            if (try complexity_check.analyzeReachableTargets(
+            if (try complexity_check.analyzePlanFiles(
                 allocator,
                 io,
                 &plan,
@@ -168,7 +168,7 @@ fn run(ctx: *fangz.ParseContext) !void {
                 should_stop = true;
             } else {
                 analyzed_files.clear(allocator);
-                if (try size_check.analyzeReachableTargets(
+                if (try size_check.analyzePlanFiles(
                     allocator,
                     io,
                     &plan,

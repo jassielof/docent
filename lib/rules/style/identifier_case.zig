@@ -90,7 +90,7 @@ pub const Options = struct {
 pub const Rule = category.Rule(
     default_severity,
     Options,
-    scan.RuleScanConfig.reachability_traversal,
+    scan.RuleScanConfig.all_declarations,
 );
 
 /// The expected case plus the diagnostic subject kind for a classified declaration.
@@ -103,7 +103,7 @@ const Classification = struct {
 ///
 /// When `public_api_only` is set, only public declarations (and the members of public containers) are
 /// checked; otherwise every declaration is checked. The `docent style` sub-command always passes
-/// `false`, measuring every identifier reachable from the module roots.
+/// `false`, measuring every identifier in the file.
 pub fn check(
     tree: *const Ast,
     rule: Rule,
@@ -116,7 +116,7 @@ pub fn check(
     if (!rule.level.isActive()) return;
     const severity_level = rule.level;
     const options = rule.options;
-    const public_api_only = rule.publicApiOnly();
+    const public_api_only = rule.publicDeclarationsOnly();
 
     try checkStructFileName(
         tree,
@@ -1070,8 +1070,8 @@ fn runCheck(
     );
 }
 
-const warn_reachability: Rule = .{ .level = .warn };
-const warn_public_api: Rule = .{ .level = .warn, .scan_mode = .public_api_surface };
+const warn_all_declarations: Rule = .{ .level = .warn };
+const warn_public_api: Rule = .{ .level = .warn, .scan_mode = .public_declarations };
 
 test "concrete function should be camelCase" {
     const source =
@@ -1084,7 +1084,7 @@ test "concrete function should be camelCase" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1105,7 +1105,7 @@ test "well-cased concrete function is clean" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1126,7 +1126,7 @@ test "type-returning function should be PascalCase" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1148,7 +1148,7 @@ test "well-cased generic function is clean" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1167,7 +1167,7 @@ test "global constant should be snake_case" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1189,7 +1189,7 @@ test "struct with fields should be PascalCase" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1211,7 +1211,7 @@ test "field-less container is a namespace and should be snake_case" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1255,7 +1255,7 @@ test "struct fields should be snake_case" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1278,7 +1278,7 @@ test "enum should be PascalCase and camel or Pascal enumerators are exempt" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1298,7 +1298,7 @@ test "error set should be PascalCase and error values too" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1319,7 +1319,7 @@ test "inline type-expression alias should be PascalCase" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1339,7 +1339,7 @@ test "well-cased inline type alias is clean" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1358,7 +1358,7 @@ test "idiomatic error set is clean" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1378,7 +1378,7 @@ test "function alias re-export is skipped" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1397,7 +1397,7 @@ test "quoted identifiers are exempt" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1435,7 +1435,7 @@ test "private declarations checked when public_api_only is false" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1454,7 +1454,7 @@ test "detail explains expected case" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1478,7 +1478,7 @@ test "struct_file_case snake_case accepts snake_case implicit struct file stem" 
         source,
         .{
             .level = .warn,
-            .scan_mode = .public_api_surface,
+            .scan_mode = .public_declarations,
             .options = .{ .struct_file_case = .snake },
         },
         "init_options.zig",
@@ -1591,7 +1591,7 @@ test "paired PascalCase struct name with snake_case filename stem is accepted un
         source,
         .{
             .level = .warn,
-            .scan_mode = .public_api_surface,
+            .scan_mode = .public_declarations,
             .options = .{ .struct_file_case = .snake },
         },
         "init_options.zig",
@@ -1635,7 +1635,7 @@ test "@This() alias in a namespace file should be snake_case" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1658,7 +1658,7 @@ test "snake_case @This() alias in a namespace file is clean" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "<test>",
         &diagnostics,
         msg_arena.allocator(),
@@ -1679,7 +1679,7 @@ test "@This() alias in a struct file should be PascalCase" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "Self.zig",
         &diagnostics,
         msg_arena.allocator(),
@@ -1702,7 +1702,7 @@ test "PascalCase @This() alias in a struct file is clean" {
     defer diagnostics.deinit(std.testing.allocator);
     try runCheck(
         source,
-        warn_reachability,
+        warn_all_declarations,
         "Self.zig",
         &diagnostics,
         msg_arena.allocator(),

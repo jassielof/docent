@@ -80,16 +80,11 @@ pub fn build(b: *std.Build) void {
             .{ .name = "cyclo", .module = cyclo_mod },
         },
     });
-
-    // Discovers which files/build targets the CLI should operate over: build.zig target parsing,
-    // CLI target-selection filtering, and import-graph reachability.
+    // Discovers filesystem paths and applies CLI selection filters.
     const project_scan_mod = b.addModule("project_scan", .{
         .root_source_file = b.path("lib/project_scan/root.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{
-            .{ .name = "carnaval", .module = carnaval_mod },
-        },
     });
 
     const mod = b.createModule(.{

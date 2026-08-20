@@ -30,7 +30,7 @@ pub const prose_title = "Missing summary terminal punctuation";
 pub const Rule = category.Rule(
     default_severity,
     struct {},
-    scan.RuleScanConfig.public_api_surface,
+    scan.RuleScanConfig.public_declarations,
 );
 
 /// Walks `tree` and appends diagnostics when the first doc-comment paragraph lacks `.`, `!`, or `?`.

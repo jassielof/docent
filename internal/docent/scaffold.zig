@@ -33,11 +33,6 @@ pub const LintStep = struct {
                 &.{},
             .rules_override = options.rules,
             .targeting = options.targeting orelse .{
-                .lib = options.lib,
-                .bins = options.bins,
-                .bin_names = options.bin_names orelse &.{},
-                .tests = options.tests,
-                .test_names = options.test_names orelse &.{},
                 .deps = options.deps,
                 .build_script = options.build_script,
                 .exclude_roots = options.exclude_roots orelse &.{},
@@ -106,16 +101,7 @@ pub const LintStep = struct {
         ) catch null;
         defer if (path_display_root) |p| allocator.free(p);
 
-        const project_root = path_display_root orelse ".";
-        const library_entry_roots = docent.collectLibraryEntryRoots(
-            allocator,
-            io,
-            project_root,
-        ) catch &.{};
-        defer {
-            for (library_entry_roots) |root| allocator.free(root);
-            allocator.free(library_entry_roots);
-        }
+        const library_entry_roots: []const []const u8 = &.{};
 
         var summary: docent.output.Summary = .{};
         var total_files: usize = 0;
@@ -339,16 +325,6 @@ pub const Options = struct {
     rules: ?docent.RuleSeverities = null,
     /// Full targeting options; when null, the other options are used.
     targeting: ?docent.scan.target.Options = null,
-    /// Lint library targets only (used when `targeting` is null).
-    lib: bool = false,
-    /// Lint all binary targets (used when `targeting` is null).
-    bins: bool = false,
-    /// Lint specific binaries by name (used when `targeting` is null).
-    bin_names: ?[]const []const u8 = null,
-    /// Lint all test targets (used when `targeting` is null).
-    tests: bool = false,
-    /// Lint specific tests by name (used when `targeting` is null).
-    test_names: ?[]const []const u8 = null,
     /// Also lint files under path dependencies from `build.zig.zon`.
     deps: bool = false,
     /// Include `build.zig` and `build/*.zig` in lint targets.

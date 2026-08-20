@@ -71,7 +71,7 @@ test "godoc preset loads documentation grammar and zig naming defaults" {
     try std.testing.expect(
         std.meta.eql(
             cfg.doc.scan_mode,
-            docent.scan.RuleScanConfig.public_api_surface,
+            docent.scan.RuleScanConfig.public_declarations,
         ),
     );
     try std.testing.expect(!cfg.doc.invalid_leading_phrase.options.require_kind);

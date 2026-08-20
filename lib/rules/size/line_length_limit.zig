@@ -39,7 +39,7 @@ pub const Options = struct {
 pub const Rule = category.Rule(
     default_severity,
     Options,
-    scan.RuleScanConfig.reachability_traversal,
+    scan.RuleScanConfig.all_declarations,
 );
 
 /// Walks `source` line by line and appends a diagnostic for every line wider than `options.max_length`.

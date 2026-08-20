@@ -109,60 +109,20 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
 
     var summary: docent.output.Summary = .{};
 
-    const library_entry_roots_owned = blk: {
-        if (plan.path_mode == .recursive) break :blk &.{};
-        if (plan.path_mode == .module_root) break :blk plan.module_entry_roots;
-        const roots = docent.collectLibraryEntryRoots(
-            allocator,
-            io,
-            plan.package.project_root,
-        ) catch &.{};
-        break :blk roots;
-    };
-    defer if (plan.path_mode == .project) {
-        for (library_entry_roots_owned) |root_path| allocator.free(root_path);
-        allocator.free(library_entry_roots_owned);
-    };
+    const library_entry_roots: []const []const u8 = &.{};
 
     const doc_opts = doc_options;
-    var style_opts = style_options;
-    var complexity_opts = complexity_options;
-    var size_opts = size_options;
-    if (plan.path_mode == .recursive) {
-        style_opts.applyRunScanMode(.reachability_traversal);
-        complexity_opts.applyRunScanMode(.reachability_traversal);
-        size_opts.applyRunScanMode(.reachability_traversal);
-    }
+    const style_opts = style_options;
+    const complexity_opts = complexity_options;
+    const size_opts = size_options;
 
-    const doc_lint_options: docent.LintOptions = switch (plan.path_mode) {
-        .project, .module_root => .{
-            .scan_mode = doc_opts.scan_mode,
-            .module_name = plan.package.name,
-        },
-        .recursive => .{ .scan_mode = doc_opts.scan_mode },
+    const doc_lint_options: docent.LintOptions = .{
+        .scan_mode = doc_opts.scan_mode,
+        .module_name = plan.package.name,
     };
 
     var linted_files = std.StringHashMap(void).init(allocator);
     defer linted_files.deinit();
-
-    for (plan.resolved_targets) |rt| {
-        if (rt.status != .linted) continue;
-        for (rt.files) |path| {
-            const gptr = try linted_files.getOrPut(path);
-            if (gptr.found_existing) continue;
-            _ = try doc_check.lintPlanFile(
-                allocator,
-                io,
-                path,
-                doc_lint_options,
-                library_entry_roots_owned,
-                doc_opts,
-                &all_diagnostics,
-                &summary,
-                .none,
-            );
-        }
-    }
 
     for (plan.extra_lint_files) |path| {
         const gptr = try linted_files.getOrPut(path);
@@ -172,7 +132,7 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
             io,
             path,
             doc_lint_options,
-            library_entry_roots_owned,
+            library_entry_roots,
             doc_opts,
             &all_diagnostics,
             &summary,
@@ -183,7 +143,7 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
     var analyzed_files = docent.scan.target.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
-    _ = try style_check.analyzeReachableTargets(
+    _ = try style_check.analyzePlanFiles(
         allocator,
         io,
         &plan,
@@ -194,7 +154,7 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         .none,
     );
     analyzed_files.clear(allocator);
-    _ = try complexity_check.analyzeReachableTargets(
+    _ = try complexity_check.analyzePlanFiles(
         allocator,
         io,
         &plan,
@@ -205,7 +165,7 @@ fn runSummary(ctx: *fangz.ParseContext) !void {
         .none,
     );
     analyzed_files.clear(allocator);
-    _ = try size_check.analyzeReachableTargets(
+    _ = try size_check.analyzePlanFiles(
         allocator,
         io,
         &plan,

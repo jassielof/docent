@@ -311,7 +311,7 @@ test "decode reads nested rule tables and section options" {
     try std.testing.expect(cfg.doc.missing_doc_comment.options.check_enumerators);
     try std.testing.expectEqual(severity.Level.allow, cfg.doc.missing_doctest.level);
     try std.testing.expect(
-        std.meta.eql(scan.RuleScanConfig.reachability_traversal, cfg.doc.scan_mode),
+        std.meta.eql(scan.RuleScanConfig.all_declarations, cfg.doc.scan_mode),
     );
     try std.testing.expectEqual(severity.Level.deny, cfg.complexity.cognitive_complexity.level);
     try std.testing.expectEqual(
@@ -469,10 +469,10 @@ test "scan modes default and override" {
     var cfg = try decode(arena.allocator(), root);
     defer cfg.deinit(arena.allocator());
     try std.testing.expect(
-        std.meta.eql(scan.RuleScanConfig.reachability_traversal, cfg.doc.scan_mode),
+        std.meta.eql(scan.RuleScanConfig.all_declarations, cfg.doc.scan_mode),
     );
     try std.testing.expect(
-        std.meta.eql(scan.RuleScanConfig.public_api_surface, cfg.complexity.scan_mode),
+        std.meta.eql(scan.RuleScanConfig.public_declarations, cfg.complexity.scan_mode),
     );
 }
 

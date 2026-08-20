@@ -81,7 +81,6 @@ fn run(ctx: *fangz.ParseContext) !void {
             .positionals = if (args.deps) &.{} else if (args.positionals.len > 0) args.positionals else cfg.check.include,
             .inherit_manifest_paths = !args.deps and args.positionals.len == 0 and cfg.check.inherit_manifest,
             .exclude_paths = cfg.check.exclude,
-            .color_profile = carnaval.colorProfileForHandle(std.Io.File.stdout().handle),
         },
     ) catch |err| {
         try printStderr(
@@ -171,7 +170,6 @@ pub fn printStatusReport(
     );
     if (plan.path_mode != .project) {
         const mode_label: []const u8 = switch (plan.path_mode) {
-            .module_root => "module root",
             .recursive => "recursive",
             .project => unreachable,
         };

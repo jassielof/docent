@@ -11,7 +11,7 @@ pub fn register(check: *fangz.Command) !void {
     const style_cmd = try check.addSubcommand(.{
         .name = "style",
         .brief = "Check naming-case and style rules",
-        .description = "Check identifiers in the import-closure reachable from the project's module roots. Severities are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
+        .description = "Check identifiers in every selected source file. Severities are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
     });
 
     try check_shared.registerCategoryPositionals(style_cmd);
@@ -64,7 +64,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     var analyzed_files = docent.scan.target.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
-    _ = try analyzeReachableTargets(
+    _ = try analyzePlanFiles(
         allocator,
         io,
         &plan,
@@ -88,7 +88,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     if (summary.errors > 0 or summary.warnings > 0) std.process.exit(1);
 }
 
-pub fn analyzeReachableTargets(
+pub fn analyzePlanFiles(
     allocator: std.mem.Allocator,
     io: std.Io,
     plan: *const docent.status_plan.Plan,

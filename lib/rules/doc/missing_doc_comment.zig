@@ -54,7 +54,7 @@ pub const Options = struct {
 pub const Rule = category.Rule(
     default_severity,
     Options,
-    scan.RuleScanConfig.public_api_surface,
+    scan.RuleScanConfig.public_declarations,
 );
 
 /// Walks `tree` and appends diagnostics for undocumented public items.
@@ -86,7 +86,7 @@ pub fn check(
         msg_allocator,
         diagnostics,
     );
-    const public_api_only = rule.publicApiOnly();
+    const public_api_only = rule.publicDeclarationsOnly();
     for (tree.rootDecls()) |decl| {
         try checkNode(
             tree,
@@ -515,7 +515,7 @@ test "private function parameters are not checked under public_api_only" {
     try check(
         &tree,
         .{
-            .scan_mode = scan.RuleScanConfig.public_api_surface,
+            .scan_mode = scan.RuleScanConfig.public_declarations,
             .options = .{ .check_parameters = true },
         },
         "<test>",

@@ -11,7 +11,7 @@ pub fn register(check: *fangz.Command) !void {
     const size_cmd = try check.addSubcommand(.{
         .name = "size",
         .brief = "Check source size limits",
-        .description = "Measure source size limits such as line width and function parameter counts for every file reachable from the project's module roots. Thresholds are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
+        .description = "Measure source size limits such as line width and function parameter counts in every selected source file. Thresholds are set in project config (.config/docent.toml). Exits non-zero when a denied rule reports a finding.",
     });
 
     try check_shared.registerCategoryPositionals(size_cmd);
@@ -64,7 +64,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     var analyzed_files = docent.scan.target.PathSet.init(allocator);
     defer analyzed_files.deinit(allocator);
 
-    _ = try analyzeReachableTargets(
+    _ = try analyzePlanFiles(
         allocator,
         io,
         &plan,
@@ -88,7 +88,7 @@ fn run(ctx: *fangz.ParseContext) !void {
     if (summary.errors > 0 or summary.warnings > 0) std.process.exit(1);
 }
 
-pub fn analyzeReachableTargets(
+pub fn analyzePlanFiles(
     allocator: std.mem.Allocator,
     io: std.Io,
     plan: *const docent.status_plan.Plan,

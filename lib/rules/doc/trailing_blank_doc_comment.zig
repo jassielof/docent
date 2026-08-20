@@ -28,7 +28,7 @@ pub const prose_title = "Trailing blank doc comment";
 pub const Rule = category.Rule(
     default_severity,
     struct {},
-    scan.RuleScanConfig.public_api_surface,
+    scan.RuleScanConfig.public_declarations,
 );
 
 /// Walks `tree` and appends diagnostics for doc comments with trailing blank lines.

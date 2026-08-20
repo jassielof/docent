@@ -2,7 +2,7 @@
 //!
 //! The maximum number of parameters in many tools and teams often default to around 5, to encourage simpler APIs. In Zig, however, it is common to pass interface parameters such as allocators, writers, and I/O interfaces as explicit dependencies. To be gentler on Zig codebases and more focused on true domain-specific parameters, the default limit here is set to 7.
 //!
-//! A function is flagged when its parameter count is *strictly greater* than the threshold. It is reported by `docent check size`. Like other size checks, it measures *every* function in the import-closure reachable from the module roots.
+//! A function is flagged when its parameter count is *strictly greater* than the threshold. It is reported by `docent check size` for every selected source file.
 
 const std = @import("std");
 const Ast = std.zig.Ast;
@@ -37,7 +37,7 @@ pub const Options = struct {
 pub const Rule = category.Rule(
     default_severity,
     Options,
-    scan.RuleScanConfig.reachability_traversal,
+    scan.RuleScanConfig.all_declarations,
 );
 
 /// Default maximum parameter count; functions with more parameters are flagged.
@@ -56,7 +56,7 @@ pub fn check(
 ) !void {
     if (!rule.level.isActive()) return;
     const severity_level = rule.level;
-    const public_api_only = rule.publicApiOnly();
+    const public_api_only = rule.publicDeclarationsOnly();
     const threshold = rule.options.threshold;
 
     var fns: std.ArrayList(Ast.Node.Index) = .empty;
@@ -238,7 +238,7 @@ fn runCheck(
 const warn_threshold_7: Rule = .{ .level = .warn, .options = .{ .threshold = 7 } };
 const warn_threshold_7_public: Rule = .{
     .level = .warn,
-    .scan_mode = .public_api_surface,
+    .scan_mode = .public_declarations,
     .options = .{ .threshold = 7 },
 };
 

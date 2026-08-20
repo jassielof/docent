@@ -4,7 +4,6 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 
 const project_scan_mod = @import("project_scan");
-pub const build_scan = project_scan_mod.build_scan;
 const rules_mod = @import("rules");
 // TODO: These re-exports that re-export the modules from the 'rules' module shouldn't happen, they should be consumed directly from the 'rules' module.
 pub const Diagnostic = rules_mod.Diagnostic;
@@ -28,10 +27,8 @@ pub const addLintStep = scaffold.addLintStep;
 
 pub const scan = struct {
     pub const RuleScanConfig = rules_mod.scan.RuleScanConfig;
-    pub const ScanMode = rules_mod.scan.ScanMode;
     pub const Visibility = rules_mod.scan.Visibility;
     pub const target = project_scan_mod.target;
-    pub const reach = project_scan_mod.reach;
 };
 pub const Config = @import("schemas/Config.zig");
 pub const severity = rules_mod.severity;
@@ -52,64 +49,6 @@ pub fn resolveRequireModuleDoc(path: []const u8, library_entry_roots: []const []
         std.fs.path.basename(path),
         "root.zig",
     );
-}
-
-fn realPathFileAlloc(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    path: []const u8,
-) ![]u8 {
-    var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = try std.Io.Dir.cwd().realPathFile(
-        io,
-        path,
-        &buffer,
-    );
-
-    return allocator.dupe(u8, buffer[0..len]);
-}
-
-/// Collects canonical `root_source_file` paths for library targets from `build.zig`.
-///
-/// Caller owns the returned slice and each path string; free with `scan.target.deinitOwnedPaths`.
-pub fn collectLibraryEntryRoots(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    project_root: []const u8,
-) ![]const []const u8 {
-    var roots: std.ArrayList([]const u8) = .empty;
-    errdefer scan.target.deinitOwnedPaths(allocator, &roots);
-
-    var scanned = try build_scan.scanProjectBuildScript(
-        allocator,
-        io,
-        project_root,
-    );
-    defer if (scanned) |*sc| sc.deinit(allocator);
-
-    if (scanned) |sc| {
-        for (sc.targets) |t| {
-            if (t.kind != .lib)
-                continue;
-
-            const joined = if (std.fs.path.isAbsolute(t.root_source_file))
-                try allocator.dupe(u8, t.root_source_file)
-            else
-                try std.fs.path.join(allocator, &.{ project_root, t.root_source_file });
-            defer allocator.free(joined);
-
-            const abs = realPathFileAlloc(
-                allocator,
-                io,
-                joined,
-            ) catch
-                try allocator.dupe(u8, joined);
-
-            try roots.append(allocator, abs);
-        }
-    }
-
-    return try roots.toOwnedSlice(allocator);
 }
 
 fn applySuppressions(
@@ -138,6 +77,7 @@ pub fn lintSource(
     library_entry_roots: []const []const u8,
     doc_cfg: rules.doc.Doc,
 ) !LintResult {
+    _ = io;
     var tree = try std.zig.Ast.parse(
         allocator,
         source,
@@ -176,7 +116,6 @@ pub fn lintSource(
         options.module_name,
         require_module_doc,
         allocator,
-        io,
         msg,
         &result.diagnostics,
     );

@@ -1,4 +1,4 @@
-//! Scenario: build.zig.zon integration, docent.toml config, status plan, and build script scan.
+//! Scenario: build.zig.zon integration, docent.toml config, and status planning.
 
 const std = @import("std");
 const docent = @import("docent");
@@ -107,29 +107,6 @@ test "config empty file uses RuleSeverities defaults" {
     const rule_set = try docent.config.loadRuleSeverities(allocator, io, config_path);
     try std.testing.expect(rule_set.missing_doc_comment == .warn);
     try std.testing.expect(rule_set.missing_doctest == .allow);
-}
-
-test "build_scan finds dependencies and root sources in build.zig text" {
-    const allocator = std.testing.allocator;
-    const text =
-        \\const std = @import("std");
-        \\pub fn build(b: *std.Build) void {
-        \\    const f = b.dependency("fangz", .{}).module("fangz");
-        \\    const m = b.addModule("app", .{ .root_source_file = b.path("src/root.zig"), });
-        \\    _ = f;
-        \\    _ = m;
-        \\}
-    ;
-
-    var scan = try docent.build_scan.scanBuildScript(allocator, text);
-    defer scan.deinit(allocator);
-
-    try std.testing.expect(scan.dependencies.len == 1);
-    try std.testing.expectEqualStrings("fangz", scan.dependencies[0]);
-    try std.testing.expect(scan.targets.len == 1);
-    try std.testing.expectEqualStrings("src/root.zig", scan.targets[0].root_source_file);
-    try std.testing.expectEqualStrings("app", scan.targets[0].name);
-    try std.testing.expect(scan.targets[0].kind == .lib);
 }
 
 test "status_plan gather manifest fixture has two lint roots and excludes dep" {

@@ -4,9 +4,8 @@ $id: "https://jassielof.github.io/docent/schemas/docent.schema.json"
 title: Docent Configuration
 description: >-
   Categorized configuration for `.config/docent.toml`. Docent uses two scan
-  models: `fmt` walks the filesystem (including orphan `.zig` files); `check`
-  starts from module roots declared in `build.zig` and traverses
-  the reachable API graph (orphans are ignored). Inline diagnostic suppressions
+  models: `fmt` and `check` walk configured filesystem paths (including orphan
+  `.zig` files). Inline diagnostic suppressions
   are not TOML keys; they use // line-comment pragmas in source — see
   #/definitions/inline_suppression.
 type: "object"
@@ -14,20 +13,19 @@ additionalProperties: false
 properties:
   doc:
     type: "object"
-    description: "Documentation comment validation rules (module-API reachability scan)."
+    description: "Documentation comment validation rules for every selected source file."
     additionalProperties: false
     properties:
       scan_mode:
         $ref: "#/definitions/scan_mode"
         description: >-
-          Visibility within the reachable module graph. `public` (default)
-          inspects publicly visible declarations only; `all` also includes
-          internal declarations. Does not enable a filesystem walk of orphan
-          files — that is `fmt`'s model.
+          Declaration visibility within every selected source file. `public`
+          (default) inspects publicly visible declarations only; `all` also
+          includes internal declarations.
         default: "public"
       missing_doc_comment:
         $ref: "#/definitions/rule_missing_doc_comment"
-        description: "API items, module roots, and exposed source files should have doc comments."
+        description: "Public API items and exposed source files should have doc comments."
       blank_doc_comment:
         $ref: "#/definitions/rule_simple"
         description: "Doc comments should contain useful text, not be blank or whitespace-only."
@@ -55,14 +53,14 @@ properties:
 
   style:
     type: "object"
-    description: "Naming conventions (module-API reachability scan)."
+    description: "Naming conventions for every selected source file."
     additionalProperties: false
     properties:
       scan_mode:
         $ref: "#/definitions/scan_mode"
         description: >-
-          Visibility within the reachable module graph. Default: `all`
-          (reachable files, including internal declarations).
+          Declaration visibility within every selected source file. Default:
+          `all` (including internal declarations).
         default: "all"
       identifier_case:
         $ref: "#/definitions/rule_identifier_case"
@@ -70,7 +68,7 @@ properties:
 
   fmt:
     type: "object"
-    description: "Formatter options for `docent fmt`. Unlike `docent check`, fmt uses a filesystem scan: recursive directory walks that include orphan `.zig` files not reachable from any module root. Path filters follow the Deno `fmt.include` / `fmt.exclude` model; exclusions win over inclusions. CLI positional paths override `include` when provided; CLI `--exclude` is merged with config `exclude`."
+    description: "Formatter options for `docent fmt`. Both `fmt` and `check` walk filesystem paths; fmt also processes `.zon` files. Path filters follow the Deno `fmt.include` / `fmt.exclude` model; exclusions win over inclusions. CLI positional paths override `include` when provided; CLI `--exclude` is merged with config `exclude`."
     additionalProperties: false
     properties:
       include:
@@ -172,14 +170,14 @@ properties:
 
   complexity:
     type: "object"
-    description: "Threshold-based complexity rules (module-API reachability scan)."
+    description: "Threshold-based complexity rules for every selected source file."
     additionalProperties: false
     properties:
       scan_mode:
         $ref: "#/definitions/scan_mode"
         description: >-
-          Visibility within the reachable module graph. Default: `all`
-          (measure every reachable function, including non-pub).
+          Declaration visibility within every selected source file. Default:
+          `all` (measure every function, including non-pub).
         default: "all"
       cognitive_complexity:
         $ref: "#/definitions/rule_threshold"
@@ -190,7 +188,7 @@ properties:
 
   size:
     type: "object"
-    description: "Source-size rules (module-API reachability scan)."
+    description: "Source-size rules for every selected source file."
     additionalProperties: false
     properties:
       scan_mode:
@@ -260,12 +258,9 @@ definitions:
     type: "string"
     enum: ["public", "all"]
     description: >-
-      Visibility filter applied inside the module reachability graph that
-      `docent check` builds from build.zig module roots. `public` = only
-      publicly visible (`pub`) declarations; `all` = also include internal
-      (non-pub) declarations in reachable files. Neither value switches check
-      to a filesystem orphan walk — use `docent fmt` (and `[fmt]` path
-      filters) for filesystem scanning.
+      Declaration visibility filter applied to every file selected by
+      `docent check`. `public` = only publicly visible (`pub`) declarations;
+      `all` = also include internal (non-pub) declarations.
 
   # --- Rule base shapes ---
 

@@ -12,7 +12,6 @@ const Diagnostic = lint.Diagnostic;
 const scan = lint.scan;
 const severity = lint.severity;
 
-const alias = @import("../scan/alias.zig");
 const utils = @import("../utils.zig");
 
 inline fn srcLoc() std.builtin.SourceLocation {
@@ -31,14 +30,12 @@ pub const prose_title = "Blank doc comment";
 pub const Rule = category.Rule(
     default_severity,
     struct {},
-    scan.RuleScanConfig.public_api_surface,
+    scan.RuleScanConfig.public_declarations,
 );
 
 /// Walks `tree` and appends diagnostics for vacuous doc comments.
 ///
 /// When `is_module_entry` is set, blank `//!` blocks on the file are reported as module doc comments.
-/// Whole-module re-exports without a line doc comment also resolve blank `//!` on the imported file.
-/// See `docent.scan.alias` for resolution behavior.
 pub fn check(
     tree: *const Ast,
     rule: Rule,
@@ -46,14 +43,11 @@ pub fn check(
     module_name: ?[]const u8,
     is_module_entry: bool,
     allocator: std.mem.Allocator,
-    io: std.Io,
     msg_allocator: std.mem.Allocator,
     diagnostics: *std.ArrayList(Diagnostic),
 ) !void {
     if (!rule.level.isActive()) return;
     const severity_level = rule.level;
-    const public_api_only = rule.publicApiOnly();
-
     const tags = tree.tokens.items(.tag);
     var i: usize = 0;
     while (i < tags.len) {
@@ -108,20 +102,6 @@ pub fn check(
             });
         }
     }
-
-    for (tree.rootDecls()) |decl| {
-        try checkReexportedWholeModules(
-            tree,
-            decl,
-            file,
-            public_api_only,
-            severity_level,
-            allocator,
-            io,
-            msg_allocator,
-            diagnostics,
-        );
-    }
 }
 
 fn containerDocSubject(
@@ -143,161 +123,6 @@ fn containerDocSubject(
         utils.diagnosticSubjectKindFromDoc(doc_comment.exposedSourceFileSubjectKind(tree)),
         std.fs.path.basename(file),
     );
-}
-
-fn isPubVisibility(tree: *const Ast, visib_token: ?Ast.TokenIndex) bool {
-    const vt = visib_token orelse return false;
-    return tree.tokenTag(vt) == .keyword_pub;
-}
-
-fn shouldCheckDecl(
-    tree: *const Ast,
-    visib_token: ?Ast.TokenIndex,
-    public_api_only: bool,
-) bool {
-    if (!public_api_only) return true;
-    return isPubVisibility(tree, visib_token);
-}
-
-fn hasDocComment(tree: *const Ast, first_token: Ast.TokenIndex) bool {
-    if (first_token == 0) return false;
-    return tree.tokenTag(first_token - 1) == .doc_comment;
-}
-
-fn checkReexportedWholeModules(
-    tree: *const Ast,
-    node: Ast.Node.Index,
-    file: []const u8,
-    public_api_only: bool,
-    severity_level: severity.Level,
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    msg_allocator: std.mem.Allocator,
-    diagnostics: *std.ArrayList(Diagnostic),
-) std.mem.Allocator.Error!void {
-    if (tree.fullVarDecl(node)) |var_decl| {
-        if (shouldCheckDecl(
-            tree,
-            var_decl.visib_token,
-            public_api_only,
-        ) and
-            !hasDocComment(tree, var_decl.firstToken()))
-        {
-            if (var_decl.ast.init_node.unwrap()) |init_node| {
-                if (alias.getInfo(tree, init_node)) |info| {
-                    if (info.field_name == null) {
-                        var emit_ctx = BlankWholeModuleContext{
-                            .severity_level = severity_level,
-                            .allocator = allocator,
-                            .msg_allocator = msg_allocator,
-                            .diagnostics = diagnostics,
-                        };
-                        try alias.resolveWholeModuleReexport(
-                            info,
-                            file,
-                            allocator,
-                            io,
-                            &emit_ctx,
-                            doc_comment.containerDocBlockIsFullyBlank,
-                            onBlankWholeModuleReexport,
-                        );
-                    }
-                }
-            }
-        }
-
-        const init_node = var_decl.ast.init_node.unwrap() orelse return;
-        if (!utils.isContainerDecl(tree.nodeTag(init_node))) return;
-
-        var buf: [2]Ast.Node.Index = undefined;
-        if (tree.fullContainerDecl(&buf, init_node)) |container| {
-            for (container.ast.members) |member| {
-                try checkReexportedWholeModules(
-                    tree,
-                    member,
-                    file,
-                    public_api_only,
-                    severity_level,
-                    allocator,
-                    io,
-                    msg_allocator,
-                    diagnostics,
-                );
-            }
-        }
-        return;
-    }
-
-    const tag = tree.nodeTag(node);
-    if (utils.isContainerDecl(tag)) {
-        var buf: [2]Ast.Node.Index = undefined;
-        if (tree.fullContainerDecl(&buf, node)) |container| {
-            for (container.ast.members) |member| {
-                try checkReexportedWholeModules(
-                    tree,
-                    member,
-                    file,
-                    public_api_only,
-                    severity_level,
-                    allocator,
-                    io,
-                    msg_allocator,
-                    diagnostics,
-                );
-            }
-        }
-    }
-}
-
-const BlankWholeModuleContext = struct {
-    severity_level: severity.Level,
-    allocator: std.mem.Allocator,
-    msg_allocator: std.mem.Allocator,
-    diagnostics: *std.ArrayList(Diagnostic),
-};
-
-fn onBlankWholeModuleReexport(
-    ctx_ptr: *anyopaque,
-    tree: *const Ast,
-    file_path: []const u8,
-) !void {
-    const ctx: *BlankWholeModuleContext = @ptrCast(@alignCast(ctx_ptr));
-    const source_basename = std.fs.path.basename(file_path);
-    const subject_kind = utils.diagnosticSubjectKindFromDoc(
-        doc_comment.exposedSourceFileSubjectKind(tree),
-    );
-    var line: usize = 0;
-    var column: usize = 0;
-    if (tree.tokens.len > 0) {
-        const loc = tree.tokenLocation(0, 0);
-        line = loc.line;
-        column = loc.column;
-    }
-
-    try ctx.diagnostics.append(ctx.allocator, .{
-        .rule = rule_name,
-        .severity_level = ctx.severity_level,
-        .subject = try utils.ownedSubject(
-            ctx.msg_allocator,
-            subject_kind,
-            source_basename,
-        ),
-        .file = try std.mem.replaceOwned(
-            u8,
-            ctx.msg_allocator,
-            file_path,
-            "\\",
-            "/",
-        ),
-        .line = line + 1,
-        .column = column + 1,
-        .source_line = if (tree.tokens.len > 0) try utils.dupSourceLine(
-            tree,
-            0,
-            ctx.msg_allocator,
-        ) else "",
-        .symbol_len = if (tree.tokens.len > 0) tree.tokenSlice(0).len else source_basename.len,
-    });
 }
 
 fn runCheck(
@@ -323,7 +148,6 @@ fn runCheck(
         null,
         is_module_entry,
         allocator,
-        std.testing.io,
         msg_allocator,
         diagnostics,
     );

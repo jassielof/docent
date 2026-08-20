@@ -1,7 +1,4 @@
-//! Scan settings shared by check commands.
-//!
-//! These configure *which* `build.zig` module roots participate. They do not
-//! switch Docent to a filesystem orphan walk — that remains `fmt`'s model.
+//! Filesystem selection settings shared by check commands.
 //! Per-category `scan_mode` (`public` / `all`) still controls visibility
 //! inside the reachable graph after targets are selected.
 

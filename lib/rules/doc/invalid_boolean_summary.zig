@@ -34,7 +34,7 @@ pub const prose_title = "Invalid boolean summary phrasing";
 pub const Rule = category.Rule(
     default_severity,
     struct {},
-    scan.RuleScanConfig.public_api_surface,
+    scan.RuleScanConfig.public_declarations,
 );
 
 /// Walks `tree` and appends diagnostics for `bool`-returning functions whose summary omits "reports whether" or includes the redundant "or not".
@@ -49,7 +49,7 @@ pub fn check(
 ) !void {
     if (!rule.level.isActive()) return;
     const severity_level = rule.level;
-    const public_api_only = rule.publicApiOnly();
+    const public_api_only = rule.publicDeclarationsOnly();
     const tags = tree.tokens.items(.tag);
     var i: usize = 0;
     while (i < tags.len) {
@@ -195,7 +195,7 @@ test "accepts 'reports whether' phrasing" {
 
     try runCheck(
         source,
-        .{ .level = .warn, .scan_mode = .public_api_surface },
+        .{ .level = .warn, .scan_mode = .public_declarations },
         &diagnostics,
         msg_arena.allocator(),
     );
@@ -217,7 +217,7 @@ test "warns when summary omits 'reports whether'" {
 
     try runCheck(
         source,
-        .{ .level = .warn, .scan_mode = .public_api_surface },
+        .{ .level = .warn, .scan_mode = .public_declarations },
         &diagnostics,
         msg_arena.allocator(),
     );
@@ -246,7 +246,7 @@ test "warns on redundant 'or not'" {
 
     try runCheck(
         source,
-        .{ .level = .warn, .scan_mode = .public_api_surface },
+        .{ .level = .warn, .scan_mode = .public_declarations },
         &diagnostics,
         msg_arena.allocator(),
     );
@@ -273,7 +273,7 @@ test "reports both diagnostics when missing phrase and redundant 'or not' co-occ
 
     try runCheck(
         source,
-        .{ .level = .warn, .scan_mode = .public_api_surface },
+        .{ .level = .warn, .scan_mode = .public_declarations },
         &diagnostics,
         msg_arena.allocator(),
     );
@@ -295,7 +295,7 @@ test "ignores functions that don't return plain bool" {
 
     try runCheck(
         source,
-        .{ .level = .warn, .scan_mode = .public_api_surface },
+        .{ .level = .warn, .scan_mode = .public_declarations },
         &diagnostics,
         msg_arena.allocator(),
     );
@@ -321,7 +321,7 @@ test "no diagnostic for private function when public_api_only" {
 
     try runCheck(
         source,
-        .{ .level = .warn, .scan_mode = .public_api_surface },
+        .{ .level = .warn, .scan_mode = .public_declarations },
         &diagnostics,
         msg_arena.allocator(),
     );
@@ -347,7 +347,7 @@ test "private function checked when public_api_only is false" {
 
     try runCheck(
         source,
-        .{ .level = .warn, .scan_mode = .reachability_traversal },
+        .{ .level = .warn, .scan_mode = .all_declarations },
         &diagnostics,
         msg_arena.allocator(),
     );

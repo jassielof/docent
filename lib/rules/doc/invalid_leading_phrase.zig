@@ -8,7 +8,7 @@
 //! |---|---|
 //! | Doc comment starts with the name | `invalid_leading_phrase` (optional article/kind/`backticks`) |
 //! | Package comment | Module `//!` / file-root docs via `missing_doc_comment` |
-//! | Exported identifiers documented | `scan_mode = "public"` on the module reachability graph |
+//! | Exported identifiers documented | `scan_mode = "public"` in every selected source file |
 //! | Complete sentences | `missing_summary_terminal_punctuation` |
 //! | No empty comments | `blank_doc_comment` / `trailing_blank_doc_comment` |
 //! | Examples in docs | doctest rules (`missing_doctest`, …) |
@@ -107,7 +107,7 @@ pub const prose_title = "Invalid leading phrase";
 pub const Rule = category.Rule(
     default_severity,
     Options,
-    scan.RuleScanConfig.public_api_surface,
+    scan.RuleScanConfig.public_declarations,
 );
 
 /// The article_words set contains the words considered as articles for leading phrases.
@@ -132,7 +132,7 @@ pub fn check(
     if (!rule.level.isActive()) return;
     const severity_level = rule.level;
     const options = rule.options;
-    const public_api_only = rule.publicApiOnly();
+    const public_api_only = rule.publicDeclarationsOnly();
     const tags = tree.tokens.items(.tag);
     var i: usize = 0;
     while (i < tags.len) {
@@ -397,8 +397,8 @@ fn runCheck(
 }
 
 const warn_rule: Rule = .{ .level = .warn };
-const warn_public: Rule = .{ .level = .warn, .scan_mode = .public_api_surface };
-const warn_all: Rule = .{ .level = .warn, .scan_mode = .reachability_traversal };
+const warn_public: Rule = .{ .level = .warn, .scan_mode = .public_declarations };
+const warn_all: Rule = .{ .level = .warn, .scan_mode = .all_declarations };
 
 fn expectSubjectKind(diagnostics: []const Diagnostic, kind: Diagnostic.SubjectKind) !void {
     for (diagnostics) |d| {
@@ -725,7 +725,7 @@ test "require_kind rejects identifier-first function summary without kind" {
         source,
         .{
             .level = .warn,
-            .scan_mode = .public_api_surface,
+            .scan_mode = .public_declarations,
             .options = .{ .require_kind = true },
         },
         null,
@@ -751,7 +751,7 @@ test "require_kind accepts kind-before identifier summary" {
         source,
         .{
             .level = .warn,
-            .scan_mode = .public_api_surface,
+            .scan_mode = .public_declarations,
             .options = .{ .require_kind = true },
         },
         null,
@@ -775,7 +775,7 @@ test "require_kind accepts kind-after identifier summary" {
         source,
         .{
             .level = .warn,
-            .scan_mode = .public_api_surface,
+            .scan_mode = .public_declarations,
             .options = .{ .require_kind = true },
         },
         null,
@@ -821,7 +821,7 @@ test "require_article rejects summary without article" {
         source,
         .{
             .level = .warn,
-            .scan_mode = .public_api_surface,
+            .scan_mode = .public_declarations,
             .options = .{ .require_article = true },
         },
         null,
@@ -847,7 +847,7 @@ test "require_article accepts summary with article" {
         source,
         .{
             .level = .warn,
-            .scan_mode = .public_api_surface,
+            .scan_mode = .public_declarations,
             .options = .{ .require_article = true },
         },
         null,
@@ -873,7 +873,7 @@ test "require_backticks rejects bare identifier" {
         source,
         .{
             .level = .warn,
-            .scan_mode = .public_api_surface,
+            .scan_mode = .public_declarations,
             .options = .{ .require_backticks = true },
         },
         null,
@@ -899,7 +899,7 @@ test "require_backticks accepts backticked identifier" {
         source,
         .{
             .level = .warn,
-            .scan_mode = .public_api_surface,
+            .scan_mode = .public_declarations,
             .options = .{ .require_backticks = true },
         },
         null,

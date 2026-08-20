@@ -5,7 +5,6 @@ const std = @import("std");
 const rules_mod = @import("rules");
 const rules = rules_mod;
 const RuleSeverities = rules_mod.RuleSeverities;
-const scan = rules_mod.scan;
 
 const Config = @import("schemas/Config.zig");
 
@@ -350,66 +349,6 @@ pub fn loadStyleOptionsFromCli(
     return cfg.style;
 }
 
-/// Returns the declaration scan mode for documentation rules.
-pub fn loadDocScanModeFromCli(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    config_path: ?[]const u8,
-) Error!scan.RuleScanConfig {
-    var cfg = try loadConfigFromCli(
-        allocator,
-        io,
-        config_path,
-    );
-    defer cfg.deinit(allocator);
-    return cfg.doc.scan_mode;
-}
-
-/// Returns the declaration scan mode for complexity rules.
-pub fn loadComplexityScanModeFromCli(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    config_path: ?[]const u8,
-) Error!scan.RuleScanConfig {
-    var cfg = try loadConfigFromCli(
-        allocator,
-        io,
-        config_path,
-    );
-    defer cfg.deinit(allocator);
-    return cfg.complexity.scan_mode;
-}
-
-/// Returns the declaration scan mode for size rules.
-pub fn loadSizeScanModeFromCli(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    config_path: ?[]const u8,
-) Error!scan.RuleScanConfig {
-    var cfg = try loadConfigFromCli(
-        allocator,
-        io,
-        config_path,
-    );
-    defer cfg.deinit(allocator);
-    return cfg.size.scan_mode;
-}
-
-/// Returns the declaration scan mode for style rules.
-pub fn loadStyleScanModeFromCli(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    config_path: ?[]const u8,
-) Error!scan.RuleScanConfig {
-    var cfg = try loadConfigFromCli(
-        allocator,
-        io,
-        config_path,
-    );
-    defer cfg.deinit(allocator);
-    return cfg.style.scan_mode;
-}
-
 /// Loads rules from an explicit `config_path`, or searches for the default file when null.
 pub fn loadRuleSeveritiesFromCli(
     allocator: std.mem.Allocator,
@@ -532,7 +471,7 @@ pub fn formatError(
         error.ConfigParseFailed => "failed to parse docent.toml",
         error.InvalidConfigPath => "invalid config path",
         error.InvalidSeverity => "invalid severity in docent.toml (must be allow, warn, deny, or forbid)",
-        error.InvalidScanMode => "invalid scan_mode in docent.toml (must be public or all; both apply to the module reachability graph, not a filesystem orphan walk)",
+        error.InvalidScanMode => "invalid scan_mode in docent.toml (must be public or all)",
         error.OutOfMemory => "out of memory",
     };
 }

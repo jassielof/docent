@@ -16,34 +16,7 @@ test "include_build_scripts overrides default skip" {
     try std.testing.expect(!docent.scan.target.shouldSkipLintFile("build/helpers/steps.zig", opts));
 }
 
-test "collectBuildScriptLintFiles follows imports from build.zig" {
-    const allocator = std.testing.allocator;
-    const io = std.testing.io;
-    const dir = try harness.scenarioProjectDir("build_script_imports");
-    defer allocator.free(dir);
-
-    var files: std.ArrayList([]const u8) = .empty;
-    defer docent.scan.target.deinitOwnedPaths(allocator, &files);
-
-    try docent.scan.target.collectBuildScriptLintFiles(allocator, io, dir, &files);
-
-    var has_build = false;
-    var has_helper = false;
-    var has_orphan = false;
-
-    for (files.items) |path| {
-        const base = std.fs.path.basename(path);
-        if (std.mem.eql(u8, base, "build.zig")) has_build = true;
-        if (std.mem.eql(u8, base, "helper.zig")) has_helper = true;
-        if (std.mem.eql(u8, base, "orphan.zig")) has_orphan = true;
-    }
-
-    try std.testing.expect(has_build);
-    try std.testing.expect(has_helper);
-    try std.testing.expect(!has_orphan);
-}
-
-test "no-root directories use top-level modules as entrypoints" {
+test "directory collection includes nested and otherwise unreferenced Zig files" {
     const dir = try harness.scenarioProjectDir("targeting_multi_module_no_root");
     defer std.testing.allocator.free(dir);
 
@@ -69,7 +42,7 @@ test "no-root directories use top-level modules as entrypoints" {
     }
 
     try std.testing.expect(has_re2 and has_pcre2 and has_re2_api and has_pcre2_api);
-    try std.testing.expect(!has_private_only and !has_build);
+    try std.testing.expect(has_private_only and !has_build);
 }
 
 test "no-root directories include build scripts when enabled" {

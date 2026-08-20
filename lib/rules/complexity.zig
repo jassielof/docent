@@ -4,8 +4,8 @@ const std = @import("std");
 const lint = @import("lint");
 const category = lint.category;
 const scan = lint.scan;
-/// Default scan mode for complexity rules; `reachability_traversal` because every reachable function is measured, not just the public surface.
-pub const default_scan_mode = scan.RuleScanConfig.reachability_traversal;
+/// Default scan mode for complexity rules; `all_declarations` because every reachable function is measured, not just the public surface.
+pub const default_scan_mode = scan.RuleScanConfig.all_declarations;
 
 pub const cognitive = @import("cogni");
 pub const cyclomatic = @import("cyclo");

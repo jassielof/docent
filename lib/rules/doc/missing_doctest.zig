@@ -31,7 +31,7 @@ pub const prose_title = "Missing doctest";
 pub const Rule = category.Rule(
     default_severity,
     struct {},
-    scan.RuleScanConfig.public_api_surface,
+    scan.RuleScanConfig.public_declarations,
 );
 
 /// Walks `tree` and appends diagnostics for public functions without matching doctests.
@@ -45,7 +45,7 @@ pub fn check(
 ) !void {
     if (!rule.level.isActive()) return;
     const severity_level = rule.level;
-    const public_api_only = rule.publicApiOnly();
+    const public_api_only = rule.publicDeclarationsOnly();
 
     var pub_fns = std.StringHashMap(Ast.TokenIndex).init(allocator);
     defer pub_fns.deinit();

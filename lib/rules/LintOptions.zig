@@ -3,12 +3,12 @@
 const lint = @import("lint");
 const scan = lint.scan;
 
-/// When set to `public_api_surface`, only `pub` declarations are checked; `reachability_traversal` includes every declaration in reachable files.
-scan_mode: scan.RuleScanConfig = .public_api_surface,
+/// When set to `public_declarations`, only `pub` declarations are checked; `all_declarations` includes every declaration in the file.
+scan_mode: scan.RuleScanConfig = .public_declarations,
 /// Package or module name for module-doc diagnostics (from `build.zig.zon` when available).
 module_name: ?[]const u8 = null,
 
 /// Returns whether rule checks should skip non-public declarations.
-pub fn publicApiOnly(options: @This()) bool {
-    return options.scan_mode.publicApiOnly();
+pub fn publicDeclarationsOnly(options: @This()) bool {
+    return options.scan_mode.publicDeclarationsOnly();
 }

@@ -28,7 +28,7 @@ pub const prose_title = "Misplaced doc comment";
 pub const Rule = category.Rule(
     default_severity,
     struct {},
-    scan.RuleScanConfig.reachability_traversal,
+    scan.RuleScanConfig.all_declarations,
 );
 
 /// Walks `tree` and appends diagnostics for doc comments on imports and re-exports.
@@ -43,7 +43,7 @@ pub fn check(
 ) !void {
     if (!rule.level.isActive()) return;
     const severity_level = rule.level;
-    const public_api_only = rule.publicApiOnly();
+    const public_api_only = rule.publicDeclarationsOnly();
     _ = module_name;
 
     for (tree.rootDecls()) |decl| {

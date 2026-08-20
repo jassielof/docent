@@ -16,8 +16,8 @@ const lint = @import("lint");
 const category = lint.category;
 const scan = lint.scan;
 
-/// Default scan mode for documentation rules; `public_api_surface` because doc comments are enforced on the public API by default.
-pub const default_scan_mode: scan.RuleScanConfig = .public_api_surface;
+/// Default scan mode for documentation rules; `public_declarations` because doc comments are enforced on the public API by default.
+pub const default_scan_mode: scan.RuleScanConfig = .public_declarations;
 
 pub const missing_doc_comment = @import("doc/missing_doc_comment.zig");
 pub const blank_doc_comment = @import("doc/blank_doc_comment.zig");
@@ -46,7 +46,7 @@ pub const Doc = struct {
     invalid_leading_phrase: invalid_leading_phrase.Rule = .{},
     invalid_boolean_summary: invalid_boolean_summary.Rule = .{},
     // Imported bindings are never a useful location for a doc comment, even when private.
-    misplaced_doc_comment: misplaced_doc_comment.Rule = .{ .scan_mode = .reachability_traversal },
+    misplaced_doc_comment: misplaced_doc_comment.Rule = .{ .scan_mode = .all_declarations },
 
     /// Returns the library defaults with scan-mode inheritance already applied.
     pub fn defaults() Doc {

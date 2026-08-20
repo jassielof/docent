@@ -45,7 +45,7 @@ pub const Options = struct {
 pub const Rule = category.Rule(
     default_severity,
     Options,
-    scan.RuleScanConfig.reachability_traversal,
+    scan.RuleScanConfig.all_declarations,
 );
 
 /// Default cognitive-complexity threshold recommended by Sonar Source; see <https://community.sonarsource.com/t/s3776-reason-for-the-current-default-value-of-15/127103/3>.
@@ -66,7 +66,7 @@ pub fn check(
 ) !void {
     if (!rule.level.isActive()) return;
     const severity_level = rule.level;
-    const public_api_only = rule.publicApiOnly();
+    const public_api_only = rule.publicDeclarationsOnly();
     const threshold = rule.options.threshold;
 
     var fns: std.ArrayList(Ast.Node.Index) = .empty;
@@ -995,7 +995,7 @@ test "private functions are skipped under public_api_only" {
         source,
         .{
             .level = .warn,
-            .scan_mode = .public_api_surface,
+            .scan_mode = .public_declarations,
             .options = .{ .threshold = 1 },
         },
         &diagnostics,
