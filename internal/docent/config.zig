@@ -67,7 +67,7 @@ pub fn findConfigPathRelative(
 
 /// Loads and decodes a `docent.toml` file.
 ///
-/// Caller owns path lists under `fmt` / `check` / `typeset`; free with `Config.deinit`.
+/// Caller owns path lists under `fmt` and `check`; free with `Config.deinit`.
 pub fn loadConfig(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -153,7 +153,7 @@ fn resolvePathList(
 
 /// Loads config from an explicit `config_path`, or searches for the default file when null.
 ///
-/// Caller owns path lists under `fmt` / `check` / `typeset`; free with `Config.deinit`.
+/// Caller owns path lists under `fmt` and `check`; free with `Config.deinit`.
 pub fn loadConfigFromCli(
     allocator: std.mem.Allocator,
     io: std.Io,

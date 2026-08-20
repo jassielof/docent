@@ -5,7 +5,7 @@ title: Docent Configuration
 description: >-
   Categorized configuration for `.config/docent.toml`. Docent uses two scan
   models: `fmt` walks the filesystem (including orphan `.zig` files); `check`
-  and `typeset` start from module roots declared in `build.zig` and traverse
+  starts from module roots declared in `build.zig` and traverses
   the reachable API graph (orphans are ignored). Inline diagnostic suppressions
   are not TOML keys; they use // line-comment pragmas in source — see
   #/definitions/inline_suppression.
@@ -70,7 +70,7 @@ properties:
 
   fmt:
     type: "object"
-    description: "Formatter options for `docent fmt`. Unlike check/typeset, fmt uses a filesystem scan: recursive directory walks that include orphan `.zig` files not reachable from any module root. Path filters follow the Deno `fmt.include` / `fmt.exclude` model; exclusions win over inclusions. CLI positional paths override `include` when provided; CLI `--exclude` is merged with config `exclude`."
+    description: "Formatter options for `docent fmt`. Unlike `docent check`, fmt uses a filesystem scan: recursive directory walks that include orphan `.zig` files not reachable from any module root. Path filters follow the Deno `fmt.include` / `fmt.exclude` model; exclusions win over inclusions. CLI positional paths override `include` when provided; CLI `--exclude` is merged with config `exclude`."
     additionalProperties: false
     properties:
       include:
@@ -169,52 +169,6 @@ properties:
           minLength: 1
         default: []
         description: "Files or directories to exclude from the filesystem scan."
-
-  typeset:
-    type: "object"
-    description: >-
-      Module-target selection and output defaults for `docent typeset`. Uses
-      the same build.zig module-root discovery and reachability model as
-      check (orphans ignored). CLI flags override these defaults when set.
-    additionalProperties: false
-    properties:
-      lib:
-        type: boolean
-        default: false
-        description: >-
-          Document library targets. When no bin/test filters are set, libraries
-          are included by default even if this is false.
-      bins:
-        type: boolean
-        default: false
-        description: "Document all executable targets from build.zig."
-      tests:
-        type: boolean
-        default: false
-        description: "Document all test targets from build.zig."
-      deps:
-        type: boolean
-        default: false
-        description: "Bundle direct local `.path` dependencies as appendix modules."
-      include_private:
-        type: boolean
-        default: false
-        description: "Include non-public declarations in the emitted docs."
-      bundle_std:
-        type: boolean
-        default: false
-        description: "Bundle referenced std.* declarations into the appendix instead of linking to ziglang.org."
-      output:
-        type: "string"
-        default: "docs.json"
-        description: "Default path for the emitted docs.json (overridden by `-o` / `--output`)."
-      exclude_targets:
-        type: "array"
-        items:
-          type: "string"
-          minLength: 1
-        default: []
-        description: "Build-step target names to skip when discovering modules."
 
   complexity:
     type: "object"

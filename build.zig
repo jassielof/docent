@@ -81,25 +81,14 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    // Discovers which files/build targets a project-wide operation (the CLI, `typeset`) should
-    // operate over: build.zig target parsing, CLI target-selection filtering, import-graph
-    // reachability. Public so `typeset` can depend on just this instead of all of `docent`.
+    // Discovers which files/build targets the CLI should operate over: build.zig target parsing,
+    // CLI target-selection filtering, and import-graph reachability.
     const project_scan_mod = b.addModule("project_scan", .{
         .root_source_file = b.path("lib/project_scan/root.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = "carnaval", .module = carnaval_mod },
-        },
-    });
-
-    const typeset_mod = b.addModule("typeset", .{
-        .root_source_file = b.path("lib/typeset/root.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "doc_comment", .module = doc_comment_mod },
-            .{ .name = "project_scan", .module = project_scan_mod },
         },
     });
 
@@ -137,7 +126,6 @@ pub fn build(b: *std.Build) void {
             .{ .name = "fangz", .module = fangz_mod },
             .{ .name = "carnaval", .module = carnaval_mod },
             .{ .name = "toml", .module = toml_mod },
-            .{ .name = "typeset", .module = typeset_mod },
             .{ .name = "doc_comment", .module = doc_comment_mod },
             .{ .name = "fmt", .module = fmt_mod },
         },
@@ -185,51 +173,6 @@ pub fn build(b: *std.Build) void {
     });
 
     docs_step.dependOn(&docs_cli.step);
-
-    // `zig build docs-pdf` discovers every module in this package (the
-    // `docent` library plus the `docent` CLI executable, via the same
-    // build.zig target discovery `docent status`/`docent check` use),
-    // follows every `pub const X = @import(...)` re-export transitively
-    // within each, emits one docs.json covering all of them, and renders it
-    // to a single PDF via the local `docent-docs` Typst package. See
-    // modules/typeset.zig and typst/docent-docs/.
-    //
-    // Default is primary targets only (no --deps / --bundle-std) to keep
-    // PDF size bounded; pass those flags to `docent typeset` for appendix
-    // fidelity when needed.
-    const docs_pdf_step = b.step(
-        "docs-pdf",
-        "Generate PDF documentation for docent's modules via Typst",
-    );
-
-    const typeset_json_path = "zig-out/docs/typeset/docs.json";
-
-    const typeset_cli = b.addRunArtifact(cli);
-    typeset_cli.step.dependOn(b.getInstallStep());
-    typeset_cli.addArgs(&.{
-        "typeset",
-        "--lib",
-        "--bins",
-        "--output",
-        typeset_json_path,
-    });
-
-    const typst_compile = b.addSystemCommand(&.{
-        "typst",
-        "compile",
-        "--pdf-standard",
-        "2.0",
-        "--root",
-        ".",
-        "--input",
-        // Leading "/" resolves relative to --root, not to lib.typ's directory.
-        b.fmt("docs-json=/{s}", .{typeset_json_path}),
-        "typst/docent-docs/lib.typ",
-        "zig-out/docs/typeset/docent.pdf",
-    });
-    typst_compile.step.dependOn(&typeset_cli.step);
-
-    docs_pdf_step.dependOn(&typst_compile.step);
 
     const test_step = b.step("test", "Run the test suite");
 

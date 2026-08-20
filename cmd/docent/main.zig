@@ -13,7 +13,6 @@ const fmt = @import("fmt.zig");
 const init_command = @import("init.zig");
 const status_command = @import("status.zig");
 pub const registerStatusSubcommand = status_command.register;
-const typeset_command = @import("typeset.zig");
 
 pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;
@@ -39,7 +38,6 @@ pub fn main(init: std.process.Init) !void {
     try init_command.register(root);
     try check_command.register(root);
     try fmt.register(root);
-    try typeset_command.register(root);
 
     try app.executeProcess(init.minimal.args);
 }

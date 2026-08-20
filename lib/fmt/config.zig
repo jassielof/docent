@@ -14,8 +14,8 @@ const indent_width = @import("indent_width.zig");
 /// zig-fmt-hostile transforms (`auto_wrap`, `grid_alignment`) off by default.
 ///
 /// Path filters (`include` / `exclude`) apply to the **filesystem** scan used
-/// by `docent fmt` (orphans included). They are not used by check/typeset,
-/// which discover module roots from `build.zig` instead.
+/// by `docent fmt` (orphans included). They are not used by `docent check`,
+/// which discovers module roots from `build.zig` instead.
 ///
 /// When `include` / `exclude` are non-empty, they are owned by the allocator
 /// passed to config decode; free with `deinit`.

@@ -2,7 +2,7 @@
 //!
 //! Docent has two product-level scan models:
 //!
-//! - **Module API (check / typeset):** starts strictly from a module root
+//! - **Module API (check):** starts strictly from a module root
 //!   declared in `build.zig` (`root_source_file`), then runs reachability
 //!   analysis over the import/declaration graph. Orphan `.zig` files that are
 //!   never reached from a module root are ignored.
@@ -13,7 +13,7 @@
 //! Traversal for check rules operates under a `RuleScanConfig` composed of:
 //!
 //! - **ScanMode:**
-//!   - `reachability`: module-root reachability (the check/typeset model).
+//!   - `reachability`: module-root reachability (the check model).
 //!   - `filesystem`: recursive walk including orphans (available for explicit
 //!     opt-in / multi-path CLI escape hatches; not what TOML `scan_mode`
 //!     `"public"` / `"all"` select).
