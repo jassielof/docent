@@ -56,6 +56,8 @@ pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
             &output,
             indent,
             content,
+            all_lines.items,
+            li,
         )) |expanded| {
             if (expanded) {
                 try output.append(gpa, '\n');
@@ -237,6 +239,312 @@ test "enforces braces for single-line control flow" {
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
+test "leaves multi-capture for loops untouched (regression)" {
+    // findBodyStart used to skip a `|...|` payload by scanning to the next
+    // space rather than the closing `|`, so a multi-identifier capture list
+    // (which contains its own internal spaces after each comma) got cut off
+    // mid-list. The truncated remainder ("second| {") was then mistaken for
+    // an unbraced single-statement body and wrapped, corrupting the syntax.
+    const gpa = std.testing.allocator;
+
+    const input =
+        \\fn f(versions: []const u32) void {
+        \\    for (versions[0 .. versions.len - 1], versions[1..versions.len]) |first, second| {
+        \\        _ = first;
+        \\        _ = second;
+        \\    }
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "still braces an unbraced multi-capture for loop body (regression)" {
+    const gpa = std.testing.allocator;
+
+    const input =
+        \\fn f(a: []const u32, b: []const u32) void {
+        \\    for (a, b) |first, second| use(first, second);
+        \\}
+        \\
+    ;
+    const expected =
+        \\fn f(a: []const u32, b: []const u32) void {
+        \\    for (a, b) |first, second| {
+        \\        use(first, second);
+        \\    }
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "leaves while loops with a continue expression untouched (regression)" {
+    // findBodyStart didn't recognize the `: (continue_expr)` clause that can
+    // follow a while loop's condition, so it mistook `(continue_expr)` for
+    // the loop body and left the real, braced body dangling as unparseable
+    // trailing text.
+    const gpa = std.testing.allocator;
+
+    const input =
+        \\fn f(limit: u32) void {
+        \\    var i: u32 = 0;
+        \\    while (i < limit) : (i += 1) {
+        \\        use(i);
+        \\    }
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "leaves a captured while loop with a continue expression untouched (regression)" {
+    const gpa = std.testing.allocator;
+
+    const input =
+        \\fn f(it: *Iterator) void {
+        \\    while (it.next()) |item| : (it.advance()) {
+        \\        use(item);
+        \\    }
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "still braces an unbraced while loop with a continue expression (regression)" {
+    const gpa = std.testing.allocator;
+
+    const input =
+        \\fn f(limit: u32) void {
+        \\    var i: u32 = 0;
+        \\    while (i < limit) : (i += 1) use(i);
+        \\}
+        \\
+    ;
+    const expected =
+        \\fn f(limit: u32) void {
+        \\    var i: u32 = 0;
+        \\    while (i < limit) : (i += 1) {
+        \\        use(i);
+        \\    }
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "leaves an already-braced error-payload else untouched (regression)" {
+    // `} else |_| {}` carries a payload capture before its braced body. The
+    // old code treated everything after `} else ` as the body, so it saw
+    // `|_| {}` (which doesn't start with `{`) and tried to wrap it, tearing
+    // the capture away from its body.
+    const gpa = std.testing.allocator;
+
+    const input =
+        \\fn f() !void {
+        \\    doThing() catch |_| {};
+        \\    if (cond) {
+        \\        doA();
+        \\    } else |err| {
+        \\        handle(err);
+        \\    }
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "still braces an unbraced error-payload else body (regression)" {
+    const gpa = std.testing.allocator;
+
+    const input =
+        \\fn f(cond: bool) void {
+        \\    if (cond) {
+        \\        doA();
+        \\    } else |err| handle(err);
+        \\}
+        \\
+    ;
+    const expected =
+        \\fn f(cond: bool) void {
+        \\    if (cond) {
+        \\        doA();
+        \\    } else |err| {
+        \\        handle(err);
+        \\    }
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "leaves a switch-expression while body untouched (regression)" {
+    // `while (cond) switch (x) { ... };` is an unbraced while body whose
+    // single statement is itself a multi-line brace-delimited switch
+    // expression. findBodyStart correctly lands right after `switch (x) `,
+    // but the old `body[0] == '{'` guard only checked the body's very first
+    // character ('s' of "switch"), not whether the body opens a brace it
+    // doesn't close on the same line — so this got wrapped as if `switch
+    // (x) {` were a complete single-line statement, nesting a spurious `{`
+    // one level too deep and closing it before the switch's real prongs.
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn genBoolExpr(base: i32) void {
+        \\    var node = base;
+        \\    while (true) switch (node) {
+        \\        1 => node = 2,
+        \\        else => break,
+        \\    };
+        \\    _ = node;
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "leaves an unbraced else body that is a multi-line call untouched (regression)" {
+    // `} else panic(\n    args,\n);` has a body that opens a paren it
+    // doesn't close on this line. The old code saw a non-'{' first
+    // character and wrapped it as `} else {\n    panic(\n}`, splitting the
+    // call's argument list off into orphaned, unparseable lines.
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn f(rhs: u32) void {
+        \\    if (rhs == 0) {
+        \\        doSomething();
+        \\    } else panic(
+        \\        @returnAddress(),
+        \\        "division by zero",
+        \\        .{},
+        \\    );
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "leaves an else-if chain with a multi-line first branch untouched (regression)" {
+    // `const x = if (cond) |c| BODY else if (cond2) |c| BODY2 else unreachable;`
+    // spanning multiple lines is not a plain two-branch if/else:
+    // tryExpandMultiLine used to treat line `start + 2` ("else if (...)") as
+    // if it always meant the whole construct is a simple if/else, dropping
+    // the rest of the chain (`else if (...) ... else unreachable;`) on the
+    // floor as dangling, unparseable text after the wrapper it emitted.
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn f(a: bool, b: bool) type {
+        \\    const type_node = if (a) |full|
+        \\        full.a
+        \\    else if (b) |full|
+        \\        full.b
+        \\    else
+        \\        unreachable;
+        \\    _ = type_node;
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "leaves an else tail of an expression-valued if untouched (regression)" {
+    // `const token = if (cond) |f| b: { ... break :b value; } else tail;`
+    // is an expression-valued if: the else branch is a bare tail
+    // expression, and the `;` after it terminates the whole assignment, not
+    // the branch. The old code saw a brace/paren-balanced, non-block else
+    // body and wrapped it as `} else {\n    tail\n}`, which swallows that
+    // `;` as the new block's own terminator and leaves the outer
+    // `const token = if (...) ... else {...}` without one, producing
+    // `error: expected ';' after statement`. It also turns the branch from
+    // an expression into a void statement, changing the if's type. Adapted
+    // from a real bug found in std.zon.parse's failUnexpected.
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn f(field: ?usize) usize {
+        \\    const token = if (field) |x| b: {
+        \\        break :b x - 2;
+        \\    } else other(node);
+        \\    return token;
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(input, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "still braces an unbraced else tail of a plain statement-if (regression)" {
+    // A plain statement-if's opening line isn't an assignment, so its
+    // unbraced else tail should still be wrapped as before; only
+    // expression-valued ifs are exempted.
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn f(cond: bool) void {
+        \\    if (cond) {
+        \\        doA();
+        \\    } else doB();
+        \\}
+        \\
+    ;
+    const expected =
+        \\fn f(cond: bool) void {
+        \\    if (cond) {
+        \\        doA();
+        \\    } else {
+        \\        doB();
+        \\    }
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
 const keywords = [_][]const u8{
     "if ",
     "while ",
@@ -248,6 +556,8 @@ fn tryExpandSingleLine(
     output: *std.ArrayList(u8),
     indent: []const u8,
     content: []const u8,
+    all_lines: []const []const u8,
+    li: usize,
 ) !bool {
     if (content.len == 0) return false;
     if (content[content.len - 1] == ',') return false;
@@ -259,22 +569,48 @@ fn tryExpandSingleLine(
     )) {
         const after_else = content[7..];
         if (after_else.len == 0) return false;
-        if (after_else[0] == '{') return false;
+
+        // A `}` that closes the *value* of an assignment (`const x = if
+        // (cond) label: { ... } else tail;`) needs different handling than
+        // one that closes a plain statement-if: the trailing `;` here
+        // terminates the whole assignment, not this branch, and wrapping
+        // `tail` in a block would change it from an expression to a void
+        // statement, breaking both the semicolon placement and the type of
+        // the if-expression. There's no such signal on this line alone, so
+        // walk back to the line that opens the brace this one closes and
+        // check whether it reads like an assignment.
+        if (opensAssignedValue(all_lines, li)) return false;
+
+        // An error-union `else` branch may carry a payload capture
+        // (`} else |err| ...`) before its body; skip past it so the `{`
+        // check and the wrap below apply to the actual body, not the
+        // capture. Without this, an already-braced payload branch like
+        // `} else |_| {}` gets its body torn away from the capture and
+        // wrapped on its own, stranding `|_|` as an orphaned statement.
+        var body_offset: usize = 0;
+        if (after_else[0] == '|') {
+            body_offset = 1;
+            while (body_offset < after_else.len and after_else[body_offset] != '|') : (body_offset += 1) {}
+            if (body_offset < after_else.len) body_offset += 1;
+            while (body_offset < after_else.len and after_else[body_offset] == ' ') : (body_offset += 1) {}
+        }
+
+        const header = after_else[0..body_offset];
+        const body = after_else[body_offset..];
+        if (body.len == 0 or body[0] == '{' or hasUnbalancedOpenDelimiter(body)) return false;
 
         for (keywords) |kw| {
-            if (mem.startsWith(
-                u8,
-                after_else,
-                kw,
-            )) return false;
+            if (mem.startsWith(u8, body, kw)) return false;
         }
 
         try output.appendSlice(gpa, indent);
-        try output.appendSlice(gpa, "} else {");
+        try output.appendSlice(gpa, "} else ");
+        try output.appendSlice(gpa, header);
+        try output.append(gpa, '{');
         try output.append(gpa, '\n');
         try output.appendSlice(gpa, indent);
         try output.appendSlice(gpa, "    ");
-        try output.appendSlice(gpa, after_else);
+        try output.appendSlice(gpa, body);
         try output.append(gpa, '\n');
         try output.appendSlice(gpa, indent);
         try output.append(gpa, '}');
@@ -290,7 +626,7 @@ fn tryExpandSingleLine(
 
         const body_start = findBodyStart(content) orelse continue;
         const body = content[body_start..];
-        if (body.len == 0 or body[0] == '{') continue;
+        if (body.len == 0 or body[0] == '{' or hasUnbalancedOpenDelimiter(body)) continue;
 
         if (mem.startsWith(
             u8,
@@ -348,7 +684,7 @@ fn tryExpandSingleLine(
         const after_if = content[if_start..];
         const body_start = findBodyStart(after_if) orelse return false;
         const body = after_if[body_start..];
-        if (body.len == 0 or body[0] == '{') return false;
+        if (body.len == 0 or body[0] == '{' or hasUnbalancedOpenDelimiter(body)) return false;
 
         if (findInlineElse(body)) |else_offset| {
             const if_body = body[0..else_offset];
@@ -386,6 +722,62 @@ fn tryExpandSingleLine(
     }
 
     return false;
+}
+
+/// Walks backward from `all_lines[li]` (which must start with `}`) to the
+/// line that opens the brace it closes, and reports whether that line reads
+/// like the start of an assignment or `return` (`const x = if (cond)
+/// label: {`, `return if (cond) label: {`). Such an `if` is used for its
+/// *value*: its `else` branch must itself be a value-producing expression,
+/// not a block, and the statement's terminating `;` lives at the very end
+/// of the whole `if`/`else`, not inside either branch. A plain
+/// statement-`if`'s opening line has neither signal.
+fn opensAssignedValue(all_lines: []const []const u8, li: usize) bool {
+    var depth: isize = 1; // accounts for the '}' that starts all_lines[li]
+    var line_idx = li;
+    while (line_idx > 0) {
+        line_idx -= 1;
+        const line = all_lines[line_idx];
+
+        var i = line.len;
+        while (i > 0) {
+            i -= 1;
+            if (line[i] == '}') {
+                depth += 1;
+            } else if (line[i] == '{') {
+                depth -= 1;
+                if (depth == 0) {
+                    const trimmed = mem.trim(
+                        u8,
+                        line,
+                        " \t",
+                    );
+                    return mem.indexOf(u8, trimmed, " = if (") != null or
+                        mem.startsWith(u8, trimmed, "return if (");
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/// Reports whether `body` contains a brace or paren opened on this line but
+/// not closed on the same line — i.e. `body` is only a fragment of a
+/// multi-line construct (a multi-line function call, a switch expression,
+/// etc.), not a complete single-line statement safe to wrap on its own.
+fn hasUnbalancedOpenDelimiter(body: []const u8) bool {
+    var brace_depth: isize = 0;
+    var paren_depth: isize = 0;
+    for (body) |c| {
+        switch (c) {
+            '{' => brace_depth += 1,
+            '}' => brace_depth -= 1,
+            '(' => paren_depth += 1,
+            ')' => paren_depth -= 1,
+            else => {},
+        }
+    }
+    return brace_depth > 0 or paren_depth > 0;
 }
 
 /// Handles multi-line unbraced control flow, e.g.:
@@ -474,6 +866,19 @@ fn tryExpandMultiLine(
         }
     }
 
+    // Anything other than a plain two-branch `if`/`else` isn't safe to
+    // handle here — most notably an `else if` chain, where `start + 2` is
+    // neither a bare "else" line nor the tail of a self-terminated
+    // statement. Treating the first branch as the whole construct (as this
+    // function used to) drops the rest of the chain on the floor, leaving
+    // it as dangling, unparseable text after the wrapper this function
+    // emits. If there's no recognized `else` and the body isn't already a
+    // complete, semicolon-terminated statement, bail and leave every line
+    // untouched instead of guessing.
+    if (else_line_raw == null and (body_trimmed.len == 0 or body_trimmed[body_trimmed.len - 1] != ';')) {
+        return 0;
+    }
+
     try output.appendSlice(gpa, indent);
     try output.appendSlice(gpa, content[0..header_end]);
     try output.appendSlice(gpa, " {\n");
@@ -522,28 +927,46 @@ fn findBodyStart(content: []const u8) ?usize {
     while (i < content.len and content[i] != '(') : (i += 1) {}
     if (i >= content.len) return null;
 
+    i = skipBalancedParens(content, i) orelse return null;
+
+    while (i < content.len and content[i] == ' ') : (i += 1) {}
+
+    if (i < content.len and content[i] == '|') {
+        i += 1;
+        while (i < content.len and content[i] != '|') : (i += 1) {}
+        if (i < content.len) i += 1;
+        while (i < content.len and content[i] == ' ') : (i += 1) {}
+    }
+
+    // An optional `: (continue_expr)` clause follows a while loop's capture
+    // (or condition, if uncaptured); skip past it too so it isn't mistaken
+    // for the loop body.
+    if (i < content.len and content[i] == ':') {
+        i += 1;
+        while (i < content.len and content[i] == ' ') : (i += 1) {}
+        if (i < content.len and content[i] == '(') {
+            i = skipBalancedParens(content, i) orelse return null;
+            while (i < content.len and content[i] == ' ') : (i += 1) {}
+        }
+    }
+
+    if (i >= content.len) return null;
+    return i;
+}
+
+/// Advances from an opening `(` at `open` to just past its matching `)`.
+fn skipBalancedParens(content: []const u8, open: usize) ?usize {
+    var i = open;
     var depth: usize = 0;
     while (i < content.len) : (i += 1) {
         if (content[i] == '(') {
             depth += 1;
         } else if (content[i] == ')') {
             depth -= 1;
-            if (depth == 0) {
-                i += 1;
-                break;
-            }
+            if (depth == 0) return i + 1;
         }
     }
-
-    while (i < content.len and content[i] == ' ') : (i += 1) {}
-
-    if (i < content.len and content[i] == '|') {
-        while (i < content.len and content[i] != ' ') : (i += 1) {}
-        while (i < content.len and content[i] == ' ') : (i += 1) {}
-    }
-
-    if (i >= content.len) return null;
-    return i;
+    return null;
 }
 
 /// Finds ` else ` in a body string, skipping over balanced parentheses.
