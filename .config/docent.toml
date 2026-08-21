@@ -1,0 +1,26 @@
+# [fmt]
+# include = ["lib/", "internal/", "cmd/"]
+# sort_imports = true
+# single_line_braces = false
+# logical_blank_lines = false
+# trailing_comma = true
+# sort_doctests = true
+# auto_wrap = true
+# max_line_length = 100
+
+# [check]
+# include = ["lib/"]
+# inherit_manifest = false
+
+# [doc]
+# scan_mode = "public"
+# invalid_leading_phrase = "allow"
+# missing_summary_terminal_punctuation = "allow"
+# misplaced_doc_comment = "warn"
+
+# [doc.missing_doc_comment]
+# level = "warn"
+# check_errors = false
+# check_parameters = false
+# check_fields = false
+# check_enumerators = false
