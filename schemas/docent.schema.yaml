@@ -68,7 +68,7 @@ properties:
 
   fmt:
     type: "object"
-    description: "Formatter options for `docent fmt`. Both `fmt` and `check` walk filesystem paths; fmt also processes `.zon` files. Path filters follow the Deno `fmt.include` / `fmt.exclude` model; exclusions win over inclusions. CLI positional paths override `include` when provided; CLI `--exclude` is merged with config `exclude`."
+    description: "Formatter options for `docent fmt`. Both `fmt` and `check` walk filesystem paths; fmt also processes `.zon` files. Path filters follow the Deno `fmt.include` / `fmt.exclude` model; exclusions win over inclusions. CLI positional paths override `include` when provided; without either, fmt uses package paths from the nearest `build.zig.zon`, ignores non-`.zig`/`.zon` files, and excludes local path dependencies. CLI `--exclude` is merged with config `exclude`."
     additionalProperties: false
     properties:
       include:

@@ -8,7 +8,7 @@ pub fn register(root: *fangz.Command) !void {
     const fmt_cmd = try root.addSubcommand(.{
         .name = "fmt",
         .brief = "Format Zig source code",
-        .description = "Filesystem-based formatter: recursively walks paths and formats every Zig or ZON file. Path filters may be set in configuration under `[fmt].include` / `[fmt].exclude`; CLI paths override `include`, and CLI `--exclude` merges with config `exclude`.",
+        .description = "Filesystem-based formatter: recursively walks paths and formats every Zig or ZON file. CLI paths override `[fmt].include`; when neither is set, package paths from the nearest build.zig.zon are used. Non-Zig manifest files and local path dependencies are ignored. CLI `--exclude` merges with config `exclude`.",
     });
 
     try fmt_cmd.addFlag(bool, .{
@@ -53,7 +53,7 @@ pub fn register(root: *fangz.Command) !void {
 
     try fmt_cmd.addPositional(.{
         .name = "paths",
-        .brief = "Paths to format. If omitted, uses `[fmt].include` from the configuration when set.",
+        .brief = "Paths to format. Defaults to `[fmt].include`, then package paths from build.zig.zon.",
         .variadic = true,
     });
 
@@ -80,26 +80,76 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
     ) catch .{};
     defer config.deinit(gpa);
 
+    var manifest_paths: std.ArrayList([]const u8) = .empty;
+    defer docent.manifest.deinitOwnedPaths(gpa, &manifest_paths);
+    var manifest_dependency_roots: std.ArrayList([]const u8) = .empty;
+    defer docent.manifest.deinitOwnedPaths(gpa, &manifest_dependency_roots);
+    var using_manifest_defaults = false;
+
     if (stdin_flag and input_paths.len != 0) {
         std.process.fatal("cannot use --stdin with positional arguments", .{});
     }
 
-    const paths: []const []const u8 = if (stdin_flag)
-        &.{}
-    else if (input_paths.len > 0)
-        input_paths
-    else if (config.include.len > 0)
-        config.include
-    else
-        std.process.fatal(
-            "expected at least one file or directory argument (or set [fmt].include in .config/docent.toml)",
-            .{},
-        );
+    const paths: []const []const u8 = paths: {
+        if (stdin_flag) break :paths &.{};
+        if (input_paths.len > 0) break :paths input_paths;
+        if (config.include.len > 0) break :paths config.include;
+
+        const manifest_path = docent.manifest.findNearestManifestPath(gpa, io) catch
+            std.process.fatal(
+                "expected at least one file or directory argument, `[fmt].include`, or a build.zig.zon",
+                .{},
+            );
+        defer gpa.free(manifest_path);
+
+        var package_paths = docent.manifest.loadPackagePaths(
+            gpa,
+            io,
+            manifest_path,
+        ) catch |err| switch (err) {
+            error.ManifestPathsNotFound => fallback: {
+                var fallback_paths: std.ArrayList([]const u8) = .empty;
+                const project_root = std.fs.path.dirname(manifest_path) orelse ".";
+                try fallback_paths.append(gpa, try gpa.dupe(u8, project_root));
+                break :fallback fallback_paths;
+            },
+            else => return err,
+        };
+        defer docent.manifest.deinitOwnedPaths(gpa, &package_paths);
+
+        for (package_paths.items) |path| {
+            const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch |err| switch (err) {
+                // Preserve useful errors for missing source paths while ignoring
+                // missing non-source package metadata entries.
+                error.FileNotFound => {
+                    if (isFormatSourcePath(path)) {
+                        try manifest_paths.append(gpa, try gpa.dupe(u8, path));
+                    }
+                    continue;
+                },
+                else => return err,
+            };
+            if (stat.kind == .directory or isFormatSourcePath(path)) {
+                try manifest_paths.append(gpa, try gpa.dupe(u8, path));
+            }
+        }
+
+        manifest_dependency_roots = docent.manifest.loadDependencyPathRoots(
+            gpa,
+            io,
+            manifest_path,
+        ) catch .empty;
+        using_manifest_defaults = true;
+        break :paths manifest_paths.items;
+    };
 
     var excluded: std.ArrayList([]const u8) = .empty;
     defer excluded.deinit(gpa);
     try excluded.appendSlice(gpa, config.exclude);
     try excluded.appendSlice(gpa, cli_excluded);
+    if (using_manifest_defaults) {
+        try excluded.appendSlice(gpa, manifest_dependency_roots.items);
+    }
 
     const opts: fmt.Options = .{
         .check = check_flag,
@@ -131,4 +181,16 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
     defer formatter.deinit();
 
     try formatter.formatPaths(paths, excluded.items);
+}
+
+fn isFormatSourcePath(path: []const u8) bool {
+    return std.mem.endsWith(u8, path, ".zig") or
+        std.mem.endsWith(u8, path, ".zon");
+}
+
+test "manifest defaults recognize only Zig and ZON files" {
+    try std.testing.expect(isFormatSourcePath("build.zig"));
+    try std.testing.expect(isFormatSourcePath("build.zig.zon"));
+    try std.testing.expect(!isFormatSourcePath("README.md"));
+    try std.testing.expect(!isFormatSourcePath("LICENSE.txt"));
 }
