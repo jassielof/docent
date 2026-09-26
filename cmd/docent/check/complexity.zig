@@ -106,6 +106,7 @@ fn run(ctx: *fangz.ParseContext, mode: Mode) !void {
         all_diagnostics.items,
         summary,
         path_display_root,
+        .{ .minimal_primary_label = true },
     );
 
     if (summary.errors > 0 or summary.warnings > 0) std.process.exit(1);

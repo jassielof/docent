@@ -192,6 +192,7 @@ fn run(ctx: *fangz.ParseContext) !void {
         all_diagnostics.items,
         summary,
         path_display_root,
+        .{ .categorized_summary = true },
     );
 
     if (summary.errors > 0 or summary.warnings > 0) std.process.exit(1);

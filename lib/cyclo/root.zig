@@ -156,8 +156,8 @@ pub fn check(
             .symbol_len = name.len,
             .primary_label = try std.fmt.allocPrint(
                 msg_allocator,
-                "score: {d}",
-                .{score},
+                "score: {d}/{d}",
+                .{ score, threshold },
             ),
             .spans = spans,
             .help = help,
@@ -373,7 +373,7 @@ test "check populates primary_label and spans, capped and in source order" {
     try std.testing.expectEqual(@as(usize, 1), diagnostics.items.len);
     const diagnostic = diagnostics.items[0];
     try std.testing.expectEqualStrings(
-        "score: 7",
+        "score: 7/5",
         diagnostic.primary_label orelse return error.MissingPrimaryLabel,
     );
 

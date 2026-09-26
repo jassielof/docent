@@ -41,6 +41,9 @@ pub const TextOptions = struct {
     color_profile: ?carnaval.ColorProfile = null,
     /// When set, absolute paths under this directory are printed relative to it (Cargo-style).
     path_display_root: ?[]const u8 = null,
+    /// Replace the rule ID with `Diagnostic.primary_label` in minimal output.
+    /// Category-specific commands use this when the rule is already explicit.
+    minimal_primary_label: bool = false,
 };
 
 /// Options for the final error/warning summary line.
@@ -685,7 +688,10 @@ fn writeMinimalDiagnostics(
             );
             try writer.writeAll("  ");
             try style.rule_style.renderWithProfile(
-                diagnostic.rule,
+                if (options.minimal_primary_label)
+                    diagnostic.primary_label orelse diagnostic.rule
+                else
+                    diagnostic.rule,
                 writer,
                 color_profile,
             );
@@ -1077,6 +1083,62 @@ test "minimal formatter separates files with a blank line" {
     );
 }
 
+test "minimal formatter shows a complexity score and threshold instead of its rule id" {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(std.testing.allocator);
+
+    var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
+    defer writer.deinit();
+
+    const diagnostics = [_]Diagnostic{.{
+        .rule = "cognitive_complexity",
+        .severity_level = .warn,
+        .file = "src/main.zig",
+        .line = 27,
+        .column = 4,
+        .primary_label = "score: 30/15",
+    }};
+    try writeDiagnostics(
+        &writer.writer,
+        &diagnostics,
+        .{ .format = .minimal, .color = .never, .minimal_primary_label = true },
+    );
+    out = writer.toArrayList();
+
+    try std.testing.expectEqualStrings(
+        "src/main.zig\n  27:4  warning  score: 30/15\n",
+        out.items,
+    );
+}
+
+test "minimal aggregate formatter keeps the complexity rule id" {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(std.testing.allocator);
+
+    var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
+    defer writer.deinit();
+
+    const diagnostics = [_]Diagnostic{.{
+        .rule = "cognitive_complexity",
+        .severity_level = .warn,
+        .file = "src/main.zig",
+        .line = 27,
+        .column = 4,
+        .primary_label = "score: 30/15",
+    }};
+    try writeDiagnostics(
+        &writer.writer,
+        &diagnostics,
+        .{ .format = .minimal, .color = .never },
+    );
+    out = writer.toArrayList();
+
+    try std.testing.expectEqualStrings(
+        "src/main.zig\n  27:4  warning  cognitive_complexity\n",
+        out.items,
+    );
+}
+
 test "pretty formatter renders rustc-style block" {
     var out: std.ArrayList(u8) = .empty;
     defer out.deinit(std.testing.allocator);
@@ -1192,7 +1254,7 @@ test "pretty formatter renders a multi-span complexity breakdown" {
             .column = 8,
             .source_line = "fn parseEmphasis(ip: *InlineParser) !void {",
             .symbol_len = 13,
-            .primary_label = "score: 29",
+            .primary_label = "score: 29/15",
             .spans = &.{
                 .{ .line = 1375, .column = 5, .symbol_len = 5, .source_line = "    while (ip.hasMore()) {", .label = "+1 (loop)" },
                 .{ .line = 1380, .column = 9, .symbol_len = 2, .source_line = "        if (isDelimiter(char)) {", .label = "+2 (nested conditional)" },
@@ -1217,7 +1279,7 @@ test "pretty formatter renders a multi-span complexity breakdown" {
     try std.testing.expect(std.mem.indexOf(
         u8,
         out.items,
-        "^~~~~~~~~~~~~ score: 29\n",
+        "^~~~~~~~~~~~~ score: 29/15\n",
     ) != null);
 
     // Every span's source line, caret span, and label appear...

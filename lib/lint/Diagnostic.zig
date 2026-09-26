@@ -85,7 +85,9 @@ column: usize,
 source_line: []const u8 = "",
 /// Length of the highlighted token for the ^~~~ span. Defaults to 1.
 symbol_len: usize = 1,
-/// Optional label rendered after the primary caret underline (e.g. "score: 29").
+/// Optional compact result label. Pretty output renders it after the primary
+/// caret; category-specific minimal output may use it instead of the rule ID
+/// when the invoking command already identifies the rule (e.g. "score: 29/15").
 primary_label: ?[]const u8 = null,
 /// Additional labeled spans shown beneath the primary one. Empty for the
 /// vast majority of diagnostics; only multi-cause rules like complexity

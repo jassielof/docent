@@ -188,6 +188,7 @@ pub fn printCheckResults(
     diagnostics: []const Diagnostic,
     summary: output.Summary,
     path_display_root: ?[]const u8,
+    options: PrintCheckResultsOptions,
 ) !void {
     if (args.format == .json) {
         try output.printJsonStdout(
@@ -198,12 +199,13 @@ pub fn printCheckResults(
         return;
     }
 
-    const text_options = output.stdoutTextOptions(
+    var text_options = output.stdoutTextOptions(
         io,
         textFormat(args.format),
         .auto,
         path_display_root,
     );
+    text_options.minimal_primary_label = options.minimal_primary_label;
     try output.printDiagnosticsStdout(
         io,
         diagnostics,
@@ -220,7 +222,22 @@ pub fn printCheckResults(
         ),
         had_diagnostics,
     );
+
+    if (options.categorized_summary and had_diagnostics) {
+        var rows: std.ArrayList(RuleCountRow) = .empty;
+        defer rows.deinit(allocator);
+        try appendDiagnosticCounts(allocator, diagnostics, &rows);
+        try printCategorizedSummaryStdout(allocator, io, rows.items);
+    }
 }
+
+pub const PrintCheckResultsOptions = struct {
+    /// In minimal mode, show a diagnostic's compact result instead of its rule
+    /// ID. Use only when the invoking subcommand already identifies the rule.
+    minimal_primary_label: bool = false,
+    /// Follow the overall total with counts grouped by category and rule.
+    categorized_summary: bool = false,
+};
 
 fn resolveManifestPath(
     allocator: std.mem.Allocator,
@@ -535,16 +552,60 @@ pub fn printCategorizedSummary(
     rows: []const RuleCountRow,
 ) !void {
     const profile = stderrColorProfile(io);
+    var buf: [8192]u8 = undefined;
+    var stderr = std.Io.File.stderr().writer(io, &buf);
+    try writeCategorizedSummary(
+        allocator,
+        &stderr.interface,
+        profile,
+        rows,
+    );
+    try stderr.interface.flush();
+}
+
+fn printCategorizedSummaryStdout(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    rows: []const RuleCountRow,
+) !void {
+    const tty_config = std.Io.Terminal.Mode.detect(
+        io,
+        std.Io.File.stdout(),
+        false,
+        false,
+    ) catch .no_color;
+    const detected = carnaval.colorProfileForHandle(std.Io.File.stdout().handle);
+    const profile = if (tty_config == .no_color)
+        carnaval.ColorProfile.none
+    else if (detected == .none)
+        carnaval.ColorProfile.ansi16
+    else
+        detected;
+
+    var buf: [8192]u8 = undefined;
+    var stdout = std.Io.File.stdout().writer(io, &buf);
+    try stdout.interface.writeAll("\nFindings by category\n");
+    try writeCategorizedSummary(
+        allocator,
+        &stdout.interface,
+        profile,
+        rows,
+    );
+    try stdout.interface.flush();
+}
+
+fn writeCategorizedSummary(
+    allocator: std.mem.Allocator,
+    writer: *std.Io.Writer,
+    profile: carnaval.ColorProfile,
+    rows: []const RuleCountRow,
+) !void {
     const categories = [_]RuleCategory{
         .doc,
         .style,
         .complexity,
         .size,
     };
-
-    var buf: [8192]u8 = undefined;
-    var stderr = std.Io.File.stderr().writer(io, &buf);
-    const writer = &stderr.interface;
 
     var any_category = false;
 
@@ -594,6 +655,31 @@ pub fn printCategorizedSummary(
             profile,
         );
     }
+}
 
-    try writer.flush();
+test "categorized summary groups rule counts under their categories" {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(std.testing.allocator);
+
+    var writer: std.Io.Writer.Allocating = .fromArrayList(std.testing.allocator, &out);
+    defer writer.deinit();
+
+    const rows = [_]RuleCountRow{
+        .{ .category = .complexity, .severity = .warn, .rule = "cognitive_complexity", .count = 3 },
+        .{ .category = .complexity, .severity = .warn, .rule = "cyclomatic_complexity", .count = 5 },
+        .{ .category = .size, .severity = .deny, .rule = "max_fun_params", .count = 1 },
+    };
+    try writeCategorizedSummary(
+        std.testing.allocator,
+        &writer.writer,
+        .none,
+        &rows,
+    );
+    out = writer.toArrayList();
+
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "Complexity\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "3 warning[cognitive_complexity]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "5 warning[cyclomatic_complexity]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "Size\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.items, "1 error[max_fun_params]") != null);
 }

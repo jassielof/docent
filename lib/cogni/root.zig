@@ -139,8 +139,8 @@ pub fn check(
             .symbol_len = name.len,
             .primary_label = try std.fmt.allocPrint(
                 msg_allocator,
-                "score: {d}",
-                .{result.score},
+                "score: {d}/{d}",
+                .{ result.score, threshold },
             ),
             .spans = spans,
             .help = help,
@@ -889,6 +889,7 @@ test "check populates primary_label and spans for an over-threshold function" {
         label,
         "score: ",
     ));
+    try std.testing.expect(std.mem.indexOfScalar(u8, label, '/') != null);
 
     // 6 nested `if`s: not all of them fit in `max_breakdown_spans`, so only
     // the highest-scoring ones are kept — but always in ascending source
