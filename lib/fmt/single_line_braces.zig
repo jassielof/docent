@@ -545,6 +545,66 @@ test "still braces an unbraced else tail of a plain statement-if (regression)" {
     try format_test_assertions.expectValidZig(formatted);
 }
 
+test "braces an if-else expression whose else body is a wrapped call (regression)" {
+    const gpa = std.testing.allocator;
+
+    const inputs = [_][]const u8{
+        \\fn f() bool {
+        \\    const matches = if (builtin.os.tag == .windows)
+        \\        std.ascii.eqlIgnoreCase(inner[0..outer.len], outer)
+        \\    else
+        \\        std.mem.eql(u8, inner[0..outer.len], outer);
+        \\    if (!matches) return false;
+        \\}
+        \\
+        ,
+        \\fn f() bool {
+        \\    const matches = if (builtin.os.tag == .windows)
+        \\        std.ascii.eqlIgnoreCase(inner[0..outer.len], outer)
+        \\    else
+        \\        std.mem.eql(
+        \\            u8,
+        \\            inner[0..outer.len],
+        \\            outer,
+        \\        );
+        \\    if (!matches) return false;
+        \\}
+        \\
+        ,
+    };
+    const expected_tails = [_][]const u8{
+        \\    } else {
+        \\        std.mem.eql(u8, inner[0..outer.len], outer);
+        \\    };
+        \\    if (!matches) {
+        \\        return false;
+        \\    }
+        \\}
+        \\
+        ,
+        \\    } else {
+        \\        std.mem.eql(
+        \\            u8,
+        \\            inner[0..outer.len],
+        \\            outer,
+        \\        );
+        \\    };
+        \\    if (!matches) {
+        \\        return false;
+        \\    }
+        \\}
+        \\
+        ,
+    };
+
+    for (inputs, expected_tails) |input, tail| {
+        const formatted = try enforceBraces(gpa, input);
+        defer gpa.free(formatted);
+        try std.testing.expect(mem.endsWith(u8, formatted, tail));
+        try format_test_assertions.expectValidZig(formatted);
+    }
+}
+
 const keywords = [_][]const u8{
     "if ",
     "while ",
@@ -780,6 +840,19 @@ fn hasUnbalancedOpenDelimiter(body: []const u8) bool {
     return brace_depth > 0 or paren_depth > 0;
 }
 
+/// Net count of braces and parens opened minus closed on `line`.
+fn delimiterDepth(line: []const u8) isize {
+    var depth: isize = 0;
+    for (line) |c| {
+        switch (c) {
+            '{', '(' => depth += 1,
+            '}', ')' => depth -= 1,
+            else => {},
+        }
+    }
+    return depth;
+}
+
 /// Handles multi-line unbraced control flow, e.g.:
 /// ```
 ///   const x = if (CONDITION)
@@ -862,9 +935,21 @@ fn tryExpandMultiLine(
             if (start + 3 < lines.len) {
                 else_body_raw = lines[start + 3];
                 consumed = 4;
+                // The else body may itself span several lines (a wrapped
+                // call); keep consuming until its delimiters balance.
+                var depth = delimiterDepth(lines[start + 3]);
+                while (depth > 0 and start + consumed < lines.len) {
+                    depth += delimiterDepth(lines[start + consumed]);
+                    consumed += 1;
+                }
+                if (depth != 0) return 0;
             }
         }
     }
+
+    // A first branch that opens a delimiter it doesn't close is a fragment
+    // of a multi-line construct; wrapping just its first line would tear it.
+    if (delimiterDepth(body_line_raw) != 0) return 0;
 
     // Anything other than a plain two-branch `if`/`else` isn't safe to
     // handle here — most notably an `else if` chain, where `start + 2` is
@@ -908,6 +993,13 @@ fn tryExpandMultiLine(
             try output.appendSlice(gpa, "    ");
             try output.appendSlice(gpa, eb_trimmed);
             try output.append(gpa, '\n');
+
+            // Continuation lines of a multi-line else body; the body is
+            // already indented one level inside the new block.
+            for (lines[start + 4 .. start + consumed]) |cont| {
+                try output.appendSlice(gpa, mem.trimEnd(u8, cont, " "));
+                try output.append(gpa, '\n');
+            }
         }
 
         try output.appendSlice(gpa, indent);

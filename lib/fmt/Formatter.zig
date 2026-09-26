@@ -98,6 +98,15 @@ test "normalizes malformed packed array rows" {
     try std.testing.expectEqualStrings(expected, formatted);
 }
 
+test "normalizes CRLF line endings to LF" {
+    const gpa = std.testing.allocator;
+    const input = "const a = 1;\r\nconst b = 2;\r\n";
+
+    const formatted = try formatSourceForTest(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings("const a = 1;\nconst b = 2;\n", formatted);
+}
+
 fn formatSourceForTest(gpa: Allocator, input: []const u8) ![]const u8 {
     const sentinel_input = try gpa.dupeZ(u8, input);
     defer gpa.free(sentinel_input);
@@ -602,17 +611,9 @@ fn fmtPathFile(
     );
     defer if (pp.allocated) gpa.free(pp.output);
 
-    // Zig's renderer (and every post-processing pass) always emits `\n`
-    // line endings. On a CRLF checkout that makes every line look changed
-    // even when nothing but the line ending differs, so match the source
-    // file's own convention before comparing, diffing, or writing.
-    const uses_crlf = mem.indexOf(
-        u8,
-        source_code,
-        "\r\n",
-    ) != null;
-    const output = if (uses_crlf) try toCrlf(gpa, pp.output) else pp.output;
-    defer if (uses_crlf) gpa.free(output);
+    // Like `zig fmt`, always emit `\n` line endings, even when the source
+    // uses CRLF: Zig treats LF as the canonical line terminator.
+    const output = pp.output;
 
     if (mem.eql(
         u8,
@@ -660,19 +661,6 @@ fn fmtPathFile(
         );
         try self.stdout_writer.interface.writeAll("\n");
     }
-}
-
-/// Reinserts `\r` before every `\n` in `input`, which is assumed to have
-/// no carriage returns of its own (true of Zig's renderer output).
-fn toCrlf(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
-    var out: std.ArrayList(u8) = .empty;
-    errdefer out.deinit(gpa);
-    try out.ensureTotalCapacity(gpa, input.len);
-    for (input) |byte| {
-        if (byte == '\n') try out.append(gpa, '\r');
-        try out.append(gpa, byte);
-    }
-    return out.toOwnedSlice(gpa);
 }
 
 /// Applies all configured post-processing passes to rendered source.
