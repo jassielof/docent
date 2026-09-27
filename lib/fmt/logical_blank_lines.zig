@@ -196,6 +196,59 @@ test "enforces logical blank lines" {
     try format_test_assertions.expectIdempotent(expected, formatted_expected);
 }
 
+test "does not insert blank lines inside multi-line return or defer" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn a() void {
+        \\    return switch (x) {
+        \\        .a => 1,
+        \\    };
+        \\}
+        \\
+        \\fn b() void {
+        \\    return foo(
+        \\        x,
+        \\        y,
+        \\    );
+        \\}
+        \\
+        \\fn c() void {
+        \\    defer {
+        \\        free(x);
+        \\    }
+        \\    work();
+        \\}
+        \\
+    ;
+    const expected =
+        \\fn a() void {
+        \\    return switch (x) {
+        \\        .a => 1,
+        \\    };
+        \\}
+        \\
+        \\fn b() void {
+        \\    return foo(
+        \\        x,
+        \\        y,
+        \\    );
+        \\}
+        \\
+        \\fn c() void {
+        \\    defer {
+        \\        free(x);
+        \\    }
+        \\
+        \\    work();
+        \\}
+        \\
+    ;
+
+    const formatted = try enforceLogicalBlankLines(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expectEqualStrings(expected, formatted);
+}
+
 /// Enforces logical blank line separation (vertical whitespace discipline).
 ///
 /// Zig's AST renderer collapses consecutive blank lines to one, so this pass
@@ -331,6 +384,8 @@ fn needsBlankAfter(prev_trimmed: []const u8) bool {
         return true;
     }
 
+    // Only complete statements: `return foo(` or `defer {` continue on the next line.
+    if (!mem.endsWith(u8, prev_trimmed, ";")) return false;
     if (isFlowTerminator(prev_trimmed)) return true;
     if (isDeferLine(prev_trimmed)) return true;
 

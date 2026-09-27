@@ -66,17 +66,6 @@ pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
             }
         } else |_| return error.OutOfMemory;
 
-        const consumed = try tryExpandMultiLine(
-            gpa,
-            &output,
-            all_lines.items,
-            li,
-        );
-        if (consumed > 0) {
-            li += consumed;
-            continue;
-        }
-
         try output.appendSlice(gpa, full_line);
         try output.append(gpa, '\n');
         li += 1;
@@ -201,19 +190,14 @@ test "enforces braces for single-line control flow" {
         \\        y;
         \\    }
         \\
-        \\    const conditional_value: usize = if (x > 4) {
-        \\        "greater";
-        \\    } else {
+        \\    const conditional_value: usize = if (x > 4)
+        \\        "greater"
+        \\    else
         \\        "lesser";
-        \\    };
         \\
         \\    _ = conditional_value;
         \\
-        \\    const mode: i32 = if (a > b) {
-        \\        1;
-        \\    } else {
-        \\        0;
-        \\    };
+        \\    const mode: i32 = if (a > b) 1 else 0;
         \\    _ = mode;
         \\
         \\    consume(
@@ -545,7 +529,10 @@ test "still braces an unbraced else tail of a plain statement-if (regression)" {
     try format_test_assertions.expectValidZig(formatted);
 }
 
-test "braces an if-else expression whose else body is a wrapped call (regression)" {
+test "leaves if-else expressions untouched (regression)" {
+    // Bracing the branches of an expression-valued `if` turns them into
+    // `void` blocks (`const x = if (c) { a; } else { b; };`), which is not the
+    // same program and does not compile.
     const gpa = std.testing.allocator;
 
     const inputs = [_][]const u8{
@@ -567,42 +554,40 @@ test "braces an if-else expression whose else body is a wrapped call (regression
         \\            inner[0..outer.len],
         \\            outer,
         \\        );
-        \\    if (!matches) return false;
-        \\}
-        \\
-        ,
-    };
-    const expected_tails = [_][]const u8{
-        \\    } else {
-        \\        std.mem.eql(u8, inner[0..outer.len], outer);
-        \\    };
-        \\    if (!matches) {
-        \\        return false;
-        \\    }
-        \\}
-        \\
-        ,
-        \\    } else {
-        \\        std.mem.eql(
-        \\            u8,
-        \\            inner[0..outer.len],
-        \\            outer,
-        \\        );
-        \\    };
-        \\    if (!matches) {
-        \\        return false;
-        \\    }
+        \\    return matches;
         \\}
         \\
         ,
     };
 
-    for (inputs, expected_tails) |input, tail| {
+    for (inputs) |input| {
         const formatted = try enforceBraces(gpa, input);
         defer gpa.free(formatted);
-        try std.testing.expect(mem.endsWith(u8, formatted, tail));
         try format_test_assertions.expectValidZig(formatted);
+        try std.testing.expect(mem.indexOf(u8, formatted, "} else {") == null);
     }
+}
+
+test "braces statement-if next to expression-if (regression)" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn f(req: []const u8) ?[]const u8 {
+        \\    const v = if (req.len == 0) tokens.next() orelse return null else req;
+        \\    const w =
+        \\        if (req.len == 0) a else b;
+        \\    if (v.len == 0) {
+        \\        return w;
+        \\    } else other();
+        \\    return null;
+        \\}
+        \\
+    ;
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expect(mem.indexOf(u8, formatted, "const v = if (req.len == 0) tokens.next() orelse return null else req;") != null);
+    try std.testing.expect(mem.indexOf(u8, formatted, "const w =\n        if (req.len == 0) a else b;") != null);
+    try std.testing.expect(mem.indexOf(u8, formatted, "    } else {\n        other();\n    }") != null);
+    try format_test_assertions.expectValidZig(formatted);
 }
 
 const keywords = [_][]const u8{
@@ -621,6 +606,7 @@ fn tryExpandSingleLine(
 ) !bool {
     if (content.len == 0) return false;
     if (content[content.len - 1] == ',') return false;
+    if (li > 0 and continuesExpression(all_lines[li - 1])) return false;
 
     if (mem.startsWith(
         u8,
@@ -735,52 +721,23 @@ fn tryExpandSingleLine(
         return true;
     }
 
-    if (mem.indexOf(
-        u8,
-        content,
-        " = if (",
-    )) |eq_if_pos| {
-        const if_start = eq_if_pos + 3;
-        const after_if = content[if_start..];
-        const body_start = findBodyStart(after_if) orelse return false;
-        const body = after_if[body_start..];
-        if (body.len == 0 or body[0] == '{' or hasUnbalancedOpenDelimiter(body)) return false;
+    return false;
+}
 
-        if (findInlineElse(body)) |else_offset| {
-            const if_body = body[0..else_offset];
-            const after_else_off = else_offset + 5;
-            const else_body_start = if (after_else_off < body.len and body[after_else_off] == ' ') after_else_off + 1 else after_else_off;
-            const else_body_raw = body[else_body_start..];
-            const else_body = if (mem.endsWith(
-                u8,
-                else_body_raw,
-                ";",
-            ))
-                else_body_raw[0 .. else_body_raw.len - 1]
-            else
-                else_body_raw;
-            const if_needs_semi = if_body.len > 0 and if_body[if_body.len - 1] != ';';
-
-            try output.appendSlice(gpa, indent);
-            try output.appendSlice(gpa, content[0 .. if_start + body_start]);
-            try output.appendSlice(gpa, "{\n");
-            try output.appendSlice(gpa, indent);
-            try output.appendSlice(gpa, "    ");
-            try output.appendSlice(gpa, if_body);
-            if (if_needs_semi) try output.append(gpa, ';');
-            try output.appendSlice(gpa, "\n");
-            try output.appendSlice(gpa, indent);
-            try output.appendSlice(gpa, "} else {\n");
-            try output.appendSlice(gpa, indent);
-            try output.appendSlice(gpa, "    ");
-            try output.appendSlice(gpa, else_body);
-            try output.appendSlice(gpa, ";\n");
-            try output.appendSlice(gpa, indent);
-            try output.appendSlice(gpa, "};");
-            return true;
-        }
+/// Reports whether a control-flow keyword on the line after `prev_line` is part
+/// of an expression (`const x =` followed by `if (c) a else b;`) rather than a
+/// statement.
+/// Bracing the branches of an expression would turn them into `void` blocks.
+fn continuesExpression(prev_line: []const u8) bool {
+    const prev = mem.trim(u8, prev_line, " \t");
+    if (prev.len == 0) return false;
+    switch (prev[prev.len - 1]) {
+        '=', '(', ',', '&', '|', '+', '-', '*', '/' => return true,
+        else => {},
     }
-
+    inline for (.{ "orelse", "catch", "return", "and", "or", "try", "else" }) |kw| {
+        if (mem.endsWith(u8, prev, " " ++ kw) or mem.eql(u8, prev, kw)) return true;
+    }
     return false;
 }
 
@@ -812,6 +769,7 @@ fn opensAssignedValue(all_lines: []const []const u8, li: usize) bool {
                         line,
                         " \t",
                     );
+                    if (line_idx > 0 and continuesExpression(all_lines[line_idx - 1])) return true;
                     return mem.indexOf(u8, trimmed, " = if (") != null or
                         mem.startsWith(u8, trimmed, "return if (");
                 }
@@ -838,178 +796,6 @@ fn hasUnbalancedOpenDelimiter(body: []const u8) bool {
         }
     }
     return brace_depth > 0 or paren_depth > 0;
-}
-
-/// Net count of braces and parens opened minus closed on `line`.
-fn delimiterDepth(line: []const u8) isize {
-    var depth: isize = 0;
-    for (line) |c| {
-        switch (c) {
-            '{', '(' => depth += 1,
-            '}', ')' => depth -= 1,
-            else => {},
-        }
-    }
-    return depth;
-}
-
-/// Handles multi-line unbraced control flow, e.g.:
-/// ```
-///   const x = if (CONDITION)
-///       BODY
-///   else
-///       OTHER_BODY;
-/// ```
-fn tryExpandMultiLine(
-    gpa: Allocator,
-    output: *std.ArrayList(u8),
-    lines: []const []const u8,
-    start: usize,
-) !usize {
-    const first = lines[start];
-    const indent_len = leadingSpaces(first);
-    const trimmed = mem.trimEnd(
-        u8,
-        first,
-        " ",
-    );
-    const content = first[indent_len..trimmed.len];
-    const indent = first[0..indent_len];
-
-    const has_assign = mem.indexOf(
-        u8,
-        content,
-        " = ",
-    ) != null;
-    if (!has_assign) return 0;
-
-    const if_pos = mem.indexOf(
-        u8,
-        content,
-        "if (",
-    ) orelse return 0;
-    const after_if = content[if_pos..];
-
-    const body_start_opt = findBodyStart(after_if);
-    if (body_start_opt) |bs| {
-        if (bs < after_if.len) return 0;
-    }
-    const header_end = if_pos + (body_start_opt orelse after_if.len);
-
-    if (start + 1 >= lines.len) return 0;
-
-    const body_line_raw = lines[start + 1];
-    const body_trimmed = mem.trimStart(
-        u8,
-        mem.trimEnd(
-            u8,
-            body_line_raw,
-            " ",
-        ),
-        " ",
-    );
-    if (body_trimmed.len == 0 or body_trimmed[0] == '{') return 0;
-
-    var consumed: usize = 2;
-
-    var else_line_raw: ?[]const u8 = null;
-    var else_body_raw: ?[]const u8 = null;
-
-    if (start + 2 < lines.len) {
-        const candidate = mem.trimStart(
-            u8,
-            mem.trimEnd(
-                u8,
-                lines[start + 2],
-                " ",
-            ),
-            " ",
-        );
-        if (mem.eql(
-            u8,
-            candidate,
-            "else",
-        )) {
-            else_line_raw = lines[start + 2];
-            consumed = 3;
-            if (start + 3 < lines.len) {
-                else_body_raw = lines[start + 3];
-                consumed = 4;
-                // The else body may itself span several lines (a wrapped
-                // call); keep consuming until its delimiters balance.
-                var depth = delimiterDepth(lines[start + 3]);
-                while (depth > 0 and start + consumed < lines.len) {
-                    depth += delimiterDepth(lines[start + consumed]);
-                    consumed += 1;
-                }
-                if (depth != 0) return 0;
-            }
-        }
-    }
-
-    // A first branch that opens a delimiter it doesn't close is a fragment
-    // of a multi-line construct; wrapping just its first line would tear it.
-    if (delimiterDepth(body_line_raw) != 0) return 0;
-
-    // Anything other than a plain two-branch `if`/`else` isn't safe to
-    // handle here — most notably an `else if` chain, where `start + 2` is
-    // neither a bare "else" line nor the tail of a self-terminated
-    // statement. Treating the first branch as the whole construct (as this
-    // function used to) drops the rest of the chain on the floor, leaving
-    // it as dangling, unparseable text after the wrapper this function
-    // emits. If there's no recognized `else` and the body isn't already a
-    // complete, semicolon-terminated statement, bail and leave every line
-    // untouched instead of guessing.
-    if (else_line_raw == null and (body_trimmed.len == 0 or body_trimmed[body_trimmed.len - 1] != ';')) {
-        return 0;
-    }
-
-    try output.appendSlice(gpa, indent);
-    try output.appendSlice(gpa, content[0..header_end]);
-    try output.appendSlice(gpa, " {\n");
-
-    try output.appendSlice(gpa, indent);
-    try output.appendSlice(gpa, "    ");
-    const body_needs_semi = body_trimmed.len > 0 and body_trimmed[body_trimmed.len - 1] != ';' and else_line_raw != null;
-    try output.appendSlice(gpa, body_trimmed);
-    if (body_needs_semi) try output.append(gpa, ';');
-    try output.append(gpa, '\n');
-
-    if (else_line_raw != null) {
-        try output.appendSlice(gpa, indent);
-        try output.appendSlice(gpa, "} else {\n");
-
-        if (else_body_raw) |eb| {
-            const eb_trimmed = mem.trimStart(
-                u8,
-                mem.trimEnd(
-                    u8,
-                    eb,
-                    " ",
-                ),
-                " ",
-            );
-            try output.appendSlice(gpa, indent);
-            try output.appendSlice(gpa, "    ");
-            try output.appendSlice(gpa, eb_trimmed);
-            try output.append(gpa, '\n');
-
-            // Continuation lines of a multi-line else body; the body is
-            // already indented one level inside the new block.
-            for (lines[start + 4 .. start + consumed]) |cont| {
-                try output.appendSlice(gpa, mem.trimEnd(u8, cont, " "));
-                try output.append(gpa, '\n');
-            }
-        }
-
-        try output.appendSlice(gpa, indent);
-        try output.appendSlice(gpa, "};\n");
-    } else {
-        try output.appendSlice(gpa, indent);
-        try output.appendSlice(gpa, "}\n");
-    }
-
-    return consumed;
 }
 
 /// Finds where the body starts after a control-flow condition.
