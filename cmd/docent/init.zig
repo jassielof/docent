@@ -159,18 +159,50 @@ test "renderConfig embeds the Tiger Style preset" {
     const content = try renderConfig(std.testing.allocator, .tiger);
     defer std.testing.allocator.free(content);
 
-    try std.testing.expect(std.mem.startsWith(u8, content, remote_schema_line));
-    try std.testing.expect(std.mem.indexOf(u8, content, "functions = \"snake_case\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, content, "struct_file_case = \"snake_case\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, content, "level = \"forbid\"") != null);
+    try std.testing.expect(std.mem.startsWith(
+        u8,
+        content,
+        remote_schema_line,
+    ));
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        content,
+        "functions = \"snake_case\"",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        content,
+        "struct_file_case = \"snake_case\"",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        content,
+        "level = \"forbid\"",
+    ) != null);
 }
 
 test "renderConfig embeds the Go Doc Comments preset" {
     const content = try renderConfig(std.testing.allocator, .godoc);
     defer std.testing.allocator.free(content);
 
-    try std.testing.expect(std.mem.startsWith(u8, content, remote_schema_line));
-    try std.testing.expect(std.mem.indexOf(u8, content, "scan_mode = \"public\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, content, "missing_doctest = \"allow\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, content, "ignore_leading_comments = true") != null);
+    try std.testing.expect(std.mem.startsWith(
+        u8,
+        content,
+        remote_schema_line,
+    ));
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        content,
+        "scan_mode = \"public\"",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        content,
+        "missing_doctest = \"allow\"",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        content,
+        "ignore_leading_comments = true",
+    ) != null);
 }

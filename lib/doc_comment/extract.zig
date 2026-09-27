@@ -345,7 +345,11 @@ pub fn fnReturnsPlainBool(tree: *const Ast, fn_node: Ast.Node.Index) bool {
     const proto = tree.fullFnProto(&buf, fn_node) orelse return false;
     const return_type = proto.ast.return_type.unwrap() orelse return false;
     if (tree.nodeTag(return_type) != .identifier) return false;
-    return std.mem.eql(u8, tree.tokenSlice(tree.nodeMainToken(return_type)), "bool");
+    return std.mem.eql(
+        u8,
+        tree.tokenSlice(tree.nodeMainToken(return_type)),
+        "bool",
+    );
 }
 
 fn findFnDeclNode(

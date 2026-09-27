@@ -564,7 +564,11 @@ test "leaves if-else expressions untouched (regression)" {
         const formatted = try enforceBraces(gpa, input);
         defer gpa.free(formatted);
         try format_test_assertions.expectValidZig(formatted);
-        try std.testing.expect(mem.indexOf(u8, formatted, "} else {") == null);
+        try std.testing.expect(mem.indexOf(
+            u8,
+            formatted,
+            "} else {",
+        ) == null);
     }
 }
 
@@ -584,9 +588,21 @@ test "braces statement-if next to expression-if (regression)" {
     ;
     const formatted = try enforceBraces(gpa, input);
     defer gpa.free(formatted);
-    try std.testing.expect(mem.indexOf(u8, formatted, "const v = if (req.len == 0) tokens.next() orelse return null else req;") != null);
-    try std.testing.expect(mem.indexOf(u8, formatted, "const w =\n        if (req.len == 0) a else b;") != null);
-    try std.testing.expect(mem.indexOf(u8, formatted, "    } else {\n        other();\n    }") != null);
+    try std.testing.expect(mem.indexOf(
+        u8,
+        formatted,
+        "const v = if (req.len == 0) tokens.next() orelse return null else req;",
+    ) != null);
+    try std.testing.expect(mem.indexOf(
+        u8,
+        formatted,
+        "const w =\n        if (req.len == 0) a else b;",
+    ) != null);
+    try std.testing.expect(mem.indexOf(
+        u8,
+        formatted,
+        "    } else {\n        other();\n    }",
+    ) != null);
     try format_test_assertions.expectValidZig(formatted);
 }
 
@@ -646,7 +662,11 @@ fn tryExpandSingleLine(
         if (body.len == 0 or body[0] == '{' or hasUnbalancedOpenDelimiter(body)) return false;
 
         for (keywords) |kw| {
-            if (mem.startsWith(u8, body, kw)) return false;
+            if (mem.startsWith(
+                u8,
+                body,
+                kw,
+            )) return false;
         }
 
         try output.appendSlice(gpa, indent);
@@ -729,14 +749,34 @@ fn tryExpandSingleLine(
 /// statement.
 /// Bracing the branches of an expression would turn them into `void` blocks.
 fn continuesExpression(prev_line: []const u8) bool {
-    const prev = mem.trim(u8, prev_line, " \t");
+    const prev = mem.trim(
+        u8,
+        prev_line,
+        " \t",
+    );
     if (prev.len == 0) return false;
     switch (prev[prev.len - 1]) {
         '=', '(', ',', '&', '|', '+', '-', '*', '/' => return true,
         else => {},
     }
-    inline for (.{ "orelse", "catch", "return", "and", "or", "try", "else" }) |kw| {
-        if (mem.endsWith(u8, prev, " " ++ kw) or mem.eql(u8, prev, kw)) return true;
+    inline for (.{
+        "orelse",
+        "catch",
+        "return",
+        "and",
+        "or",
+        "try",
+        "else",
+    }) |kw| {
+        if (mem.endsWith(
+            u8,
+            prev,
+            " " ++ kw,
+        ) or mem.eql(
+            u8,
+            prev,
+            kw,
+        )) return true;
     }
     return false;
 }
@@ -770,8 +810,16 @@ fn opensAssignedValue(all_lines: []const []const u8, li: usize) bool {
                         " \t",
                     );
                     if (line_idx > 0 and continuesExpression(all_lines[line_idx - 1])) return true;
-                    return mem.indexOf(u8, trimmed, " = if (") != null or
-                        mem.startsWith(u8, trimmed, "return if (");
+                    return mem.indexOf(
+                        u8,
+                        trimmed,
+                        " = if (",
+                    ) != null or
+                        mem.startsWith(
+                            u8,
+                            trimmed,
+                            "return if (",
+                        );
                 }
             }
         }

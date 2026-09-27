@@ -5,8 +5,8 @@
 //! in each rule.
 
 const std = @import("std");
-const Ast = std.zig.Ast;
 const Allocator = std.mem.Allocator;
+const Ast = std.zig.Ast;
 
 const Diagnostic = @import("Diagnostic.zig");
 
@@ -36,9 +36,19 @@ pub fn buildSpans(
     // Ties are common for cyclomatic complexity (every decision point is
     // worth exactly 1) — break them by source position so selection is
     // deterministic instead of depending on sort implementation details.
-    std.mem.sort(Increment, scratch, tree, byPointsDescendingThenPosition);
+    std.mem.sort(
+        Increment,
+        scratch,
+        tree,
+        byPointsDescendingThenPosition,
+    );
     const kept = scratch[0..@min(max_spans, scratch.len)];
-    std.mem.sort(Increment, kept, tree, bySourcePosition);
+    std.mem.sort(
+        Increment,
+        kept,
+        tree,
+        bySourcePosition,
+    );
 
     var spans: std.ArrayList(Diagnostic.Span) = .empty;
     errdefer {
@@ -55,7 +65,11 @@ pub fn buildSpans(
             .line = loc.line + 1,
             .column = loc.column + 1,
             .symbol_len = tree.tokenSlice(increment.token).len,
-            .source_line = try dupSourceLine(tree, increment.token, allocator),
+            .source_line = try dupSourceLine(
+                tree,
+                increment.token,
+                allocator,
+            ),
             .label = try std.fmt.allocPrint(
                 allocator,
                 "+{d} ({s})",
@@ -75,21 +89,37 @@ pub fn topLine(tree: *const Ast, increments: []const Increment) ?usize {
 
     var best = increments[0];
     for (increments[1..]) |candidate| {
-        if (byPointsDescendingThenPosition(tree, candidate, best)) best = candidate;
+        if (byPointsDescendingThenPosition(
+            tree,
+            candidate,
+            best,
+        )) best = candidate;
     }
     return tree.tokenLocation(0, best.token).line + 1;
 }
 
-fn byPointsDescendingThenPosition(tree: *const Ast, a: Increment, b: Increment) bool {
+fn byPointsDescendingThenPosition(
+    tree: *const Ast,
+    a: Increment,
+    b: Increment,
+) bool {
     if (a.points != b.points) return a.points > b.points;
     return tree.tokenStart(a.token) < tree.tokenStart(b.token);
 }
 
-fn bySourcePosition(tree: *const Ast, a: Increment, b: Increment) bool {
+fn bySourcePosition(
+    tree: *const Ast,
+    a: Increment,
+    b: Increment,
+) bool {
     return tree.tokenStart(a.token) < tree.tokenStart(b.token);
 }
 
-fn dupSourceLine(tree: *const Ast, token: Ast.TokenIndex, allocator: Allocator) ![]const u8 {
+fn dupSourceLine(
+    tree: *const Ast,
+    token: Ast.TokenIndex,
+    allocator: Allocator,
+) ![]const u8 {
     const loc = tree.tokenLocation(0, token);
     var end = loc.line_start;
     while (end < tree.source.len and tree.source[end] != '\n') end += 1;
@@ -111,7 +141,11 @@ test "keeps the highest-scoring increments and orders them by source position" {
         \\}
         \\
     ;
-    var tree = try Ast.parse(gpa, source, .zig);
+    var tree = try Ast.parse(
+        gpa,
+        source,
+        .zig,
+    );
     defer tree.deinit(gpa);
 
     // Fabricate increments anchored at the four statement-starting tokens
@@ -121,7 +155,11 @@ test "keeps the highest-scoring increments and orders them by source position" {
     var count: usize = 0;
     for (0..tree.tokens.len) |i| {
         const tag = tree.tokenTag(@intCast(i));
-        if (tag == .keyword_var or (tag == .identifier and std.mem.eql(u8, tree.tokenSlice(@intCast(i)), "x"))) {
+        if (tag == .keyword_var or (tag == .identifier and std.mem.eql(
+            u8,
+            tree.tokenSlice(@intCast(i)),
+            "x",
+        ))) {
             if (count < toks.len) {
                 toks[count] = @intCast(i);
                 count += 1;
@@ -137,7 +175,12 @@ test "keeps the highest-scoring increments and orders them by source position" {
         .{ .token = toks[2], .points = 4, .reason = "fourth" },
     };
 
-    const spans = try buildSpans(gpa, &tree, &increments, 3);
+    const spans = try buildSpans(
+        gpa,
+        &tree,
+        &increments,
+        3,
+    );
     defer {
         for (spans) |span| {
             gpa.free(span.source_line);
@@ -160,7 +203,11 @@ test "keeps the highest-scoring increments and orders them by source position" {
 test "topLine breaks ties by earliest source position" {
     const gpa = std.testing.allocator;
     const source = "fn f() void {\n    var a: u32 = 0;\n    var b: u32 = 0;\n}\n";
-    var tree = try Ast.parse(gpa, source, .zig);
+    var tree = try Ast.parse(
+        gpa,
+        source,
+        .zig,
+    );
     defer tree.deinit(gpa);
 
     var var_tokens: [2]Ast.TokenIndex = undefined;
@@ -183,7 +230,11 @@ test "topLine breaks ties by earliest source position" {
 
 test "topLine returns null for no increments" {
     const gpa = std.testing.allocator;
-    var tree = try Ast.parse(gpa, "fn f() void {}", .zig);
+    var tree = try Ast.parse(
+        gpa,
+        "fn f() void {}",
+        .zig,
+    );
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(?usize, null), topLine(&tree, &.{}));
@@ -191,9 +242,18 @@ test "topLine returns null for no increments" {
 
 test "returns an empty slice when there are no increments" {
     const gpa = std.testing.allocator;
-    var tree = try Ast.parse(gpa, "fn f() void {}", .zig);
+    var tree = try Ast.parse(
+        gpa,
+        "fn f() void {}",
+        .zig,
+    );
     defer tree.deinit(gpa);
 
-    const spans = try buildSpans(gpa, &tree, &.{}, 4);
+    const spans = try buildSpans(
+        gpa,
+        &tree,
+        &.{},
+        4,
+    );
     try std.testing.expectEqual(@as(usize, 0), spans.len);
 }

@@ -889,7 +889,11 @@ test "check populates primary_label and spans for an over-threshold function" {
         label,
         "score: ",
     ));
-    try std.testing.expect(std.mem.indexOfScalar(u8, label, '/') != null);
+    try std.testing.expect(std.mem.indexOfScalar(
+        u8,
+        label,
+        '/',
+    ) != null);
 
     // 6 nested `if`s: not all of them fit in `max_breakdown_spans`, so only
     // the highest-scoring ones are kept — but always in ascending source

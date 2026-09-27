@@ -385,7 +385,11 @@ fn needsBlankAfter(prev_trimmed: []const u8) bool {
     }
 
     // Only complete statements: `return foo(` or `defer {` continue on the next line.
-    if (!mem.endsWith(u8, prev_trimmed, ";")) return false;
+    if (!mem.endsWith(
+        u8,
+        prev_trimmed,
+        ";",
+    )) return false;
     if (isFlowTerminator(prev_trimmed)) return true;
     if (isDeferLine(prev_trimmed)) return true;
 

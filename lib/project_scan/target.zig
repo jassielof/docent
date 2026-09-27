@@ -2,9 +2,17 @@
 
 const std = @import("std");
 
-fn realPathFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
+fn realPathFileAlloc(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) ![]u8 {
     var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = try std.Io.Dir.cwd().realPathFile(io, path, &buffer);
+    const len = try std.Io.Dir.cwd().realPathFile(
+        io,
+        path,
+        &buffer,
+    );
     return allocator.dupe(u8, buffer[0..len]);
 }
 
@@ -63,12 +71,24 @@ fn pathSeparatorsEqual(a: u8, b: u8) bool {
 fn pathHasSegment(path: []const u8, segment: []const u8) bool {
     var rest = path;
     while (rest.len > 0) {
-        if (std.mem.startsWith(u8, rest, segment)) {
+        if (std.mem.startsWith(
+            u8,
+            rest,
+            segment,
+        )) {
             const after = rest[segment.len..];
             if (after.len == 0 or pathSeparatorsEqual(after[0], '/')) return true;
         }
-        const slash = std.mem.indexOfScalar(u8, rest, '/') orelse
-            std.mem.indexOfScalar(u8, rest, '\\') orelse break;
+        const slash = std.mem.indexOfScalar(
+            u8,
+            rest,
+            '/',
+        ) orelse
+            std.mem.indexOfScalar(
+                u8,
+                rest,
+                '\\',
+            ) orelse break;
         rest = rest[slash + 1 ..];
     }
     return false;
@@ -76,7 +96,16 @@ fn pathHasSegment(path: []const u8, segment: []const u8) bool {
 
 /// Returns true when a path should be skipped by lint targeting.
 pub fn shouldSkipLintFile(path: []const u8, options: Options) bool {
-    if (pathHasSegment(path, ".zig-cache") or pathHasSegment(path, "zig-out") or pathHasSegment(path, ".git")) return true;
+    if (pathHasSegment(
+        path,
+        ".zig-cache",
+    ) or pathHasSegment(
+        path,
+        "zig-out",
+    ) or pathHasSegment(
+        path,
+        ".git",
+    )) return true;
     if (!options.build_script and isBuildScriptPath(path)) return true;
 
     if (options.apply_exclude_roots and !options.deps) {
@@ -97,7 +126,13 @@ pub fn collectDirectoryLintTargets(
 ) !std.ArrayList([]const u8) {
     var targets: std.ArrayList([]const u8) = .empty;
     errdefer deinitOwnedPaths(allocator, &targets);
-    try collectRecursiveZigFiles(allocator, io, dir_path, options, &targets);
+    try collectRecursiveZigFiles(
+        allocator,
+        io,
+        dir_path,
+        options,
+        &targets,
+    );
     return targets;
 }
 
@@ -115,19 +150,31 @@ pub fn collectRecursiveZigFiles(
     options: Options,
     out: *std.ArrayList([]const u8),
 ) !void {
-    var dir = std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return;
+    var dir = std.Io.Dir.cwd().openDir(
+        io,
+        dir_path,
+        .{ .iterate = true },
+    ) catch return;
     defer dir.close(io);
 
     var walker = try dir.walk(allocator);
     defer walker.deinit();
 
     while (try walker.next(io)) |entry| {
-        if (entry.kind != .file or !std.mem.endsWith(u8, entry.basename, ".zig")) continue;
+        if (entry.kind != .file or !std.mem.endsWith(
+            u8,
+            entry.basename,
+            ".zig",
+        )) continue;
 
         const full = try std.fs.path.join(allocator, &.{ dir_path, entry.path });
         defer allocator.free(full);
 
-        const abs = realPathFileAlloc(allocator, io, full) catch continue;
+        const abs = realPathFileAlloc(
+            allocator,
+            io,
+            full,
+        ) catch continue;
         if (shouldSkipLintFile(abs, options)) {
             allocator.free(abs);
             continue;
@@ -139,11 +186,31 @@ pub fn collectRecursiveZigFiles(
 /// Returns whether `path` refers to a build script (`build.zig` or under `build/`).
 pub fn isBuildScriptPath(path: []const u8) bool {
     const base = std.fs.path.basename(path);
-    if (std.mem.eql(u8, base, "build.zig")) return true;
-    return std.mem.indexOf(u8, path, "/build/") != null or
-        std.mem.indexOf(u8, path, "\\build\\") != null or
-        std.mem.startsWith(u8, path, "build/") or
-        std.mem.startsWith(u8, path, "build\\");
+    if (std.mem.eql(
+        u8,
+        base,
+        "build.zig",
+    )) return true;
+    return std.mem.indexOf(
+        u8,
+        path,
+        "/build/",
+    ) != null or
+        std.mem.indexOf(
+            u8,
+            path,
+            "\\build\\",
+        ) != null or
+        std.mem.startsWith(
+            u8,
+            path,
+            "build/",
+        ) or
+        std.mem.startsWith(
+            u8,
+            path,
+            "build\\",
+        );
 }
 
 pub fn containsPath(items: []const []const u8, needle: []const u8) bool {
@@ -173,8 +240,17 @@ pub const PathSet = struct {
     }
 
     /// Returns `true` when `path` was already recorded.
-    pub fn put(self: *PathSet, allocator: std.mem.Allocator, io: std.Io, path: []const u8) !bool {
-        const canonical = realPathFileAlloc(allocator, io, path) catch try allocator.dupe(u8, path);
+    pub fn put(
+        self: *PathSet,
+        allocator: std.mem.Allocator,
+        io: std.Io,
+        path: []const u8,
+    ) !bool {
+        const canonical = realPathFileAlloc(
+            allocator,
+            io,
+            path,
+        ) catch try allocator.dupe(u8, path);
         defer allocator.free(canonical);
 
         var it = self.map.keyIterator();
@@ -194,8 +270,18 @@ pub const PathSet = struct {
 };
 
 /// Returns `path` relative to `base`, or a copy of `path` when `path` is not under `base`.
-pub fn pathRelativeTo(allocator: std.mem.Allocator, base: []const u8, path: []const u8) ![]u8 {
-    if (path.len < base.len or !pathsEqual(path[0..base.len], base)) return allocator.dupe(u8, path);
+pub fn pathRelativeTo(
+    allocator: std.mem.Allocator,
+    base: []const u8,
+    path: []const u8,
+) ![]u8 {
+    if (path.len < base.len or !pathsEqual(
+        path[0..base.len],
+        base,
+    )) return allocator.dupe(
+        u8,
+        path,
+    );
 
     var rest = path[base.len..];
     if (rest.len > 0 and pathSeparatorsEqual(rest[0], '/')) rest = rest[1..];
@@ -214,11 +300,23 @@ test "PathSet deduplicates canonical paths" {
     var set = PathSet.init(allocator);
     defer set.deinit(allocator);
 
-    const first = try realPathFileAlloc(allocator, io, ".");
+    const first = try realPathFileAlloc(
+        allocator,
+        io,
+        ".",
+    );
     defer allocator.free(first);
 
-    try std.testing.expect(!try set.put(allocator, io, first));
-    try std.testing.expect(try set.put(allocator, io, first));
+    try std.testing.expect(!try set.put(
+        allocator,
+        io,
+        first,
+    ));
+    try std.testing.expect(try set.put(
+        allocator,
+        io,
+        first,
+    ));
 }
 
 test "artifact directories are skipped" {

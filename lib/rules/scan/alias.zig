@@ -62,7 +62,11 @@ fn findLocalImportPath(tree: *const Ast, alias: []const u8) ?[]const u8 {
     for (tree.rootDecls()) |decl| {
         const variable = tree.fullVarDecl(decl) orelse continue;
         const name_token = variable.ast.mut_token + 1;
-        if (!std.mem.eql(u8, tree.tokenSlice(name_token), alias)) continue;
+        if (!std.mem.eql(
+            u8,
+            tree.tokenSlice(name_token),
+            alias,
+        )) continue;
         const init = variable.ast.init_node.unwrap() orelse continue;
         return getImportPath(tree, init);
     }
@@ -73,7 +77,11 @@ fn isImportRootedAlias(tree: *const Ast, alias: []const u8) bool {
     for (tree.rootDecls()) |decl| {
         const variable = tree.fullVarDecl(decl) orelse continue;
         const name_token = variable.ast.mut_token + 1;
-        if (!std.mem.eql(u8, tree.tokenSlice(name_token), alias)) continue;
+        if (!std.mem.eql(
+            u8,
+            tree.tokenSlice(name_token),
+            alias,
+        )) continue;
         const init = variable.ast.init_node.unwrap() orelse return false;
         return getImportPath(tree, init) != null or isModuleMemberReexport(tree, init);
     }
@@ -84,10 +92,18 @@ fn getImportPath(tree: *const Ast, node: Ast.Node.Index) ?[]const u8 {
     if (tree.nodeTag(node) == .field_access) {
         return getImportPath(tree, tree.nodeData(node).node_and_token[0]);
     }
-    if (tree.nodeTag(node) != .builtin_call_two and tree.nodeTag(node) != .builtin_call_two_comma) return null;
+    if (tree.nodeTag(
+        node,
+    ) != .builtin_call_two and tree.nodeTag(
+        node,
+    ) != .builtin_call_two_comma) return null;
 
     const builtin_token = tree.nodeMainToken(node);
-    if (tree.tokenTag(builtin_token) != .builtin or !std.mem.eql(u8, tree.tokenSlice(builtin_token), "@import")) return null;
+    if (tree.tokenTag(builtin_token) != .builtin or !std.mem.eql(
+        u8,
+        tree.tokenSlice(builtin_token),
+        "@import",
+    )) return null;
 
     const argument = tree.nodeData(node).opt_node_and_opt_node[0].unwrap() orelse return null;
     if (tree.nodeTag(argument) != .string_literal) return null;

@@ -226,8 +226,16 @@ pub fn printCheckResults(
     if (options.categorized_summary and had_diagnostics) {
         var rows: std.ArrayList(RuleCountRow) = .empty;
         defer rows.deinit(allocator);
-        try appendDiagnosticCounts(allocator, diagnostics, &rows);
-        try printCategorizedSummaryStdout(allocator, io, rows.items);
+        try appendDiagnosticCounts(
+            allocator,
+            diagnostics,
+            &rows,
+        );
+        try printCategorizedSummaryStdout(
+            allocator,
+            io,
+            rows.items,
+        );
     }
 }
 
@@ -677,9 +685,29 @@ test "categorized summary groups rule counts under their categories" {
     );
     out = writer.toArrayList();
 
-    try std.testing.expect(std.mem.indexOf(u8, out.items, "Complexity\n") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out.items, "3 warning[cognitive_complexity]") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out.items, "5 warning[cyclomatic_complexity]") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out.items, "Size\n") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out.items, "1 error[max_fun_params]") != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "Complexity\n",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "3 warning[cognitive_complexity]",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "5 warning[cyclomatic_complexity]",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "Size\n",
+    ) != null);
+    try std.testing.expect(std.mem.indexOf(
+        u8,
+        out.items,
+        "1 error[max_fun_params]",
+    ) != null);
 }

@@ -118,7 +118,11 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
         defer docent.manifest.deinitOwnedPaths(gpa, &package_paths);
 
         for (package_paths.items) |path| {
-            const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch |err| switch (err) {
+            const stat = std.Io.Dir.cwd().statFile(
+                io,
+                path,
+                .{},
+            ) catch |err| switch (err) {
                 // Preserve useful errors for missing source paths while ignoring
                 // missing non-source package metadata entries.
                 error.FileNotFound => {
@@ -184,8 +188,16 @@ fn runFmt(ctx: *fangz.ParseContext) anyerror!void {
 }
 
 fn isFormatSourcePath(path: []const u8) bool {
-    return std.mem.endsWith(u8, path, ".zig") or
-        std.mem.endsWith(u8, path, ".zon");
+    return std.mem.endsWith(
+        u8,
+        path,
+        ".zig",
+    ) or
+        std.mem.endsWith(
+            u8,
+            path,
+            ".zon",
+        );
 }
 
 test "manifest defaults recognize only Zig and ZON files" {

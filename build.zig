@@ -163,11 +163,15 @@ pub fn build(b: *std.Build) void {
     docs_cli.step.dependOn(b.getInstallStep());
     docs_cli.addArgs(&.{
         "docs",
-        "--output-dir",
-        "zig-out/docs/cli/",
     });
+    const docs_cli_output = docs_cli.captureStdOut(.{});
+    const install_docs_cli = b.addInstallFileWithDir(
+        docs_cli_output,
+        .{ .custom = "docs/cli" },
+        "docent.adoc",
+    );
 
-    docs_step.dependOn(&docs_cli.step);
+    docs_step.dependOn(&install_docs_cli.step);
 
     const test_step = b.step("test", "Run the test suite");
 

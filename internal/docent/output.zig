@@ -1101,7 +1101,11 @@ test "minimal formatter shows a complexity score and threshold instead of its ru
     try writeDiagnostics(
         &writer.writer,
         &diagnostics,
-        .{ .format = .minimal, .color = .never, .minimal_primary_label = true },
+        .{
+            .format = .minimal,
+            .color = .never,
+            .minimal_primary_label = true,
+        },
     );
     out = writer.toArrayList();
 
@@ -1316,14 +1320,34 @@ test "pretty formatter renders a multi-span complexity breakdown" {
 
     // ...in ascending line order (primary 1364, then 1375, 1380, 1392),
     // each following a "| ..." gap marker since none are adjacent lines.
-    const primary_pos = std.mem.indexOf(u8, out.items, "1364 |").?;
-    const span1_pos = std.mem.indexOf(u8, out.items, "1375 |").?;
-    const span2_pos = std.mem.indexOf(u8, out.items, "1380 |").?;
-    const span3_pos = std.mem.indexOf(u8, out.items, "1392 |").?;
+    const primary_pos = std.mem.indexOf(
+        u8,
+        out.items,
+        "1364 |",
+    ).?;
+    const span1_pos = std.mem.indexOf(
+        u8,
+        out.items,
+        "1375 |",
+    ).?;
+    const span2_pos = std.mem.indexOf(
+        u8,
+        out.items,
+        "1380 |",
+    ).?;
+    const span3_pos = std.mem.indexOf(
+        u8,
+        out.items,
+        "1392 |",
+    ).?;
     try std.testing.expect(primary_pos < span1_pos);
     try std.testing.expect(span1_pos < span2_pos);
     try std.testing.expect(span2_pos < span3_pos);
-    try std.testing.expectEqual(@as(usize, 3), std.mem.count(u8, out.items, "| ...\n"));
+    try std.testing.expectEqual(@as(usize, 3), std.mem.count(
+        u8,
+        out.items,
+        "| ...\n",
+    ));
 
     try std.testing.expect(std.mem.indexOf(
         u8,

@@ -70,9 +70,17 @@ pub const Plan = struct {
 };
 
 /// Resolves which files Docent would lint for the given options and project layout.
-pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan {
+pub fn gather(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    options: Options,
+) !Plan {
     var package = if (options.manifest_path) |path|
-        try manifest.loadPackageMeta(allocator, io, path)
+        try manifest.loadPackageMeta(
+            allocator,
+            io,
+            path,
+        )
     else
         try manifest.loadNearestPackageMeta(allocator, io);
     errdefer package.deinit(allocator);
@@ -80,7 +88,11 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
     var exclude_roots: std.ArrayList([]const u8) = .empty;
     defer manifest.deinitOwnedPaths(allocator, &exclude_roots);
     if (package.manifest_path) |manifest_path| {
-        exclude_roots = manifest.loadDependencyPathRoots(allocator, io, manifest_path) catch .empty;
+        exclude_roots = manifest.loadDependencyPathRoots(
+            allocator,
+            io,
+            manifest_path,
+        ) catch .empty;
     }
 
     const owned_exclude_roots = try duplicatePaths(allocator, exclude_roots.items);
@@ -104,13 +116,23 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
 
     if (!options.dependency_paths_only) {
         for (options.positionals) |raw| {
-            const resolved = try resolveUserPath(allocator, package.project_root, raw);
+            const resolved = try resolveUserPath(
+                allocator,
+                package.project_root,
+                raw,
+            );
             defer allocator.free(resolved);
             try selected_paths.append(allocator, try allocator.dupe(u8, resolved));
 
             var explicit_options = targeting_options;
             explicit_options.apply_exclude_roots = false;
-            try collectPath(allocator, io, resolved, explicit_options, &files);
+            try collectPath(
+                allocator,
+                io,
+                resolved,
+                explicit_options,
+                &files,
+            );
         }
     }
 
@@ -119,7 +141,11 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
         defer deinitPaths(allocator, &fallback_paths);
 
         if (package.manifest_path) |manifest_path| {
-            var loaded_paths = manifest.loadPackagePaths(allocator, io, manifest_path) catch |err| switch (err) {
+            var loaded_paths = manifest.loadPackagePaths(
+                allocator,
+                io,
+                manifest_path,
+            ) catch |err| switch (err) {
                 error.ManifestPathsNotFound => blk: {
                     var paths: std.ArrayList([]const u8) = .empty;
                     try paths.append(allocator, try allocator.dupe(u8, "."));
@@ -138,9 +164,19 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
         }
 
         for (fallback_paths.items) |raw| {
-            const resolved = try resolveUserPath(allocator, package.project_root, raw);
+            const resolved = try resolveUserPath(
+                allocator,
+                package.project_root,
+                raw,
+            );
             defer allocator.free(resolved);
-            try collectPath(allocator, io, resolved, targeting_options, &files);
+            try collectPath(
+                allocator,
+                io,
+                resolved,
+                targeting_options,
+                &files,
+            );
         }
     }
 
@@ -151,11 +187,22 @@ pub fn gather(allocator: std.mem.Allocator, io: std.Io, options: Options) !Plan 
             }
         }
         for (owned_exclude_roots) |root| {
-            try collectPath(allocator, io, root, targeting_options, &files);
+            try collectPath(
+                allocator,
+                io,
+                root,
+                targeting_options,
+                &files,
+            );
         }
     }
 
-    filterExcludedFiles(allocator, package.project_root, options.exclude_paths, &files);
+    filterExcludedFiles(
+        allocator,
+        package.project_root,
+        options.exclude_paths,
+        &files,
+    );
 
     return .{
         .package = package,
@@ -174,19 +221,44 @@ fn collectPath(
     options: targeting.Options,
     files: *std.ArrayList([]const u8),
 ) !void {
-    const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch return;
+    const stat = std.Io.Dir.cwd().statFile(
+        io,
+        path,
+        .{},
+    ) catch return;
     if (stat.kind == .directory) {
-        var collected = try targeting.collectDirectoryLintTargets(allocator, io, path, options);
+        var collected = try targeting.collectDirectoryLintTargets(
+            allocator,
+            io,
+            path,
+            options,
+        );
         defer targeting.deinitOwnedPaths(allocator, &collected);
-        for (collected.items) |file| try appendUniquePath(allocator, files, file);
+        for (collected.items) |file| try appendUniquePath(
+            allocator,
+            files,
+            file,
+        );
         return;
     }
 
-    if (!std.mem.endsWith(u8, std.fs.path.basename(path), ".zig") or targeting.shouldSkipLintFile(path, options)) return;
-    try appendUniquePath(allocator, files, path);
+    if (!std.mem.endsWith(
+        u8,
+        std.fs.path.basename(path),
+        ".zig",
+    ) or targeting.shouldSkipLintFile(path, options)) return;
+    try appendUniquePath(
+        allocator,
+        files,
+        path,
+    );
 }
 
-fn appendUniquePath(allocator: std.mem.Allocator, paths: *std.ArrayList([]const u8), path: []const u8) !void {
+fn appendUniquePath(
+    allocator: std.mem.Allocator,
+    paths: *std.ArrayList([]const u8),
+    path: []const u8,
+) !void {
     if (targeting.containsPath(paths.items, path)) return;
     try paths.append(allocator, try allocator.dupe(u8, path));
 }
@@ -201,9 +273,21 @@ fn filterExcludedFiles(
     for (files.items) |path| {
         var excluded = false;
         for (excludes) |raw| {
-            const full = if (std.fs.path.isAbsolute(raw)) raw else std.fs.path.join(allocator, &.{ project_root, raw }) catch raw;
+            const full = if (std.fs.path.isAbsolute(
+                raw,
+            )) raw else std.fs.path.join(
+                allocator,
+                &.{
+                    project_root,
+                    raw,
+                },
+            ) catch raw;
             defer if (full.ptr != raw.ptr) allocator.free(full);
-            if (std.mem.startsWith(u8, path, full)) {
+            if (std.mem.startsWith(
+                u8,
+                path,
+                full,
+            )) {
                 excluded = true;
                 break;
             }
@@ -218,7 +302,11 @@ fn filterExcludedFiles(
     files.items.len = kept;
 }
 
-fn resolveUserPath(allocator: std.mem.Allocator, project_root: []const u8, raw: []const u8) ![]const u8 {
+fn resolveUserPath(
+    allocator: std.mem.Allocator,
+    project_root: []const u8,
+    raw: []const u8,
+) ![]const u8 {
     if (std.fs.path.isAbsolute(raw)) return allocator.dupe(u8, raw);
     return std.fs.path.join(allocator, &.{ project_root, raw });
 }
