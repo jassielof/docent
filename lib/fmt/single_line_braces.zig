@@ -12,6 +12,22 @@ const format_test_assertions = @import("format_test_assertions.zig");
 /// Handles `if`, `else`, `while`, `for`, and their chained variants.
 /// Already-braced bodies and `else if` chains are left unchanged.
 pub fn enforceBraces(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
+    // Expanding a body can expose another one-line control-flow statement
+    // inside it (`for (xs) |x| if (x) f();`), so repeat until nothing changes.
+    var current = try enforceBracesPass(gpa, input);
+    errdefer gpa.free(current);
+    while (true) {
+        const next = try enforceBracesPass(gpa, current);
+        if (mem.eql(u8, next, current)) {
+            gpa.free(next);
+            return current;
+        }
+        gpa.free(current);
+        current = next;
+    }
+}
+
+fn enforceBracesPass(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     var all_lines: std.ArrayList([]const u8) = .empty;
     defer all_lines.deinit(gpa);
     {
@@ -572,6 +588,66 @@ test "leaves if-else expressions untouched (regression)" {
     }
 }
 
+test "braces keeps an else owned by a nested expression-if" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn f(max: u8, bright: bool) u8 {
+        \\    if (max < 40) return if (bright) 1 else 2;
+        \\    return 3;
+        \\}
+        \\
+    ;
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expect(mem.indexOf(
+        u8,
+        formatted,
+        "if (max < 40) {\n        return if (bright) 1 else 2;\n    }",
+    ) != null);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "braces nested one-line bodies in a single call" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn f(xs: []const ?u8) void {
+        \\    for (xs) |x| if (x) |v| use(v);
+        \\}
+        \\
+    ;
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    const again = try enforceBraces(gpa, formatted);
+    defer gpa.free(again);
+    try std.testing.expectEqualStrings(formatted, again);
+    try std.testing.expect(mem.indexOf(u8, formatted, "if (x) |v| {") != null);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
+test "braces bodies when the condition holds a paren char literal" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn f(c: u8) void {
+        \\    if (c == ',' or c == ')' or c == ']') break;
+        \\    if (c == '"') return;
+        \\}
+        \\
+    ;
+    const formatted = try enforceBraces(gpa, input);
+    defer gpa.free(formatted);
+    try std.testing.expect(mem.indexOf(
+        u8,
+        formatted,
+        "if (c == ',' or c == ')' or c == ']') {\n        break;\n    }",
+    ) != null);
+    try std.testing.expect(mem.indexOf(
+        u8,
+        formatted,
+        "if (c == '\"') {\n        return;\n    }",
+    ) != null);
+    try format_test_assertions.expectValidZig(formatted);
+}
+
 test "braces statement-if next to expression-if (regression)" {
     const gpa = std.testing.allocator;
     const input =
@@ -834,8 +910,10 @@ fn opensAssignedValue(all_lines: []const []const u8, li: usize) bool {
 fn hasUnbalancedOpenDelimiter(body: []const u8) bool {
     var brace_depth: isize = 0;
     var paren_depth: isize = 0;
-    for (body) |c| {
-        switch (c) {
+    var i: usize = 0;
+    while (i < body.len) : (i += 1) {
+        switch (body[i]) {
+            '"', '\'' => i = literalEnd(body, i) - 1,
             '{' => brace_depth += 1,
             '}' => brace_depth -= 1,
             '(' => paren_depth += 1,
@@ -844,6 +922,21 @@ fn hasUnbalancedOpenDelimiter(body: []const u8) bool {
         }
     }
     return brace_depth > 0 or paren_depth > 0;
+}
+
+/// Returns the index just past the string or character literal that opens at
+/// `open`, so delimiters inside it (like the `)` in `')'`) are never counted.
+/// An unterminated literal extends to the end of `content`.
+fn literalEnd(content: []const u8, open: usize) usize {
+    const quote = content[open];
+    var i = open + 1;
+    while (i < content.len) : (i += 1) {
+        switch (content[i]) {
+            '\\' => i += 1,
+            else => |c| if (c == quote) return i + 1,
+        }
+    }
+    return content.len;
 }
 
 /// Finds where the body starts after a control-flow condition.
@@ -885,7 +978,9 @@ fn skipBalancedParens(content: []const u8, open: usize) ?usize {
     var i = open;
     var depth: usize = 0;
     while (i < content.len) : (i += 1) {
-        if (content[i] == '(') {
+        if (content[i] == '"' or content[i] == '\'') {
+            i = literalEnd(content, i) - 1;
+        } else if (content[i] == '(') {
             depth += 1;
         } else if (content[i] == ')') {
             depth -= 1;
@@ -895,26 +990,37 @@ fn skipBalancedParens(content: []const u8, open: usize) ?usize {
     return null;
 }
 
-/// Finds ` else ` in a body string, skipping over balanced parentheses.
+/// Finds the ` else` that belongs to the statement-level `if` whose body is
+/// `body`, skipping balanced parentheses, literals and any `else` claimed by an
+/// expression-`if` nested inside the body (`return if (a) b else c;`).
 fn findInlineElse(body: []const u8) ?usize {
     var i: usize = 0;
     var depth: usize = 0;
+    var nested_ifs: usize = 0;
     while (i < body.len) : (i += 1) {
-        if (body[i] == '(') {
+        if (body[i] == '"' or body[i] == '\'') {
+            i = literalEnd(body, i) - 1;
+        } else if (body[i] == '(') {
             depth += 1;
         } else if (body[i] == ')') {
             if (depth > 0) depth -= 1;
-        } else if (depth == 0 and i + 5 <= body.len) {
-            if (mem.eql(
-                u8,
-                body[i .. i + 5],
-                " else",
-            )) {
-                if (i + 5 == body.len or body[i + 5] == ' ') return i;
-            }
+        } else if (depth == 0 and startsWord(body, i, "if ")) {
+            nested_ifs += 1;
+        } else if (depth == 0 and i + 5 <= body.len and mem.eql(u8, body[i .. i + 5], " else")) {
+            if (i + 5 != body.len and body[i + 5] != ' ') continue;
+            if (nested_ifs == 0) return i;
+            nested_ifs -= 1;
         }
     }
     return null;
+}
+
+/// Reports whether `word` starts at `at` and is not the tail of a longer identifier.
+fn startsWord(content: []const u8, at: usize, word: []const u8) bool {
+    if (!mem.startsWith(u8, content[at..], word)) return false;
+    if (at == 0) return true;
+    const prev = content[at - 1];
+    return !std.ascii.isAlphanumeric(prev) and prev != '_';
 }
 
 fn leadingSpaces(line: []const u8) usize {

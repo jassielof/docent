@@ -5,6 +5,54 @@ const Allocator = std.mem.Allocator;
 
 const format_test_assertions = @import("format_test_assertions.zig");
 
+test "keeps a brace-less control-flow body glued to its header" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn f(s: []const u8) ?u8 {
+        \\    for (s) |c|
+        \\        if (std.ascii.isDigit(c))
+        \\            return c;
+        \\    if (s.len == 0 and
+        \\        s.len == 1)
+        \\        return null;
+        \\    return null;
+        \\}
+        \\
+    ;
+    const expected =
+        \\fn f(s: []const u8) ?u8 {
+        \\    for (s) |c|
+        \\        if (std.ascii.isDigit(c))
+        \\            return c;
+        \\
+        \\    if (s.len == 0 and
+        \\        s.len == 1)
+        \\        return null;
+        \\
+        \\    return null;
+        \\}
+        \\
+    ;
+    const result = try enforceLogicalBlankLines(gpa, input);
+    defer gpa.free(result);
+    try std.testing.expectEqualStrings(expected, result);
+}
+
+test "does not treat an @import call expression as an import declaration" {
+    const gpa = std.testing.allocator;
+    const input =
+        \\fn f() !void {
+        \\    try @import("std").testing.expectEqualDeep(Foo{
+        \\        .a = 1,
+        \\    }, bar());
+        \\}
+        \\
+    ;
+    const result = try enforceLogicalBlankLines(gpa, input);
+    defer gpa.free(result);
+    try std.testing.expectEqualStrings(input, result);
+}
+
 test "enforces logical blank lines" {
     const gpa = std.testing.allocator;
     const input =
@@ -397,14 +445,17 @@ fn needsBlankAfter(prev_trimmed: []const u8) bool {
 }
 
 fn needsBlankBefore(next_trimmed: []const u8, prev_trimmed: []const u8) bool {
-    if (!isFlowTerminator(next_trimmed)) return false;
+    if (!isFlowTerminator(next_trimmed) or prev_trimmed.len == 0) return false;
     // First statement in a block (including the sole-statement case).
     if (mem.endsWith(
         u8,
         prev_trimmed,
         "{",
     )) return false;
-    return true;
+    // A header without a block (`if (cond)`, `for (xs) |x|`, `else`) owns the
+    // terminator as its body, so only a completed statement or block can precede
+    // the blank line.
+    return prev_trimmed[prev_trimmed.len - 1] == ';' or prev_trimmed[prev_trimmed.len - 1] == '}';
 }
 
 fn isFlowTerminator(trimmed: []const u8) bool {
@@ -462,7 +513,10 @@ fn isDeferLine(trimmed: []const u8) bool {
 }
 
 fn isImportRelated(trimmed: []const u8) bool {
-    if (mem.indexOf(
+    // Only declarations count: an expression that merely calls `@import`
+    // (`try @import("std").testing.expect(...)`) is an ordinary statement.
+    const is_decl = mem.startsWith(u8, trimmed, "const ") or mem.startsWith(u8, trimmed, "pub const ");
+    if (is_decl and mem.indexOf(
         u8,
         trimmed,
         "@import",
