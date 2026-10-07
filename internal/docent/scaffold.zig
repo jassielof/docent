@@ -1,363 +1,64 @@
-//! Build-system integration: custom `build.zig` step that runs Docent during `zig build`.
+//! Build-system integration: a `build.zig` helper that runs the Docent CLI during `zig build`.
+//!
+//! Zig 0.17 split the build into a configure phase and a separate maker process, so build
+//! scripts can no longer register steps that run arbitrary code in-process. The helper
+//! therefore wires the CLI executable into a `Run` step instead.
 
 const std = @import("std");
 
 const docent = @import("root.zig");
 
-/// Custom build step that lints Zig sources and fails the build on configured severities.
-pub const LintStep = struct {
-    /// Underlying Zig build step (`docent`).
-    step: std.Build.Step,
-    /// Explicit sources; empty means load `.paths` from the nearest manifest at run time.
-    sources: []const []const u8,
-    /// When set, overrides `.config/docent.toml` and defaults.
-    rules_override: ?docent.RuleSeverities,
-    /// Target filters (library vs binaries vs tests, dependency roots, etc.).
-    targeting: docent.scan.target.Options,
-    /// Diagnostic output formatting for stdout.
-    output: OutputOptions,
-
-    /// Creates and returns a `LintStep` owned by `b`.
-    pub fn create(b: *std.Build, options: Options) *LintStep {
-        const self = b.allocator.create(LintStep) catch @panic("OOM");
-        self.* = .{
-            .step = std.Build.Step.init(.{
-                .tag = .custom,
-                .name = "docent",
-                .owner = b,
-                .makeFn = make,
-            }),
-            .sources = if (options.sources) |sources|
-                b.allocator.dupe([]const u8, sources) catch @panic("OOM")
-            else
-                &.{},
-            .rules_override = options.rules,
-            .targeting = options.targeting orelse .{
-                .deps = options.deps,
-                .build_script = options.build_script,
-                .exclude_roots = options.exclude_roots orelse &.{},
-            },
-            .output = options.output,
-        };
-        return self;
-    }
-
-    fn make(step: *std.Build.Step, _: std.Build.Step.MakeOptions) anyerror!void {
-        const self: *LintStep = @fieldParentPtr("step", step);
-        const allocator = step.owner.allocator;
-        const io = step.owner.graph.io;
-
-        var doc_cfg = docent.config.loadDocOptionsFromCli(
-            allocator,
-            io,
-            null,
-        ) catch return error.MakeFailed;
-        if (self.rules_override) |override| applyDocOverride(&doc_cfg, override);
-
-        var manifest_sources: std.ArrayList([]const u8) = .empty;
-        defer if (manifest_sources.items.len > 0) docent.manifest.deinitOwnedPaths(
-            allocator,
-            &manifest_sources,
-        );
-
-        const sources: []const []const u8 = if (self.sources.len > 0)
-            self.sources
-        else blk: {
-            manifest_sources = docent.manifest.loadNearestPackagePaths(
-                allocator,
-                io,
-            ) catch |err| switch (err) {
-                error.ManifestNotFound, error.ManifestPathsNotFound => fallback: {
-                    var fallback: std.ArrayList([]const u8) = .empty;
-                    const cwd = realPathFileAlloc(
-                        allocator,
-                        io,
-                        ".",
-                    ) catch return error.MakeFailed;
-                    try fallback.append(allocator, cwd);
-                    break :fallback fallback;
-                },
-                else => return err,
-            };
-            break :blk manifest_sources.items;
-        };
-
-        var targeting = self.targeting;
-        if (targeting.exclude_roots.len == 0 and !targeting.deps) {
-            var exclude_roots = docent.manifest.loadNearestDependencyPathRoots(
-                allocator,
-                io,
-            ) catch std.ArrayList([]const u8).empty;
-            defer docent.manifest.deinitOwnedPaths(allocator, &exclude_roots);
-            if (exclude_roots.items.len > 0) {
-                targeting.exclude_roots = try allocator.dupe([]const u8, exclude_roots.items);
-            }
-        }
-
-        const path_display_root: ?[]const u8 = realPathFileAlloc(
-            allocator,
-            io,
-            ".",
-        ) catch null;
-        defer if (path_display_root) |p| allocator.free(p);
-
-        const library_entry_roots: []const []const u8 = &.{};
-
-        var summary: docent.output.Summary = .{};
-        var total_files: usize = 0;
-
-        for (sources) |source_path| {
-            const stat = std.Io.Dir.cwd().statFile(
-                io,
-                source_path,
-                .{},
-            ) catch |err| {
-                if (err == error.IsDir) {
-                    try lintDirectory(
-                        doc_cfg,
-                        targeting,
-                        self.output,
-                        allocator,
-                        io,
-                        source_path,
-                        step,
-                        &summary,
-                        &total_files,
-                        path_display_root,
-                        library_entry_roots,
-                    );
-                    continue;
-                }
-                step.result_error_msgs.append(
-                    allocator,
-                    std.fmt.allocPrint(
-                        allocator,
-                        "cannot access '{s}': {}",
-                        .{ source_path, err },
-                    ) catch @panic("OOM"),
-                ) catch @panic("OOM");
-                return error.MakeFailed;
-            };
-
-            if (stat.kind == .directory) {
-                try lintDirectory(
-                    doc_cfg,
-                    targeting,
-                    self.output,
-                    allocator,
-                    io,
-                    source_path,
-                    step,
-                    &summary,
-                    &total_files,
-                    path_display_root,
-                    library_entry_roots,
-                );
-            } else {
-                if (docent.scan.target.shouldSkipLintFile(source_path, targeting)) continue;
-                try lintSingleFile(
-                    doc_cfg,
-                    self.output,
-                    allocator,
-                    io,
-                    source_path,
-                    step,
-                    &summary,
-                    &total_files,
-                    path_display_root,
-                    library_entry_roots,
-                );
-            }
-        }
-
-        if (summary.errors > 0 or summary.warnings > 0) {
-            step.result_error_msgs.append(
-                allocator,
-                std.fmt.allocPrint(
-                    allocator,
-                    "doc_lint: {d} error(s), {d} warning(s) in {d} file(s)",
-                    .{
-                        summary.errors,
-                        summary.warnings,
-                        total_files,
-                    },
-                ) catch @panic("OOM"),
-            ) catch @panic("OOM");
-            return error.MakeFailed;
-        }
-    }
-};
-
-fn lintDirectory(
-    doc_cfg: docent.rules.doc.Doc,
-    targeting: docent.scan.target.Options,
-    output: OutputOptions,
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    dir_path: []const u8,
-    step: *std.Build.Step,
-    summary: *docent.output.Summary,
-    total_files: *usize,
-    path_display_root: ?[]const u8,
-    library_entry_roots: []const []const u8,
-) !void {
-    var targets = docent.scan.target.collectDirectoryLintTargets(
-        allocator,
-        io,
-        dir_path,
-        targeting,
-    ) catch |err| {
-        step.result_error_msgs.append(
-            allocator,
-            std.fmt.allocPrint(
-                allocator,
-                "cannot collect lint targets in '{s}': {}",
-                .{ dir_path, err },
-            ) catch @panic("OOM"),
-        ) catch @panic("OOM");
-        return error.MakeFailed;
-    };
-    defer docent.scan.target.deinitOwnedPaths(allocator, &targets);
-
-    for (targets.items) |full_path| {
-        try lintSingleFile(
-            doc_cfg,
-            output,
-            allocator,
-            io,
-            full_path,
-            step,
-            summary,
-            total_files,
-            path_display_root,
-            library_entry_roots,
-        );
-    }
-}
-
-/// Projects a build-step `RuleSeverities` override onto the resolved docs config so `addLintStep`'s `rules` option still drives severities.
-fn applyDocOverride(cfg: *docent.rules.doc.Doc, override: docent.RuleSeverities) void {
-    cfg.missing_doc_comment.level = override.missing_doc_comment;
-    cfg.blank_doc_comment.level = override.blank_doc_comment;
-    cfg.trailing_blank_doc_comment.level = override.trailing_blank_doc_comment;
-    cfg.missing_summary_terminal_punctuation.level = override.missing_summary_terminal_punctuation;
-    cfg.missing_doctest.level = override.missing_doctest;
-    cfg.private_doctest.level = override.private_doctest;
-    cfg.doctest_naming_mismatch.level = override.doctest_naming_mismatch;
-    cfg.invalid_leading_phrase.level = override.invalid_leading_phrase;
-    cfg.invalid_boolean_summary.level = override.invalid_boolean_summary;
-    cfg.misplaced_doc_comment.level = override.misplaced_doc_comment;
-}
-
-fn lintSingleFile(
-    doc_cfg: docent.rules.doc.Doc,
-    output: OutputOptions,
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    path: []const u8,
-    step: *std.Build.Step,
-    summary: *docent.output.Summary,
-    total_files: *usize,
-    path_display_root: ?[]const u8,
-    library_entry_roots: []const []const u8,
-) !void {
-    var result = docent.lintFile(
-        allocator,
-        io,
-        path,
-        .{},
-        library_entry_roots,
-        doc_cfg,
-    ) catch |err| {
-        step.result_error_msgs.append(
-            allocator,
-            std.fmt.allocPrint(
-                allocator,
-                "failed to lint '{s}': {}",
-                .{ path, err },
-            ) catch @panic("OOM"),
-        ) catch @panic("OOM");
-
-        return error.MakeFailed;
-    };
-    defer result.deinit();
-
-    var file_has_errors = false;
-    for (result.diagnostics.items) |d| {
-        summary.observe(d);
-        switch (d.severity_level) {
-            .allow => continue,
-            .warn => {
-                try docent.output.printDiagnosticStdout(
-                    io,
-                    d,
-                    docent.output.stdoutTextOptions(
-                        io,
-                        output.format,
-                        output.color,
-                        path_display_root,
-                    ),
-                );
-            },
-            .deny, .forbid => {
-                file_has_errors = true;
-                try docent.output.printDiagnosticStdout(
-                    io,
-                    d,
-                    docent.output.stdoutTextOptions(
-                        io,
-                        output.format,
-                        output.color,
-                        path_display_root,
-                    ),
-                );
-            },
-        }
-    }
-    if (file_has_errors) total_files.* += 1;
-}
-
-/// Options for `addLintStep` / `LintStep.create`.
+/// Options for `addLintStep`.
 pub const Options = struct {
-    /// Lint roots; when null, uses `.paths` from the nearest `build.zig.zon`.
+    /// The Docent CLI to run, for example `docent_dep.artifact("docent")`.
+    docent: *std.Build.Step.Compile,
+    /// Lint roots; when null, the CLI uses `.paths` from the nearest `build.zig.zon`.
     sources: ?[]const []const u8 = null,
-    /// When null, uses `.config/docent.toml` or `RuleSeverities` defaults.
-    rules: ?docent.RuleSeverities = null,
-    /// Full targeting options; when null, the other options are used.
-    targeting: ?docent.scan.target.Options = null,
     /// Also lint files under path dependencies from `build.zig.zon`.
     deps: bool = false,
-    /// Include `build.zig` and `build/*.zig` in lint targets.
-    build_script: bool = false,
-    /// Directory roots excluded from lint (e.g. path dependencies).
-    exclude_roots: ?[]const []const u8 = null,
-    /// Diagnostic output options for the build step's stdout diagnostics.
+    /// Overrides the `.config/docent.toml` lookup.
+    config_path: ?std.Build.LazyPath = null,
+    /// Diagnostic output options.
     output: OutputOptions = .{},
 };
 
 /// Output formatting options for diagnostics printed during the build step.
 pub const OutputOptions = struct {
-    /// Text layout for each diagnostic line.
+    /// Text layout for each diagnostic.
     format: docent.output.TextFormat = .pretty,
-    /// When ANSI colors are applied to build-step output.
-    color: docent.output.ColorMode = .auto,
+    /// When the run stops early on a finding.
+    fail_fast: FailFast = .none,
 };
 
-/// Registers a Docent lint step on `b` and returns it for `dependOn` / `enableIf`.
-pub fn addLintStep(b: *std.Build, options: Options) *LintStep {
-    return LintStep.create(b, options);
-}
+/// The severities at which the CLI stops after the first finding.
+pub const FailFast = enum { none, @"error", warn, any };
 
-fn realPathFileAlloc(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    path: []const u8,
-) ![]u8 {
-    var buffer: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    const len = try std.Io.Dir.cwd().realPathFile(
-        io,
-        path,
-        &buffer,
-    );
-    return allocator.dupe(u8, buffer[0..len]);
+/// Registers a Docent lint run on `b` and returns its step for `dependOn` / `enableIf`.
+///
+/// The step fails the build when a denied rule reports a finding.
+pub fn addLintStep(b: *std.Build, options: Options) *std.Build.Step.Run {
+    const run = b.addRunArtifact(options.docent);
+
+    run.addArgs(&.{
+        "check",
+        "all",
+        "--format",
+        @tagName(options.output.format),
+        "--fail-fast",
+        @tagName(options.output.fail_fast),
+    });
+
+    if (options.deps) {
+        run.addArg("--deps");
+    }
+
+    if (options.config_path) |config_path| {
+        run.addPrefixedFileArg("--config-path", config_path);
+    }
+
+    for (options.sources orelse &.{}) |source| {
+        run.addArg(source);
+    }
+
+    return run;
 }
