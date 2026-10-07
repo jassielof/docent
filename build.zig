@@ -147,7 +147,7 @@ pub fn build(b: *std.Build) void {
 
     cli_step.dependOn(&run_cli.step);
 
-    if (b.args) |args| run_cli.addArgs(args);
+    run_cli.addPassthruArgs();
 
     const docs_step = b.step("docs", "Generate the documentation");
 
@@ -265,11 +265,7 @@ pub fn build(b: *std.Build) void {
 
     const fmt = b.addFmt(.{
         .check = true,
-        .paths = &.{
-            "cmd/",
-            "lib/",
-            "internal/",
-        },
+        .paths = b.pathList(&.{ "cmd/", "lib/", "internal/" }),
     });
     check_step.dependOn(&fmt.step);
 
