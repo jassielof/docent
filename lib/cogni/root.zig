@@ -238,7 +238,7 @@ fn functionComplexity(
     const node_count: u32 = @intCast(tree.nodes.len);
     var raw: u32 = 0;
     while (raw < node_count) : (raw += 1) {
-        const node: Ast.Node.Index = @enumFromInt(raw);
+        const node: Ast.Node.Index = @fromBackingInt(@intCast(raw));
         if (node == body) continue;
         const first = tree.firstToken(node);
         const last = tree.lastToken(node);
@@ -253,7 +253,7 @@ fn functionComplexity(
 
     raw = 0;
     while (raw < node_count) : (raw += 1) {
-        const node: Ast.Node.Index = @enumFromInt(raw);
+        const node: Ast.Node.Index = @fromBackingInt(@intCast(raw));
         if (node == body) continue;
         const first = tree.firstToken(node);
         const last = tree.lastToken(node);
@@ -614,7 +614,7 @@ fn isLogicalSequenceStart(
     const node_count: u32 = @intCast(tree.nodes.len);
     var raw: u32 = 0;
     while (raw < node_count) : (raw += 1) {
-        const candidate: Ast.Node.Index = @enumFromInt(raw);
+        const candidate: Ast.Node.Index = @fromBackingInt(@intCast(raw));
         if (candidate == node) continue;
         const parent_tag = tree.nodeTag(candidate);
         if (parent_tag != .bool_and and parent_tag != .bool_or) continue;
@@ -651,7 +651,7 @@ fn isLoopLabelJump(
     const node_count: u32 = @intCast(tree.nodes.len);
     var raw: u32 = 0;
     while (raw < node_count) : (raw += 1) {
-        const loop: Ast.Node.Index = @enumFromInt(raw);
+        const loop: Ast.Node.Index = @fromBackingInt(@intCast(raw));
         const tag = tree.nodeTag(loop);
         const loop_label: ?Ast.TokenIndex = switch (tag) {
             .while_simple, .while_cont, .@"while" => tree.fullWhile(loop).?.label_token,

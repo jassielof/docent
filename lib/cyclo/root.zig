@@ -241,7 +241,7 @@ fn collectDecisionPoints(
     const node_count: u32 = @intCast(tree.nodes.len);
     var raw: u32 = 0;
     while (raw < node_count) : (raw += 1) {
-        const node: Ast.Node.Index = @enumFromInt(raw);
+        const node: Ast.Node.Index = @fromBackingInt(@intCast(raw));
         if (node == body) continue;
         const first = tree.firstToken(node);
         const last = tree.lastToken(node);

@@ -45,7 +45,7 @@ pub fn collect(gpa: Allocator, tree: *const Ast) Allocator.Error![]ListNode {
 
     var i: usize = 0;
     while (i < tree.nodes.len) : (i += 1) {
-        const node: Ast.Node.Index = @enumFromInt(i);
+        const node: Ast.Node.Index = @fromBackingInt(@intCast(i));
 
         var buf1: [1]Ast.Node.Index = undefined;
         if (tree.fullCall(&buf1, node)) |call| {

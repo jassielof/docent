@@ -41,7 +41,7 @@ pub fn findPathologicalArrayType(tree: *const Ast, max_depth: usize) ?Pathologic
     const node_count: u32 = @intCast(tree.nodes.len);
     var raw: u32 = 0;
     while (raw < node_count) : (raw += 1) {
-        const node: Ast.Node.Index = @enumFromInt(raw);
+        const node: Ast.Node.Index = @fromBackingInt(@intCast(raw));
         if (!isArrayType(tree, node)) continue;
 
         const depth = lengthNestingDepth(
