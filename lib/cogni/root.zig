@@ -229,8 +229,9 @@ fn functionComplexity(
     const proto = tree.fullFnProto(&buf, fn_node) orelse return .{ .score = 0, .increments = &.{} };
     const fn_name: []const u8 = if (proto.name_token) |nt| tree.tokenSlice(nt) else "";
 
-    var sf = std.heap.stackFallback(4096, std.heap.page_allocator);
-    const scratch = sf.get();
+    var scratch_buffer: [4096]u8 = undefined;
+    var sf: std.heap.BufferFirstAllocator = .init(&scratch_buffer, std.heap.page_allocator);
+    const scratch = sf.allocator();
     var regions: std.ArrayList(Ast.Node.Index) = .empty;
     defer regions.deinit(scratch);
 
