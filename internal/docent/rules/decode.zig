@@ -49,10 +49,11 @@ pub fn decodeInto(
         else => return,
     };
 
-    inline for (std.meta.fields(T)) |field| {
+    const info = @typeInfo(T).@"struct";
+    inline for (info.field_names, info.field_types) |field_name, FieldType| {
         if (comptime std.mem.eql(
             u8,
-            field.name,
+            field_name,
             "level",
         )) {
             if (table.get("level")) |level_value| {
@@ -65,19 +66,19 @@ pub fn decodeInto(
             }
         } else if (comptime std.mem.eql(
             u8,
-            field.name,
+            field_name,
             "options",
         )) {
             try decodeInto(
-                field.type,
+                FieldType,
                 value,
-                &@field(out, field.name),
+                &@field(out, field_name),
             );
-        } else if (table.get(field.name)) |field_value| {
+        } else if (table.get(field_name)) |field_value| {
             try decodeField(
-                field.type,
+                FieldType,
                 field_value,
-                &@field(out, field.name),
+                &@field(out, field_name),
             );
         }
     }

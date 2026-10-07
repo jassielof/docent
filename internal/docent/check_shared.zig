@@ -514,19 +514,19 @@ fn printEffectiveRulesCategory(
         lines.deinit(allocator);
     }
 
-    inline for (@typeInfo(RuleSeverities).@"struct".fields) |field| {
+    inline for (@typeInfo(RuleSeverities).@"struct".field_names) |field_name| {
         comptime {
-            const rule_category = RuleCategory.fromRule(field.name) orelse continue;
+            const rule_category = RuleCategory.fromRule(field_name) orelse continue;
             if (rule_category != category) continue;
         }
 
-        const level = @field(rule_set, field.name);
+        const level = @field(rule_set, field_name);
         var buf: [512]u8 = undefined;
         var line_writer = std.Io.Writer.fixed(&buf);
         try output.writeSeverityRuleTag(
             &line_writer,
             level,
-            field.name,
+            field_name,
             profile,
         );
         try lines.append(allocator, try allocator.dupe(u8, line_writer.buffered()));
