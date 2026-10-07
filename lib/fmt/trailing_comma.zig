@@ -357,7 +357,7 @@ pub fn addTrailingCommas(
     input: []const u8,
     mode: Ast.Mode,
 ) Allocator.Error![]u8 {
-    const source_z = try gpa.dupeZ(u8, input);
+    const source_z = try gpa.dupeSentinel(u8, input, 0);
     defer gpa.free(source_z);
 
     var tree = try Ast.parse(gpa, source_z, .{ .mode = mode });

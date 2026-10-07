@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub fn expectValidZig(source: []const u8) !void {
     const gpa = std.testing.allocator;
-    const source_z = try gpa.dupeZ(u8, source);
+    const source_z = try gpa.dupeSentinel(u8, source, 0);
     defer gpa.free(source_z);
 
     var tree = try std.zig.Ast.parse(gpa, source_z, .{ .mode = .zig });

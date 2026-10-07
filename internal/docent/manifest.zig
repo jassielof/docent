@@ -63,7 +63,7 @@ fn scanPackageName(manifest_text: []const u8) ?[]const u8 {
 }
 
 fn parseManifestPartial(allocator: std.mem.Allocator, manifest_text: []const u8) !ManifestPartial {
-    const source = try allocator.dupeZ(u8, manifest_text);
+    const source = try allocator.dupeSentinel(u8, manifest_text, 0);
     defer allocator.free(source);
 
     var diag: std.zon.parse.Diagnostics = .{};

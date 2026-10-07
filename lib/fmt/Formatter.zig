@@ -108,7 +108,7 @@ test "normalizes CRLF line endings to LF" {
 }
 
 fn formatSourceForTest(gpa: Allocator, input: []const u8) ![]const u8 {
-    const sentinel_input = try gpa.dupeZ(u8, input);
+    const sentinel_input = try gpa.dupeSentinel(u8, input, 0);
     defer gpa.free(sentinel_input);
     var tree = try std.zig.Ast.parse(gpa, sentinel_input, .{ .mode = .zig });
     defer tree.deinit(gpa);

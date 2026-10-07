@@ -163,7 +163,7 @@ test "collects call, builtin call, array-init, and fn-proto lists" {
         \\}
         \\
     ;
-    const source_z = try gpa.dupeZ(u8, source);
+    const source_z = try gpa.dupeSentinel(u8, source, 0);
     defer gpa.free(source_z);
     var tree = try Ast.parse(gpa, source_z, .{ .mode = .zig });
     defer tree.deinit(gpa);
@@ -197,7 +197,7 @@ test "excludes array-init elements from independent forcing" {
         \\};
         \\
     ;
-    const source_z = try gpa.dupeZ(u8, source);
+    const source_z = try gpa.dupeSentinel(u8, source, 0);
     defer gpa.free(source_z);
     var tree = try Ast.parse(gpa, source_z, .{ .mode = .zig });
     defer tree.deinit(gpa);
@@ -248,7 +248,7 @@ pub fn renderSource(
     source: []const u8,
     mode: Ast.Mode,
 ) Allocator.Error![]u8 {
-    const source_z = try gpa.dupeZ(u8, source);
+    const source_z = try gpa.dupeSentinel(u8, source, 0);
     defer gpa.free(source_z);
 
     var tree = try Ast.parse(gpa, source_z, .{ .mode = mode });

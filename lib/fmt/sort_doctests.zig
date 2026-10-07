@@ -205,7 +205,7 @@ test "places an exact quoted duplicate after its identifier doctest" {
 /// an exactly matching quoted test is placed immediately after its identifier
 /// counterpart. Descriptive quoted test cases are untouched.
 pub fn sortDoctests(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
-    const sentinel = try gpa.dupeZ(u8, input);
+    const sentinel = try gpa.dupeSentinel(u8, input, 0);
     defer gpa.free(sentinel);
 
     var tree = std.zig.Ast.parse(gpa, sentinel, .{ .mode = .zig }) catch return gpa.dupe(u8, input);

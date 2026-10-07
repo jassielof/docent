@@ -416,7 +416,7 @@ fn oneIteration(
     max_line_length: u32,
     mode: Ast.Mode,
 ) Allocator.Error!?[]u8 {
-    const source_z = try gpa.dupeZ(u8, current);
+    const source_z = try gpa.dupeSentinel(u8, current, 0);
     defer gpa.free(source_z);
 
     var tree = try Ast.parse(gpa, source_z, .{ .mode = mode });

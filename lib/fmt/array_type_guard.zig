@@ -154,7 +154,7 @@ test "multi-dimensional arrays nested through the element type are not flagged" 
         try source.appendSlice(gpa, segment);
     }
     try source.appendSlice(gpa, "u8;\n");
-    const source_z = try gpa.dupeZ(u8, source.items);
+    const source_z = try gpa.dupeSentinel(u8, source.items, 0);
     defer gpa.free(source_z);
 
     var tree = try std.zig.Ast.parse(gpa, source_z, .{ .mode = .zig });
