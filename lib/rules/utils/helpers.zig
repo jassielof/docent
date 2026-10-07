@@ -139,7 +139,9 @@ pub fn dupSourceLine(
 ///
 /// Call from each rule module via a file-local `srcLoc()` that returns `@src()` — `@src()` cannot be used directly at module scope.
 pub fn ruleIdFromSrc(comptime src: std.builtin.SourceLocation) []const u8 {
-    const base = comptime std.fs.path.basename(src.file);
+    // `@src().file` uses the compiling host's separators, which can differ from the target's
+    // (cross-compiling from Windows), so split on both rather than using the target's `basename`.
+    const base = comptime src.file[(if (std.mem.lastIndexOfAny(u8, src.file, "/\\")) |sep| sep + 1 else 0)..];
     if (!std.mem.endsWith(
         u8,
         base,
