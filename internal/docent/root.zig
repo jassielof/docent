@@ -78,11 +78,7 @@ pub fn lintSource(
     doc_cfg: rules.doc.Doc,
 ) !LintResult {
     _ = io;
-    var tree = try std.zig.Ast.parse(
-        allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(allocator, source, .{ .mode = .zig });
     defer tree.deinit(allocator);
 
     var result = LintResult.init(allocator);
@@ -207,11 +203,7 @@ pub fn lintComplexitySource(
     file: []const u8,
     complexity_cfg: rules.complexity.Complexity,
 ) !LintResult {
-    var tree = try std.zig.Ast.parse(
-        allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(allocator, source, .{ .mode = .zig });
     defer tree.deinit(allocator);
 
     var result = LintResult.init(allocator);
@@ -261,11 +253,7 @@ pub fn lintSizeSource(
     file: []const u8,
     size_cfg: rules.size.Size,
 ) !LintResult {
-    var tree = try std.zig.Ast.parse(
-        allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(allocator, source, .{ .mode = .zig });
     defer tree.deinit(allocator);
 
     var result = LintResult.init(allocator);
@@ -316,11 +304,7 @@ pub fn lintStyleSource(
     file: []const u8,
     style_cfg: rules.style.Style,
 ) !LintResult {
-    var tree = try std.zig.Ast.parse(
-        allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(allocator, source, .{ .mode = .zig });
     defer tree.deinit(allocator);
 
     var result = LintResult.init(allocator);

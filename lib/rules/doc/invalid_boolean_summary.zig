@@ -162,11 +162,7 @@ fn runCheck(
     msg_allocator: std.mem.Allocator,
 ) !void {
     const base = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(
-        base,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(base, source, .{ .mode = .zig });
     defer tree.deinit(base);
 
     try check(

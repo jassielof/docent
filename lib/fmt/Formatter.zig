@@ -110,11 +110,7 @@ test "normalizes CRLF line endings to LF" {
 fn formatSourceForTest(gpa: Allocator, input: []const u8) ![]const u8 {
     const sentinel_input = try gpa.dupeZ(u8, input);
     defer gpa.free(sentinel_input);
-    var tree = try std.zig.Ast.parse(
-        gpa,
-        sentinel_input,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(gpa, sentinel_input, .{ .mode = .zig });
     defer tree.deinit(gpa);
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
 
@@ -175,11 +171,7 @@ pub fn formatStdin(
     };
     defer gpa.free(source_code);
 
-    var tree = std.zig.Ast.parse(
-        gpa,
-        source_code,
-        if (opts.zon) .zon else .zig,
-    ) catch |err| {
+    var tree = std.zig.Ast.parse(gpa, source_code, .{ .mode = if (opts.zon) .zon else .zig }) catch |err| {
         std.process.fatal("error parsing stdin: {}", .{err});
     };
     defer tree.deinit(gpa);
@@ -495,11 +487,7 @@ fn fmtPathFile(
         )) break :mode .zon;
         break :mode .zig;
     };
-    var tree = try std.zig.Ast.parse(
-        gpa,
-        source_code,
-        mode,
-    );
+    var tree = try std.zig.Ast.parse(gpa, source_code, .{ .mode = mode });
     defer tree.deinit(gpa);
     if (tree.errors.len != 0) {
         try std.zig.printAstErrorsToStderr(

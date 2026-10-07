@@ -377,11 +377,7 @@ test "line docent:ignore suppresses on same line" {
     const source =
         \\pub fn ok() void {} // docent:ignore identifier_case
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(
-        std.testing.allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .{ .mode = .zig });
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
@@ -399,11 +395,7 @@ test "doc comment pragmas are not suppressions" {
         \\/// docent:ignore identifier_case
         \\pub fn bad_name() void {}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(
-        std.testing.allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .{ .mode = .zig });
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
@@ -421,11 +413,7 @@ test "docent:ignore-next suppresses following line" {
         \\// docent:ignore-next identifier_case
         \\pub fn bad_name() void {}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(
-        std.testing.allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .{ .mode = .zig });
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
@@ -451,11 +439,7 @@ test "docent:ignore-start and docent:ignore-end define a block" {
         \\// docent:ignore-end identifier_case
         \\pub fn three() void {}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(
-        std.testing.allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .{ .mode = .zig });
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
@@ -483,11 +467,7 @@ test "forbid severity is never suppressed" {
         \\// docent:ignore missing_doc_comment
         \\pub fn foo() void {}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(
-        std.testing.allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .{ .mode = .zig });
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);
@@ -504,11 +484,7 @@ test "docent:disable is an alias for docent:ignore" {
     const source =
         \\pub fn heavy() void {} // docent:disable cognitive_complexity
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(
-        std.testing.allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .{ .mode = .zig });
     defer tree.deinit(std.testing.allocator);
 
     var table = try collectFromTree(std.testing.allocator, &tree);

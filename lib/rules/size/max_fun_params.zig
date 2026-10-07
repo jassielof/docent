@@ -176,11 +176,7 @@ test "counts parameters from the function prototype" {
         const source =
             \\fn f(a: u32, b: i32, comptime T: type) void {}
         ++ "\x00";
-        var tree = try std.zig.Ast.parse(
-            std.testing.allocator,
-            source,
-            .zig,
-        );
+        var tree = try std.zig.Ast.parse(std.testing.allocator, source, .{ .mode = .zig });
         defer tree.deinit(std.testing.allocator);
         for (tree.rootDecls()) |decl| {
             if (tree.nodeTag(decl) == .fn_decl) break :count functionParamCount(&tree, decl);
@@ -192,11 +188,7 @@ test "counts parameters from the function prototype" {
 
 test "inactive severity yields no diagnostics" {
     const base = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(
-        base,
-        "pub fn f(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}",
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(base, "pub fn f(a: u32, b: u32, c: u32, d: u32, e: u32, f: u32, g: u32, h: u32) void {}", .{ .mode = .zig });
     defer tree.deinit(base);
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
@@ -218,11 +210,7 @@ fn runCheck(
     msg_allocator: std.mem.Allocator,
 ) !void {
     const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(
-        allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(allocator, source, .{ .mode = .zig });
     defer tree.deinit(allocator);
 
     try check(

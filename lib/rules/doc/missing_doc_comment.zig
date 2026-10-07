@@ -502,11 +502,7 @@ test "private function parameters are not checked under public_api_only" {
         \\    _ = allocator;
         \\}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(
-        base,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(base, source, .{ .mode = .zig });
     defer tree.deinit(base);
 
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
@@ -538,11 +534,7 @@ fn runCheck(
     msg_allocator: std.mem.Allocator,
 ) !void {
     const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(
-        allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(allocator, source, .{ .mode = .zig });
     defer tree.deinit(allocator);
 
     try check(

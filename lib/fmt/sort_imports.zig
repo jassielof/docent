@@ -305,11 +305,7 @@ pub fn sortImports(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     const sentinel_input = try gpa.dupeZ(u8, input);
     defer gpa.free(sentinel_input);
 
-    var tree = std.zig.Ast.parse(
-        gpa,
-        sentinel_input,
-        .zig,
-    ) catch return gpa.dupe(u8, input);
+    var tree = std.zig.Ast.parse(gpa, sentinel_input, .{ .mode = .zig }) catch return gpa.dupe(u8, input);
     defer tree.deinit(gpa);
 
     if (tree.errors.len != 0) return gpa.dupe(u8, input);

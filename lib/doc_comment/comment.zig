@@ -185,11 +185,7 @@ test "firstParagraph stops at blank line" {
         \\/// Line three
         \\pub fn foo() void {}
     ++ "\x00";
-    var tree = try std.zig.Ast.parse(
-        std.testing.allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(std.testing.allocator, source, .{ .mode = .zig });
     defer tree.deinit(std.testing.allocator);
 
     const para = try firstParagraph(

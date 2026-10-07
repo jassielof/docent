@@ -141,11 +141,7 @@ test "keeps the highest-scoring increments and orders them by source position" {
         \\}
         \\
     ;
-    var tree = try Ast.parse(
-        gpa,
-        source,
-        .zig,
-    );
+    var tree = try Ast.parse(gpa, source, .{ .mode = .zig });
     defer tree.deinit(gpa);
 
     // Fabricate increments anchored at the four statement-starting tokens
@@ -203,11 +199,7 @@ test "keeps the highest-scoring increments and orders them by source position" {
 test "topLine breaks ties by earliest source position" {
     const gpa = std.testing.allocator;
     const source = "fn f() void {\n    var a: u32 = 0;\n    var b: u32 = 0;\n}\n";
-    var tree = try Ast.parse(
-        gpa,
-        source,
-        .zig,
-    );
+    var tree = try Ast.parse(gpa, source, .{ .mode = .zig });
     defer tree.deinit(gpa);
 
     var var_tokens: [2]Ast.TokenIndex = undefined;
@@ -230,11 +222,7 @@ test "topLine breaks ties by earliest source position" {
 
 test "topLine returns null for no increments" {
     const gpa = std.testing.allocator;
-    var tree = try Ast.parse(
-        gpa,
-        "fn f() void {}",
-        .zig,
-    );
+    var tree = try Ast.parse(gpa, "fn f() void {}", .{ .mode = .zig });
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(?usize, null), topLine(&tree, &.{}));
@@ -242,11 +230,7 @@ test "topLine returns null for no increments" {
 
 test "returns an empty slice when there are no increments" {
     const gpa = std.testing.allocator;
-    var tree = try Ast.parse(
-        gpa,
-        "fn f() void {}",
-        .zig,
-    );
+    var tree = try Ast.parse(gpa, "fn f() void {}", .{ .mode = .zig });
     defer tree.deinit(gpa);
 
     const spans = try buildSpans(

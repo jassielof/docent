@@ -165,11 +165,7 @@ test "collects call, builtin call, array-init, and fn-proto lists" {
     ;
     const source_z = try gpa.dupeZ(u8, source);
     defer gpa.free(source_z);
-    var tree = try Ast.parse(
-        gpa,
-        source_z,
-        .zig,
-    );
+    var tree = try Ast.parse(gpa, source_z, .{ .mode = .zig });
     defer tree.deinit(gpa);
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
 
@@ -203,11 +199,7 @@ test "excludes array-init elements from independent forcing" {
     ;
     const source_z = try gpa.dupeZ(u8, source);
     defer gpa.free(source_z);
-    var tree = try Ast.parse(
-        gpa,
-        source_z,
-        .zig,
-    );
+    var tree = try Ast.parse(gpa, source_z, .{ .mode = .zig });
     defer tree.deinit(gpa);
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
 
@@ -259,11 +251,7 @@ pub fn renderSource(
     const source_z = try gpa.dupeZ(u8, source);
     defer gpa.free(source_z);
 
-    var tree = try Ast.parse(
-        gpa,
-        source_z,
-        mode,
-    );
+    var tree = try Ast.parse(gpa, source_z, .{ .mode = mode });
     defer tree.deinit(gpa);
     if (tree.errors.len != 0) return gpa.dupe(u8, source);
 

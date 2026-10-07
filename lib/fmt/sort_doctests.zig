@@ -208,11 +208,7 @@ pub fn sortDoctests(gpa: Allocator, input: []const u8) Allocator.Error![]u8 {
     const sentinel = try gpa.dupeZ(u8, input);
     defer gpa.free(sentinel);
 
-    var tree = std.zig.Ast.parse(
-        gpa,
-        sentinel,
-        .zig,
-    ) catch return gpa.dupe(u8, input);
+    var tree = std.zig.Ast.parse(gpa, sentinel, .{ .mode = .zig }) catch return gpa.dupe(u8, input);
     defer tree.deinit(gpa);
     if (tree.errors.len != 0) return gpa.dupe(u8, input);
 

@@ -60,7 +60,7 @@ test "enforces logical blank lines" {
         \\const mem = std.mem;
         \\fn example(gpa: std.mem.Allocator) void {
         \\    const source_code = "test";
-        \\    var tree = std.zig.Ast.parse(gpa, source_code, .zig) catch return;
+        \\    var tree = std.zig.Ast.parse(gpa, source_code, .{ .mode = .zig }) catch return;
         \\    defer tree.deinit(gpa);
         \\    if (tree.errors.len != 0) {
         \\        std.debug.print("errors", .{});
@@ -146,7 +146,7 @@ test "enforces logical blank lines" {
         \\
         \\fn example(gpa: std.mem.Allocator) void {
         \\    const source_code = "test";
-        \\    var tree = std.zig.Ast.parse(gpa, source_code, .zig) catch return;
+        \\    var tree = std.zig.Ast.parse(gpa, source_code, .{ .mode = .zig }) catch return;
         \\    defer tree.deinit(gpa);
         \\
         \\    if (tree.errors.len != 0) {

@@ -360,11 +360,7 @@ pub fn addTrailingCommas(
     const source_z = try gpa.dupeZ(u8, input);
     defer gpa.free(source_z);
 
-    var tree = try Ast.parse(
-        gpa,
-        source_z,
-        mode,
-    );
+    var tree = try Ast.parse(gpa, source_z, .{ .mode = mode });
     defer tree.deinit(gpa);
     if (tree.errors.len != 0) return gpa.dupe(u8, input);
 

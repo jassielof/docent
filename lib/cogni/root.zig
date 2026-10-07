@@ -693,11 +693,7 @@ fn isDirectRecursion(
 
 fn complexityOfFirstFn(source: [:0]const u8) !u32 {
     const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(
-        allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(allocator, source, .{ .mode = .zig });
     defer tree.deinit(allocator);
 
     for (tree.rootDecls()) |decl| {
@@ -852,11 +848,7 @@ test "check populates primary_label and spans for an over-threshold function" {
         \\}
         \\
     ;
-    var tree = try std.zig.Ast.parse(
-        allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(allocator, source, .{ .mode = .zig });
     defer tree.deinit(allocator);
 
     // `check` allocates diagnostic strings (subject, detail, spans, ...)
@@ -927,11 +919,7 @@ fn runCheck(
     msg_allocator: std.mem.Allocator,
 ) !void {
     const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(
-        allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(allocator, source, .{ .mode = .zig });
     defer tree.deinit(allocator);
 
     try check(

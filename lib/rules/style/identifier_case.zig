@@ -787,11 +787,7 @@ fn resolveImportedFileKind(
         ) catch break :blk null;
         defer allocator.free(source);
 
-        var imported = std.zig.Ast.parse(
-            allocator,
-            source,
-            .zig,
-        ) catch break :blk null;
+        var imported = std.zig.Ast.parse(allocator, source, .{ .mode = .zig }) catch break :blk null;
         defer imported.deinit(allocator);
 
         break :blk doc_comment.fileIsNamespace(&imported);
@@ -1024,11 +1020,7 @@ fn isExemptName(name: []const u8) bool {
 
 test "inactive severity yields no diagnostics" {
     const base = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(
-        base,
-        "pub fn DoThing() void {}",
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(base, "pub fn DoThing() void {}", .{ .mode = .zig });
     defer tree.deinit(base);
     var diagnostics: std.ArrayList(Diagnostic) = .empty;
     defer diagnostics.deinit(base);
@@ -1052,11 +1044,7 @@ fn runCheck(
     msg_allocator: std.mem.Allocator,
 ) !void {
     const allocator = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(
-        allocator,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(allocator, source, .{ .mode = .zig });
     defer tree.deinit(allocator);
 
     try check(

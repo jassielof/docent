@@ -103,11 +103,7 @@ fn nestedLengthArraySource(allocator: std.mem.Allocator, depth: usize) ![:0]u8 {
 
 test "ordinary declarations are not flagged" {
     const gpa = std.testing.allocator;
-    var tree = try std.zig.Ast.parse(
-        gpa,
-        "const a: [3]u8 = undefined;\nconst b: [3][4][5]u8 = undefined;\n",
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(gpa, "const a: [3]u8 = undefined;\nconst b: [3][4][5]u8 = undefined;\n", .{ .mode = .zig });
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
@@ -119,11 +115,7 @@ test "a chain within the configured limit is not flagged" {
     const source = try nestedLengthArraySource(gpa, 10);
     defer gpa.free(source);
 
-    var tree = try std.zig.Ast.parse(
-        gpa,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(gpa, source, .{ .mode = .zig });
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
@@ -135,11 +127,7 @@ test "a chain past the configured limit is flagged (zig#35714)" {
     const source = try nestedLengthArraySource(gpa, 24);
     defer gpa.free(source);
 
-    var tree = try std.zig.Ast.parse(
-        gpa,
-        source,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(gpa, source, .{ .mode = .zig });
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
@@ -169,11 +157,7 @@ test "multi-dimensional arrays nested through the element type are not flagged" 
     const source_z = try gpa.dupeZ(u8, source.items);
     defer gpa.free(source_z);
 
-    var tree = try std.zig.Ast.parse(
-        gpa,
-        source_z,
-        .zig,
-    );
+    var tree = try std.zig.Ast.parse(gpa, source_z, .{ .mode = .zig });
     defer tree.deinit(gpa);
 
     try std.testing.expectEqual(@as(usize, 0), tree.errors.len);
