@@ -15,15 +15,15 @@ pub fn applyRuleOverride(rs: *RuleSeverities, kv: fangz.KeyValuePair) RuleConfig
     const sev = std.meta.stringToEnum(SeverityLevel, kv.value) orelse
         return error.InvalidSeverity;
 
-    inline for (@typeInfo(RuleSeverities).@"struct".fields) |f| {
+    inline for (@typeInfo(RuleSeverities).@"struct".field_names) |name| {
         if (std.mem.eql(
             u8,
-            f.name,
+            name,
             kv.key,
         )) {
-            const current = @field(rs, f.name);
+            const current = @field(rs, name);
             if (current == .forbid and sev != .forbid) return;
-            @field(rs, f.name) = sev;
+            @field(rs, name) = sev;
             return;
         }
     }

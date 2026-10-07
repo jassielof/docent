@@ -145,8 +145,8 @@ test "fromConfigString rejects unknown spellings" {
 }
 
 test "label round-trips through fromConfigString" {
-    inline for (@typeInfo(Style).@"enum".fields) |field| {
-        const style: Style = @enumFromInt(field.value);
+    inline for (@typeInfo(Style).@"enum".field_names) |name| {
+        const style: Style = @field(Style, name);
         try std.testing.expectEqual(style, Style.fromConfigString(style.label()).?);
     }
 }

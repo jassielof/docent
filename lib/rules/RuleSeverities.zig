@@ -28,9 +28,9 @@ identifier_case: severity.Level = style.identifier_case.default_severity,
 
 /// Comptime-computed array of all rule field names in declaration order.
 const _field_names_buf = init: {
-    const fields = @typeInfo(@This()).@"struct".fields;
-    var names: [fields.len][]const u8 = undefined;
-    for (fields, 0..) |f, i| names[i] = f.name;
+    const field_names = @typeInfo(@This()).@"struct".field_names;
+    var names: [field_names.len][]const u8 = undefined;
+    for (field_names, 0..) |name, i| names[i] = name;
     break :init names;
 };
 
