@@ -87,7 +87,7 @@ jobs:
           zig build docent --summary all -- fmt zig-upstream/lib
           git -C zig-upstream/lib diff --exit-code
       - name: Test suite with the formatted library
-        run: zig build test --summary all --zig-lib-dir zig-upstream/lib
+        run: zig build --zig-lib=zig-upstream/lib test --summary all
   docs:
     runs-on: ubuntu-latest
     needs: test
