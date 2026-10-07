@@ -6,17 +6,12 @@ const std = @import("std");
 ///
 /// The stdlib does not ship a manifest schema type. At comptime, build scripts may
 /// `@import("build.zig.zon")`; at runtime, callers define a partial struct and pass it
-/// to `std.zon.parse.fromSliceAlloc` (same pattern as fangz's `PartialManifest`).
+/// to `std.zon.parse.fromSlice` (same pattern as fangz's `PartialManifest`).
 ///
 /// `.name` is omitted here because it is a ZON enum literal (`.identifier`), not a string.
 const ManifestPartial = struct {
     version: ?[]const u8 = null,
     paths: ?[]const []const u8 = null,
-};
-
-const parse_options: std.zon.parse.Options = .{
-    .ignore_unknown_fields = true,
-    .free_on_error = true,
 };
 
 /// Package identity from `build.zig.zon` (when present).
@@ -62,20 +57,24 @@ fn scanPackageName(manifest_text: []const u8) ?[]const u8 {
     return manifest_text[start..i];
 }
 
-fn parseManifestPartial(allocator: std.mem.Allocator, manifest_text: []const u8) !ManifestPartial {
-    const source = try allocator.dupeSentinel(u8, manifest_text, 0);
-    defer allocator.free(source);
+/// Parses the manifest into `arena`, which must outlive the returned value.
+fn parseManifestPartial(
+    arena: std.mem.Allocator,
+    scratch: std.mem.Allocator,
+    manifest_text: []const u8,
+) !ManifestPartial {
+    const source = try scratch.dupeSentinel(u8, manifest_text, 0);
+    defer scratch.free(source);
 
-    var diag: std.zon.parse.Diagnostics = .{};
-    defer diag.deinit(allocator);
+    var diag: std.zon.parse.Diagnostics = undefined;
 
-    return try std.zon.parse.fromSliceAlloc(
-        ManifestPartial,
-        allocator,
-        source,
-        &diag,
-        parse_options,
-    );
+    return try std.zon.parse.fromSlice(ManifestPartial, .{
+        .gpa = scratch,
+        .arena = arena,
+        .source = source,
+        .diagnostics = &diag,
+        .ignore_unknown_fields = true,
+    });
 }
 
 fn realPathFileAlloc(
@@ -242,8 +241,10 @@ pub fn loadPackagePaths(
     );
     defer allocator.free(manifest_text);
 
-    const manifest = try parseManifestPartial(allocator, manifest_text);
-    defer std.zon.parse.free(allocator, manifest);
+    var manifest_arena = std.heap.ArenaAllocator.init(allocator);
+    defer manifest_arena.deinit();
+
+    const manifest = try parseManifestPartial(manifest_arena.allocator(), allocator, manifest_text);
 
     const dir = try manifestDir(manifest_path);
     const paths_field = manifest.paths orelse return error.ManifestPathsNotFound;
@@ -328,9 +329,11 @@ pub fn loadPackageMeta(
     }
 
     var version: ?[]const u8 = null;
-    const parsed = parseManifestPartial(allocator, manifest_text) catch null;
+    var manifest_arena = std.heap.ArenaAllocator.init(allocator);
+    defer manifest_arena.deinit();
+
+    const parsed = parseManifestPartial(manifest_arena.allocator(), allocator, manifest_text) catch null;
     if (parsed) |manifest| {
-        defer std.zon.parse.free(allocator, manifest);
         if (manifest.version) |v| version = try allocator.dupe(u8, v);
     }
 
