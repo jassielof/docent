@@ -182,8 +182,7 @@ pub fn formatStdin(
             defer zir.deinit(gpa);
 
             if (zir.hasCompileErrors()) {
-                var wip_errors: std.zig.ErrorBundle.Wip = undefined;
-                try wip_errors.init(gpa);
+                var wip_errors: std.zig.ErrorBundle.Wip = try .init(gpa);
                 defer wip_errors.deinit();
                 try wip_errors.addZirErrorMessages(
                     zir,
@@ -209,8 +208,7 @@ pub fn formatStdin(
             defer zoir.deinit(gpa);
 
             if (zoir.hasCompileErrors()) {
-                var wip_errors: std.zig.ErrorBundle.Wip = undefined;
-                try wip_errors.init(gpa);
+                var wip_errors: std.zig.ErrorBundle.Wip = try .init(gpa);
                 defer wip_errors.deinit();
                 try wip_errors.addZoirErrorMessages(
                     zoir,
@@ -511,8 +509,7 @@ fn fmtPathFile(
                 defer zir.deinit(gpa);
 
                 if (zir.hasCompileErrors()) {
-                    var wip_errors: std.zig.ErrorBundle.Wip = undefined;
-                    try wip_errors.init(gpa);
+                    var wip_errors: std.zig.ErrorBundle.Wip = try .init(gpa);
                     defer wip_errors.deinit();
                     try wip_errors.addZirErrorMessages(
                         zir,
@@ -539,8 +536,7 @@ fn fmtPathFile(
                 defer zoir.deinit(gpa);
 
                 if (zoir.hasCompileErrors()) {
-                    var wip_errors: std.zig.ErrorBundle.Wip = undefined;
-                    try wip_errors.init(gpa);
+                    var wip_errors: std.zig.ErrorBundle.Wip = try .init(gpa);
                     defer wip_errors.deinit();
                     try wip_errors.addZoirErrorMessages(
                         zoir,
