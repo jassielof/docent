@@ -35,14 +35,14 @@ pub fn Rule(
 
 /// Fills each rule's unset (`null`) scan mode with the category default; call once after decoding.
 pub fn resolveScanModes(self: anytype) void {
-    inline for (std.meta.fields(@TypeOf(self.*))) |field| {
+    inline for (@typeInfo(@TypeOf(self.*)).@"struct".field_names) |field_name| {
         if (comptime std.mem.eql(
             u8,
-            field.name,
+            field_name,
             "scan_mode",
         )) continue;
-        if (@field(self, field.name).scan_mode == null) {
-            @field(self, field.name).scan_mode = self.scan_mode;
+        if (@field(self, field_name).scan_mode == null) {
+            @field(self, field_name).scan_mode = self.scan_mode;
         }
     }
 }
@@ -50,12 +50,12 @@ pub fn resolveScanModes(self: anytype) void {
 /// Overrides the category and every rule's scan mode for a single lint invocation, such as explicit path targets.
 pub fn applyRunScanMode(self: anytype, mode: scan.RuleScanConfig) void {
     self.scan_mode = mode;
-    inline for (std.meta.fields(@TypeOf(self.*))) |field| {
+    inline for (@typeInfo(@TypeOf(self.*)).@"struct".field_names) |field_name| {
         if (comptime std.mem.eql(
             u8,
-            field.name,
+            field_name,
             "scan_mode",
         )) continue;
-        @field(self, field.name).scan_mode = mode;
+        @field(self, field_name).scan_mode = mode;
     }
 }
