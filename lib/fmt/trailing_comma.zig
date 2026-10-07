@@ -304,7 +304,7 @@ test "uses asm's 2-space indent delta for a clobber list nested inside it" {
         \\pub fn syscall0(number: SYS) u64 {
         \\    return asm volatile ("syscall"
         \\        : [ret] "={rax}" (-> u64),
-        \\        : [number] "{rax}" (@intFromEnum(number)),
+        \\        : [number] "{rax}" (@backingInt(number)),
         \\        : .{
         \\          .rcx = true,
         \\          .r11 = true,
