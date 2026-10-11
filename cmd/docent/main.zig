@@ -11,6 +11,7 @@ const fangz = @import("fangz");
 const check_command = @import("check.zig");
 const fmt = @import("fmt.zig");
 const init_command = @import("init.zig");
+// TODO: Add statistics command ("stat/s") for summaries and statistics of the project, file number, lines of code (customizable as in, excluding blank lines, comments, doc comments, ending braces, etc.).
 const status_command = @import("status.zig");
 pub const registerStatusSubcommand = status_command.register;
 
