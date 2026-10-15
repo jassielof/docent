@@ -11,6 +11,10 @@ endif::[]
 :doctype: book
 :source-highlighter: rouge
 :stem: latexmath
+:linkcss:
+:!copycss:
+:stylesdir: https://jassielof.github.io/asciidoctor-styles/
+:stylesheet: article.css
 :repo: https://github.com/jassielof/docent/
 :default-repo-branch: main
 :repo-source: {repo}tree/{default-repo-branch}/
